@@ -23,11 +23,17 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -43,7 +49,7 @@ public class RestMainAction extends BaseRestHandler {
 
     @Inject
     public RestMainAction(Settings settings, Version version, RestController controller, ClusterName clusterName, Client client, ClusterService clusterService) {
-        super(settings, controller, client);
+        super(settings, client);
         this.version = version;
         this.clusterName = clusterName;
         this.clusterService = clusterService;
@@ -71,15 +77,14 @@ public class RestMainAction extends BaseRestHandler {
         }
 
         builder.startObject();
-        if (settings.get("name") != null) {
-            builder.field("name", settings.get("name"));
-        }
+        assert settings.get("node.name") != null;
+        builder.field("name", Node.NODE_NAME_SETTING.get(settings));
         builder.field("cluster_name", clusterName.value());
         builder.startObject("version")
-                .field("number", version.number())
-                .field("build_hash", Build.CURRENT.hash())
-                .field("build_timestamp", Build.CURRENT.timestamp())
-                .field("build_snapshot", version.snapshot)
+                .field("number", version.toString())
+                .field("build_hash", Build.CURRENT.shortHash())
+                .field("build_date", Build.CURRENT.date())
+                .field("build_snapshot", Build.CURRENT.isSnapshot())
                 .field("lucene_version", version.luceneVersion.toString())
                 .endObject();
         builder.field("tagline", "You Know, for Search");

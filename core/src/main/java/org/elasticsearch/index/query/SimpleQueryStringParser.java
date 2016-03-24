@@ -19,22 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -43,7 +33,6 @@ import java.util.Map;
  * SimpleQueryStringParser is a query parser that acts similar to a query_string
  * query, but won't throw exceptions for any weird string syntax. It supports
  * the following:
- * <p/>
  * <ul>
  * <li>'{@code +}' specifies {@code AND} operation: <tt>token1+token2</tt>
  * <li>'{@code |}' specifies {@code OR} operation: <tt>token1|token2</tt>
@@ -54,14 +43,14 @@ import java.util.Map;
  * <li>'{@code ~}N' at the end of terms specifies fuzzy query: <tt>term~1</tt>
  * <li>'{@code ~}N' at the end of phrases specifies near/slop query: <tt>"term1 term2"~5</tt>
  * </ul>
- * <p/>
- * See: {@link XSimpleQueryParser} for more information.
- * <p/>
+ * <p>
+ * See: {@link SimpleQueryParser} for more information.
+ * <p>
  * This query supports these options:
- * <p/>
+ * <p>
  * Required:
  * {@code query} - query text to be converted into other queries
- * <p/>
+ * <p>
  * Optional:
  * {@code analyzer} - anaylzer to be used for analyzing tokens to determine
  * which kind of query they should be converted into, defaults to "standard"
@@ -70,42 +59,48 @@ import java.util.Map;
  * {@code fields} - fields to search, defaults to _all if not set, allows
  * boosting a field with ^n
  */
-public class SimpleQueryStringParser implements QueryParser {
+public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBuilder> {
 
-    public static final String NAME = "simple_query_string";
-
-    @Inject
-    public SimpleQueryStringParser(Settings settings) {
-
-    }
+    public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
+    public static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
+    public static final ParseField LENIENT_FIELD = new ParseField("lenient");
+    public static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms");
+    public static final ParseField LOCALE_FIELD = new ParseField("locale");
+    public static final ParseField FLAGS_FIELD = new ParseField("flags");
+    public static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
+    public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SimpleQueryStringBuilder.NAME, Strings.toCamelCase(SimpleQueryStringBuilder.NAME)};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String currentFieldName = null;
         String queryBody = null;
-        float boost = 1.0f; 
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
-        String field = null;
         String minimumShouldMatch = null;
-        Map<String, Float> fieldsAndWeights = null;
-        BooleanClause.Occur defaultOperator = null;
-        Analyzer analyzer = null;
-        int flags = -1;
-        SimpleQueryParser.Settings sqsSettings = new SimpleQueryParser.Settings();
+        Map<String, Float> fieldsAndWeights = new HashMap<>();
+        Operator defaultOperator = null;
+        String analyzerName = null;
+        int flags = SimpleQueryStringFlag.ALL.value();
+        boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
+        boolean lowercaseExpandedTerms = SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
+        boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
+        Locale locale = null;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("fields".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String fField = null;
                         float fBoost = 1;
@@ -122,51 +117,21 @@ public class SimpleQueryStringParser implements QueryParser {
                         if (fField == null) {
                             fField = parser.text();
                         }
-
-                        if (fieldsAndWeights == null) {
-                            fieldsAndWeights = new HashMap<>();
-                        }
-
-                        if (Regex.isSimpleMatchPattern(fField)) {
-                            for (String fieldName : parseContext.mapperService().simpleMatchToIndexNames(fField)) {
-                                fieldsAndWeights.put(fieldName, fBoost);
-                            }
-                        } else {
-                            MappedFieldType fieldType = parseContext.fieldMapper(fField);
-                            if (fieldType != null) {
-                                fieldsAndWeights.put(fieldType.names().indexName(), fBoost);
-                            } else {
-                                fieldsAndWeights.put(fField, fBoost);
-                            }
-                        }
+                        fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext,
- "[" + NAME + "] query does not support [" + currentFieldName
- + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("query".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     queryBody = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("analyzer".equals(currentFieldName)) {
-                    analyzer = parseContext.analysisService().analyzer(parser.text());
-                    if (analyzer == null) {
-                        throw new QueryParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
-                    }
-                } else if ("field".equals(currentFieldName)) {
-                    field = parser.text();
-                } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
-                    String op = parser.text();
-                    if ("or".equalsIgnoreCase(op)) {
-                        defaultOperator = BooleanClause.Occur.SHOULD;
-                    } else if ("and".equalsIgnoreCase(op)) {
-                        defaultOperator = BooleanClause.Occur.MUST;
-                    } else {
-                        throw new QueryParsingException(parseContext, "[" + NAME + "] default operator [" + op + "] is not allowed");
-                    }
-                } else if ("flags".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
+                    analyzerName = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, DEFAULT_OPERATOR_FIELD)) {
+                    defaultOperator = Operator.fromString(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FLAGS_FIELD)) {
                     if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
                         // Possible options are:
                         // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE, FUZZY, NEAR, SLOP
@@ -177,68 +142,41 @@ public class SimpleQueryStringParser implements QueryParser {
                             flags = SimpleQueryStringFlag.ALL.value();
                         }
                     }
-                } else if ("locale".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
                     String localeStr = parser.text();
-                    Locale locale = LocaleUtils.parse(localeStr);
-                    sqsSettings.locale(locale);
-                } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
-                    sqsSettings.lowercaseExpandedTerms(parser.booleanValue());
-                } else if ("lenient".equals(currentFieldName)) {
-                    sqsSettings.lenient(parser.booleanValue());
-                } else if ("analyze_wildcard".equals(currentFieldName)) {
-                    sqsSettings.analyzeWildcard(parser.booleanValue());
-                } else if ("_name".equals(currentFieldName)) {
+                    locale = Locale.forLanguageTag(localeStr);
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOWERCASE_EXPANDED_TERMS_FIELD)) {
+                    lowercaseExpandedTerms = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
+                    lenient = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZE_WILDCARD_FIELD)) {
+                    analyzeWildcard = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("minimum_should_match".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
                     minimumShouldMatch = parser.textOrNull();
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 
         // Query text is required
         if (queryBody == null) {
-            throw new QueryParsingException(parseContext, "[" + NAME + "] query text missing");
-        }
-        
-        // Support specifying only a field instead of a map
-        if (field == null) {
-            field = currentFieldName;
+            throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
         }
 
-        // Use the default field (_all) if no fields specified
-        if (fieldsAndWeights == null) {
-            field = parseContext.defaultField();
-        }
+        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
+        qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
+        qb.flags(flags).defaultOperator(defaultOperator).locale(locale).lowercaseExpandedTerms(lowercaseExpandedTerms);
+        qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost);
+        return qb;
+    }
 
-        // Use standard analyzer by default
-        if (analyzer == null) {
-            analyzer = parseContext.mapperService().searchAnalyzer();
-        }
-
-        if (fieldsAndWeights == null) {
-            fieldsAndWeights = Collections.singletonMap(field, 1.0F);
-        }
-        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, flags, sqsSettings);
-
-        if (defaultOperator != null) {
-            sqp.setDefaultOperator(defaultOperator);
-        }
-
-        Query query = sqp.parse(queryBody);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-
-        if (minimumShouldMatch != null && query instanceof BooleanQuery) {
-            Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        }
-
-        if (query != null) {
-            query.setBoost(boost);
-        }
-
-        return query;
+    @Override
+    public SimpleQueryStringBuilder getBuilderPrototype() {
+        return SimpleQueryStringBuilder.PROTOTYPE;
     }
 }

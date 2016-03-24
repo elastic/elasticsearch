@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.core;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -31,23 +32,26 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         return new DateFieldMapper.DateFieldType();
     }
 
-    @Override
-    protected Object dummyNullValue() {
-        return 10;
-    }
-
-    @Override
-    protected int numProperties() {
-        return 2 + super.numProperties();
-    }
-
-    @Override
-    protected void modifyProperty(MappedFieldType ft, int propNum) {
-        DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType)ft;
-        switch (propNum) {
-            case 0: dft.setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT)); break;
-            case 1: dft.setTimeUnit(TimeUnit.HOURS); break;
-            default: super.modifyProperty(ft, propNum - 2);
-        }
+    @Before
+    public void setupProperties() {
+        setDummyNullValue(10);
+        addModifier(new Modifier("format", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((DateFieldMapper.DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+            }
+        });
+        addModifier(new Modifier("locale", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((DateFieldMapper.DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
+            }
+        });
+        addModifier(new Modifier("numeric_resolution", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((DateFieldMapper.DateFieldType)ft).setTimeUnit(TimeUnit.HOURS);
+            }
+        });
     }
 }

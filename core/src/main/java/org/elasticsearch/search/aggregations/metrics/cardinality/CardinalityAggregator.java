@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.carrotsearch.hppc.BitMixer;
-import com.google.common.base.Preconditions;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -56,7 +54,6 @@ import java.util.Map;
 public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final int precision;
-    private final boolean rehash;
     private final ValuesSource valuesSource;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
@@ -66,11 +63,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private Collector collector;
     private ValueFormatter formatter;
 
-    public CardinalityAggregator(String name, ValuesSource valuesSource, boolean rehash, int precision, ValueFormatter formatter,
+    public CardinalityAggregator(String name, ValuesSource valuesSource, int precision, ValueFormatter formatter,
             AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
-        this.rehash = rehash;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
         this.formatter = formatter;
@@ -84,13 +80,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private Collector pickCollector(LeafReaderContext ctx) throws IOException {
         if (valuesSource == null) {
             return new EmptyCollector();
-        }
-        // if rehash is false then the value source is either already hashed, or the user explicitly
-        // requested not to hash the values (perhaps they already hashed the values themselves before indexing the doc)
-        // so we can just work with the original value source as is
-        if (!rehash) {
-            MurmurHash3Values hashValues = MurmurHash3Values.cast(((ValuesSource.Numeric) valuesSource).longValues(ctx));
-            return new DirectCollector(counts, hashValues);
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
@@ -243,7 +232,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private ObjectArray<FixedBitSet> visitedOrds;
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, RandomAccessOrds values, BigArrays bigArrays) {
-            Preconditions.checkArgument(values.getValueCount() <= Integer.MAX_VALUE);
+            if (values.getValueCount() > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException();
+            }
             maxOrd = (int) values.getValueCount();
             this.bigArrays = bigArrays;
             this.counts = counts;

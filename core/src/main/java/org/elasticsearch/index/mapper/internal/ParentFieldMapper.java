@@ -18,32 +18,35 @@
  */
 package org.elasticsearch.index.mapper.internal;
 
-import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,8 +54,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 
 /**
@@ -66,52 +69,54 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = ParentFieldMapper.NAME;
 
-        public static final MappedFieldType FIELD_TYPE = new ParentFieldType();
+        public static final ParentFieldType FIELD_TYPE = new ParentFieldType();
 
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE.setHasDocValues(true);
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
             FIELD_TYPE.freeze();
         }
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder, ParentFieldMapper> {
 
-        protected String indexName;
+        private String parentType;
 
-        private String type;
+        private final String documentType;
 
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
-            this.indexName = name;
+        public Builder(String documentType) {
+            super(Defaults.NAME, new ParentFieldType(Defaults.FIELD_TYPE, documentType), Defaults.FIELD_TYPE);
+            this.documentType = documentType;
             builder = this;
         }
 
         public Builder type(String type) {
-            this.type = type;
+            this.parentType = type;
+            return builder;
+        }
+
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+            ((ParentFieldType) fieldType()).setEagerGlobalOrdinals(eagerGlobalOrdinals);
             return builder;
         }
 
         @Override
         public ParentFieldMapper build(BuilderContext context) {
-            if (type == null) {
+            if (parentType == null) {
                 throw new MapperParsingException("[_parent] field mapping must contain the [type] option");
             }
+            name = joinField(parentType);
             setupFieldType(context);
-            fieldType.setHasDocValues(context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1));
-            return new ParentFieldMapper(fieldType, type, context.indexSettings());
+            return new ParentFieldMapper(createParentJoinFieldMapper(documentType, context), fieldType, parentType, context.indexSettings());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
+        private static final ParseField FIELDDATA = new ParseField("fielddata").withAllDeprecated("eager_global_ordinals");
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder();
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            Builder builder = new Builder(parserContext.type());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -119,31 +124,55 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (fieldName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    // ignore before 2.0, reject on and after 2.0
-                    iterator.remove();
-                } else if (fieldName.equals("fielddata")) {
-                    // Only take over `loading`, since that is the only option now that is configurable:
+                } else if (parserContext.parseFieldMatcher().match(fieldName, FIELDDATA)) {
+                    // for bw compat only
                     Map<String, String> fieldDataSettings = SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(fieldNode, "fielddata"));
-                    if (fieldDataSettings.containsKey(MappedFieldType.Loading.KEY)) {
-                        Settings settings = settingsBuilder().put(MappedFieldType.Loading.KEY, fieldDataSettings.get(MappedFieldType.Loading.KEY)).build();
-                        builder.fieldDataSettings(settings);
+                    if (fieldDataSettings.containsKey("loading")) {
+                        builder.eagerGlobalOrdinals("eager_global_ordinals".equals(fieldDataSettings.get("loading")));
                     }
+                    iterator.remove();
+                } else if (fieldName.equals("eager_global_ordinals")) {
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode));
                     iterator.remove();
                 }
             }
             return builder;
         }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            KeywordFieldMapper parentJoinField = createParentJoinFieldMapper(typeName, new BuilderContext(indexSettings, new ContentPath(0)));
+            MappedFieldType childJoinFieldType = Defaults.FIELD_TYPE.clone();
+            childJoinFieldType.setName(joinField(null));
+            return new ParentFieldMapper(parentJoinField, childJoinFieldType, null, indexSettings);
+        }
+    }
+
+    static KeywordFieldMapper createParentJoinFieldMapper(String docType, BuilderContext context) {
+        KeywordFieldMapper.Builder parentJoinField = new KeywordFieldMapper.Builder(joinField(docType));
+        parentJoinField.indexOptions(IndexOptions.NONE);
+        parentJoinField.docValues(true);
+        parentJoinField.fieldType().setDocValuesType(DocValuesType.SORTED);
+        return parentJoinField.build(context);
     }
 
     static final class ParentFieldType extends MappedFieldType {
 
+        final String documentType;
+
         public ParentFieldType() {
-            setFieldDataType(new FieldDataType("_parent", settingsBuilder().put(MappedFieldType.Loading.KEY, Loading.EAGER_VALUE)));
+            documentType = null;
+            setEagerGlobalOrdinals(true);
         }
 
-        protected ParentFieldType(ParentFieldType ref) {
+        ParentFieldType(ParentFieldType ref, String documentType) {
             super(ref);
+            this.documentType = documentType;
+        }
+
+        private ParentFieldType(ParentFieldType ref) {
+            super(ref);
+            this.documentType = ref.documentType;
         }
 
         @Override
@@ -156,30 +185,6 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
-        @Override
-        public Uid value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return Uid.createUid(value.toString());
-        }
-
-        @Override
-        public Object valueForSearch(Object value) {
-            if (value == null) {
-                return null;
-            }
-            String sValue = value.toString();
-            if (sValue == null) {
-                return null;
-            }
-            int index = sValue.indexOf(Uid.DELIMITER);
-            if (index == -1) {
-                return sValue;
-            }
-            return sValue.substring(index + 1);
-        }
-
         /**
          * We don't need to analyzer the text, and we need to convert it to UID...
          */
@@ -189,58 +194,45 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        public Query termQuery(Object value, @Nullable QueryShardContext context) {
             return termsQuery(Collections.singletonList(value), context);
         }
 
         @Override
-        public Query termsQuery(List values, @Nullable QueryParseContext context) {
-            if (context == null) {
-                return super.termsQuery(values, context);
+        public Query termsQuery(List values, @Nullable QueryShardContext context) {
+            BytesRef[] ids = new BytesRef[values.size()];
+            for (int i = 0; i < ids.length; i++) {
+                ids[i] = indexedValueForSearch(values.get(i));
             }
+            BooleanQuery.Builder query = new BooleanQuery.Builder();
+            query.add(new DocValuesTermsQuery(name(), ids), BooleanClause.Occur.MUST);
+            query.add(new TermQuery(new Term(TypeFieldMapper.NAME, documentType)), BooleanClause.Occur.FILTER);
+            return query.build();
+        }
 
-            List<String> types = new ArrayList<>(context.mapperService().types().size());
-            for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
-                if (!documentMapper.parentFieldMapper().active()) {
-                    types.add(documentMapper.type());
-                }
-            }
-
-            List<BytesRef> bValues = new ArrayList<>(values.size());
-            for (Object value : values) {
-                BytesRef bValue = BytesRefs.toBytesRef(value);
-                if (Uid.hasDelimiter(bValue)) {
-                    bValues.add(bValue);
-                } else {
-                    // we use all non child types, cause we don't know if its exact or not...
-                    for (String type : types) {
-                        bValues.add(Uid.createUidAsBytes(type, bValue));
-                    }
-                }
-            }
-            return new TermsQuery(names().indexName(), bValues);
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            return new ParentChildIndexFieldData.Builder();
         }
     }
 
-    private final String type;
+    private final String parentType;
+    // has no impact of field data settings, is just here for creating a join field,
+    // the parent field mapper in the child type pointing to this type determines the field data settings for this join field
+    private final KeywordFieldMapper parentJoinField;
 
-    protected ParentFieldMapper(MappedFieldType fieldType, String type, Settings indexSettings) {
-        super(NAME, setupDocValues(indexSettings, fieldType), setupDocValues(indexSettings, Defaults.FIELD_TYPE), indexSettings);
-        this.type = type;
+    private ParentFieldMapper(KeywordFieldMapper parentJoinField, MappedFieldType childJoinFieldType, String parentType, Settings indexSettings) {
+        super(NAME, childJoinFieldType, Defaults.FIELD_TYPE, indexSettings);
+        this.parentType = parentType;
+        this.parentJoinField = parentJoinField;
     }
 
-    public ParentFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), null, indexSettings);
-    }
-
-    static MappedFieldType setupDocValues(Settings indexSettings, MappedFieldType fieldType) {
-        fieldType = fieldType.clone();
-        fieldType.setHasDocValues(Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1));
-        return fieldType;
+    public MappedFieldType getParentJoinFieldType() {
+        return parentJoinField.fieldType();
     }
 
     public String type() {
-        return type;
+        return parentType;
     }
 
     @Override
@@ -249,16 +241,14 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (context.sourceToParse().flyweight() == false) {
-            parse(context);
-        }
+        parse(context);
     }
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         boolean parent = context.docMapper().isParent(context.type());
-        if (parent && fieldType().hasDocValues()) {
-            fields.add(createJoinField(context.type(), context.id()));
+        if (parent) {
+            fields.add(new SortedDocValuesField(parentJoinField.fieldType().name(), new BytesRef(context.id())));
         }
 
         if (!active()) {
@@ -269,10 +259,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             // we are in the parsing of _parent phase
             String parentId = context.parser().text();
             context.sourceToParse().parent(parentId);
-            fields.add(new Field(fieldType().names().indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType()));
-            if (fieldType().hasDocValues()) {
-                fields.add(createJoinField(type, parentId));
-            }
+            fields.add(new SortedDocValuesField(fieldType.name(), new BytesRef(parentId)));
         } else {
             // otherwise, we are running it post processing of the xcontent
             String parsedParentId = context.doc().get(Defaults.NAME);
@@ -283,21 +270,13 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                         throw new MapperParsingException("No parent id provided, not within the document, and not externally");
                     }
                     // we did not add it in the parsing phase, add it now
-                    fields.add(new Field(fieldType().names().indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType()));
-                    if (fieldType().hasDocValues()) {
-                        fields.add(createJoinField(type, parentId));
-                    }
-                } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), type, parentId))) {
+                    fields.add(new SortedDocValuesField(fieldType.name(), new BytesRef(parentId)));
+                } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), parentType, parentId))) {
                     throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
                 }
             }
         }
         // we have parent mapping, yet no value was set, ignore it...
-    }
-
-    private SortedDocValuesField createJoinField(String parentType, String id) {
-        String joinField = joinField(parentType);
-        return new SortedDocValuesField(joinField, new BytesRef(id));
     }
 
     public static String joinField(String parentType) {
@@ -310,6 +289,11 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
+    public Iterator<Mapper> iterator() {
+        return Collections.<Mapper>singleton(parentJoinField).iterator();
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!active()) {
             return builder;
@@ -317,20 +301,30 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         builder.startObject(CONTENT_TYPE);
-        builder.field("type", type);
-        if (includeDefaults || hasCustomFieldDataSettings()) {
-            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
+        builder.field("type", parentType);
+        if (includeDefaults || fieldType().eagerGlobalOrdinals() != defaultFieldType.eagerGlobalOrdinals()) {
+            builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
         }
         builder.endObject();
         return builder;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
-        if (Objects.equal(type, fieldMergeWith.type) == false) {
-            mergeResult.addConflict("The _parent field's type option can't be changed: [" + type + "]->[" + fieldMergeWith.type + "]");
+        if (Objects.equals(parentType, fieldMergeWith.parentType) == false) {
+            throw new IllegalArgumentException("The _parent field's type option can't be changed: [" + parentType + "]->[" + fieldMergeWith.parentType + "]");
+        }
+
+        List<String> conflicts = new ArrayList<>();
+        fieldType().checkCompatibility(fieldMergeWith.fieldType, conflicts, true);
+        if (conflicts.isEmpty() == false) {
+            throw new IllegalArgumentException("Merge conflicts: " + conflicts);
+        }
+
+        if (active()) {
+            fieldType = fieldMergeWith.fieldType.clone();
         }
     }
 
@@ -338,7 +332,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
      * @return Whether the _parent field is actually configured.
      */
     public boolean active() {
-        return type != null;
+        return parentType != null;
     }
 
 }

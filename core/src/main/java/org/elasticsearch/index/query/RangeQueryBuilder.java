@@ -19,187 +19,117 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fieldstats.FieldStatsProvider;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A Query that matches documents within an range of terms.
  */
-public class RangeQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<RangeQueryBuilder> {
+public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder<RangeQueryBuilder> {
 
-    private final String name;
+    public static final boolean DEFAULT_INCLUDE_UPPER = true;
+
+    public static final boolean DEFAULT_INCLUDE_LOWER = true;
+
+    public static final String NAME = "range";
+
+    private final String fieldName;
+
     private Object from;
+
     private Object to;
-    private String timeZone;
-    private boolean includeLower = true;
-    private boolean includeUpper = true;
-    private float boost = -1;
-    private String queryName;
-    private String format;
+
+    private DateTimeZone timeZone;
+
+    private boolean includeLower = DEFAULT_INCLUDE_LOWER;
+
+    private boolean includeUpper = DEFAULT_INCLUDE_UPPER;
+
+    private FormatDateTimeFormatter format;
+
+    static final RangeQueryBuilder PROTOTYPE = new RangeQueryBuilder("field");
 
     /**
      * A Query that matches documents within an range of terms.
      *
-     * @param name The field name
+     * @param fieldName The field name
      */
-    public RangeQueryBuilder(String name) {
-        this.name = name;
+    public RangeQueryBuilder(String fieldName) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        this.fieldName = fieldName;
+    }
+
+    /**
+     * Get the field name for this query.
+     */
+    public String fieldName() {
+        return this.fieldName;
+    }
+
+    /**
+     * The from part of the range query. Null indicates unbounded.
+     * In case lower bound is assigned to a string, we internally convert it to a {@link BytesRef} because
+     * in {@link RangeQueryParser} field are later parsed as {@link BytesRef} and we need internal representation
+     * of query to be equal regardless of whether it was created from XContent or via Java API.
+     */
+    public RangeQueryBuilder from(Object from, boolean includeLower) {
+        this.from = convertToBytesRefIfString(from);
+        this.includeLower = includeLower;
+        return this;
     }
 
     /**
      * The from part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder from(Object from) {
-        this.from = from;
-        return this;
+        return from(from, this.includeLower);
     }
 
     /**
-     * The from part of the range query. Null indicates unbounded.
+     * Gets the lower range value for this query.
      */
-    public RangeQueryBuilder from(String from) {
-        this.from = from;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder from(int from) {
-        this.from = from;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder from(long from) {
-        this.from = from;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder from(float from) {
-        this.from = from;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder from(double from) {
-        this.from = from;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(String from) {
-        this.from = from;
-        this.includeLower = false;
-        return this;
+    public Object from() {
+        return convertToStringIfBytesRef(this.from);
     }
 
     /**
      * The from part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder gt(Object from) {
-        this.from = from;
-        this.includeLower = false;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(int from) {
-        this.from = from;
-        this.includeLower = false;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(long from) {
-        this.from = from;
-        this.includeLower = false;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(float from) {
-        this.from = from;
-        this.includeLower = false;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gt(double from) {
-        this.from = from;
-        this.includeLower = false;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gte(String from) {
-        this.from = from;
-        this.includeLower = true;
-        return this;
+        return from(from, false);
     }
 
     /**
      * The from part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder gte(Object from) {
-        this.from = from;
-        this.includeLower = true;
-        return this;
+        return from(from, true);
     }
 
     /**
-     * The from part of the range query. Null indicates unbounded.
+     * The to part of the range query. Null indicates unbounded.
      */
-    public RangeQueryBuilder gte(int from) {
-        this.from = from;
-        this.includeLower = true;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gte(long from) {
-        this.from = from;
-        this.includeLower = true;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gte(float from) {
-        this.from = from;
-        this.includeLower = true;
-        return this;
-    }
-
-    /**
-     * The from part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder gte(double from) {
-        this.from = from;
-        this.includeLower = true;
+    public RangeQueryBuilder to(Object to, boolean includeUpper) {
+        this.to = convertToBytesRefIfString(to);
+        this.includeUpper = includeUpper;
         return this;
     }
 
@@ -207,156 +137,31 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Boostabl
      * The to part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder to(Object to) {
-        this.to = to;
-        return this;
+        return to(to, this.includeUpper);
     }
 
     /**
-     * The to part of the range query. Null indicates unbounded.
+     * Gets the upper range value for this query.
+     * In case upper bound is assigned to a string, we internally convert it to a {@link BytesRef} because
+     * in {@link RangeQueryParser} field are later parsed as {@link BytesRef} and we need internal representation
+     * of query to be equal regardless of whether it was created from XContent or via Java API.
      */
-    public RangeQueryBuilder to(String to) {
-        this.to = to;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder to(int to) {
-        this.to = to;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder to(long to) {
-        this.to = to;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder to(float to) {
-        this.to = to;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder to(double to) {
-        this.to = to;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lt(String to) {
-        this.to = to;
-        this.includeUpper = false;
-        return this;
+    public Object to() {
+        return convertToStringIfBytesRef(this.to);
     }
 
     /**
      * The to part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder lt(Object to) {
-        this.to = to;
-        this.includeUpper = false;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lt(int to) {
-        this.to = to;
-        this.includeUpper = false;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lt(long to) {
-        this.to = to;
-        this.includeUpper = false;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lt(float to) {
-        this.to = to;
-        this.includeUpper = false;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lt(double to) {
-        this.to = to;
-        this.includeUpper = false;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(String to) {
-        this.to = to;
-        this.includeUpper = true;
-        return this;
+        return to(to, false);
     }
 
     /**
      * The to part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder lte(Object to) {
-        this.to = to;
-        this.includeUpper = true;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(int to) {
-        this.to = to;
-        this.includeUpper = true;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(long to) {
-        this.to = to;
-        this.includeUpper = true;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(float to) {
-        this.to = to;
-        this.includeUpper = true;
-        return this;
-    }
-
-    /**
-     * The to part of the range query. Null indicates unbounded.
-     */
-    public RangeQueryBuilder lte(double to) {
-        this.to = to;
-        this.includeUpper = true;
-        return this;
+        return to(to, true);
     }
 
     /**
@@ -368,6 +173,13 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Boostabl
     }
 
     /**
+     * Gets the includeLower flag for this query.
+     */
+    public boolean includeLower() {
+        return this.includeLower;
+    }
+
+    /**
      * Should the upper bound be included or not. Defaults to <tt>true</tt>.
      */
     public RangeQueryBuilder includeUpper(boolean includeUpper) {
@@ -376,60 +188,188 @@ public class RangeQueryBuilder extends MultiTermQueryBuilder implements Boostabl
     }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
+     * Gets the includeUpper flag for this query.
      */
-    @Override
-    public RangeQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public RangeQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public boolean includeUpper() {
+        return this.includeUpper;
     }
 
     /**
      * In case of date field, we can adjust the from/to fields using a timezone
      */
-    public RangeQueryBuilder timeZone(String timezone) {
-        this.timeZone = timezone;
+    public RangeQueryBuilder timeZone(String timeZone) {
+        if (timeZone == null) {
+            throw new IllegalArgumentException("timezone cannot be null");
+        }
+        this.timeZone = DateTimeZone.forID(timeZone);
         return this;
     }
 
     /**
-     * In case of date field, we can set the format to be used instead of the mapper format
+     * In case of date field, gets the from/to fields timezone adjustment
+     */
+    public String timeZone() {
+        return this.timeZone == null ? null : this.timeZone.getID();
+    }
+
+    /**
+     * In case of format field, we can parse the from/to fields using this time format
      */
     public RangeQueryBuilder format(String format) {
-        this.format = format;
+        if (format == null) {
+            throw new IllegalArgumentException("format cannot be null");
+        }
+        this.format = Joda.forPattern(format);
         return this;
+    }
+
+    /**
+     * Gets the format field to parse the from/to fields
+     */
+    public String format() {
+        return this.format == null ? null : this.format.format();
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(RangeQueryParser.NAME);
-        builder.startObject(name);
-        builder.field("from", from);
-        builder.field("to", to);
+        builder.startObject(NAME);
+        builder.startObject(fieldName);
+        builder.field(RangeQueryParser.FROM_FIELD.getPreferredName(), convertToStringIfBytesRef(this.from));
+        builder.field(RangeQueryParser.TO_FIELD.getPreferredName(), convertToStringIfBytesRef(this.to));
+        builder.field(RangeQueryParser.INCLUDE_LOWER_FIELD.getPreferredName(), includeLower);
+        builder.field(RangeQueryParser.INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
         if (timeZone != null) {
-            builder.field("time_zone", timeZone);
+            builder.field(RangeQueryParser.TIME_ZONE_FIELD.getPreferredName(), timeZone.getID());
         }
         if (format != null) {
-            builder.field("format", format);
+            builder.field(RangeQueryParser.FORMAT_FIELD.getPreferredName(), format.format());
         }
-        builder.field("include_lower", includeLower);
-        builder.field("include_upper", includeUpper);
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
         builder.endObject();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        FieldStatsProvider fieldStatsProvider = queryRewriteContext.getFieldStatsProvider();
+        // If the fieldStatsProvider is null we are not on the shard and cannot
+        // rewrite so just return without rewriting
+        if (fieldStatsProvider != null) {
+            DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
+            FieldStatsProvider.Relation relation = fieldStatsProvider.isFieldWithinQuery(fieldName, from, to, includeLower, includeUpper,
+                    timeZone, dateMathParser);
+            switch (relation) {
+            case DISJOINT:
+                return new MatchNoneQueryBuilder();
+            case WITHIN:
+                if (from != null || to != null) {
+                    RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
+                    newRangeQuery.from(null);
+                    newRangeQuery.to(null);
+                    newRangeQuery.format = format;
+                    newRangeQuery.timeZone = timeZone;
+                    return newRangeQuery;
+                } else {
+                    return this;
+                }
+            case INTERSECTS:
+                break;
+            }
+        }
+        return this;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query query = null;
+        MappedFieldType mapper = context.fieldMapper(this.fieldName);
+        if (mapper != null) {
+            if (mapper instanceof DateFieldMapper.DateFieldType) {
+                DateMathParser forcedDateParser = null;
+                if (this.format  != null) {
+                    forcedDateParser = new DateMathParser(this.format);
+                }
+                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser);
+            } else  {
+                if (timeZone != null) {
+                    throw new QueryShardException(context, "[range] time_zone can not be applied to non date field ["
+                            + fieldName + "]");
+                }
+                //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
+                query = mapper.rangeQuery(from, to, includeLower, includeUpper);
+            }
+        } else {
+            if (timeZone != null) {
+                throw new QueryShardException(context, "[range] time_zone can not be applied to non unmapped field ["
+                        + fieldName + "]");
+            }
+        }
+
+        if (query == null) {
+            query = new TermRangeQuery(this.fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
+        }
+        return query;
+    }
+
+    @Override
+    protected RangeQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(in.readString());
+        rangeQueryBuilder.from = in.readGenericValue();
+        rangeQueryBuilder.to = in.readGenericValue();
+        rangeQueryBuilder.includeLower = in.readBoolean();
+        rangeQueryBuilder.includeUpper = in.readBoolean();
+        String timeZoneId = in.readOptionalString();
+        if (timeZoneId != null) {
+            rangeQueryBuilder.timeZone = DateTimeZone.forID(timeZoneId);
+        }
+        String formatString = in.readOptionalString();
+        if (formatString != null) {
+            rangeQueryBuilder.format = Joda.forPattern(formatString);
+        }
+        return rangeQueryBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(this.fieldName);
+        out.writeGenericValue(this.from);
+        out.writeGenericValue(this.to);
+        out.writeBoolean(this.includeLower);
+        out.writeBoolean(this.includeUpper);
+        String timeZoneId = null;
+        if (this.timeZone != null) {
+            timeZoneId = this.timeZone.getID();
+        }
+        out.writeOptionalString(timeZoneId);
+        String formatString = null;
+        if (this.format != null) {
+            formatString = this.format.format();
+        }
+        out.writeOptionalString(formatString);
+    }
+
+    @Override
+    protected int doHashCode() {
+        String timeZoneId = timeZone == null ? null : timeZone.getID();
+        String formatString = format == null ? null : format.format();
+        return Objects.hash(fieldName, from, to, timeZoneId, includeLower, includeUpper, formatString);
+    }
+
+    @Override
+    protected boolean doEquals(RangeQueryBuilder other) {
+        String timeZoneId = timeZone == null ? null : timeZone.getID();
+        String formatString = format == null ? null : format.format();
+        return Objects.equals(fieldName, other.fieldName) &&
+               Objects.equals(from, other.from) &&
+               Objects.equals(to, other.to) &&
+               Objects.equals(timeZoneId, other.timeZone()) &&
+               Objects.equals(includeLower, other.includeLower) &&
+               Objects.equals(includeUpper, other.includeUpper) &&
+               Objects.equals(formatString, other.format());
     }
 }

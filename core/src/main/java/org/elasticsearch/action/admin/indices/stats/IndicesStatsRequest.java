@@ -28,10 +28,10 @@ import java.io.IOException;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
- * <p/>
- * <p>By default, all statistics are enabled.
- * <p/>
- * <p>All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
+ * <p>
+ * By default, all statistics are enabled.
+ * <p>
+ * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
  */
 public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
@@ -185,12 +185,12 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     }
 
     public IndicesStatsRequest percolate(boolean percolate) {
-        flags.set(Flag.Percolate, percolate);
+        flags.set(Flag.PercolatorCache, percolate);
         return this;
     }
 
     public boolean percolate() {
-        return flags.isSet(Flag.Percolate);
+        return flags.isSet(Flag.PercolatorCache);
     }
 
     public IndicesStatsRequest segments(boolean segments) {
@@ -263,6 +263,15 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     public boolean recovery() {
         return flags.isSet(Flag.Recovery);
+    }
+
+    public boolean includeSegmentFileSizes() {
+        return flags.includeSegmentFileSizes();
+    }
+
+    public IndicesStatsRequest includeSegmentFileSizes(boolean includeSegmentFileSizes) {
+        flags.includeSegmentFileSizes(includeSegmentFileSizes);
+        return this;
     }
 
     @Override

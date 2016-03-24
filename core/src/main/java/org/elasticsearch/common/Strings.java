@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
@@ -44,6 +41,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  *
@@ -77,10 +77,10 @@ public class Strings {
 
     /**
      * Splits a backslash escaped string on the separator.
-     * <p/>
+     * <p>
      * Current backslash escaping supported:
      * <br> \n \t \r \b \f are escaped the same as a Java String
-     * <br> Other characters following a backslash are produced verbatim (\c => c)
+     * <br> Other characters following a backslash are produced verbatim (\c =&gt; c)
      *
      * @param s         the string to split
      * @param separator the separator to split on
@@ -144,7 +144,7 @@ public class Strings {
     /**
      * Check that the given CharSequence is neither <code>null</code> nor of length 0.
      * Note: Will return <code>true</code> for a CharSequence that purely consists of whitespace.
-     * <p><pre>
+     * <pre>
      * StringUtils.hasLength(null) = false
      * StringUtils.hasLength("") = false
      * StringUtils.hasLength(" ") = true
@@ -187,7 +187,7 @@ public class Strings {
     /**
      * Check that the given CharSequence is either <code>null</code> or of length 0.
      * Note: Will return <code>false</code> for a CharSequence that purely consists of whitespace.
-     * <p><pre>
+     * <pre>
      * StringUtils.isEmpty(null) = true
      * StringUtils.isEmpty("") = true
      * StringUtils.isEmpty(" ") = false
@@ -206,7 +206,7 @@ public class Strings {
      * Check whether the given CharSequence has actual text.
      * More specifically, returns <code>true</code> if the string not <code>null</code>,
      * its length is greater than 0, and it contains at least one non-whitespace character.
-     * <p><pre>
+     * <pre>
      * StringUtils.hasText(null) = false
      * StringUtils.hasText("") = false
      * StringUtils.hasText(" ") = false
@@ -413,7 +413,7 @@ public class Strings {
      *
      * @param str the input String (e.g. "myString")
      * @return the quoted String (e.g. "'myString'"),
-     *         or <code>null<code> if the input was <code>null</code>
+     *         or <code>null</code> if the input was <code>null</code>
      */
     public static String quote(String str) {
         return (str != null ? "'" + str + "'" : null);
@@ -456,7 +456,8 @@ public class Strings {
         return sb.toString();
     }
 
-    public static final ImmutableSet<Character> INVALID_FILENAME_CHARS = ImmutableSet.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+    public static final Set<Character> INVALID_FILENAME_CHARS = unmodifiableSet(
+            newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ','));
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
@@ -569,7 +570,6 @@ public class Strings {
                 count++;
             }
         }
-        // TODO (MvG): No push: hppc or jcf?
         final Set<String> result = new HashSet<>(count);
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
@@ -609,7 +609,7 @@ public class Strings {
                     result[res++] = builder.toString();
                     builder.setLength(0);
                 }
-                
+
             } else {
                 builder.append(s.charAt(i));
             }
@@ -840,9 +840,6 @@ public class Strings {
     }
 
     public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
-        if (Iterables.isEmpty(coll)) {
-            return "";
-        }
         Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
             sb.append(prefix).append(it.next()).append(suffix);
@@ -943,7 +940,8 @@ public class Strings {
         boolean changed = false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            if (c == '_') {
+            //e.g. _name stays as-is, _first_name becomes _firstName
+            if (c == '_' && i > 0) {
                 if (!changed) {
                     if (sb != null) {
                         sb.setLength(0);
@@ -1025,11 +1023,11 @@ public class Strings {
 
     private Strings() {
     }
-    
+
     public static byte[] toUTF8Bytes(CharSequence charSequence) {
         return toUTF8Bytes(charSequence, new BytesRefBuilder());
     }
-    
+
     public static byte[] toUTF8Bytes(CharSequence charSequence, BytesRefBuilder spare) {
         spare.copyChars(charSequence);
         return Arrays.copyOf(spare.bytes(), spare.length());
@@ -1093,4 +1091,54 @@ public class Strings {
             throw new AssertionError("Cannot happen", e);
         }
     }
+
+    /**
+     * Truncates string to a length less than length. Backtracks to throw out
+     * high surrogates.
+     */
+    public static String cleanTruncate(String s, int length) {
+        if (s == null) {
+            return s;
+        }
+        /*
+         * Its pretty silly for you to truncate to 0 length but just in case
+         * someone does this shouldn't break.
+         */
+        if (length == 0) {
+            return "";
+        }
+        if (length >= s.length()) {
+            return s;
+        }
+        if (Character.isHighSurrogate(s.charAt(length - 1))) {
+            length--;
+        }
+        return s.substring(0, length);
+    }
+
+    public static boolean isNullOrEmpty(@Nullable String s) {
+        return s == null || s.isEmpty();
+    }
+
+    public static String coalesceToEmpty(@Nullable String s) {
+        return s == null ? "" : s;
+    }
+
+    public static String padStart(String s, int minimumLength, char c) {
+        if (s == null) {
+            throw new NullPointerException("s");
+        }
+        if (s.length() >= minimumLength) {
+            return s;
+        } else {
+            StringBuilder sb = new StringBuilder(minimumLength);
+            for (int i = s.length(); i < minimumLength; i++) {
+                sb.append(c);
+            }
+
+            sb.append(s);
+            return sb.toString();
+        }
+    }
+
 }

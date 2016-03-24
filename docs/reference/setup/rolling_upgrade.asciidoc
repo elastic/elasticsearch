@@ -32,8 +32,6 @@ PUT /_cluster/settings
 
 ==== Step 2: Stop non-essential indexing and perform a synced flush (Optional)
 
-added[1.6.0,Synced flush is only supported in Elasticsearch 1.6.0 and above]
-
 You may happily continue indexing during the upgrade.  However, shard recovery
 will be much faster if you temporarily stop non-essential indexing and issue a
 <<indices-synced-flush, synced-flush>> request:
@@ -62,7 +60,7 @@ default.
 
 It is a good idea to place these directories in a different location so that
 there is no chance of deleting them when upgrading Elasticsearch.  These
-custom paths can be <<paths,configured>> with the `path.config` and
+custom paths can be <<paths,configured>> with the `path.conf` and
 `path.data` settings.
 
 The Debian and RPM packages place these directories in the
@@ -82,7 +80,7 @@ To upgrade using a zip or compressed tarball:
     overwrite the `config` or `data` directories.
 
 *   Either copy the files in the `config` directory from your old installation
-    to your new installation, or use the `--path.config` option on the command
+    to your new installation, or use the `-E path.conf=` option on the command
     line to point to an external config directory.
 
 *   Either copy the files in the `data` directory from your old installation

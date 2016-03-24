@@ -21,38 +21,35 @@ package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  * Transport action for shard recovery operation. This transport action does not actually
  * perform shard recovery, it only reports on recoveries (both active and complete).
  */
-public class TransportRecoveryAction extends TransportBroadcastAction<RecoveryRequest, RecoveryResponse, TransportRecoveryAction.ShardRecoveryRequest, ShardRecoveryResponse> {
+public class TransportRecoveryAction extends TransportBroadcastByNodeAction<RecoveryRequest, RecoveryResponse, RecoveryState> {
 
     private final IndicesService indicesService;
 
@@ -61,84 +58,55 @@ public class TransportRecoveryAction extends TransportBroadcastAction<RecoveryRe
                                    TransportService transportService, IndicesService indicesService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                RecoveryRequest.class, ShardRecoveryRequest.class, ThreadPool.Names.MANAGEMENT);
+                RecoveryRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 
     @Override
-    protected RecoveryResponse newResponse(RecoveryRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    protected RecoveryState readShardResult(StreamInput in) throws IOException {
+        return RecoveryState.readRecoveryState(in);
+    }
 
-        int successfulShards = 0;
-        int failedShards = 0;
-        List<ShardOperationFailedException> shardFailures = null;
-        Map<String, List<ShardRecoveryResponse>> shardResponses = new HashMap<>();
 
-        for (int i = 0; i < shardsResponses.length(); i++) {
-            Object shardResponse = shardsResponses.get(i);
-            if (shardResponse == null) {
-                // simply ignore non active shards
-            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
-                failedShards++;
-                if (shardFailures == null) {
-                    shardFailures = new ArrayList<>();
+    @Override
+    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards, List<RecoveryState> responses, List<ShardOperationFailedException> shardFailures, ClusterState clusterState) {
+        Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
+        for (RecoveryState recoveryState : responses) {
+            if (recoveryState == null) {
+                continue;
+            }
+            String indexName = recoveryState.getShardId().getIndexName();
+            if (!shardResponses.containsKey(indexName)) {
+                shardResponses.put(indexName, new ArrayList<>());
+            }
+            if (request.activeOnly()) {
+                if (recoveryState.getStage() != RecoveryState.Stage.DONE) {
+                    shardResponses.get(indexName).add(recoveryState);
                 }
-                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
-                ShardRecoveryResponse recoveryResponse = (ShardRecoveryResponse) shardResponse;
-                successfulShards++;
-
-                if (recoveryResponse.recoveryState() == null) {
-                    // recovery not yet started
-                    continue;
-                }
-
-                String indexName = recoveryResponse.getIndex();
-                List<ShardRecoveryResponse> responses = shardResponses.get(indexName);
-
-                if (responses == null) {
-                    responses = new ArrayList<>();
-                    shardResponses.put(indexName, responses);
-                }
-
-                if (request.activeOnly()) {
-                    if (recoveryResponse.recoveryState().getStage() != RecoveryState.Stage.DONE) {
-                        responses.add(recoveryResponse);
-                    }
-                } else {
-                    responses.add(recoveryResponse);
-                }
+                shardResponses.get(indexName).add(recoveryState);
             }
         }
-
-        return new RecoveryResponse(shardsResponses.length(), successfulShards,
-                failedShards, request.detailed(), shardResponses, shardFailures);
+        return new RecoveryResponse(totalShards, successfulShards, failedShards, request.detailed(), shardResponses, shardFailures);
     }
 
     @Override
-    protected ShardRecoveryRequest newShardRequest(int numShards, ShardRouting shard, RecoveryRequest request) {
-        return new ShardRecoveryRequest(shard.shardId(), request);
+    protected RecoveryRequest readRequestFrom(StreamInput in) throws IOException {
+        final RecoveryRequest recoveryRequest = new RecoveryRequest();
+        recoveryRequest.readFrom(in);
+        return recoveryRequest;
     }
 
     @Override
-    protected ShardRecoveryResponse newShardResponse() {
-        return new ShardRecoveryResponse();
+    protected RecoveryState shardOperation(RecoveryRequest request, ShardRouting shardRouting) {
+        IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
+        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+        return indexShard.recoveryState();
     }
 
     @Override
-    protected ShardRecoveryResponse shardOperation(ShardRecoveryRequest request) {
-
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
-        ShardRecoveryResponse shardRecoveryResponse = new ShardRecoveryResponse(request.shardId());
-
-        RecoveryState state = indexShard.recoveryState();
-        shardRecoveryResponse.recoveryState(state);
-        return shardRecoveryResponse;
-    }
-
-    @Override
-    protected GroupShardsIterator shards(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
-        return state.routingTable().allAssignedShardsGrouped(concreteIndices, true, true);
+    protected ShardsIterator shards(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
+        return state.routingTable().allShardsIncludingRelocationTargets(concreteIndices);
     }
 
     @Override
@@ -149,15 +117,5 @@ public class TransportRecoveryAction extends TransportBroadcastAction<RecoveryRe
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
-    }
-
-    static class ShardRecoveryRequest extends BroadcastShardRequest {
-
-        ShardRecoveryRequest() {
-        }
-
-        ShardRecoveryRequest(ShardId shardId, RecoveryRequest request) {
-            super(shardId, request);
-        }
     }
 }

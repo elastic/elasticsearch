@@ -18,20 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.children;
 
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
-
 import java.io.IOException;
 
 /**
@@ -45,7 +35,8 @@ public class ChildrenParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    public ChildrenAggregatorBuilder parse(String aggregationName, XContentParser parser,
+            QueryParseContext context) throws IOException {
         String childType = null;
 
         XContentParser.Token token;
@@ -57,45 +48,25 @@ public class ChildrenParser implements Aggregator.Parser {
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 
         if (childType == null) {
-            throw new SearchParseException(context, "Missing [child_type] field for children aggregation [" + aggregationName + "]",
-                    parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Missing [child_type] field for children aggregation [" + aggregationName + "]");
         }
 
-        ValuesSourceConfig<ValuesSource.Bytes.WithOrdinals.ParentChild> config = new ValuesSourceConfig<>(ValuesSource.Bytes.WithOrdinals.ParentChild.class);
-        DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
 
-        String parentType = null;
-        Filter parentFilter = null;
-        Filter childFilter = null;
-        if (childDocMapper != null) {
-            ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
-            if (!parentFieldMapper.active()) {
-                throw new SearchParseException(context, "[children] no [_parent] field not configured that points to a parent type", parser.getTokenLocation());
+        return new ChildrenAggregatorBuilder(aggregationName, childType);
             }
-            parentType = parentFieldMapper.type();
-            DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
-            if (parentDocMapper != null) {
-                // TODO: use the query API
-                parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
-                childFilter = new QueryWrapperFilter(childDocMapper.typeFilter());
-                ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper.fieldType());
-                config.fieldContext(new FieldContext(parentFieldMapper.fieldType().names().indexName(), parentChildIndexFieldData, parentFieldMapper.fieldType()));
-            } else {
-                config.unmapped(true);
-            }
-        } else {
-            config.unmapped(true);
-        }
-        return new ParentToChildrenAggregator.Factory(aggregationName, config, parentType, parentFilter, childFilter);
+
+    @Override
+    public ChildrenAggregatorBuilder getFactoryPrototypes() {
+        return ChildrenAggregatorBuilder.PROTOTYPE;
     }
 }

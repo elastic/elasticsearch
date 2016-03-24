@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -31,8 +28,11 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Wrapper around everything that defines a mapping, without references to
@@ -40,38 +40,20 @@ import java.util.Map;
  */
 public final class Mapping implements ToXContent {
 
-    public static final List<String> LEGACY_INCLUDE_IN_OBJECT = Arrays.asList("_all", "_id", "_parent", "_routing", "_timestamp", "_ttl");
-
-    /**
-     * Transformations to be applied to the source before indexing and/or after loading.
-     */
-    public interface SourceTransform extends ToXContent {
-        /**
-         * Transform the source when it is expressed as a map.  This is public so it can be transformed the source is loaded.
-         * @param sourceAsMap source to transform.  This may be mutated by the script.
-         * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
-         */
-        Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap);
-    }
-
     final Version indexCreated;
     final RootObjectMapper root;
     final MetadataFieldMapper[] metadataMappers;
-    final ImmutableMap<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappersMap;
-    final SourceTransform[] sourceTransforms;
-    volatile ImmutableMap<String, Object> meta;
+    final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
+    final Map<String, Object> meta;
 
-    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, SourceTransform[] sourceTransforms, ImmutableMap<String, Object> meta) {
+    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.indexCreated = indexCreated;
-        this.root = rootObjectMapper;
         this.metadataMappers = metadataMappers;
-        ImmutableMap.Builder<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> builder = ImmutableMap.builder();
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
         for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            if (indexCreated.before(Version.V_2_0_0_beta1) && LEGACY_INCLUDE_IN_OBJECT.contains(metadataMapper.name())) {
-                root.putMapper(metadataMapper);
-            }
-            builder.put(metadataMapper.getClass(), metadataMapper);
+            metadataMappersMap.put(metadataMapper.getClass(), metadataMapper);
         }
+        this.root = rootObjectMapper;
         // keep root mappers sorted for consistent serialization
         Arrays.sort(metadataMappers, new Comparator<Mapper>() {
             @Override
@@ -79,8 +61,7 @@ public final class Mapping implements ToXContent {
                 return o1.name().compareTo(o2.name());
             }
         });
-        this.rootMappersMap = builder.build();
-        this.sourceTransforms = sourceTransforms;
+        this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.meta = meta;
     }
 
@@ -93,51 +74,49 @@ public final class Mapping implements ToXContent {
      * Generate a mapping update for the given root object mapper.
      */
     public Mapping mappingUpdate(Mapper rootObjectMapper) {
-        return new Mapping(indexCreated, (RootObjectMapper) rootObjectMapper, metadataMappers, sourceTransforms, meta);
+        return new Mapping(indexCreated, (RootObjectMapper) rootObjectMapper, metadataMappers, meta);
     }
 
     /** Get the root mapper with the given class. */
     @SuppressWarnings("unchecked")
-    public <T extends MetadataFieldMapper> T rootMapper(Class<T> clazz) {
-        return (T) rootMappersMap.get(clazz);
+    public <T extends MetadataFieldMapper> T metadataMapper(Class<T> clazz) {
+        return (T) metadataMappersMap.get(clazz);
     }
 
-    /** @see DocumentMapper#merge(Mapping, boolean, boolean) */
-    public void merge(Mapping mergeWith, MergeResult mergeResult) {
-        assert metadataMappers.length == mergeWith.metadataMappers.length;
-
-        root.merge(mergeWith.root, mergeResult);
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            MetadataFieldMapper mergeWithMetadataMapper = mergeWith.rootMapper(metadataMapper.getClass());
-            if (mergeWithMetadataMapper != null) {
-                metadataMapper.merge(mergeWithMetadataMapper, mergeResult);
+    /** @see DocumentMapper#merge(Mapping, boolean) */
+    public Mapping merge(Mapping mergeWith, boolean updateAllTypes) {
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, updateAllTypes);
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetaDataMappers = new HashMap<>(metadataMappersMap);
+        for (MetadataFieldMapper metaMergeWith : mergeWith.metadataMappers) {
+            MetadataFieldMapper mergeInto = mergedMetaDataMappers.get(metaMergeWith.getClass());
+            MetadataFieldMapper merged;
+            if (mergeInto == null) {
+                merged = metaMergeWith;
+            } else {
+                merged = mergeInto.merge(metaMergeWith, updateAllTypes);
             }
+            mergedMetaDataMappers.put(merged.getClass(), merged);
         }
-
-        if (mergeResult.simulate() == false) {
-            // let the merge with attributes to override the attributes
-            meta = mergeWith.meta;
-        }
+        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), mergeWith.meta);
     }
-    
+
+    /**
+     * Recursively update sub field types.
+     */
+    public Mapping updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        final MetadataFieldMapper[] updatedMeta = Arrays.copyOf(metadataMappers, metadataMappers.length);
+        for (int i = 0; i < updatedMeta.length; ++i) {
+            updatedMeta[i] = (MetadataFieldMapper) updatedMeta[i].updateFieldType(fullNameToFieldType);
+        }
+        RootObjectMapper updatedRoot = root.updateFieldType(fullNameToFieldType);
+        return new Mapping(indexCreated, updatedRoot, updatedMeta, meta);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         root.toXContent(builder, params, new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (sourceTransforms.length > 0) {
-                    if (sourceTransforms.length == 1) {
-                        builder.field("transform");
-                        sourceTransforms[0].toXContent(builder, params);
-                    } else {
-                        builder.startArray("transform");
-                        for (SourceTransform transform: sourceTransforms) {
-                            transform.toXContent(builder, params);
-                        }
-                        builder.endArray();
-                    }
-                }
-
                 if (meta != null && !meta.isEmpty()) {
                     builder.field("_meta", meta);
                 }
@@ -150,22 +129,11 @@ public final class Mapping implements ToXContent {
         return builder;
     }
 
-    /** Serialize to a {@link BytesReference}. */
-    public BytesReference toBytes() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            toXContent(builder, new ToXContent.MapParams(ImmutableMap.<String, String>of()));
-            return builder.endObject().bytes();
-        } catch (IOException bogus) {
-            throw new AssertionError(bogus);
-        }
-    }
-
     @Override
     public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            toXContent(builder, new ToXContent.MapParams(ImmutableMap.<String, String>of()));
+            toXContent(builder, new ToXContent.MapParams(emptyMap()));
             return builder.endObject().string();
         } catch (IOException bogus) {
             throw new AssertionError(bogus);

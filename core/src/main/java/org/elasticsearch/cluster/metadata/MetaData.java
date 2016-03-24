@@ -22,18 +22,15 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
-import com.google.common.collect.*;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -43,21 +40,45 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
-import static org.elasticsearch.common.settings.Settings.*;
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, FromXContentBuilder<MetaData>, ToXContent {
 
@@ -94,6 +115,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     static {
         // register non plugin custom metadata
         registerPrototype(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
+        registerPrototype(IngestMetadata.TYPE, IngestMetadata.PROTO);
     }
 
     /**
@@ -113,13 +135,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         //noinspection unchecked
         T proto = (T) customPrototypes.get(type);
         if (proto == null) {
-            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "], node likely missing plugins");
         }
         return proto;
     }
 
 
-    public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
+    public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
+        Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
 
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
@@ -130,6 +153,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     public static final String CONTEXT_MODE_SNAPSHOT = XContentContext.SNAPSHOT.toString();
 
     public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
+
+    public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
     private final String clusterUUID;
     private final long version;
@@ -163,8 +188,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         int totalNumberOfShards = 0;
         int numberOfShards = 0;
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-            totalNumberOfShards += cursor.value.totalNumberOfShards();
-            numberOfShards += cursor.value.numberOfShards();
+            totalNumberOfShards += cursor.value.getTotalNumberOfShards();
+            numberOfShards += cursor.value.getNumberOfShards();
         }
         this.totalNumberOfShards = totalNumberOfShards;
         this.numberOfShards = numberOfShards;
@@ -210,7 +235,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     public boolean equalsAliases(MetaData other) {
         for (ObjectCursor<IndexMetaData> cursor : other.indices().values()) {
             IndexMetaData otherIndex = cursor.value;
-            IndexMetaData thisIndex= indices().get(otherIndex.getIndex());
+            IndexMetaData thisIndex = index(otherIndex.getIndex());
             if (thisIndex == null) {
                 return false;
             }
@@ -234,7 +259,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
      * @return the found index aliases grouped by index
      */
-    public ImmutableOpenMap<String, ImmutableList<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -242,11 +267,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
 
         boolean matchAllAliases = matchAllAliases(aliases);
-        ImmutableOpenMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            List<AliasMetaData> filteredValues = Lists.newArrayList();
+            List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
                 if (matchAllAliases || Regex.simpleMatch(aliases, value.alias())) {
@@ -262,7 +287,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         return o1.alias().compareTo(o2.alias());
                     }
                 });
-                mapBuilder.put(index, ImmutableList.copyOf(filteredValues));
+                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
         }
         return mapBuilder.build();
@@ -295,7 +320,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            List<AliasMetaData> filteredValues = Lists.newArrayList();
+            List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
                 if (Regex.simpleMatch(aliases, value.alias())) {
@@ -332,7 +357,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
             } else {
                 filteredMappings = ImmutableOpenMap.builder();
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     if (Regex.simpleMatch(types, cursor.key)) {
                         filteredMappings.put(cursor.key, cursor.value);
                     }
@@ -345,68 +370,15 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return indexMapBuilder.build();
     }
 
-    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] uncheckedWarmers) {
-        assert uncheckedWarmers != null;
-        assert concreteIndices != null;
-        if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
-        }
-        // special _all check to behave the same like not specifying anything for the warmers (not for the indices)
-        final String[] warmers = Strings.isAllOrWildcard(uncheckedWarmers) ? Strings.EMPTY_ARRAY : uncheckedWarmers;
-
-        ImmutableOpenMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
-            IndexMetaData indexMetaData = indices.get(index);
-            IndexWarmersMetaData indexWarmersMetaData = indexMetaData.custom(IndexWarmersMetaData.TYPE);
-            if (indexWarmersMetaData == null || indexWarmersMetaData.entries().isEmpty()) {
-                continue;
-            }
-
-            Collection<IndexWarmersMetaData.Entry> filteredWarmers = Collections2.filter(indexWarmersMetaData.entries(), new Predicate<IndexWarmersMetaData.Entry>() {
-
-                @Override
-                public boolean apply(IndexWarmersMetaData.Entry warmer) {
-                    if (warmers.length != 0 && types.length != 0) {
-                        return Regex.simpleMatch(warmers, warmer.name()) && Regex.simpleMatch(types, warmer.types());
-                    } else if (warmers.length != 0) {
-                        return Regex.simpleMatch(warmers, warmer.name());
-                    } else if (types.length != 0) {
-                        return Regex.simpleMatch(types, warmer.types());
-                    } else {
-                        return true;
-                    }
-                }
-
-            });
-            if (!filteredWarmers.isEmpty()) {
-                mapBuilder.put(index, ImmutableList.copyOf(filteredWarmers));
-            }
-        }
-        return mapBuilder.build();
-    }
-
     /**
      * Returns all the concrete indices.
      */
-    public String[] concreteAllIndices() {
-        return allIndices;
-    }
-
     public String[] getConcreteAllIndices() {
-        return concreteAllIndices();
-    }
-
-    public String[] concreteAllOpenIndices() {
-        return allOpenIndices;
+        return allIndices;
     }
 
     public String[] getConcreteAllOpenIndices() {
         return allOpenIndices;
-    }
-
-    public String[] concreteAllClosedIndices() {
-        return allClosedIndices;
     }
 
     public String[] getConcreteAllClosedIndices() {
@@ -418,37 +390,47 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
      */
     // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
     // in the index,bulk,update and delete apis.
-    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
+    public String resolveIndexRouting(@Nullable String parent, @Nullable String routing, String aliasOrIndex) {
         if (aliasOrIndex == null) {
-            return routing;
+            return routingOrParent(parent, routing);
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
         if (result == null || result.isAlias() == false) {
-            return routing;
+            return routingOrParent(parent, routing);
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
         if (result.getIndices().size() > 1) {
-            String[] indexNames = new String[result.getIndices().size()];
-            int i = 0;
-            for (IndexMetaData indexMetaData : result.getIndices()) {
-                indexNames[i++] = indexMetaData.getIndex();
-            }
-            throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
+            rejectSingleIndexOperation(aliasOrIndex, result);
         }
         AliasMetaData aliasMd = alias.getFirstAliasMetaData();
         if (aliasMd.indexRouting() != null) {
+            if (aliasMd.indexRouting().indexOf(',') != -1) {
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
+            }
             if (routing != null) {
                 if (!routing.equals(aliasMd.indexRouting())) {
                     throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
-            routing = aliasMd.indexRouting();
+            // Alias routing overrides the parent routing (if any).
+            return aliasMd.indexRouting();
         }
-        if (routing != null) {
-            if (routing.indexOf(',') != -1) {
-                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
-            }
+        return routingOrParent(parent, routing);
+    }
+
+    private void rejectSingleIndexOperation(String aliasOrIndex, AliasOrIndex result) {
+        String[] indexNames = new String[result.getIndices().size()];
+        int i = 0;
+        for (IndexMetaData indexMetaData : result.getIndices()) {
+            indexNames[i++] = indexMetaData.getIndex().getName();
+        }
+        throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
+    }
+
+    private String routingOrParent(@Nullable String parent, @Nullable String routing) {
+        if (routing == null) {
+            return parent;
         }
         return routing;
     }
@@ -463,6 +445,31 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     public IndexMetaData index(String index) {
         return indices.get(index);
+    }
+
+    public IndexMetaData index(Index index) {
+        IndexMetaData metaData = index(index.getName());
+        if (metaData != null && metaData.getIndexUUID().equals(index.getUUID())) {
+            return metaData;
+        }
+        return null;
+    }
+
+    /**
+     * Returns the {@link IndexMetaData} for this index.
+     * @throws IndexNotFoundException if no metadata for this index is found
+     */
+    public IndexMetaData getIndexSafe(Index index) {
+        IndexMetaData metaData = index(index.getName());
+        if (metaData != null) {
+            if(metaData.getIndexUUID().equals(index.getUUID())) {
+                return metaData;
+            }
+            throw new IndexNotFoundException(index,
+                new IllegalStateException("index uuid doesn't match expected: [" + index.getUUID()
+                    + "] but got: [" + metaData.getIndexUUID() +"]"));
+        }
+        throw new IndexNotFoundException(index);
     }
 
     public ImmutableOpenMap<String, IndexMetaData> indices() {
@@ -493,20 +500,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return (T) customs.get(type);
     }
 
-    public int totalNumberOfShards() {
+
+    public int getTotalNumberOfShards() {
         return this.totalNumberOfShards;
     }
 
-    public int getTotalNumberOfShards() {
-        return totalNumberOfShards();
-    }
-
-    public int numberOfShards() {
-        return this.numberOfShards;
-    }
-
     public int getNumberOfShards() {
-        return numberOfShards();
+        return this.numberOfShards;
     }
 
     /**
@@ -548,7 +548,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     }
 
     @Override
-    public UnmodifiableIterator<IndexMetaData> iterator() {
+    public Iterator<IndexMetaData> iterator() {
         return indices.valuesIt();
     }
 
@@ -616,9 +616,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             version = after.version;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
-            indices = DiffableUtils.diff(before.indices, after.indices);
-            templates = DiffableUtils.diff(before.templates, after.templates);
-            customs = DiffableUtils.diff(before.customs, after.customs);
+            indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
+            templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
         public MetaDataDiff(StreamInput in) throws IOException {
@@ -626,16 +626,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             version = in.readLong();
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            indices = DiffableUtils.readImmutableOpenMapDiff(in, IndexMetaData.PROTO);
-            templates = DiffableUtils.readImmutableOpenMapDiff(in, IndexTemplateMetaData.PROTO);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<Custom>() {
+            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetaData.PROTO);
+            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexTemplateMetaData.PROTO);
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
+                    new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                 @Override
-                public Custom readFrom(StreamInput in, String key) throws IOException {
+                public Custom read(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readFrom(in);
                 }
 
                 @Override
-                public Diff<Custom> readDiffFrom(StreamInput in, String key) throws IOException {
+                public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
                     return lookupPrototypeSafe(key).readDiffFrom(in);
                 }
             });
@@ -720,27 +721,24 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     }
 
     /** All known byte-sized cluster settings. */
-    public static final Set<String> CLUSTER_BYTES_SIZE_SETTINGS = ImmutableSet.of(
-        IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC,
-        RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE,
-        RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE,
-        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC,
-        RecoverySettings.INDICES_RECOVERY_MAX_SIZE_PER_SEC);
+    public static final Set<String> CLUSTER_BYTES_SIZE_SETTINGS = unmodifiableSet(newHashSet(
+        IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(),
+        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
 
 
     /** All known time cluster settings. */
-    public static final Set<String> CLUSTER_TIME_SETTINGS = ImmutableSet.of(
-                                    IndicesTTLService.INDICES_TTL_INTERVAL,
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC,
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK,
-                                    RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT,
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT,
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT,
-                                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL,
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL,
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT,
-                                    DiscoverySettings.PUBLISH_TIMEOUT,
-                                    InternalClusterService.SETTING_CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD);
+    public static final Set<String> CLUSTER_TIME_SETTINGS = unmodifiableSet(newHashSet(
+                                    IndicesTTLService.INDICES_TTL_INTERVAL_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(),
+                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(),
+                                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(),
+                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(),
+                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(),
+                                    DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(),
+            ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.getKey()));
 
     /** As of 2.0 we require units for time and byte-sized settings.  This methods adds default units to any cluster settings that don't
      *  specify a unit. */
@@ -788,9 +786,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     metaData.getIndices(),
                     metaData.getTemplates(),
                     metaData.getCustoms(),
-                    metaData.concreteAllIndices(),
-                    metaData.concreteAllOpenIndices(),
-                    metaData.concreteAllClosedIndices(),
+                    metaData.getConcreteAllIndices(),
+                    metaData.getConcreteAllOpenIndices(),
+                    metaData.getConcreteAllClosedIndices(),
                     metaData.getAliasAndIndexLookup());
         } else {
             // No changes:
@@ -831,24 +829,37 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // we know its a new one, increment the version and store
             indexMetaDataBuilder.version(indexMetaDataBuilder.version() + 1);
             IndexMetaData indexMetaData = indexMetaDataBuilder.build();
-            indices.put(indexMetaData.index(), indexMetaData);
+            indices.put(indexMetaData.getIndex().getName(), indexMetaData);
             return this;
         }
 
         public Builder put(IndexMetaData indexMetaData, boolean incrementVersion) {
-            if (indices.get(indexMetaData.index()) == indexMetaData) {
+            if (indices.get(indexMetaData.getIndex().getName()) == indexMetaData) {
                 return this;
             }
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
-                indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.version() + 1).build();
+                indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.getVersion() + 1).build();
             }
-            indices.put(indexMetaData.index(), indexMetaData);
+            indices.put(indexMetaData.getIndex().getName(), indexMetaData);
             return this;
         }
 
         public IndexMetaData get(String index) {
             return indices.get(index);
+        }
+
+        public IndexMetaData getSafe(Index index) {
+            IndexMetaData indexMetaData = get(index.getName());
+            if (indexMetaData != null) {
+                if(indexMetaData.getIndexUUID().equals(index.getUUID())) {
+                    return indexMetaData;
+                }
+                throw new IndexNotFoundException(index,
+                    new IllegalStateException("index uuid doesn't match expected: [" + index.getUUID()
+                        + "] but got: [" + indexMetaData.getIndexUUID() +"]"));
+            }
+            throw new IndexNotFoundException(index);
         }
 
         public Builder remove(String index) {
@@ -914,7 +925,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     throw new IndexNotFoundException(index);
                 }
                 put(IndexMetaData.builder(indexMetaData)
-                        .settings(settingsBuilder().put(indexMetaData.settings()).put(settings)));
+                        .settings(settingsBuilder().put(indexMetaData.getSettings()).put(settings)));
             }
             return this;
         }
@@ -970,7 +981,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
         public MetaData build() {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
-            // 1) The datastructures will only be rebuilded when needed. Now during serailizing we rebuild these datastructures
+            // 1) The datastructures will only be rebuilded when needed. Now during serializing we rebuild these datastructures
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
@@ -978,20 +989,20 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            List<String> allIndicesLst = Lists.newArrayList();
+            List<String> allIndicesLst = new ArrayList<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                allIndicesLst.add(cursor.value.index());
+                allIndicesLst.add(cursor.value.getIndex().getName());
             }
             String[] allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
 
-            List<String> allOpenIndicesLst = Lists.newArrayList();
-            List<String> allClosedIndicesLst = Lists.newArrayList();
+            List<String> allOpenIndicesLst = new ArrayList<>();
+            List<String> allClosedIndicesLst = new ArrayList<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                if (indexMetaData.state() == IndexMetaData.State.OPEN) {
-                    allOpenIndicesLst.add(indexMetaData.index());
-                } else if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
-                    allClosedIndicesLst.add(indexMetaData.index());
+                if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+                    allOpenIndicesLst.add(indexMetaData.getIndex().getName());
+                } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                    allClosedIndicesLst.add(indexMetaData.getIndex().getName());
                 }
             }
             String[] allOpenIndices = allOpenIndicesLst.toArray(new String[allOpenIndicesLst.size()]);
@@ -1001,16 +1012,22 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                aliasAndIndexLookup.put(indexMetaData.getIndex(), new AliasOrIndex.Index(indexMetaData));
+                aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
-                    AliasOrIndex.Alias aliasOrIndex = (AliasOrIndex.Alias) aliasAndIndexLookup.get(aliasMetaData.getAlias());
+                    AliasOrIndex aliasOrIndex = aliasAndIndexLookup.get(aliasMetaData.getAlias());
                     if (aliasOrIndex == null) {
                         aliasOrIndex = new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
                         aliasAndIndexLookup.put(aliasMetaData.getAlias(), aliasOrIndex);
+                    } else if (aliasOrIndex instanceof AliasOrIndex.Alias) {
+                        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                        alias.addIndex(indexMetaData);
+                    } else if (aliasOrIndex instanceof AliasOrIndex.Index) {
+                        AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
+                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index " + index.getIndex().getIndex() + " have the same name");
                     } else {
-                        aliasOrIndex.addIndex(indexMetaData);
+                        throw new IllegalStateException("unexpected alias [" + aliasMetaData.getAlias() + "][" + aliasOrIndex + "]");
                     }
                 }
             }
@@ -1086,14 +1103,20 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                 if (token == XContentParser.Token.START_OBJECT) {
                     // move to the field name (meta-data)
                     token = parser.nextToken();
+                    if (token != XContentParser.Token.FIELD_NAME) {
+                        throw new IllegalArgumentException("Expected a field name but got " + token);
+                    }
                     // move to the next object
                     token = parser.nextToken();
                 }
                 currentFieldName = parser.currentName();
-                if (token == null) {
-                    // no data...
-                    return builder.build();
-                }
+            }
+
+            if (!"meta-data".equals(parser.currentName())) {
+                throw new IllegalArgumentException("Expected [meta-data] as a field name but got " + currentFieldName);
+            }
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected a START_OBJECT but got " + token);
             }
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -1126,7 +1149,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         builder.version = parser.longValue();
                     } else if ("cluster_uuid".equals(currentFieldName) || "uuid".equals(currentFieldName)) {
                         builder.clusterUUID = parser.text();
+                    } else {
+                        throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
+                } else {
+                    throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
             return builder.build();
@@ -1136,4 +1163,28 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             return PROTO.readFrom(in);
         }
     }
+
+    private final static ToXContent.Params FORMAT_PARAMS;
+    static {
+        Map<String, String> params = new HashMap<>(2);
+        params.put("binary", "true");
+        params.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+        FORMAT_PARAMS = new MapParams(params);
+    }
+
+    /**
+     * State format for {@link MetaData} to write to and load from disk
+     */
+    public final static MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(XContentType.SMILE, GLOBAL_STATE_FILE_PREFIX) {
+
+        @Override
+        public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+            Builder.toXContent(state, builder, FORMAT_PARAMS);
+        }
+
+        @Override
+        public MetaData fromXContent(XContentParser parser) throws IOException {
+            return Builder.fromXContent(parser);
+        }
+    };
 }

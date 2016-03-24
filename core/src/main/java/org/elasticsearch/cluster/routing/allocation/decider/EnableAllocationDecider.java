@@ -19,18 +19,21 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.Locale;
 
 /**
- * This allocation decider allows shard allocations / rebalancing via the cluster wide settings {@link #CLUSTER_ROUTING_ALLOCATION_ENABLE} /
- * {@link #CLUSTER_ROUTING_REBALANCE_ENABLE} and the per index setting {@link #INDEX_ROUTING_ALLOCATION_ENABLE} / {@link #INDEX_ROUTING_REBALANCE_ENABLE}.
+ * This allocation decider allows shard allocations / rebalancing via the cluster wide settings {@link #CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING} /
+ * {@link #CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} and the per index setting {@link #INDEX_ROUTING_ALLOCATION_ENABLE_SETTING} / {@link #INDEX_ROUTING_REBALANCE_ENABLE_SETTING}.
  * The per index settings overrides the cluster wide setting.
  *
  * <p>
@@ -41,7 +44,6 @@ import java.util.Locale;
  *     <li> <code>PRIMARIES</code> - only primary shards are allowed to be allocated
  *     <li> <code>ALL</code> - all shards are allowed to be allocated
  * </ul>
- * </p>
  *
  * <p>
  * Rebalancing settings can have the following values (non-casesensitive):
@@ -51,31 +53,46 @@ import java.util.Locale;
  *     <li> <code>PRIMARIES</code> - only primary shards are allowed to be balanced
  *     <li> <code>ALL</code> - all shards are allowed to be balanced
  * </ul>
- * </p>
  *
  * @see Rebalance
  * @see Allocation
  */
-public class EnableAllocationDecider extends AllocationDecider implements NodeSettingsService.Listener {
+public class EnableAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "enable";
 
-    public static final String CLUSTER_ROUTING_ALLOCATION_ENABLE = "cluster.routing.allocation.enable";
-    public static final String INDEX_ROUTING_ALLOCATION_ENABLE = "index.routing.allocation.enable";
+    public static final Setting<Allocation> CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING =
+        new Setting<>("cluster.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
+            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Allocation> INDEX_ROUTING_ALLOCATION_ENABLE_SETTING =
+        new Setting<>("index.routing.allocation.enable", Allocation.ALL.name(), Allocation::parse,
+            Property.Dynamic, Property.IndexScope);
 
-    public static final String CLUSTER_ROUTING_REBALANCE_ENABLE = "cluster.routing.rebalance.enable";
-    public static final String INDEX_ROUTING_REBALANCE_ENABLE = "index.routing.rebalance.enable";
+    public static final Setting<Rebalance> CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING =
+        new Setting<>("cluster.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
+            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Rebalance> INDEX_ROUTING_REBALANCE_ENABLE_SETTING =
+        new Setting<>("index.routing.rebalance.enable", Rebalance.ALL.name(), Rebalance::parse,
+            Property.Dynamic, Property.IndexScope);
 
     private volatile Rebalance enableRebalance;
     private volatile Allocation enableAllocation;
 
-
     @Inject
-    public EnableAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    public EnableAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        this.enableAllocation = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.ALL.name()));
-        this.enableRebalance = Rebalance.parse(settings.get(CLUSTER_ROUTING_REBALANCE_ENABLE, Rebalance.ALL.name()));
-        nodeSettingsService.addListener(this);
+        this.enableAllocation = CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(settings);
+        this.enableRebalance = CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, this::setEnableAllocation);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING, this::setEnableRebalance);
+    }
+
+    public void setEnableRebalance(Rebalance enableRebalance) {
+        this.enableRebalance = enableRebalance;
+    }
+
+    public void setEnableAllocation(Allocation enableAllocation) {
+        this.enableAllocation = enableAllocation;
     }
 
     @Override
@@ -84,11 +101,10 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
             return allocation.decision(Decision.YES, NAME, "allocation disabling is ignored");
         }
 
-        Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
-        String enableIndexValue = indexSettings.get(INDEX_ROUTING_ALLOCATION_ENABLE);
+        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
         final Allocation enable;
-        if (enableIndexValue != null) {
-            enable = Allocation.parse(enableIndexValue);
+        if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetaData.getSettings())) {
+            enable = INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.get(indexMetaData.getSettings());
         } else {
             enable = this.enableAllocation;
         }
@@ -98,7 +114,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
             case NONE:
                 return allocation.decision(Decision.NO, NAME, "no allocations are allowed");
             case NEW_PRIMARIES:
-                if (shardRouting.primary() && shardRouting.allocatedPostIndexCreate() == false) {
+                if (shardRouting.primary() && shardRouting.allocatedPostIndexCreate(indexMetaData) == false) {
                     return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
                 } else {
                     return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden");
@@ -120,11 +136,10 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
             return allocation.decision(Decision.YES, NAME, "rebalance disabling is ignored");
         }
 
-        Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
-        String enableIndexValue = indexSettings.get(INDEX_ROUTING_REBALANCE_ENABLE);
+        Settings indexSettings = allocation.routingNodes().metaData().getIndexSafe(shardRouting.index()).getSettings();
         final Rebalance enable;
-        if (enableIndexValue != null) {
-            enable = Rebalance.parse(enableIndexValue);
+        if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexSettings)) {
+            enable = INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexSettings);
         } else {
             enable = this.enableRebalance;
         }
@@ -150,25 +165,9 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
         }
     }
 
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        final Allocation enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, this.enableAllocation.name()));
-        if (enable != this.enableAllocation) {
-            logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_ENABLE, this.enableAllocation, enable);
-            EnableAllocationDecider.this.enableAllocation = enable;
-        }
-
-        final Rebalance enableRebalance = Rebalance.parse(settings.get(CLUSTER_ROUTING_REBALANCE_ENABLE, this.enableRebalance.name()));
-        if (enableRebalance != this.enableRebalance) {
-            logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_REBALANCE_ENABLE, this.enableRebalance, enableRebalance);
-            EnableAllocationDecider.this.enableRebalance = enableRebalance;
-        }
-
-    }
-
     /**
      * Allocation values or rather their string representation to be used used with
-     * {@link EnableAllocationDecider#CLUSTER_ROUTING_ALLOCATION_ENABLE} / {@link EnableAllocationDecider#INDEX_ROUTING_ALLOCATION_ENABLE}
+     * {@link EnableAllocationDecider#CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING} / {@link EnableAllocationDecider#INDEX_ROUTING_ALLOCATION_ENABLE_SETTING}
      * via cluster / index settings.
      */
     public enum Allocation {
@@ -194,7 +193,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
 
     /**
      * Rebalance values or rather their string representation to be used used with
-     * {@link EnableAllocationDecider#CLUSTER_ROUTING_REBALANCE_ENABLE} / {@link EnableAllocationDecider#INDEX_ROUTING_REBALANCE_ENABLE}
+     * {@link EnableAllocationDecider#CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} / {@link EnableAllocationDecider#INDEX_ROUTING_REBALANCE_ENABLE_SETTING}
      * via cluster / index settings.
      */
     public enum Rebalance {

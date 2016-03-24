@@ -32,7 +32,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.common.Strings.isAllOrWildcard;
@@ -46,7 +51,7 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
 
     @Inject
     public RestGetIndicesAliasesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/{index}/_aliases/{name}", this);
         controller.registerHandler(GET, "/_aliases/{name}", this);
     }
@@ -70,10 +75,10 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
 
                 final boolean isAllAliasesRequested = isAllOrWildcard(aliases);
                 for (IndexMetaData indexMetaData : metaData) {
-                    builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(indexMetaData.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
                     builder.startObject("aliases");
 
-                    for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                    for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                         if (isAllAliasesRequested || Regex.simpleMatch(aliases, cursor.value.alias())) {
                             AliasMetaData.Builder.toXContent(cursor.value, builder, ToXContent.EMPTY_PARAMS);
                         }

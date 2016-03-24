@@ -25,10 +25,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESAllocationTestCase;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -36,15 +36,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class PreferPrimaryAllocationTests extends ElasticsearchAllocationTestCase {
-
+public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(PreferPrimaryAllocationTests.class);
 
-    @Test
     public void testPreferPrimaryAllocationOverReplicas() {
         logger.info("create an allocation with 1 initial recoveries");
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 1)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 1)
                 .build());
 
@@ -64,11 +63,11 @@ public class PreferPrimaryAllocationTests extends ElasticsearchAllocationTestCas
 
         logger.info("adding two nodes and performing rerouting till all are allocated");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        while (!clusterState.routingNodes().shardsWithState(INITIALIZING).isEmpty()) {
-            routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
+        while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()) {
+            routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         }
 
@@ -77,11 +76,11 @@ public class PreferPrimaryAllocationTests extends ElasticsearchAllocationTestCas
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
 
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("2 replicas should be initializing now for the existing indices (we throttle to 1)");
-        assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 
         logger.info("create a new index");
         metaData = MetaData.builder(clusterState.metaData())
@@ -95,7 +94,7 @@ public class PreferPrimaryAllocationTests extends ElasticsearchAllocationTestCas
         clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("reroute, verify that primaries for the new index primary shards are allocated");
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(clusterState.routingTable().index("new_index").shardsWithState(INITIALIZING).size(), equalTo(2));

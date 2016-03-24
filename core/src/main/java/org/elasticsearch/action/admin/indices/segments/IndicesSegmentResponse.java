@@ -19,13 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,7 +31,10 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,7 +49,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
 
     }
 
-    IndicesSegmentResponse(ShardSegments[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    IndicesSegmentResponse(ShardSegments[] shards, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
     }
@@ -59,21 +58,21 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         if (indicesSegments != null) {
             return indicesSegments;
         }
-        Map<String, IndexSegments> indicesSegments = Maps.newHashMap();
+        Map<String, IndexSegments> indicesSegments = new HashMap<>();
 
-        Set<String> indices = Sets.newHashSet();
+        Set<String> indices = new HashSet<>();
         for (ShardSegments shard : shards) {
-            indices.add(shard.getIndex());
+            indices.add(shard.getShardRouting().getIndexName());
         }
 
-        for (String index : indices) {
-            List<ShardSegments> shards = Lists.newArrayList();
+        for (String indexName : indices) {
+            List<ShardSegments> shards = new ArrayList<>();
             for (ShardSegments shard : this.shards) {
-                if (shard.getShardRouting().index().equals(index)) {
+                if (shard.getShardRouting().getIndexName().equals(indexName)) {
                     shards.add(shard);
                 }
             }
-            indicesSegments.put(index, new IndexSegments(index, shards.toArray(new ShardSegments[shards.size()])));
+            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
         }
         this.indicesSegments = indicesSegments;
         return indicesSegments;

@@ -15,10 +15,11 @@ within the index. For this reason, it can be disabled as follows:
 --------------------------------------------------
 PUT tweets
 {
-  "mappings": {},
-  "tweet": {
-    "_source": {
-      "enabled": false
+  "mappings": {
+    "tweet": {
+      "_source": {
+        "enabled": false
+      }
     }
   }
 }
@@ -78,8 +79,7 @@ stored.
 WARNING: Removing fields from the `_source` has similar downsides to disabling
 `_source`, especially the fact that you cannot reindex documents from one
 Elasticsearch index to another. Consider using
-<<search-request-source-filtering,source filtering>> or a
-<<mapping-transform,transform script>> instead.
+<<search-request-source-filtering,source filtering>> instead.
 
 The `includes`/`excludes` parameters (which also accept wildcards) can be used
 as follows:

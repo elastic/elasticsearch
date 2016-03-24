@@ -19,14 +19,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UidTests extends ElasticsearchTestCase {
-    
-    @Test
+public class UidTests extends ESTestCase {
     public void testCreateAndSplitId() {
         BytesRef createUid = Uid.createUidAsBytes("foo", "bar");
         BytesRef[] splitUidIntoTypeAndId = Uid.splitUidIntoTypeAndId(createUid);

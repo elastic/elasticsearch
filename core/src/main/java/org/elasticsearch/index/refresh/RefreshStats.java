@@ -50,6 +50,10 @@ public class RefreshStats implements Streamable, ToXContent {
     }
 
     public void add(RefreshStats refreshStats) {
+        addTotals(refreshStats);
+    }
+
+    public void addTotals(RefreshStats refreshStats) {
         if (refreshStats == null) {
             return;
         }

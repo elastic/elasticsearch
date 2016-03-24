@@ -19,14 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -49,12 +49,12 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
                                           ClusterService clusterService, TransportService transportService,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, NodesHotThreadsRequest.class, NodeRequest.class, ThreadPool.Names.GENERIC);
+                indexNameExpressionResolver, NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC);
     }
 
     @Override
     protected NodesHotThreadsResponse newResponse(NodesHotThreadsRequest request, AtomicReferenceArray responses) {
-        final List<NodeHotThreads> nodes = Lists.newArrayList();
+        final List<NodeHotThreads> nodes = new ArrayList<>();
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
             if (resp instanceof NodeHotThreads) {
@@ -94,15 +94,15 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         return false;
     }
 
-    static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         NodesHotThreadsRequest request;
 
-        NodeRequest() {
+        public NodeRequest() {
         }
 
         NodeRequest(String nodeId, NodesHotThreadsRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

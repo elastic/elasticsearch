@@ -19,10 +19,12 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+
 /**
  *
  */
 public interface HttpServerAdapter {
 
-    void dispatchRequest(HttpRequest request, HttpChannel channel);
+    void dispatchRequest(HttpRequest request, HttpChannel channel, ThreadContext context);
 }

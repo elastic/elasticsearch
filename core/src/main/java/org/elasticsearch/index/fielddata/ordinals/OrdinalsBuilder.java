@@ -23,18 +23,25 @@ import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.*;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.spatial.util.GeoEncodingUtils;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LegacyNumericUtils;
+import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedGrowableWriter;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * Simple class to build document ID <-> ordinal mapping. Note: Ordinals are
+ * Simple class to build document ID &lt;-&gt; ordinal mapping. Note: Ordinals are
  * <tt>1</tt> based monotonically increasing positive integers. <tt>0</tt>
  * donates the missing value in this context.
  */
@@ -75,7 +82,7 @@ public final class OrdinalsBuilder implements Closeable {
      * with document 2: it has 2 more ordinals on level 1: 3 and 4 and its next level index is 1 meaning that there are remaining
      * ordinals on the next level. On level 2 at index 1, we can read [5  0  0  0] meaning that 5 is an ordinal as well, but the
      * fact that it is followed by zeros means that there are no more ordinals. In the end, document 2 has 2, 3, 4 and 5 as ordinals.
-     * <p/>
+     * <p>
      * In addition to these structures, there is another array which stores the current position (level + slice + offset in the slice)
      * in order to be able to append data in constant time.
      */
@@ -182,46 +189,53 @@ public final class OrdinalsBuilder implements Closeable {
 
         public int addOrdinal(int docID, long ordinal) {
             final long position = positions.get(docID);
-
             if (position == 0L) { // on the first level
-                // 0 or 1 ordinal
-                if (firstOrdinals.get(docID) == 0L) {
-                    firstOrdinals.set(docID, ordinal + 1);
-                    return 1;
-                } else {
-                    final long newSlice = newSlice(1);
-                    if (firstNextLevelSlices == null) {
-                        firstNextLevelSlices = new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
-                    }
-                    firstNextLevelSlices.set(docID, newSlice);
-                    final long offset = startOffset(1, newSlice);
-                    ordinals[1].set(offset, ordinal + 1);
-                    positions.set(docID, position(1, offset)); // current position is on the 1st level and not allocated yet
-                    return 2;
-                }
+                return firstLevel(docID, ordinal);
             } else {
-                int level = level(position);
-                long offset = offset(position, level);
-                assert offset != 0L;
-                if (((offset + 1) & slotsMask(level)) == 0L) {
-                    // reached the end of the slice, allocate a new one on the next level
-                    final long newSlice = newSlice(level + 1);
-                    if (nextLevelSlices[level] == null) {
-                        nextLevelSlices[level] = new PagedGrowableWriter(sizes[level], PAGE_SIZE, 1, acceptableOverheadRatio);
-                    }
-                    nextLevelSlices[level].set(sliceID(level, offset), newSlice);
-                    ++level;
-                    offset = startOffset(level, newSlice);
-                    assert (offset & slotsMask(level)) == 0L;
-                } else {
-                    // just go to the next slot
-                    ++offset;
-                }
-                ordinals[level].set(offset, ordinal + 1);
-                final long newPosition = position(level, offset);
-                positions.set(docID, newPosition);
-                return numOrdinals(level, offset);
+                return nonFirstLevel(docID, ordinal, position);
             }
+        }
+
+        private int firstLevel(int docID, long ordinal) {
+            // 0 or 1 ordinal
+            if (firstOrdinals.get(docID) == 0L) {
+                firstOrdinals.set(docID, ordinal + 1);
+                return 1;
+            } else {
+                final long newSlice = newSlice(1);
+                if (firstNextLevelSlices == null) {
+                    firstNextLevelSlices = new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
+                }
+                firstNextLevelSlices.set(docID, newSlice);
+                final long offset = startOffset(1, newSlice);
+                ordinals[1].set(offset, ordinal + 1);
+                positions.set(docID, position(1, offset)); // current position is on the 1st level and not allocated yet
+                return 2;
+            }
+        }
+
+        private int nonFirstLevel(int docID, long ordinal, long position) {
+            int level = level(position);
+            long offset = offset(position, level);
+            assert offset != 0L;
+            if (((offset + 1) & slotsMask(level)) == 0L) {
+                // reached the end of the slice, allocate a new one on the next level
+                final long newSlice = newSlice(level + 1);
+                if (nextLevelSlices[level] == null) {
+                    nextLevelSlices[level] = new PagedGrowableWriter(sizes[level], PAGE_SIZE, 1, acceptableOverheadRatio);
+                }
+                nextLevelSlices[level].set(sliceID(level, offset), newSlice);
+                ++level;
+                offset = startOffset(level, newSlice);
+                assert (offset & slotsMask(level)) == 0L;
+            } else {
+                // just go to the next slot
+                ++offset;
+            }
+            ordinals[level].set(offset, ordinal + 1);
+            final long newPosition = position(level, offset);
+            positions.set(docID, newPosition);
+            return numOrdinals(level, offset);
         }
 
         public void appendOrdinals(int docID, LongsRef ords) {
@@ -272,18 +286,11 @@ public final class OrdinalsBuilder implements Closeable {
     private OrdinalsStore ordinals;
     private final LongsRef spare;
 
-    public OrdinalsBuilder(long numTerms, int maxDoc, float acceptableOverheadRatio) throws IOException {
+    public OrdinalsBuilder(int maxDoc, float acceptableOverheadRatio) throws IOException {
         this.maxDoc = maxDoc;
         int startBitsPerValue = 8;
-        if (numTerms >= 0) {
-            startBitsPerValue = PackedInts.bitsRequired(numTerms);
-        }
         ordinals = new OrdinalsStore(maxDoc, startBitsPerValue, acceptableOverheadRatio);
         spare = new LongsRef();
-    }
-
-    public OrdinalsBuilder(int maxDoc, float acceptableOverheadRatio) throws IOException {
-        this(-1, maxDoc, acceptableOverheadRatio);
     }
 
     public OrdinalsBuilder(int maxDoc) throws IOException {
@@ -300,7 +307,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Return a {@link PackedInts.Reader} instance mapping every doc ID to its first ordinal + 1 if it exists and 0 otherwise.
+     * Return a {@link org.apache.lucene.util.packed.PackedInts.Reader} instance mapping every doc ID to its first ordinal + 1 if it exists and 0 otherwise.
      */
     public PackedInts.Reader getFirstOrdinals() {
         return ordinals.firstOrdinals;
@@ -315,7 +322,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Retruns the current ordinal or <tt>0</tt> if this build has not been advanced via
+     * Returns the current ordinal or <tt>0</tt> if this build has not been advanced via
      * {@link #nextOrdinal()}.
      */
     public long currentOrdinal() {
@@ -398,16 +405,33 @@ public final class OrdinalsBuilder implements Closeable {
     /**
      * Builds an {@link Ordinals} instance from the builders current state.
      */
-    public Ordinals build(Settings settings) {
-        final float acceptableOverheadRatio = settings.getAsFloat("acceptable_overhead_ratio", PackedInts.FASTEST);
-        final boolean forceMultiOrdinals = settings.getAsBoolean(FORCE_MULTI_ORDINALS, false);
-        if (forceMultiOrdinals || numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)) {
+    public Ordinals build() {
+        final float acceptableOverheadRatio = PackedInts.DEFAULT;
+        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)) {
             // MultiOrdinals can be smaller than SinglePackedOrdinals for sparse fields
             return new MultiOrdinals(this, acceptableOverheadRatio);
         } else {
             return new SinglePackedOrdinals(this, acceptableOverheadRatio);
         }
     }
+
+    /**
+     * A {@link TermsEnum} that iterates only highest resolution geo prefix coded terms.
+     *
+     * @see #buildFromTerms(TermsEnum)
+     */
+    public static TermsEnum wrapGeoPointTerms(TermsEnum termsEnum) {
+        return new FilteredTermsEnum(termsEnum, false) {
+            @Override
+            protected AcceptStatus accept(BytesRef term) throws IOException {
+                // accept only the max resolution terms
+                // todo is this necessary?
+                return GeoEncodingUtils.getPrefixCodedShift(term) == GeoPointField.PRECISION_STEP * 4 ?
+                    AcceptStatus.YES : AcceptStatus.END;
+            }
+        };
+    }
+
 
     /**
      * Returns the maximum document ID this builder can associate with an ordinal
@@ -419,14 +443,14 @@ public final class OrdinalsBuilder implements Closeable {
     /**
      * A {@link TermsEnum} that iterates only full precision prefix coded 64 bit values.
      *
-     * @see #buildFromTerms(TermsEnum, Bits)
+     * @see #buildFromTerms(TermsEnum)
      */
     public static TermsEnum wrapNumeric64Bit(TermsEnum termsEnum) {
         return new FilteredTermsEnum(termsEnum, false) {
             @Override
             protected AcceptStatus accept(BytesRef term) throws IOException {
                 // we stop accepting terms once we moved across the prefix codec terms - redundant values!
-                return NumericUtils.getPrefixCodedLongShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
+                return LegacyNumericUtils.getPrefixCodedLongShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
             }
         };
     }
@@ -434,7 +458,7 @@ public final class OrdinalsBuilder implements Closeable {
     /**
      * A {@link TermsEnum} that iterates only full precision prefix coded 32 bit values.
      *
-     * @see #buildFromTerms(TermsEnum, Bits)
+     * @see #buildFromTerms(TermsEnum)
      */
     public static TermsEnum wrapNumeric32Bit(TermsEnum termsEnum) {
         return new FilteredTermsEnum(termsEnum, false) {
@@ -442,7 +466,7 @@ public final class OrdinalsBuilder implements Closeable {
             @Override
             protected AcceptStatus accept(BytesRef term) throws IOException {
                 // we stop accepting terms once we moved across the prefix codec terms - redundant values!
-                return NumericUtils.getPrefixCodedIntShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
+                return LegacyNumericUtils.getPrefixCodedIntShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
             }
         };
     }
@@ -451,7 +475,7 @@ public final class OrdinalsBuilder implements Closeable {
      * This method iterates all terms in the given {@link TermsEnum} and
      * associates each terms ordinal with the terms documents. The caller must
      * exhaust the returned {@link BytesRefIterator} which returns all values
-     * where the first returned value is associted with the ordinal <tt>1</tt>
+     * where the first returned value is associated with the ordinal <tt>1</tt>
      * etc.
      * <p>
      * If the {@link TermsEnum} contains prefix coded numerical values the terms
@@ -470,7 +494,7 @@ public final class OrdinalsBuilder implements Closeable {
             public BytesRef next() throws IOException {
                 BytesRef ref;
                 if ((ref = termsEnum.next()) != null) {
-                    docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.NONE);
+                    docsEnum = termsEnum.postings(docsEnum, PostingsEnum.NONE);
                     nextOrdinal();
                     int docId;
                     while ((docId = docsEnum.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {

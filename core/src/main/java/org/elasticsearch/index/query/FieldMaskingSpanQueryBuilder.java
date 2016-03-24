@@ -19,52 +19,106 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public class FieldMaskingSpanQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<FieldMaskingSpanQueryBuilder> {
+public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder<FieldMaskingSpanQueryBuilder>{
+
+    public static final String NAME = "field_masking_span";
 
     private final SpanQueryBuilder queryBuilder;
 
-    private final String field;
+    private final String fieldName;
 
-    private float boost = -1;
+    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "text"), "field");
 
-    private String queryName;
-
-
-    public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String field) {
+    /**
+     * Constructs a new {@link FieldMaskingSpanQueryBuilder} given an inner {@link SpanQueryBuilder} for
+     * a given field
+     * @param queryBuilder inner {@link SpanQueryBuilder}
+     * @param fieldName the field name
+     */
+    public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String fieldName) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("inner clause [query] cannot be null.");
+        }
         this.queryBuilder = queryBuilder;
-        this.field = field;
-    }
-
-    @Override
-    public FieldMaskingSpanQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+        this.fieldName = fieldName;
     }
 
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @return the field name for this query
      */
-    public FieldMaskingSpanQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public String fieldName() {
+        return this.fieldName;
+    }
+
+    /**
+     * @return the inner {@link QueryBuilder}
+     */
+    public SpanQueryBuilder innerQuery() {
+        return this.queryBuilder;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(FieldMaskingSpanQueryParser.NAME);
-        builder.field("query");
+        builder.startObject(NAME);
+        builder.field(FieldMaskingSpanQueryParser.QUERY_FIELD.getPreferredName());
         queryBuilder.toXContent(builder, params);
-        builder.field("field", field);
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        builder.field(FieldMaskingSpanQueryParser.FIELD_FIELD.getPreferredName(), fieldName);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
+        String fieldInQuery = fieldName;
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType != null) {
+            fieldInQuery = fieldType.name();
+        }
+        Query innerQuery = queryBuilder.toQuery(context);
+        assert innerQuery instanceof SpanQuery;
+        return new FieldMaskingSpanQuery((SpanQuery)innerQuery, fieldInQuery);
+    }
+
+    @Override
+    protected FieldMaskingSpanQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        QueryBuilder innerQueryBuilder = in.readQuery();
+        return new FieldMaskingSpanQueryBuilder((SpanQueryBuilder) innerQueryBuilder, in.readString());
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(queryBuilder);
+        out.writeString(fieldName);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(queryBuilder, fieldName);
+    }
+
+    @Override
+    protected boolean doEquals(FieldMaskingSpanQueryBuilder other) {
+        return Objects.equals(queryBuilder, other.queryBuilder) &&
+               Objects.equals(fieldName, other.fieldName);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

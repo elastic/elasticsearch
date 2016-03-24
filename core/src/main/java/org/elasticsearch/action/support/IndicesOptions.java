@@ -26,7 +26,7 @@ import org.elasticsearch.rest.RestRequest;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 
 /**
@@ -154,6 +154,16 @@ public class IndicesOptions {
                 defaultSettings);
     }
 
+    /**
+     * Returns true if the name represents a valid name for one of the indices option
+     * false otherwise
+     */
+    public static boolean isIndicesOptions(String name) {
+        return "expand_wildcards".equals(name) || "expandWildcards".equals(name) ||
+                "ignore_unavailable".equals(name) || "ignoreUnavailable".equals(name) ||
+                "allow_no_indices".equals(name) || "allowNoIndices".equals(name);
+    }
+
     public static IndicesOptions fromParameters(Object wildcardsString, Object ignoreUnavailableString, Object allowNoIndicesString, IndicesOptions defaultSettings) {
         if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null) {
             return defaultSettings;
@@ -185,8 +195,8 @@ public class IndicesOptions {
 
         //note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
-                nodeBooleanValue(ignoreUnavailableString, defaultSettings.ignoreUnavailable()),
-                nodeBooleanValue(allowNoIndicesString, defaultSettings.allowNoIndices()),
+                lenientNodeBooleanValue(ignoreUnavailableString, defaultSettings.ignoreUnavailable()),
+                lenientNodeBooleanValue(allowNoIndicesString, defaultSettings.allowNoIndices()),
                 expandWildcardsOpen,
                 expandWildcardsClosed,
                 defaultSettings.allowAliasesToMultipleIndices(),

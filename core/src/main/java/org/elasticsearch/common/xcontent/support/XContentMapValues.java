@@ -19,14 +19,13 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +39,7 @@ public class XContentMapValues {
      * as a single list.
      */
     public static List<Object> extractRawValues(String path, Map<String, Object> map) {
-        List<Object> values = Lists.newArrayList();
+        List<Object> values = new ArrayList<>();
         String[] pathElements = Strings.splitStringToArray(path, '.');
         if (pathElements.length == 0) {
             return values;
@@ -136,7 +135,7 @@ public class XContentMapValues {
     }
 
     public static Map<String, Object> filter(Map<String, Object> map, String[] includes, String[] excludes) {
-        Map<String, Object> result = Maps.newHashMap();
+        Map<String, Object> result = new HashMap<>();
         filter(map, result, includes == null ? Strings.EMPTY_ARRAY : includes, excludes == null ? Strings.EMPTY_ARRAY : excludes, new StringBuilder());
         return result;
     }
@@ -202,7 +201,7 @@ public class XContentMapValues {
 
 
             if (entry.getValue() instanceof Map) {
-                Map<String, Object> innerInto = Maps.newHashMap();
+                Map<String, Object> innerInto = new HashMap<>();
                 // if we had an exact match, we want give deeper excludes their chance
                 filter((Map<String, Object>) entry.getValue(), innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
                 if (exactIncludeMatch || !innerInto.isEmpty()) {
@@ -229,7 +228,7 @@ public class XContentMapValues {
 
         for (Object o : from) {
             if (o instanceof Map) {
-                Map<String, Object> innerInto = Maps.newHashMap();
+                Map<String, Object> innerInto = new HashMap<>();
                 filter((Map<String, Object>) o, innerInto, includes, excludes, sb);
                 if (!innerInto.isEmpty()) {
                     to.add(innerInto);
@@ -348,14 +347,20 @@ public class XContentMapValues {
         return Long.parseLong(node.toString());
     }
 
-    public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
+    /**
+     * This method is very lenient, use {@link #nodeBooleanValue} instead.
+     */
+    public static boolean lenientNodeBooleanValue(Object node, boolean defaultValue) {
         if (node == null) {
             return defaultValue;
         }
-        return nodeBooleanValue(node);
+        return lenientNodeBooleanValue(node);
     }
 
-    public static boolean nodeBooleanValue(Object node) {
+    /**
+     * This method is very lenient, use {@link #nodeBooleanValue} instead.
+     */
+    public static boolean lenientNodeBooleanValue(Object node) {
         if (node instanceof Boolean) {
             return (Boolean) node;
         }
@@ -364,6 +369,17 @@ public class XContentMapValues {
         }
         String value = node.toString();
         return !(value.equals("false") || value.equals("0") || value.equals("off"));
+    }
+
+    public static boolean nodeBooleanValue(Object node) {
+        switch (node.toString()) {
+        case "true":
+            return true;
+        case "false":
+            return false;
+        default:
+            throw new IllegalArgumentException("Can't parse boolean value [" + node + "], expected [true] or [false]");
+        }
     }
 
     public static TimeValue nodeTimeValue(Object node, TimeValue defaultValue) {

@@ -19,37 +19,24 @@
 
 package org.elasticsearch.indices.query;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryParser;
 
 import java.util.Map;
-import java.util.Set;
 
 public class IndicesQueriesRegistry extends AbstractComponent {
+    private Map<String, QueryParser<?>> queryParsers;
 
-    private ImmutableMap<String, QueryParser> queryParsers;
-
-    @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers) {
+    public IndicesQueriesRegistry(Settings settings, Map<String, QueryParser<?>> queryParsers) {
         super(settings);
-        Map<String, QueryParser> queryParsers = Maps.newHashMap();
-        for (QueryParser queryParser : injectedQueryParsers) {
-            for (String name : queryParser.names()) {
-                queryParsers.put(name, queryParser);
-            }
-        }
-        this.queryParsers = ImmutableMap.copyOf(queryParsers);
+        this.queryParsers = queryParsers;
     }
 
     /**
      * Returns all the registered query parsers
      */
-    public ImmutableMap<String, QueryParser> queryParsers() {
+    public Map<String, QueryParser<?>> queryParsers() {
         return queryParsers;
     }
 }

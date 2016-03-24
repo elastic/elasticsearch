@@ -26,7 +26,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
@@ -136,7 +135,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     protected static void copy(BytesRef from, BytesRef to) {
         if (to.bytes.length < from.length) {
-            to.bytes = new byte[ArrayUtil.oversize(from.length, RamUsageEstimator.NUM_BYTES_BYTE)];
+            to.bytes = new byte[ArrayUtil.oversize(from.length, 1)];
         }
         to.offset = 0;
         to.length = from.length;
@@ -267,9 +266,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
                         Terms.Order order, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext,
- Aggregator parent, SubAggCollectionMode collectionMode,
+                        Aggregator parent, SubAggCollectionMode collectionMode,
                 boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
             super(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, collectionMode,
@@ -341,13 +340,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private RandomAccessOrds segmentOrds;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
- Terms.Order order,
+                Terms.Order order,
                 BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
                 SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
             super(name, factories, valuesSource, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode,
                     showTermDocCountError, pipelineAggregators, metaData);
-            assert factories == null || factories.count() == 0;
+            assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
         }
 
@@ -411,11 +410,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             // This is the cleanest way I can think of so far
 
             GlobalOrdinalMapping mapping;
-            if (globalOrds instanceof GlobalOrdinalMapping) {
-                mapping = (GlobalOrdinalMapping) globalOrds;
-            } else {
-                assert globalOrds.getValueCount() == segmentOrds.getValueCount();
+            if (globalOrds.getValueCount() == segmentOrds.getValueCount()) {
                 mapping = null;
+            } else {
+                mapping = (GlobalOrdinalMapping) globalOrds;
             }
             for (long i = 1; i < segmentDocCounts.size(); i++) {
                 // We use set(...) here, because we need to reset the slow to 0.

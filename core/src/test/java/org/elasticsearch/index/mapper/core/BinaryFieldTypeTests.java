@@ -27,18 +27,4 @@ public class BinaryFieldTypeTests extends FieldTypeTestCase {
     protected MappedFieldType createDefaultFieldType() {
         return new BinaryFieldMapper.BinaryFieldType();
     }
-
-    @Override
-    protected int numProperties() {
-        return 1 + super.numProperties();
-    }
-
-    @Override
-    protected void modifyProperty(MappedFieldType ft, int propNum) {
-        BinaryFieldMapper.BinaryFieldType bft = (BinaryFieldMapper.BinaryFieldType)ft;
-        switch (propNum) {
-            case 0: bft.setTryUncompressing(!bft.tryUncompressing()); break;
-            default: super.modifyProperty(ft, propNum - 1);
-        }
-    }
 }

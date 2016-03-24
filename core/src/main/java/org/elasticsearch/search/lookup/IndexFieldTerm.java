@@ -19,12 +19,19 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FilterLeafReader.FilterPostingsEnum;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lucene.search.EmptyScorer;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -144,7 +151,28 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
             if (terms != null) {
                 TermsEnum termsEnum = terms.iterator();
                 if (termsEnum.seekExact(identifier.bytes())) {
-                    newPostings = termsEnum.postings(reader.getLiveDocs(), postings, luceneFlags);
+                    newPostings = termsEnum.postings(postings, luceneFlags);
+                    final Bits liveDocs = reader.getLiveDocs();
+                    if (liveDocs != null) {
+                        newPostings = new FilterPostingsEnum(newPostings) {
+                            private int doNext(int d) throws IOException {
+                                for (; d != NO_MORE_DOCS; d = super.nextDoc()) {
+                                    if (liveDocs.get(d)) {
+                                        return d;
+                                    }
+                                }
+                                return NO_MORE_DOCS;
+                            }
+                            @Override
+                            public int nextDoc() throws IOException {
+                                return doNext(super.nextDoc());
+                            }
+                            @Override
+                            public int advance(int target) throws IOException {
+                                return doNext(super.advance(target));
+                            }
+                        };
+                    }
                 }
             }
         }
@@ -208,7 +236,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
     /*
      * A user might decide inside a script to call get with _POSITIONS and then
      * a second time with _PAYLOADS. If the positions were recorded but the
-     * payloads were not, the user will not have access to them. Therfore, throw
+     * payloads were not, the user will not have access to them. Therefore, throw
      * exception here explaining how to call get().
      */
     public void validateFlags(int flags2) {

@@ -27,7 +27,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
@@ -41,7 +44,7 @@ public class RestPercolateAction extends BaseRestHandler {
 
     @Inject
     public RestPercolateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/_percolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_percolate", this);
 
@@ -106,7 +109,7 @@ public class RestPercolateAction extends BaseRestHandler {
     final class RestCountPercolateDocHandler extends BaseRestHandler {
 
         private RestCountPercolateDocHandler(Settings settings, final RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override
@@ -120,7 +123,7 @@ public class RestPercolateAction extends BaseRestHandler {
     final class RestPercolateExistingDocHandler extends BaseRestHandler {
 
         protected RestPercolateExistingDocHandler(Settings settings, final RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override
@@ -133,7 +136,7 @@ public class RestPercolateAction extends BaseRestHandler {
     final class RestCountPercolateExistingDocHandler extends BaseRestHandler {
 
         protected RestCountPercolateExistingDocHandler(Settings settings, final RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override

@@ -19,28 +19,32 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.tasks.Task;
+
 /**
  */
-public abstract class TransportRequest extends TransportMessage<TransportRequest> {
+public abstract class TransportRequest extends TransportMessage {
 
     public static class Empty extends TransportRequest {
-
         public static final Empty INSTANCE = new Empty();
-
-        public Empty() {
-            super();
-        }
-
-        public Empty(TransportRequest request) {
-            super(request);
-        }
     }
 
-    protected TransportRequest() {
+    public TransportRequest() {
     }
 
-    protected TransportRequest(TransportRequest request) {
-        super(request);
+    /**
+     * Returns the task object that should be used to keep track of the processing of the request.
+     *
+     * A request can override this method and return null to avoid being tracked by the task manager.
+     */
+    public Task createTask(long id, String type, String action) {
+        return new Task(id, type, action, getDescription());
     }
 
+    /**
+     * Returns optional description of the request to be displayed by the task manager
+     */
+    public String getDescription() {
+        return "";
+    }
 }

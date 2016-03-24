@@ -20,9 +20,17 @@
 package org.elasticsearch.action.termvectors;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.document.*;
-import org.apache.lucene.index.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
@@ -31,7 +39,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -42,9 +49,9 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.StreamsUtils;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -56,11 +63,8 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermVectorsUnitTests extends ElasticsearchTestCase {
-
-    @Test
-    public void streamResponse() throws Exception {
-
+public class TermVectorsUnitTests extends ESTestCase {
+    public void testStreamResponse() throws Exception {
         TermVectorsResponse outResponse = new TermVectorsResponse("a", "b", "c");
         outResponse.setExists(true);
         writeStandardTermVector(outResponse);
@@ -169,7 +173,6 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
         assertThat(fields.size(), equalTo(2));
     }
 
-    @Test
     public void testRestRequestParsing() throws Exception {
         BytesReference inputBytes = new BytesArray(
                 " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
@@ -207,7 +210,6 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
 
     }
 
-    @Test
     public void testRequestParsingThrowsException() throws Exception {
         BytesReference inputBytes = new BytesArray(
                 " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}");
@@ -223,9 +225,7 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
 
     }
 
-    @Test
-    public void streamRequest() throws IOException {
-
+    public void testStreamRequest() throws IOException {
         for (int i = 0; i < 10; i++) {
             TermVectorsRequest request = new TermVectorsRequest("index", "type", "id");
             request.offsets(random().nextBoolean());
@@ -255,12 +255,11 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
             assertThat(request.positions(), equalTo(req2.positions()));
             assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
             assertThat(request.preference(), equalTo(pref));
-            assertThat(request.routing(), equalTo(parent));
+            assertThat(request.routing(), equalTo(null));
 
         }
     }
-    
-    @Test
+
     public void testFieldTypeToTermVectorString() throws Exception {
         FieldType ft = new FieldType();
         ft.setStoreTermVectorOffsets(false);
@@ -279,7 +278,6 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
         assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.", exceptiontrown, equalTo(false));
     }
 
-    @Test
     public void testTermVectorStringGenerationWithoutPositions() throws Exception {
         FieldType ft = new FieldType();
         ft.setStoreTermVectorOffsets(true);
@@ -290,15 +288,14 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
         assertThat(ftOpts, equalTo("with_offsets"));
     }
 
-    @Test
     public void testMultiParser() throws Exception {
-        byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
+        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
         BytesReference bytes = new BytesArray(data);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), bytes);
         checkParsedParameters(request);
-        
-        data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
+
+        data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
         bytes = new BytesArray(data);
         request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), bytes);
@@ -326,9 +323,9 @@ public class TermVectorsUnitTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test // issue #12311
+    // issue #12311
     public void testMultiParserFilter() throws Exception {
-        byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest3.json");
+        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest3.json");
         BytesReference bytes = new BytesArray(data);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), bytes);

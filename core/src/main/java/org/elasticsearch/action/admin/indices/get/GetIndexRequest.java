@@ -19,12 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import com.google.common.collect.ObjectArrays;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ArrayUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,8 +37,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     public static enum Feature {
         ALIASES((byte) 0, "_aliases", "_alias"),
         MAPPINGS((byte) 1, "_mappings", "_mapping"),
-        SETTINGS((byte) 2, "_settings"),
-        WARMERS((byte) 3, "_warmers", "_warmer");
+        SETTINGS((byte) 2, "_settings");
 
         private static final Feature[] FEATURES = new Feature[Feature.values().length];
 
@@ -98,7 +96,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         }
     }
 
-    private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS, Feature.WARMERS };
+    private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
 
@@ -115,7 +113,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         if (this.features == DEFAULT_FEATURES) {
             return features(features);
         } else {
-            return features(ObjectArrays.concat(featuresAsEnums(), features, Feature.class));
+            return features(ArrayUtils.concat(features(), features, Feature.class));
         }
     }
 

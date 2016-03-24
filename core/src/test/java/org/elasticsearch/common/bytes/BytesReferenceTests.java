@@ -20,11 +20,11 @@
 package org.elasticsearch.common.bytes;
 
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
-public class BytesReferenceTests extends ElasticsearchTestCase {
+public class BytesReferenceTests extends ESTestCase {
 
     public void testEquals() {
         final int len = randomIntBetween(0, randomBoolean() ? 10: 100000);

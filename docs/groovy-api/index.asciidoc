@@ -46,5 +46,3 @@ include::get.asciidoc[]
 include::delete.asciidoc[]
 
 include::search.asciidoc[]
-
-include::count.asciidoc[]

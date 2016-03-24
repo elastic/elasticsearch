@@ -22,9 +22,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -32,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
@@ -116,14 +115,7 @@ public class GatewayAllocator extends AbstractComponent {
         boolean changed = false;
 
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-        unassigned.sort(new PriorityComparator() {
-
-            @Override
-            protected Settings getIndexSettings(String index) {
-                IndexMetaData indexMetaData = allocation.metaData().index(index);
-                return indexMetaData.getSettings();
-            }
-        }); // sort for priority ordering
+        unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
         changed |= primaryShardAllocator.allocateUnassigned(allocation);
         changed |= replicaShardAllocator.processExistingRecoveries(allocation);

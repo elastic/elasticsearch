@@ -19,40 +19,35 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-public class CommitPointsTests extends ElasticsearchTestCase {
-
+public class CommitPointsTests extends ESTestCase {
     private final ESLogger logger = Loggers.getLogger(CommitPointsTests.class);
 
-    @Test
     public void testCommitPointXContent() throws Exception {
-        ArrayList<CommitPoint.FileInfo> indexFiles = Lists.newArrayList();
+        ArrayList<CommitPoint.FileInfo> indexFiles = new ArrayList<>();
         indexFiles.add(new CommitPoint.FileInfo("file1", "file1_p", 100, "ck1"));
         indexFiles.add(new CommitPoint.FileInfo("file2", "file2_p", 200, "ck2"));
 
-        ArrayList<CommitPoint.FileInfo> translogFiles = Lists.newArrayList();
+        ArrayList<CommitPoint.FileInfo> translogFiles = new ArrayList<>();
         translogFiles.add(new CommitPoint.FileInfo("t_file1", "t_file1_p", 100, null));
         translogFiles.add(new CommitPoint.FileInfo("t_file2", "t_file2_p", 200, null));
 
         CommitPoint commitPoint = new CommitPoint(1, "test", CommitPoint.Type.GENERATED, indexFiles, translogFiles);
 
         byte[] serialized = CommitPoints.toXContent(commitPoint);
-        logger.info("serialized commit_point {}", new String(serialized, Charsets.UTF_8));
+        logger.info("serialized commit_point {}", new String(serialized, StandardCharsets.UTF_8));
 
         CommitPoint desCp = CommitPoints.fromXContent(serialized);
         assertThat(desCp.version(), equalTo(commitPoint.version()));

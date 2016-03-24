@@ -18,38 +18,33 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.HashSet;
+import java.util.Set;
 
-public class UUIDTests extends ElasticsearchTestCase {
+public class UUIDTests extends ESTestCase {
 
     static UUIDGenerator timeUUIDGen = new TimeBasedUUIDGenerator();
     static UUIDGenerator randomUUIDGen = new RandomBasedUUIDGenerator();
 
-    @Test
     public void testRandomUUID() {
         verifyUUIDSet(100000, randomUUIDGen);
     }
 
-    @Test
     public void testTimeUUID() {
         verifyUUIDSet(100000, timeUUIDGen);
     }
 
-    @Test
     public void testThreadedTimeUUID() {
         testUUIDThreaded(timeUUIDGen);
     }
 
-    @Test
     public void testThreadedRandomUUID() {
         testUUIDThreaded(randomUUIDGen);
     }
 
-    HashSet verifyUUIDSet(int count, UUIDGenerator uuidSource) {
+    Set<String> verifyUUIDSet(int count, UUIDGenerator uuidSource) {
         HashSet<String> uuidSet = new HashSet<>();
         for (int i = 0; i < count; ++i) {
             uuidSet.add(uuidSource.getBase64UUID());
@@ -60,7 +55,7 @@ public class UUIDTests extends ElasticsearchTestCase {
 
     class UUIDGenRunner implements Runnable {
         int count;
-        public HashSet<String> uuidSet = null;
+        public Set<String> uuidSet = null;
         UUIDGenerator uuidSource;
 
         public UUIDGenRunner(int count, UUIDGenerator uuidSource) {

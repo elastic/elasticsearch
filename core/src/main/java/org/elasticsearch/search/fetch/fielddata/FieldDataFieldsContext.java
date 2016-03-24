@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.search.fetch.fielddata;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * All the required context to pull a field from the field data cache.
  */
-public class FieldDataFieldsContext {
+public class FieldDataFieldsContext extends FetchSubPhaseContext {
 
     public static class FieldDataField {
         private final String name;
@@ -39,7 +40,7 @@ public class FieldDataFieldsContext {
         }
     }
 
-    private List<FieldDataField> fields = Lists.newArrayList();
+    private List<FieldDataField> fields = new ArrayList<>();
 
     public FieldDataFieldsContext() {
     }

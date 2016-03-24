@@ -19,15 +19,13 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 
+import java.util.ArrayList;
 import java.util.List;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list
@@ -39,10 +37,9 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
     private CustomAnalyzer customAnalyzer;
 
-    @Inject
-    public CustomAnalyzerProvider(Index index, @IndexSettings Settings indexSettings,
-                                  @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public CustomAnalyzerProvider(IndexSettings indexSettings,
+                                  String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.analyzerSettings = settings;
     }
 
@@ -57,7 +54,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find tokenizer under name [" + tokenizerName + "]");
         }
 
-        List<CharFilterFactory> charFilters = newArrayList();
+        List<CharFilterFactory> charFilters = new ArrayList<>();
         String[] charFilterNames = analyzerSettings.getAsArray("char_filter");
         for (String charFilterName : charFilterNames) {
             CharFilterFactory charFilter = analysisService.charFilter(charFilterName);
@@ -67,7 +64,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             charFilters.add(charFilter);
         }
 
-        List<TokenFilterFactory> tokenFilters = newArrayList();
+        List<TokenFilterFactory> tokenFilters = new ArrayList<>();
         String[] tokenFilterNames = analyzerSettings.getAsArray("filter");
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = analysisService.tokenFilter(tokenFilterName);
@@ -77,13 +74,28 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             tokenFilters.add(tokenFilter);
         }
 
-        int positionOffsetGap = analyzerSettings.getAsInt("position_offset_gap", 0);
-        int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
+        int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
 
+        if (analyzerSettings.getAsMap().containsKey("position_offset_gap")){
+            if (indexSettings.getIndexVersionCreated().before(Version.V_2_0_0)){
+                if (analyzerSettings.getAsMap().containsKey("position_increment_gap")){
+                    throw new IllegalArgumentException("Custom Analyzer [" + name() +
+                            "] defined both [position_offset_gap] and [position_increment_gap], use only [position_increment_gap]");
+                }
+                positionIncrementGap = analyzerSettings.getAsInt("position_offset_gap", positionIncrementGap);
+            }else {
+                throw new IllegalArgumentException("Option [position_offset_gap] in Custom Analyzer [" + name() +
+                        "] has been renamed, please use [position_increment_gap] instead.");
+            }
+        }
+
+        positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
+
+        int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);;
         this.customAnalyzer = new CustomAnalyzer(tokenizer,
                 charFilters.toArray(new CharFilterFactory[charFilters.size()]),
                 tokenFilters.toArray(new TokenFilterFactory[tokenFilters.size()]),
-                positionOffsetGap,
+                positionIncrementGap,
                 offsetGap
         );
     }

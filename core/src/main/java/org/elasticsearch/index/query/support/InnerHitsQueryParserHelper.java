@@ -19,45 +19,33 @@
 
 package org.elasticsearch.index.query.support;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
 import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
+import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 
 public class InnerHitsQueryParserHelper {
 
-    private final SortParseElement sortParseElement;
-    private final FetchSourceParseElement sourceParseElement;
-    private final HighlighterParseElement highlighterParseElement;
-    private final ScriptFieldsParseElement scriptFieldsParseElement;
-    private final FieldDataFieldsParseElement fieldDataFieldsParseElement;
+    public static final InnerHitsQueryParserHelper INSTANCE = new InnerHitsQueryParserHelper();
 
-    @Inject
-    public InnerHitsQueryParserHelper(SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, ScriptFieldsParseElement scriptFieldsParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement) {
-        this.sortParseElement = sortParseElement;
-        this.sourceParseElement = sourceParseElement;
-        this.highlighterParseElement = highlighterParseElement;
-        this.scriptFieldsParseElement = scriptFieldsParseElement;
-        this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
-    }
+    private static final FetchSourceParseElement sourceParseElement = new FetchSourceParseElement();
+    private static final HighlighterParseElement highlighterParseElement = new HighlighterParseElement();
+    private static final ScriptFieldsParseElement scriptFieldsParseElement = new ScriptFieldsParseElement();
+    private static final FieldDataFieldsParseElement fieldDataFieldsParseElement = new FieldDataFieldsParseElement();
 
-    public Tuple<String, SubSearchContext> parse(QueryParseContext parserContext) throws IOException, QueryParsingException {
+    public static InnerHitsSubSearchContext parse(XContentParser parser) throws IOException {
         String fieldName = null;
         XContentParser.Token token;
         String innerHitName = null;
         SubSearchContext subSearchContext = new SubSearchContext(SearchContext.current());
         try {
-            XContentParser parser = parserContext.parser();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = parser.currentName();
@@ -65,23 +53,23 @@ public class InnerHitsQueryParserHelper {
                     if ("name".equals(fieldName)) {
                         innerHitName = parser.textOrNull();
                     } else {
-                        parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
+                        parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
                     }
                 } else {
-                    parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
+                    parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
                 }
             }
         } catch (Exception e) {
-            throw new QueryParsingException(parserContext, "Failed to parse [_inner_hits]", e);
+            throw new IOException("Failed to parse [_inner_hits]", e);
         }
-        return new Tuple<>(innerHitName, subSearchContext);
+        return new InnerHitsSubSearchContext(innerHitName, subSearchContext);
     }
 
     public static void parseCommonInnerHitOptions(XContentParser parser, XContentParser.Token token, String fieldName, SubSearchContext subSearchContext,
-                                                  SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement,
+                                                  FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement,
                                                   ScriptFieldsParseElement scriptFieldsParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement) throws Exception {
         if ("sort".equals(fieldName)) {
-            sortParseElement.parse(parser, subSearchContext);
+            SortBuilder.parseSort(parser, subSearchContext);
         } else if ("_source".equals(fieldName)) {
             sourceParseElement.parse(parser, subSearchContext);
         } else if (token == XContentParser.Token.START_OBJECT) {

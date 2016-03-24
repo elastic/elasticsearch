@@ -19,10 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -32,12 +30,15 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Sets.newHashSet;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Status of a snapshot
@@ -48,16 +49,16 @@ public class SnapshotStatus implements ToXContent, Streamable {
 
     private State state;
 
-    private ImmutableList<SnapshotIndexShardStatus> shards;
+    private List<SnapshotIndexShardStatus> shards;
 
-    private ImmutableMap<String, SnapshotIndexStatus> indicesStatus;
+    private Map<String, SnapshotIndexStatus> indicesStatus;
 
     private SnapshotShardsStats shardsStats;
 
     private SnapshotStats stats;
 
 
-    SnapshotStatus(SnapshotId snapshotId, State state, ImmutableList<SnapshotIndexShardStatus> shards) {
+    SnapshotStatus(SnapshotId snapshotId, State state, List<SnapshotIndexShardStatus> shards) {
         this.snapshotId = snapshotId;
         this.state = state;
         this.shards = shards;
@@ -101,15 +102,15 @@ public class SnapshotStatus implements ToXContent, Streamable {
             return this.indicesStatus;
         }
 
-        ImmutableMap.Builder<String, SnapshotIndexStatus> indicesStatus = ImmutableMap.builder();
+        Map<String, SnapshotIndexStatus> indicesStatus = new HashMap<>();
 
-        Set<String> indices = newHashSet();
+        Set<String> indices = new HashSet<>();
         for (SnapshotIndexShardStatus shard : shards) {
             indices.add(shard.getIndex());
         }
 
         for (String index : indices) {
-            List<SnapshotIndexShardStatus> shards = newArrayList();
+            List<SnapshotIndexShardStatus> shards = new ArrayList<>();
             for (SnapshotIndexShardStatus shard : this.shards) {
                 if (shard.getIndex().equals(index)) {
                     shards.add(shard);
@@ -117,7 +118,7 @@ public class SnapshotStatus implements ToXContent, Streamable {
             }
             indicesStatus.put(index, new SnapshotIndexStatus(index, shards));
         }
-        this.indicesStatus = indicesStatus.build();
+        this.indicesStatus = unmodifiableMap(indicesStatus);
         return this.indicesStatus;
 
     }
@@ -127,11 +128,11 @@ public class SnapshotStatus implements ToXContent, Streamable {
         snapshotId = SnapshotId.readSnapshotId(in);
         state = State.fromValue(in.readByte());
         int size = in.readVInt();
-        ImmutableList.Builder<SnapshotIndexShardStatus> builder = ImmutableList.builder();
+        List<SnapshotIndexShardStatus> builder = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             builder.add(SnapshotIndexShardStatus.readShardSnapshotStatus(in));
         }
-        shards = builder.build();
+        shards = Collections.unmodifiableList(builder);
         updateShardStats();
     }
 
@@ -150,7 +151,6 @@ public class SnapshotStatus implements ToXContent, Streamable {
      *
      * @param in stream input
      * @return deserialized snapshot status
-     * @throws IOException
      */
     public static SnapshotStatus readSnapshotStatus(StreamInput in) throws IOException {
         SnapshotStatus snapshotInfo = new SnapshotStatus();

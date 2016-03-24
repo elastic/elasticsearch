@@ -19,39 +19,33 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanContainingQuery;
-import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- * Parser for {@link SpanContainingQuery}
+ * Parser for span_containing query
  */
-public class SpanContainingQueryParser implements QueryParser {
+public class SpanContainingQueryParser implements QueryParser<SpanContainingQueryBuilder> {
 
-    public static final String NAME = "span_containing";
-
-    @Inject
-    public SpanContainingQueryParser() {
-    }
-
+    public static final ParseField BIG_FIELD = new ParseField("big");
+    public static final ParseField LITTLE_FIELD = new ParseField("little");
+  
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SpanContainingQueryBuilder.NAME, Strings.toCamelCase(SpanContainingQueryBuilder.NAME)};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanContainingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
-        SpanQuery big = null;
-        SpanQuery little = null;
+        SpanQueryBuilder<?> big = null;
+        SpanQueryBuilder<?> little = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -59,42 +53,37 @@ public class SpanContainingQueryParser implements QueryParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("big".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerQuery();
-                    if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(parseContext, "span_containing [big] must be of type span query");
+                if (parseContext.parseFieldMatcher().match(currentFieldName, BIG_FIELD)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (!(query instanceof SpanQueryBuilder<?>)) {
+                        throw new ParsingException(parser.getTokenLocation(), "span_containing [big] must be of type span query");
                     }
-                    big = (SpanQuery) query;
-                } else if ("little".equals(currentFieldName)) {
-                    Query query = parseContext.parseInnerQuery();
-                    if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(parseContext, "span_containing [little] must be of type span query");
+                    big = (SpanQueryBuilder<?>) query;
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LITTLE_FIELD)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (!(query instanceof SpanQueryBuilder<?>)) {
+                        throw new ParsingException(parser.getTokenLocation(), "span_containing [little] must be of type span query");
                     }
-                    little = (SpanQuery) query;
+                    little = (SpanQueryBuilder<?>) query;
                 } else {
-                    throw new QueryParsingException(parseContext, "[span_containing] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[span_containing] query does not support [" + currentFieldName + "]");
                 }
-            } else if ("boost".equals(currentFieldName)) {
+            } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                 boost = parser.floatValue();
-            } else if ("_name".equals(currentFieldName)) {
+            } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                 queryName = parser.text();
             } else {
-                throw new QueryParsingException(parseContext, "[span_containing] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[span_containing] query does not support [" + currentFieldName + "]");
             }
-        }        
-        
-        if (big == null) {
-            throw new QueryParsingException(parseContext, "span_containing must include [big]");
-        }
-        if (little == null) {
-            throw new QueryParsingException(parseContext, "span_containing must include [little]");
         }
 
-        Query query = new SpanContainingQuery(big, little);
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
+        SpanContainingQueryBuilder query = new SpanContainingQueryBuilder(big, little);
+        query.boost(boost).queryName(queryName);
         return query;
+    }
+
+    @Override
+    public SpanContainingQueryBuilder getBuilderPrototype() {
+        return SpanContainingQueryBuilder.PROTOTYPE;
     }
 }

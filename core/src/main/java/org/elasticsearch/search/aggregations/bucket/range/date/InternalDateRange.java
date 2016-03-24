@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -115,8 +116,13 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
     public static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
 
         @Override
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
+        }
+
+        @Override
+        public ValueType getValueType() {
+            return ValueType.DATE;
         }
 
         @Override

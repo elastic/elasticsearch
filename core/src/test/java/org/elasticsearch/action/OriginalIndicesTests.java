@@ -22,21 +22,19 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class OriginalIndicesTests extends ElasticsearchTestCase {
+public class OriginalIndicesTests extends ESTestCase {
 
     private static final IndicesOptions[] indicesOptionsValues = new IndicesOptions[]{
             IndicesOptions.lenientExpandOpen() , IndicesOptions.strictExpand(), IndicesOptions.strictExpandOpen(),
             IndicesOptions.strictExpandOpenAndForbidClosed(), IndicesOptions.strictSingleIndexNoExpandForbidClosed()};
 
-    @Test
     public void testOriginalIndicesSerialization() throws IOException {
         int iterations = iterations(10, 30);
         for (int i = 0; i < iterations; i++) {

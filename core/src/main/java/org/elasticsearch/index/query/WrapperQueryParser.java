@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,39 +30,39 @@ import java.io.IOException;
  */
 public class WrapperQueryParser implements QueryParser {
 
-    public static final String NAME = "wrapper";
-
-    @Inject
-    public WrapperQueryParser() {
-    }
+    public static final ParseField QUERY_FIELD = new ParseField("query");
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{WrapperQueryBuilder.NAME};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[wrapper] query malformed");
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
-        if (!fieldName.equals("query")) {
-            throw new QueryParsingException(parseContext, "[wrapper] query malformed");
+        if (! parseContext.parseFieldMatcher().match(fieldName, QUERY_FIELD)) {
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was" + fieldName);
         }
         parser.nextToken();
 
-        byte[] querySource = parser.binaryValue();
-        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParserService());
-            context.reset(qSourceParser);
-            Query result = context.parseInnerQuery();
-            parser.nextToken();
-            parseContext.combineNamedQueries(context);
-            return result;
+        byte[] source = parser.binaryValue();
+
+        parser.nextToken();
+
+        if (source == null) {
+            throw new ParsingException(parser.getTokenLocation(), "wrapper query has no [query] specified");
         }
+        return new WrapperQueryBuilder(source);
+    }
+
+    @Override
+    public WrapperQueryBuilder getBuilderPrototype() {
+        return WrapperQueryBuilder.PROTOTYPE;
     }
 }

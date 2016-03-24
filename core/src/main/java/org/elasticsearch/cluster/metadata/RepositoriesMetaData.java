@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
@@ -33,9 +32,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Contains metadata about registered snapshot repositories
@@ -46,7 +45,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
 
     public static final RepositoriesMetaData PROTO = new RepositoriesMetaData();
 
-    private final ImmutableList<RepositoryMetaData> repositories;
+    private final List<RepositoryMetaData> repositories;
 
     /**
      * Constructs new repository metadata
@@ -54,7 +53,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
      * @param repositories list of repositories
      */
     public RepositoriesMetaData(RepositoryMetaData... repositories) {
-        this.repositories = ImmutableList.copyOf(repositories);
+        this.repositories = Arrays.asList(repositories);
     }
 
     /**
@@ -62,7 +61,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
      *
      * @return list of repositories
      */
-    public ImmutableList<RepositoryMetaData> repositories() {
+    public List<RepositoryMetaData> repositories() {
         return this.repositories;
     }
 
@@ -196,7 +195,6 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
      * @param repository repository metadata
      * @param builder    XContent builder
      * @param params     serialization parameters
-     * @throws IOException
      */
     public static void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(repository.name(), XContentBuilder.FieldCaseConversion.NONE);

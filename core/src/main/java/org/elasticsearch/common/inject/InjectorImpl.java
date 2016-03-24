@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,22 +16,44 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.Classes;
-import org.elasticsearch.common.inject.internal.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.internal.Annotations;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.InternalContext;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.LinkedBindingImpl;
+import org.elasticsearch.common.inject.internal.LinkedProviderBindingImpl;
+import org.elasticsearch.common.inject.internal.MatcherAndConverter;
+import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.inject.internal.Scoping;
+import org.elasticsearch.common.inject.internal.SourceProvider;
+import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
+import org.elasticsearch.common.inject.spi.ConvertedConstantBinding;
+import org.elasticsearch.common.inject.spi.Dependency;
+import org.elasticsearch.common.inject.spi.ProviderBinding;
+import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
 import org.elasticsearch.common.inject.util.Providers;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.*;
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.common.inject.internal.Annotations.findScopeAnnotation;
 
 /**
@@ -50,7 +72,7 @@ class InjectorImpl implements Injector, Lookups {
     /**
      * Just-in-time binding cache. Guarded by state.lock()
      */
-    Map<Key<?>, BindingImpl<?>> jitBindings = Maps.newHashMap();
+    Map<Key<?>, BindingImpl<?>> jitBindings = new HashMap<>();
 
     Lookups lookups = new DeferredLookups(this);
 
@@ -142,7 +164,7 @@ class InjectorImpl implements Injector, Lookups {
 
     @Override
     public Injector createChildInjector(Module... modules) {
-        return createChildInjector(ImmutableList.copyOf(modules));
+        return createChildInjector(Arrays.asList(modules));
     }
 
     /**
@@ -199,7 +221,7 @@ class InjectorImpl implements Injector, Lookups {
 
 
         return new InstanceBindingImpl<>(this, key, SourceProvider.UNKNOWN_SOURCE,
-                factory, ImmutableSet.<InjectionPoint>of(), membersInjector);
+                factory, emptySet(), membersInjector);
     }
 
     /**
@@ -357,7 +379,7 @@ class InjectorImpl implements Injector, Lookups {
 
         @Override
         public Set<Dependency<?>> getDependencies() {
-            return ImmutableSet.<Dependency<?>>of(Dependency.get(getSourceKey()));
+            return singleton(Dependency.get(getSourceKey()));
         }
 
         @Override
@@ -467,7 +489,7 @@ class InjectorImpl implements Injector, Lookups {
         ParameterizedType parameterizedType = (ParameterizedType) typeLiteralType;
         Type innerType = parameterizedType.getActualTypeArguments()[0];
 
-        // this is unforunate. We don't support building TypeLiterals for type variable like 'T'. If
+        // this is unfortunate. We don't support building TypeLiterals for type variable like 'T'. If
         // this proves problematic, we can probably fix TypeLiteral to support type variables
         if (!(innerType instanceof Class)
                 && !(innerType instanceof GenericArrayType)
@@ -480,7 +502,7 @@ class InjectorImpl implements Injector, Lookups {
         InternalFactory<TypeLiteral<T>> factory = new ConstantFactory<>(
                 Initializables.of(value));
         return new InstanceBindingImpl<>(this, key, SourceProvider.UNKNOWN_SOURCE,
-                factory, ImmutableSet.<InjectionPoint>of(), value);
+                factory, emptySet(), value);
     }
 
     /**
@@ -676,12 +698,12 @@ class InjectorImpl implements Injector, Lookups {
     }
 
     private static class BindingsMultimap {
-        final Map<TypeLiteral<?>, List<Binding<?>>> multimap = Maps.newHashMap();
+        final Map<TypeLiteral<?>, List<Binding<?>>> multimap = new HashMap<>();
 
         <T> void put(TypeLiteral<T> type, Binding<T> binding) {
             List<Binding<?>> bindingsForType = multimap.get(type);
             if (bindingsForType == null) {
-                bindingsForType = Lists.newArrayList();
+                bindingsForType = new ArrayList<>();
                 multimap.put(type, bindingsForType);
             }
             bindingsForType.add(binding);
@@ -694,7 +716,7 @@ class InjectorImpl implements Injector, Lookups {
             List<Binding<?>> bindings = multimap.get(type);
             return bindings != null
                     ? Collections.<Binding<T>>unmodifiableList((List) multimap.get(type))
-                    : ImmutableList.<Binding<T>>of();
+                    : Collections.<Binding<T>>emptyList();
         }
     }
 
@@ -878,7 +900,7 @@ class InjectorImpl implements Injector, Lookups {
         state.clearBlacklisted();
         constructors = new ConstructorInjectorStore(this);
         membersInjectorStore = new MembersInjectorStore(this, state.getTypeListenerBindings());
-        jitBindings = Maps.newHashMap();
+        jitBindings = new HashMap<>();
     }
 
     // ES_GUICE: make all registered bindings act as eager singletons

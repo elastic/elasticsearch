@@ -133,6 +133,10 @@ Latvian::
 
 http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/lv/LatvianStemmer.html[*`latvian`*]
 
+Lithuanian::
+
+http://svn.apache.org/viewvc/lucene/dev/branches/lucene_solr_5_3/lucene/analysis/common/src/java/org/apache/lucene/analysis/lt/stem_ISO_8859_1.sbl?view=markup[*`lithuanian`*]
+
 Norwegian (Bokmål)::
 
 http://snowball.tartarus.org/algorithms/norwegian/stemmer.html[*`norwegian`*],

@@ -19,44 +19,35 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
 /**
- *
+ * Parser for prefix query
  */
-public class PrefixQueryParser implements QueryParser {
+public class PrefixQueryParser implements QueryParser<PrefixQueryBuilder> {
 
-    public static final String NAME = "prefix";
-
-    @Inject
-    public PrefixQueryParser() {
-    }
+    public static final ParseField PREFIX_FIELD = new ParseField("value", "prefix");
+    public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{PrefixQueryBuilder.NAME};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public PrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
-        String rewriteMethod = null;
-        String queryName = null;
-
         String value = null;
-        float boost = 1.0f;
+        String rewrite = null;
+
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -70,51 +61,36 @@ public class PrefixQueryParser implements QueryParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if ("_name".equals(currentFieldName)) {
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
-                        } else if ("value".equals(currentFieldName) || "prefix".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, PREFIX_FIELD)) {
                             value = parser.textOrNull();
-                        } else if ("boost".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
-                        } else if ("rewrite".equals(currentFieldName)) {
-                            rewriteMethod = parser.textOrNull();
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                            rewrite = parser.textOrNull();
                         } else {
-                            throw new QueryParsingException(parseContext, "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "[regexp] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
             } else {
-                if ("_name".equals(currentFieldName)) {
-                    queryName = parser.text();
-                } else {
                     fieldName = currentFieldName;
                     value = parser.textOrNull();
-                }
             }
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext, "No value specified for prefix query");
+            throw new ParsingException(parser.getTokenLocation(), "No value specified for prefix query");
         }
+        return new PrefixQueryBuilder(fieldName, value)
+                .rewrite(rewrite)
+                .boost(boost)
+                .queryName(queryName);
+    }
 
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(parseContext.parseFieldMatcher(), rewriteMethod, null);
-
-        Query query = null;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType != null) {
-            query = fieldType.prefixQuery(value, method, parseContext);
-        }
-        if (query == null) {
-            PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
-            if (method != null) {
-                prefixQuery.setRewriteMethod(method);
-            }
-            query = prefixQuery;
-        }
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return  query;
+    @Override
+    public PrefixQueryBuilder getBuilderPrototype() {
+        return PrefixQueryBuilder.PROTOTYPE;
     }
 }

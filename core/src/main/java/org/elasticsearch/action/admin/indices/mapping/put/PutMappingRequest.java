@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
+
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -31,17 +32,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Puts mapping definition registered under a specific type into one or more indices. Best created with
  * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
- * <p/>
- * <p>If the mappings already exists, the new mappings will be merged with the new one. If there are elements
+ * <p>
+ * If the mappings already exists, the new mappings will be merged with the new one. If there are elements
  * that can't be merged are detected, the request will be rejected.
  *
  * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
@@ -64,8 +68,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     private String source;
 
     private boolean updateAllTypes = false;
+    private Index concreteIndex;
 
-    PutMappingRequest() {
+    public PutMappingRequest() {
     }
 
     /**
@@ -89,6 +94,10 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         } else if (source.isEmpty()) {
             validationException = addValidationError("mapping source is empty", validationException);
         }
+        if (concreteIndex != null && (indices != null && indices.length > 0)) {
+            validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
+                + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
+        }
         return validationException;
     }
 
@@ -96,9 +105,25 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Sets the indices this put mapping operation will execute on.
      */
     @Override
-    public PutMappingRequest indices(String[] indices) {
+    public PutMappingRequest indices(String... indices) {
         this.indices = indices;
         return this;
+    }
+
+    /**
+     * Sets a concrete index for this put mapping request.
+     */
+    public PutMappingRequest setConcreteIndex(Index index) {
+        Objects.requireNonNull(indices, "index must not be null");
+        this.concreteIndex = index;
+        return this;
+    }
+
+    /**
+     * Returns a concrete index for this mapping or <code>null</code> if no concrete index is defined
+     */
+    public Index getConcreteIndex() {
+        return concreteIndex;
     }
 
     /**
@@ -258,6 +283,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         source = in.readString();
         updateAllTypes = in.readBoolean();
         readTimeout(in);
+        concreteIndex = in.readOptionalWritable(Index::new);
     }
 
     @Override
@@ -269,5 +295,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeString(source);
         out.writeBoolean(updateAllTypes);
         writeTimeout(out);
+        out.writeOptionalWriteable(concreteIndex);
     }
 }

@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class IntegerFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -27,8 +28,8 @@ public class IntegerFieldTypeTests extends FieldTypeTestCase {
         return new IntegerFieldMapper.IntegerFieldType();
     }
 
-    @Override
-    protected Object dummyNullValue() {
-        return 10;
+    @Before
+    public void setupProperties() {
+        setDummyNullValue(10);
     }
 }

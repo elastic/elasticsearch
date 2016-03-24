@@ -18,15 +18,17 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.postingshighlight.*;
+import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
+import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
+import org.apache.lucene.search.postingshighlight.CustomSeparatorBreakIterator;
+import org.apache.lucene.search.postingshighlight.Snippet;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -34,16 +36,16 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.BreakIterator;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class PostingsHighlighter implements Highlighter {
 
     private static final String CACHE_KEY = "highlight-postings";
-
-    @Override
-    public String[] names() {
-        return new String[]{"postings", "postings-highlighter"};
-    }
 
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
@@ -91,7 +93,7 @@ public class PostingsHighlighter implements Highlighter {
             }
 
             IndexSearcher searcher = new IndexSearcher(hitContext.reader());
-            Snippet[] fieldSnippets = highlighter.highlightField(fieldMapper.fieldType().names().indexName(), highlighterContext.query, searcher, hitContext.docId(), numberOfFragments);
+            Snippet[] fieldSnippets = highlighter.highlightField(fieldMapper.fieldType().name(), highlighterContext.query, searcher, hitContext.docId(), numberOfFragments);
             for (Snippet fieldSnippet : fieldSnippets) {
                 if (Strings.hasText(fieldSnippet.getText())) {
                     snippets.add(fieldSnippet);
@@ -120,7 +122,7 @@ public class PostingsHighlighter implements Highlighter {
         }
 
         if (fragments.length > 0) {
-            return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
+            return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
         }
 
         return null;
@@ -174,7 +176,7 @@ public class PostingsHighlighter implements Highlighter {
     }
 
     private static class HighlighterEntry {
-        Map<FieldMapper, MapperHighlighterEntry> mappers = Maps.newHashMap();
+        Map<FieldMapper, MapperHighlighterEntry> mappers = new HashMap<>();
     }
 
     private static class MapperHighlighterEntry {

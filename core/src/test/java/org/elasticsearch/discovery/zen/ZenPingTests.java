@@ -24,17 +24,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ZenPingTests extends ElasticsearchTestCase {
-
-    @Test
+public class ZenPingTests extends ESTestCase {
     public void testPingCollection() {
         DiscoveryNode[] nodes = new DiscoveryNode[randomIntBetween(1, 30)];
         long maxIdPerNode[] = new long[nodes.length];
@@ -65,7 +62,7 @@ public class ZenPingTests extends ElasticsearchTestCase {
         }
 
         // shuffle
-        Collections.shuffle(pings);
+        Collections.shuffle(pings, random());
 
         ZenPing.PingCollection collection = new ZenPing.PingCollection();
         collection.addPings(pings.toArray(new ZenPing.PingResponse[pings.size()]));

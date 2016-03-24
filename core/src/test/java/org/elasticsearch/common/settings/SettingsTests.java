@@ -19,12 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.common.settings.bar.BarTestClass;
-import org.elasticsearch.common.settings.foo.FooTestClass;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,13 +29,17 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class SettingsTests extends ElasticsearchTestCase {
-
-    @Test
+public class SettingsTests extends ESTestCase {
     public void testCamelCaseSupport() {
         Settings settings = settingsBuilder()
                 .put("test.camelCase", "bar")
@@ -47,36 +48,6 @@ public class SettingsTests extends ElasticsearchTestCase {
         assertThat(settings.get("test.camel_case"), equalTo("bar"));
     }
 
-    @Test
-    public void testGetAsClass() {
-        Settings settings = settingsBuilder()
-                .put("test.class", "bar")
-                .put("test.class.package", "org.elasticsearch.common.settings.bar")
-                .build();
-
-        // Assert that defaultClazz is loaded if setting is not specified
-        assertThat(settings.getAsClass("no.settings", FooTestClass.class, "org.elasticsearch.common.settings.", "TestClass").getName(),
-                equalTo(FooTestClass.class.getName()));
-
-        // Assert that correct class is loaded if setting contain name without package
-        assertThat(settings.getAsClass("test.class", FooTestClass.class, "org.elasticsearch.common.settings.", "TestClass").getName(),
-                equalTo(BarTestClass.class.getName()));
-
-        // Assert that class cannot be loaded if wrong packagePrefix is specified
-        try {
-            settings.getAsClass("test.class", FooTestClass.class, "com.example.elasticsearch.test.unit..common.settings.", "TestClass");
-            fail("Class with wrong package name shouldn't be loaded");
-        } catch (NoClassSettingsException ex) {
-            // Ignore
-        }
-
-        // Assert that package name in settings is getting correctly applied
-        assertThat(settings.getAsClass("test.class.package", FooTestClass.class, "com.example.elasticsearch.test.unit.common.settings.", "TestClass").getName(),
-                equalTo(BarTestClass.class.getName()));
-
-    }
-
-    @Test
     public void testLoadFromDelimitedString() {
         Settings settings = settingsBuilder()
                 .loadFromDelimitedString("key1=value1;key2=value2", ';')
@@ -95,40 +66,29 @@ public class SettingsTests extends ElasticsearchTestCase {
         assertThat(settings.toDelimitedString(';'), equalTo("key1=value1;key2=value2;"));
     }
 
-    @Test(expected = NoClassSettingsException.class)
-    public void testThatAllClassNotFoundExceptionsAreCaught() {
-        // this should be nGram in order to really work, but for sure not not throw a NoClassDefFoundError
-        Settings settings = settingsBuilder().put("type", "ngram").build();
-        settings.getAsClass("type", null, "org.elasticsearch.index.analysis.", "TokenFilterFactory");
-    }
-
-    @Test
     public void testReplacePropertiesPlaceholderSystemProperty() {
-        System.setProperty("sysProp1", "sysVal1");
-        try {
-            Settings settings = settingsBuilder()
-                    .put("setting1", "${sysProp1}")
-                    .replacePropertyPlaceholders()
-                    .build();
-            assertThat(settings.get("setting1"), equalTo("sysVal1"));
-        } finally {
-            System.clearProperty("sysProp1");
-        }
-
+        String value = System.getProperty("java.home");
+        assertFalse(value.isEmpty());
         Settings settings = settingsBuilder()
-                .put("setting1", "${sysProp1:defaultVal1}")
+                 .put("setting1", "${java.home}")
+                 .replacePropertyPlaceholders()
+                 .build();
+        assertThat(settings.get("setting1"), equalTo(value));
+
+        assertNull(System.getProperty("_test_property_should_not_exist"));
+        settings = settingsBuilder()
+                .put("setting1", "${_test_property_should_not_exist:defaultVal1}")
                 .replacePropertyPlaceholders()
                 .build();
         assertThat(settings.get("setting1"), equalTo("defaultVal1"));
 
         settings = settingsBuilder()
-                .put("setting1", "${sysProp1:}")
+                .put("setting1", "${_test_property_should_not_exist:}")
                 .replacePropertyPlaceholders()
                 .build();
         assertThat(settings.get("setting1"), is(nullValue()));
     }
 
-    @Test
     public void testReplacePropertiesPlaceholderIgnoreEnvUnset() {
         Settings settings = settingsBuilder()
                 .put("setting1", "${env.UNSET_ENV_VAR}")
@@ -137,7 +97,6 @@ public class SettingsTests extends ElasticsearchTestCase {
         assertThat(settings.get("setting1"), is(nullValue()));
     }
 
-    @Test
     public void testReplacePropertiesPlaceholderIgnoresPrompt() {
         Settings settings = settingsBuilder()
                 .put("setting1", "${prompt.text}")
@@ -148,7 +107,6 @@ public class SettingsTests extends ElasticsearchTestCase {
         assertThat(settings.get("setting2"), is("${prompt.secret}"));
     }
 
-    @Test
     public void testUnFlattenedSettings() {
         Settings settings = settingsBuilder()
                 .put("foo", "abc")
@@ -173,7 +131,6 @@ public class SettingsTests extends ElasticsearchTestCase {
 
     }
 
-    @Test
     public void testFallbackToFlattenedSettings() {
         Settings settings = settingsBuilder()
                 .put("foo", "abc")
@@ -199,7 +156,6 @@ public class SettingsTests extends ElasticsearchTestCase {
                 Matchers.<String, Object>hasEntry("foo.baz", "ghi")));
     }
 
-    @Test
     public void testGetAsSettings() {
         Settings settings = settingsBuilder()
                 .put("foo", "abc")
@@ -211,7 +167,6 @@ public class SettingsTests extends ElasticsearchTestCase {
         assertThat(fooSettings.get("baz"), equalTo("ghi"));
     }
 
-    @Test
     public void testNames() {
         Settings settings = settingsBuilder()
                 .put("bar", "baz")
@@ -231,7 +186,6 @@ public class SettingsTests extends ElasticsearchTestCase {
         assertTrue(names.contains("baz"));
     }
 
-    @Test
     public void testThatArraysAreOverriddenCorrectly() throws IOException {
         // overriding a single value with an array
         Settings settings = settingsBuilder()
@@ -247,8 +201,8 @@ public class SettingsTests extends ElasticsearchTestCase {
         assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
 
         settings = settingsBuilder()
-                .put(new YamlSettingsLoader().load("value: 1"))
-                .put(new YamlSettingsLoader().load("value: [ 2, 3 ]"))
+                .put(new YamlSettingsLoader(false).load("value: 1"))
+                .put(new YamlSettingsLoader(false).load("value: [ 2, 3 ]"))
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
 
@@ -336,9 +290,7 @@ public class SettingsTests extends ElasticsearchTestCase {
         assertThat(settings.get("value"), is(nullValue()));
     }
 
-    @Test
     public void testPrefixNormalization() {
-
         Settings settings = settingsBuilder().normalizePrefix("foo.").build();
 
         assertThat(settings.names().size(), equalTo(0));
@@ -373,6 +325,4 @@ public class SettingsTests extends ElasticsearchTestCase {
         assertThat(settings.getAsMap().size(), equalTo(1));
         assertThat(settings.get("foo.test"), equalTo("test"));
     }
-
-
 }

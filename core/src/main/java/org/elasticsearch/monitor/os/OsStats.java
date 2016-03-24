@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  *
@@ -36,7 +37,7 @@ public class OsStats implements Streamable, ToXContent {
 
     long timestamp;
 
-    double loadAverage = -1;
+    Cpu cpu = null;
 
     Mem mem = null;
 
@@ -49,10 +50,7 @@ public class OsStats implements Streamable, ToXContent {
         return timestamp;
     }
 
-    public double getLoadAverage() {
-        return loadAverage;
-    }
-
+    public Cpu getCpu() { return cpu; }
 
     public Mem getMem() {
         return mem;
@@ -65,7 +63,12 @@ public class OsStats implements Streamable, ToXContent {
     static final class Fields {
         static final XContentBuilderString OS = new XContentBuilderString("os");
         static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
+        static final XContentBuilderString CPU = new XContentBuilderString("cpu");
+        static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
         static final XContentBuilderString LOAD_AVERAGE = new XContentBuilderString("load_average");
+        static final XContentBuilderString LOAD_AVERAGE_1M = new XContentBuilderString("1m");
+        static final XContentBuilderString LOAD_AVERAGE_5M = new XContentBuilderString("5m");
+        static final XContentBuilderString LOAD_AVERAGE_15M = new XContentBuilderString("15m");
 
         static final XContentBuilderString MEM = new XContentBuilderString("mem");
         static final XContentBuilderString SWAP = new XContentBuilderString("swap");
@@ -78,14 +81,30 @@ public class OsStats implements Streamable, ToXContent {
 
         static final XContentBuilderString FREE_PERCENT = new XContentBuilderString("free_percent");
         static final XContentBuilderString USED_PERCENT = new XContentBuilderString("used_percent");
-
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.OS);
         builder.field(Fields.TIMESTAMP, getTimestamp());
-        builder.field(Fields.LOAD_AVERAGE, getLoadAverage());
+        if (cpu != null) {
+            builder.startObject(Fields.CPU);
+            builder.field(Fields.PERCENT, cpu.getPercent());
+            if (cpu.getLoadAverage() != null && Arrays.stream(cpu.getLoadAverage()).anyMatch(load -> load != -1)) {
+                builder.startObject(Fields.LOAD_AVERAGE);
+                if (cpu.getLoadAverage()[0] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_1M, cpu.getLoadAverage()[0]);
+                }
+                if (cpu.getLoadAverage()[1] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_5M, cpu.getLoadAverage()[1]);
+                }
+                if (cpu.getLoadAverage()[2] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_15M, cpu.getLoadAverage()[2]);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
 
         if (mem != null) {
             builder.startObject(Fields.MEM);
@@ -120,7 +139,7 @@ public class OsStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();
-        loadAverage = in.readDouble();
+        cpu = in.readOptionalStreamable(Cpu::new);
         if (in.readBoolean()) {
             mem = Mem.readMem(in);
         }
@@ -132,7 +151,7 @@ public class OsStats implements Streamable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
-        out.writeDouble(loadAverage);
+        out.writeOptionalStreamable(cpu);
         if (mem == null) {
             out.writeBoolean(false);
         } else {
@@ -144,6 +163,49 @@ public class OsStats implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             swap.writeTo(out);
+        }
+    }
+
+    public static class Cpu implements Streamable {
+
+        short percent = -1;
+        double[] loadAverage = null;
+
+        Cpu() {}
+
+        public static Cpu readCpu(StreamInput in) throws IOException {
+            Cpu cpu = new Cpu();
+            cpu.readFrom(in);
+            return cpu;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            percent = in.readShort();
+            if (in.readBoolean()) {
+                loadAverage = in.readDoubleArray();
+            } else {
+                loadAverage = null;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeShort(percent);
+            if (loadAverage == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeDoubleArray(loadAverage);
+            }
+        }
+
+        public short getPercent() {
+            return percent;
+        }
+
+        public double[] getLoadAverage() {
+            return loadAverage;
         }
     }
 
@@ -230,5 +292,4 @@ public class OsStats implements Streamable, ToXContent {
     private static short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
     }
-
 }

@@ -21,16 +21,15 @@ package org.elasticsearch.monitor.fs;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.not;
 
-public class FsProbeTests extends ElasticsearchTestCase {
-
-    @Test
+public class FsProbeTests extends ESTestCase {
     public void testFsInfo() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsProbe probe = new FsProbe(Settings.EMPTY, env);

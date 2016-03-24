@@ -19,25 +19,20 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
-public class ArrayUtilsTests extends ElasticsearchTestCase {
-
-    @Test
-    public void binarySearch() throws Exception {
-
+public class ArrayUtilsTests extends ESTestCase {
+    public void testBinarySearch() throws Exception {
         for (int j = 0; j < 100; j++) {
-
             int index = Math.min(randomInt(0, 10), 9);
             double tolerance = Math.random() * 0.01;
             double lookForValue = randomFreq(0.9) ? -1 : Double.NaN; // sometimes we'll look for NaN
@@ -90,4 +85,21 @@ public class ArrayUtilsTests extends ElasticsearchTestCase {
         return min + delta;
     }
 
+    public void testConcat() {
+        assertArrayEquals(new String[]{"a", "b", "c", "d"}, ArrayUtils.concat(new String[]{"a", "b"}, new String[]{"c", "d"}));
+        int firstSize = randomIntBetween(0, 10);
+        String[] first = new String[firstSize];
+        ArrayList<String> sourceOfTruth = new ArrayList<>();
+        for (int i = 0; i < firstSize; i++) {
+            first[i] = randomRealisticUnicodeOfCodepointLengthBetween(0,10);
+            sourceOfTruth.add(first[i]);
+        }
+        int secondSize = randomIntBetween(0, 10);
+        String[] second = new String[secondSize];
+        for (int i = 0; i < secondSize; i++) {
+            second[i] = randomRealisticUnicodeOfCodepointLengthBetween(0, 10);
+            sourceOfTruth.add(second[i]);
+        }
+        assertArrayEquals(sourceOfTruth.toArray(new String[0]), ArrayUtils.concat(first, second));
+    }
 }

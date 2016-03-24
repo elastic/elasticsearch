@@ -18,22 +18,18 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
-
-
+import org.apache.lucene.spatial.util.GeoHashUtils;
+import org.elasticsearch.test.ESTestCase;
 
 /**
- * Tests for {@link GeoHashUtils}
+ * Tests for {@link org.apache.lucene.spatial.util.GeoHashUtils}
  */
-public class GeoHashTests extends ElasticsearchTestCase {
-
-
-    @Test
+public class GeoHashTests extends ESTestCase {
     public void testGeohashAsLongRoutines()  {
-        
+        final GeoPoint expected = new GeoPoint();
+        final GeoPoint actual = new GeoPoint();
         //Ensure that for all points at all supported levels of precision
-        // that the long encoding of a geohash is compatible with its 
+        // that the long encoding of a geohash is compatible with its
         // String based counterpart
         for (double lat=-90;lat<90;lat++)
         {
@@ -41,19 +37,25 @@ public class GeoHashTests extends ElasticsearchTestCase {
             {
                 for(int p=1;p<=12;p++)
                 {
-                    long geoAsLong = GeoHashUtils.encodeAsLong(lat,lng,p);
-                    String geohash = GeoHashUtils.encode(lat,lng,p);
-                    
-                    String geohashFromLong=GeoHashUtils.toString(geoAsLong);
+                    long geoAsLong = GeoHashUtils.longEncode(lng, lat, p);
+
+                    // string encode from geohashlong encoded location
+                    String geohashFromLong = GeoHashUtils.stringEncode(geoAsLong);
+
+                    // string encode from full res lat lon
+                    String geohash = GeoHashUtils.stringEncode(lng, lat, p);
+
+                    // ensure both strings are the same
                     assertEquals(geohash, geohashFromLong);
-                    GeoPoint pos=GeoHashUtils.decode(geohash);
-                    GeoPoint pos2=GeoHashUtils.decode(geoAsLong);
-                    assertEquals(pos, pos2);
+
+                    // decode from the full-res geohash string
+                    expected.resetFromGeoHash(geohash);
+                    // decode from the geohash encoded long
+                    actual.resetFromGeoHash(geoAsLong);
+
+                    assertEquals(expected, actual);
                 }
             }
-            
-        }        
+        }
     }
-
-
 }

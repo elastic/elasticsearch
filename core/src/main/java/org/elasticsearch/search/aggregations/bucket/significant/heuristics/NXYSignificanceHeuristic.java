@@ -27,7 +27,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 
@@ -135,10 +135,16 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         }
     }
 
+    protected void build(XContentBuilder builder) throws IOException {
+        builder.field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives).field(BACKGROUND_IS_SUPERSET.getPreferredName(),
+                backgroundIsSuperset);
+    }
+
     public static abstract class NXYParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryParsingException {
+        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+                throws IOException, QueryShardException {
             String givenName = parser.currentName();
             boolean includeNegatives = false;
             boolean backgroundIsSuperset = true;

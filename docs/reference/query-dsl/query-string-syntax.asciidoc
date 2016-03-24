@@ -241,7 +241,7 @@ query.
 `((quick AND fox) OR (brown AND fox) OR fox) AND NOT news`::
 
 This form now replicates the logic from the original query correctly, but
-the relevance scoring bares little resemblance to the original.
+the relevance scoring bears little resemblance to the original.
 
 In contrast, the same query rewritten using the <<query-dsl-match-query,`match` query>>
 would look like this:

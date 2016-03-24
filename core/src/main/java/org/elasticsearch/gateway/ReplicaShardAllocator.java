@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -57,6 +58,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      */
     public boolean processExistingRecoveries(RoutingAllocation allocation) {
         boolean changed = false;
+        MetaData metaData = allocation.metaData();
         for (RoutingNodes.RoutingNodesIterator nodes = allocation.routingNodes().nodes(); nodes.hasNext(); ) {
             nodes.next();
             for (RoutingNodes.RoutingNodeIterator it = nodes.nodeShards(); it.hasNext(); ) {
@@ -70,8 +72,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 if (shard.relocatingNodeId() != null) {
                     continue;
                 }
+
                 // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                if (shard.allocatedPostIndexCreate() == false) {
+                IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
+                if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }
 
@@ -100,8 +104,11 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                             && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch) == true) {
                         // we found a better match that has a full sync id match, the existing allocation is not fully synced
                         // so we found a better one, cancel this one
+                        logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
+                                currentNode, nodeWithHighestMatch);
                         it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
-                                "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]"));
+                                "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]",
+                                null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
                         changed = true;
                     }
                 }
@@ -114,6 +121,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         boolean changed = false;
         final RoutingNodes routingNodes = allocation.routingNodes();
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
+        MetaData metaData = allocation.metaData();
         while (unassignedIterator.hasNext()) {
             ShardRouting shard = unassignedIterator.next();
             if (shard.primary()) {
@@ -121,7 +129,8 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             }
 
             // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-            if (shard.allocatedPostIndexCreate() == false) {
+            IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
+            if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
                 continue;
             }
 
@@ -135,6 +144,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetchData(shard, allocation);
             if (shardStores.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
+                allocation.setHasPendingAsyncFetch();
                 unassignedIterator.removeAndIgnore();
                 continue; // still fetching
             }
@@ -165,28 +175,41 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                     logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store", shard.index(), shard.id(), shard, nodeWithHighestMatch.node());
                     // we found a match
                     changed = true;
-                    unassignedIterator.initialize(nodeWithHighestMatch.nodeId());
+                    unassignedIterator.initialize(nodeWithHighestMatch.nodeId(), null, allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                 }
             } else if (matchingNodes.hasAnyData() == false) {
-                // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation
-                // of the replica shard needs to be delayed, and if so, add it to the ignore unassigned list
-                // note: we only care about replica in delayed allocation, since if we have an unassigned primary it
-                //       will anyhow wait to find an existing copy of the shard to be allocated
-                // note: the other side of the equation is scheduling a reroute in a timely manner, which happens in the RoutingService
-                IndexMetaData indexMetaData = allocation.metaData().index(shard.getIndex());
-                long delay = shard.unassignedInfo().getDelayAllocationExpirationIn(settings, indexMetaData.getSettings());
-                if (delay > 0) {
-                    logger.debug("[{}][{}]: delaying allocation of [{}] for [{}]", shard.index(), shard.id(), shard, TimeValue.timeValueMillis(delay));
-                    /**
-                     * mark it as changed, since we want to kick a publishing to schedule future allocation,
-                     * see {@link org.elasticsearch.cluster.routing.RoutingService#clusterChanged(ClusterChangedEvent)}).
-                     */
-                    changed = true;
-                    unassignedIterator.removeAndIgnore();
-                }
+                // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation of the replica shard needs to be delayed
+                changed |= ignoreUnassignedIfDelayed(unassignedIterator, shard);
             }
         }
         return changed;
+    }
+
+    /**
+     * Check if the allocation of the replica is to be delayed. Compute the delay and if it is delayed, add it to the ignore unassigned list
+     * Note: we only care about replica in delayed allocation, since if we have an unassigned primary it
+     *       will anyhow wait to find an existing copy of the shard to be allocated
+     * Note: the other side of the equation is scheduling a reroute in a timely manner, which happens in the RoutingService
+     *
+     * PUBLIC FOR TESTS!
+     *
+     * @param unassignedIterator iterator over unassigned shards
+     * @param shard the shard which might be delayed
+     * @return true iff allocation is delayed for this shard
+     */
+    public boolean ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
+        // calculate delay and store it in UnassignedInfo to be used by RoutingService
+        long delay = shard.unassignedInfo().getLastComputedLeftDelayNanos();
+        if (delay > 0) {
+            logger.debug("[{}][{}]: delaying allocation of [{}] for [{}]", shard.index(), shard.id(), shard, TimeValue.timeValueNanos(delay));
+            /**
+             * mark it as changed, since we want to kick a publishing to schedule future allocation,
+             * see {@link org.elasticsearch.cluster.routing.RoutingService#clusterChanged(ClusterChangedEvent)}).
+             */
+            unassignedIterator.removeAndIgnore();
+            return true;
+        }
+        return false;
     }
 
     /**

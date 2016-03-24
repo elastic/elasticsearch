@@ -19,12 +19,17 @@
 
 package org.elasticsearch.index.analysis.phonetic;
 
-import org.apache.commons.codec.EncoderException;
-import org.apache.commons.codec.StringEncoder;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.commons.codec.EncoderException;
+import org.apache.commons.codec.StringEncoder;
 
 /**
  * K&ouml;lner Phonetik
@@ -36,7 +41,7 @@ import java.util.regex.Pattern;
  * Java-Programmierung von J&ouml;rg Reiher
  *
  * mit &Auml;nderungen von Jörg Prante
- * 
+ *
  */
 public class KoelnerPhonetik implements StringEncoder {
 
@@ -44,13 +49,13 @@ public class KoelnerPhonetik implements StringEncoder {
     private static final String[] POSTEL_VARIATIONS_REPLACEMENTS = {"OWN", "AUN", "RW", "RB", "RSK", "WSK"};
     private Pattern[] variationsPatterns;
     private boolean primary = false;
-    private final Set<Character> csz = new HashSet(Arrays.asList(
+    private final Set<Character> csz = new HashSet<>(Arrays.asList(
             'C', 'S', 'Z'));
-    private final Set<Character> ckq = new HashSet(Arrays.asList(
+    private final Set<Character> ckq = new HashSet<>(Arrays.asList(
             'C', 'K', 'Q'));
-    private final Set<Character> aouhkxq = new HashSet(Arrays.asList(
+    private final Set<Character> aouhkxq = new HashSet<>(Arrays.asList(
             'A', 'O', 'U', 'H', 'K', 'X', 'Q'));
-    private final Set<Character> ahkloqrux = new HashSet(Arrays.asList(
+    private final Set<Character> ahkloqrux = new HashSet<>(Arrays.asList(
             'A', 'H', 'K', 'L', 'O', 'Q', 'R', 'U', 'X'));
 
     /**
@@ -59,11 +64,7 @@ public class KoelnerPhonetik implements StringEncoder {
     public KoelnerPhonetik() {
         init();
     }
-    
-    /**
-     *
-     * @param useOnlyPrimaryCode
-     */
+
     public KoelnerPhonetik(boolean useOnlyPrimaryCode) {
         this();
         this.primary = useOnlyPrimaryCode;
@@ -71,35 +72,21 @@ public class KoelnerPhonetik implements StringEncoder {
 
     /**
      * Get variation patterns
-     * 
+     *
      * @return string array of variations
      */
     protected String[] getPatterns() {
         return POSTEL_VARIATIONS_PATTERNS;
     }
 
-    /**
-     *
-     * @return
-     */
     protected String[] getReplacements() {
         return POSTEL_VARIATIONS_REPLACEMENTS;
     }
 
-    /**
-     *
-     * @return
-     */
     protected char getCode() {
         return '0';
     }
 
-    /**
-     *
-     * @param o1
-     * @param o2
-     * @return
-     */
     public double getRelativeValue(Object o1, Object o2) {
         String[] kopho1 = code(expandUmlauts(o1.toString().toUpperCase(Locale.GERMANY)));
         String[] kopho2 = code(expandUmlauts(o2.toString().toUpperCase(Locale.GERMANY)));
@@ -117,7 +104,7 @@ public class KoelnerPhonetik implements StringEncoder {
     public Object encode(Object str) throws EncoderException {
         return encode((String) str);
     }
-    
+
     @Override
     public String encode(String str) throws EncoderException {
         if (str == null) return null;
@@ -132,14 +119,14 @@ public class KoelnerPhonetik implements StringEncoder {
         return sb.toString();
     }
 
-    
+
     private void init() {
         this.variationsPatterns = new Pattern[getPatterns().length];
         for (int i = 0; i < getPatterns().length; i++) {
             this.variationsPatterns[i] = Pattern.compile(getPatterns()[i]);
         }
     }
-    
+
     private String[] code(String str) {
         List<String> parts = partition(str);
         String[] codes = new String[parts.size()];
@@ -152,10 +139,10 @@ public class KoelnerPhonetik implements StringEncoder {
 
     private List<String> partition(String str) {
         String primaryForm = str;
-        List<String> parts = new ArrayList();
+        List<String> parts = new ArrayList<>();
         parts.add(primaryForm.replaceAll("[^\\p{L}\\p{N}]", ""));
         if (!primary) {
-            List<String> tmpParts = new ArrayList();
+            List<String> tmpParts = new ArrayList<>();
             tmpParts.addAll((Arrays.asList(str.split("[\\p{Z}\\p{C}\\p{P}]"))));
             int numberOfParts = tmpParts.size();
             while (tmpParts.size() > 0) {
@@ -169,9 +156,9 @@ public class KoelnerPhonetik implements StringEncoder {
                 tmpParts.remove(0);
             }
         }
-        List<String> variations = new ArrayList();
+        List<String> variations = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
-            List variation = getVariations(parts.get(i));
+            List<String> variation = getVariations(parts.get(i));
             if (variation != null) {
                 variations.addAll(variation);
             }
@@ -179,9 +166,9 @@ public class KoelnerPhonetik implements StringEncoder {
         return variations;
     }
 
-    private List getVariations(String str) {
+    private List<String> getVariations(String str) {
         int position = 0;
-        List<String> variations = new ArrayList();
+        List<String> variations = new ArrayList<>();
         variations.add("");
         while (position < str.length()) {
             int i = 0;
@@ -195,7 +182,7 @@ public class KoelnerPhonetik implements StringEncoder {
             }
             if (substPos >= position) {
                 i--;
-                List<String> varNew = new ArrayList();
+                List<String> varNew = new ArrayList<>();
                 String prevPart = str.substring(position, substPos);
                 for (int ii = 0; ii < variations.size(); ii++) {
                     String tmp = variations.get(ii);
@@ -290,20 +277,10 @@ public class KoelnerPhonetik implements StringEncoder {
         return s;
     }
 
-    /**
-     *
-     * @param str
-     * @return
-     */
     private String expandUmlauts(String str) {
         return str.replaceAll("\u00C4", "AE").replaceAll("\u00D6", "OE").replaceAll("\u00DC", "UE");
     }
 
-    /**
-     *
-     * @param str
-     * @return
-     */
     private String removeSequences(String str) {
         if (str == null || str.length() == 0) {
             return "";

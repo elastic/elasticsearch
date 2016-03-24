@@ -34,10 +34,13 @@ specified as well in the URI. Those stats can be any of:
 
 `get`:: 		Get statistics, including missing stats.
 
-`search`:: 		Search statistics. You can include statistics for custom groups by adding
+`search`:: 		Search statistics including suggest statistics.
+                You can include statistics for custom groups by adding
                 an extra `groups` parameter (search operations can be associated with one or more
                 groups). The `groups` parameter accepts a comma separated list of group names.
                 Use `_all` to return statistics for all groups.
+
+`segments`::    Retrieve the memory use of the open segments. Optionally, setting the `include_segment_file_sizes` flag, report the aggregated disk usage of each one of the Lucene index files.
 
 `completion`::  Completion suggest statistics.
 `fielddata`::   Fielddata statistics.
@@ -45,7 +48,6 @@ specified as well in the URI. Those stats can be any of:
 `merge`::       Merge statistics.
 `request_cache`:: <<shard-request-cache,Shard request cache>> statistics.
 `refresh`::     Refresh statistics.
-`suggest`::     Suggest statistics.
 `warmer`::      Warmer statistics.
 `translog`::    Translog statistics.
 

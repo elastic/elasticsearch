@@ -19,23 +19,20 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
 
 /**
+ * Parses a GeoDistanceQuery. See also
+ *
  * <pre>
  * {
  *     "name.lat" : 1.1,
@@ -43,36 +40,40 @@ import java.io.IOException;
  * }
  * </pre>
  */
-public class GeoDistanceQueryParser implements QueryParser {
+public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuilder> {
 
-    public static final String NAME = "geo_distance";
-
-    @Inject
-    public GeoDistanceQueryParser() {
-    }
+    public static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
+    public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
+    public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
+    public static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox");
+    public static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
+    public static final ParseField UNIT_FIELD = new ParseField("unit");
+    public static final ParseField DISTANCE_FIELD = new ParseField("distance");
 
     @Override
     public String[] names() {
-        return new String[]{NAME, "geoDistance"};
+        return new String[]{GeoDistanceQueryBuilder.NAME, "geoDistance"};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public GeoDistanceQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
 
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
-        GeoPoint point = new GeoPoint();
+        GeoPoint point = new GeoPoint(Double.NaN, Double.NaN);
         String fieldName = null;
-        double distance = 0;
         Object vDistance = null;
-        DistanceUnit unit = DistanceUnit.DEFAULT;
-        GeoDistance geoDistance = GeoDistance.DEFAULT;
-        String optimizeBbox = "memory";
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
+        DistanceUnit unit = GeoDistanceQueryBuilder.DEFAULT_DISTANCE_UNIT;
+        GeoDistance geoDistance = GeoDistanceQueryBuilder.DEFAULT_GEO_DISTANCE;
+        String optimizeBbox = GeoDistanceQueryBuilder.DEFAULT_OPTIMIZE_BBOX;
+        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        GeoValidationMethod validationMethod = null;
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -84,6 +85,7 @@ public class GeoDistanceQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 String currentName = parser.currentName();
+                assert currentFieldName != null;
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -94,23 +96,23 @@ public class GeoDistanceQueryParser implements QueryParser {
                         } else if (currentName.equals(GeoPointFieldMapper.Names.LON)) {
                             point.resetLon(parser.doubleValue());
                         } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                            GeoHashUtils.decode(parser.text(), point);
+                            point.resetFromGeoHash(parser.text());
                         } else {
-                            throw new QueryParsingException(parseContext, "[geo_distance] query does not support [" + currentFieldName
+                            throw new ParsingException(parser.getTokenLocation(), "[geo_distance] query does not support [" + currentFieldName
                                     + "]");
                         }
                     }
                 }
             } else if (token.isValue()) {
-                if (currentFieldName.equals("distance")) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, DISTANCE_FIELD)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         vDistance = parser.text(); // a String
                     } else {
                         vDistance = parser.numberValue(); // a Number
                     }
-                } else if (currentFieldName.equals("unit")) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, UNIT_FIELD)) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if (currentFieldName.equals("distance_type") || currentFieldName.equals("distanceType")) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, DISTANCE_TYPE_FIELD)) {
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LAT_SUFFIX)) {
                     point.resetLat(parser.doubleValue());
@@ -118,51 +120,58 @@ public class GeoDistanceQueryParser implements QueryParser {
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LON_SUFFIX)) {
                     point.resetLon(parser.doubleValue());
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
-                } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.GEOHASH_SUFFIX)) {
-                    GeoHashUtils.decode(parser.text(), point);
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIMIZE_BBOX_FIELD)) {
                     optimizeBbox = parser.textOrNull();
-                } else if ("normalize".equals(currentFieldName)) {
-                    normalizeLat = parser.booleanValue();
-                    normalizeLon = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, COERCE_FIELD)) {
+                    coerce = parser.booleanValue();
+                    if (coerce == true) {
+                        ignoreMalformed = true;
+                    }
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
+                    ignoreMalformed = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD_FIELD)) {
+                    validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
-                    point.resetFromString(parser.text());
-                    fieldName = currentFieldName;
+                    if (fieldName == null) {
+                        point.resetFromString(parser.text());
+                        fieldName = currentFieldName;
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + GeoDistanceQueryBuilder.NAME +
+                                "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
+                    }
                 }
             }
         }
 
         if (vDistance == null) {
-            throw new QueryParsingException(parseContext, "geo_distance requires 'distance' to be specified");
-        } else if (vDistance instanceof Number) {
-            distance = DistanceUnit.DEFAULT.convert(((Number) vDistance).doubleValue(), unit);
+            throw new ParsingException(parser.getTokenLocation(), "geo_distance requires 'distance' to be specified");
+        }
+
+        GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(fieldName);
+        if (vDistance instanceof Number) {
+            qb.distance(((Number) vDistance).doubleValue(), unit);
         } else {
-            distance = DistanceUnit.parse((String) vDistance, unit, DistanceUnit.DEFAULT);
+            qb.distance((String) vDistance, unit);
         }
-        distance = geoDistance.normalize(distance, DistanceUnit.DEFAULT);
+        qb.point(point);
+        if (validationMethod != null) {
+            qb.setValidationMethod(validationMethod);
+        } else {
+            qb.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
+        }
+        qb.optimizeBbox(optimizeBbox);
+        qb.geoDistance(geoDistance);
+        qb.boost(boost);
+        qb.queryName(queryName);
+        return qb;
+    }
 
-        if (normalizeLat || normalizeLon) {
-            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-        }
-
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
-        }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
-        }
-        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
-
-
-        IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
-        Query query = new GeoDistanceRangeQuery(point, null, distance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
+    @Override
+    public GeoDistanceQueryBuilder getBuilderPrototype() {
+        return GeoDistanceQueryBuilder.PROTOTYPE;
     }
 }

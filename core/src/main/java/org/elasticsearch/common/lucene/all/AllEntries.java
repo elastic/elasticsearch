@@ -19,17 +19,16 @@
 
 package org.elasticsearch.common.lucene.all;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  *
@@ -66,7 +65,7 @@ public class AllEntries extends Reader {
         }
     }
 
-    private final List<Entry> entries = Lists.newArrayList();
+    private final List<Entry> entries = new ArrayList<>();
 
     private Entry current;
 
@@ -136,7 +135,7 @@ public class AllEntries extends Reader {
     }
 
     public Set<String> fields() {
-        Set<String> fields = newHashSet();
+        Set<String> fields = new HashSet<>();
         for (Entry entry : entries) {
             fields.add(entry.name());
         }

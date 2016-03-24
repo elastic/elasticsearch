@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -59,6 +58,11 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
 
     public NodesStatsRequestBuilder setBreaker(boolean breaker) {
         request.breaker(breaker);
+        return this;
+    }
+
+    public NodesStatsRequestBuilder setScript(boolean script) {
+        request.script(script);
         return this;
     }
 
@@ -103,14 +107,6 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
     }
 
     /**
-     * Should the node Network stats be returned.
-     */
-    public NodesStatsRequestBuilder setNetwork(boolean network) {
-        request.network(network);
-        return this;
-    }
-
-    /**
      * Should the node file system stats be returned.
      */
     public NodesStatsRequestBuilder setFs(boolean fs) {
@@ -131,6 +127,22 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      */
     public NodesStatsRequestBuilder setHttp(boolean http) {
         request.http(http);
+        return this;
+    }
+
+    /**
+     * Should the discovery stats be returned.
+     */
+    public NodesStatsRequestBuilder setDiscovery(boolean discovery) {
+        request.discovery(discovery);
+        return this;
+    }
+
+    /**
+     * Should ingest statistics be returned.
+     */
+    public NodesStatsRequestBuilder ingest(boolean ingest) {
+        request.ingest(ingest);
         return this;
     }
 }

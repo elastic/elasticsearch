@@ -19,74 +19,101 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanContainingQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Builder for {@link org.apache.lucene.search.spans.SpanContainingQuery}.
  */
-public class SpanContainingQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanContainingQueryBuilder> {
+public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContainingQueryBuilder> implements SpanQueryBuilder<SpanContainingQueryBuilder> {
 
-    private SpanQueryBuilder big;
-    private SpanQueryBuilder little;
-    private float boost = -1;
-    private String queryName;
+    public static final String NAME = "span_containing";
+    private final SpanQueryBuilder big;
+    private final SpanQueryBuilder little;
+    static final SpanContainingQueryBuilder PROTOTYPE = new SpanContainingQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
 
-    /** 
-     * Sets the little clause, it must be contained within {@code big} for a match.
+    /**
+     * @param big the big clause, it must enclose {@code little} for a match.
+     * @param little the little clause, it must be contained within {@code big} for a match.
      */
-    public SpanContainingQueryBuilder little(SpanQueryBuilder clause) {
-        this.little = clause;
-        return this;
-    }
-
-    /** 
-     * Sets the big clause, it must enclose {@code little} for a match.
-     */
-    public SpanContainingQueryBuilder big(SpanQueryBuilder clause) {
-        this.big = clause;
-        return this;
-    }
-
-    @Override
-    public SpanContainingQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    public SpanContainingQueryBuilder(SpanQueryBuilder big, SpanQueryBuilder little) {
+        if (big == null) {
+            throw new IllegalArgumentException("inner clause [big] cannot be null.");
+        }
+        if (little == null) {
+            throw new IllegalArgumentException("inner clause [little] cannot be null.");
+        }
+        this.little = little;
+        this.big = big;
     }
 
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @return the big clause, it must enclose {@code little} for a match.
      */
-    public SpanContainingQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public SpanQueryBuilder bigQuery() {
+        return this.big;
+    }
+
+    /**
+     * @return the little clause, it must be contained within {@code big} for a match.
+     */
+    public SpanQueryBuilder littleQuery() {
+        return this.little;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (big == null) {
-            throw new IllegalArgumentException("Must specify big clause when building a span_containing query");
-        }
-        if (little == null) {
-            throw new IllegalArgumentException("Must specify little clause when building a span_containing query");
-        }
-        builder.startObject(SpanContainingQueryParser.NAME);
-
-        builder.field("big");
+        builder.startObject(NAME);
+        builder.field(SpanContainingQueryParser.BIG_FIELD.getPreferredName());
         big.toXContent(builder, params);
-
-        builder.field("little");
+        builder.field(SpanContainingQueryParser.LITTLE_FIELD.getPreferredName());
         little.toXContent(builder, params);
-
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
-
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query innerBig = big.toQuery(context);
+        assert innerBig instanceof SpanQuery;
+        Query innerLittle = little.toQuery(context);
+        assert innerLittle instanceof SpanQuery;
+        return new SpanContainingQuery((SpanQuery) innerBig, (SpanQuery) innerLittle);
+    }
+
+    @Override
+    protected SpanContainingQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        SpanQueryBuilder big = (SpanQueryBuilder)in.readQuery();
+        SpanQueryBuilder little = (SpanQueryBuilder)in.readQuery();
+        return new SpanContainingQueryBuilder(big, little);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(big);
+        out.writeQuery(little);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(big, little);
+    }
+
+    @Override
+    protected boolean doEquals(SpanContainingQueryBuilder other) {
+        return Objects.equals(big, other.big) &&
+               Objects.equals(little, other.little);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

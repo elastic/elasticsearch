@@ -19,55 +19,102 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
-public class SpanOrQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanOrQueryBuilder> {
+/**
+ * Span query that matches the union of its clauses. Maps to {@link SpanOrQuery}.
+ */
+public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder<SpanOrQueryBuilder> {
 
-    private ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
+    public static final String NAME = "span_or";
 
-    private float boost = -1;
+    private final List<SpanQueryBuilder<?>> clauses = new ArrayList<>();
 
-    private String queryName;
+    static final SpanOrQueryBuilder PROTOTYPE = new SpanOrQueryBuilder(SpanTermQueryBuilder.PROTOTYPE);
 
-    public SpanOrQueryBuilder clause(SpanQueryBuilder clause) {
+    public SpanOrQueryBuilder(SpanQueryBuilder<?> initialClause) {
+        if (initialClause == null) {
+            throw new IllegalArgumentException("query must include at least one clause");
+        }
+        clauses.add(initialClause);
+    }
+
+    public SpanOrQueryBuilder clause(SpanQueryBuilder<?> clause) {
+        if (clause == null) {
+            throw new IllegalArgumentException("inner bool query clause cannot be null");
+        }
         clauses.add(clause);
         return this;
     }
 
-    @Override
-    public SpanOrQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @return the {@link SpanQueryBuilder} clauses that were set for this query
      */
-    public SpanOrQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public List<SpanQueryBuilder<?>> clauses() {
+        return this.clauses;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (clauses.isEmpty()) {
-            throw new IllegalArgumentException("Must have at least one clause when building a spanOr query");
-        }
-        builder.startObject(SpanOrQueryParser.NAME);
-        builder.startArray("clauses");
-        for (SpanQueryBuilder clause : clauses) {
+        builder.startObject(NAME);
+        builder.startArray(SpanOrQueryParser.CLAUSES_FIELD.getPreferredName());
+        for (SpanQueryBuilder<?> clause : clauses) {
             clause.toXContent(builder, params);
         }
         builder.endArray();
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
+        for (int i = 0; i < clauses.size(); i++) {
+            Query query = clauses.get(i).toQuery(context);
+            assert query instanceof SpanQuery;
+            spanQueries[i] = (SpanQuery) query;
+        }
+        return new SpanOrQuery(spanQueries);
+    }
+
+    @Override
+    protected SpanOrQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        List<QueryBuilder<?>> clauses = readQueries(in);
+        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder((SpanQueryBuilder<?>)clauses.get(0));
+        for (int i = 1; i < clauses.size(); i++) {
+            queryBuilder.clauses.add((SpanQueryBuilder<?>)clauses.get(i));
+        }
+        return queryBuilder;
+
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        writeQueries(out, clauses);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(clauses);
+    }
+
+    @Override
+    protected boolean doEquals(SpanOrQueryBuilder other) {
+        return Objects.equals(clauses, other.clauses);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

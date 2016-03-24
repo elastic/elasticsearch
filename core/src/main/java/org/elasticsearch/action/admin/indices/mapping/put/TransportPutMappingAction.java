@@ -22,15 +22,17 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -45,7 +47,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutMappingRequest.class);
+        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutMappingRequest::new);
         this.metaDataMappingService = metaDataMappingService;
     }
 
@@ -62,30 +64,41 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
 
     @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndices(state, request));
+        String[] indices;
+        if (request.getConcreteIndex() == null) {
+            indices = indexNameExpressionResolver.concreteIndexNames(state, request);
+        } else {
+            indices = new String[] {request.getConcreteIndex().getName()};
+        }
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices);
     }
 
     @Override
     protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) {
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(concreteIndices).type(request.type())
-                .updateAllTypes(request.updateAllTypes())
-                .source(request.source());
+        try {
+            final Index[] concreteIndices = request.getConcreteIndex() == null ? indexNameExpressionResolver.concreteIndices(state, request) : new Index[] {request.getConcreteIndex()};
+            PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
+                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                    .indices(concreteIndices).type(request.type())
+                    .updateAllTypes(request.updateAllTypes())
+                    .source(request.source());
 
-        metaDataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+            metaDataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new PutMappingResponse(response.isAcknowledged()));
-            }
+                @Override
+                public void onResponse(ClusterStateUpdateResponse response) {
+                    listener.onResponse(new PutMappingResponse(response.isAcknowledged()));
+                }
 
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to put mappings on indices [{}], type [{}]", t, concreteIndices, request.type());
-                listener.onFailure(t);
-            }
-        });
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.debug("failed to put mappings on indices [{}], type [{}]", t, concreteIndices, request.type());
+                    listener.onFailure(t);
+                }
+            });
+        } catch (IndexNotFoundException ex) {
+            logger.debug("failed to put mappings on indices [{}], type [{}]", ex, request.indices(), request.type());
+            throw ex;
+        }
     }
 }

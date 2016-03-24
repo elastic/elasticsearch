@@ -26,15 +26,23 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
-import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  * A fault detection of multiple nodes.
@@ -42,7 +50,7 @@ import static org.elasticsearch.transport.TransportRequestOptions.options;
 public class NodesFaultDetection extends FaultDetection {
 
     public static final String PING_ACTION_NAME = "internal:discovery/zen/fd/ping";
-    
+
     public abstract static class Listener {
 
         public void onNodeFailure(DiscoveryNode node, String reason) {}
@@ -64,7 +72,7 @@ public class NodesFaultDetection extends FaultDetection {
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
-        transportService.registerRequestHandler(PING_ACTION_NAME, PingRequest.class, ThreadPool.Names.SAME, new PingRequestHandler());
+        transportService.registerRequestHandler(PING_ACTION_NAME, PingRequest::new, ThreadPool.Names.SAME, new PingRequestHandler());
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
@@ -146,14 +154,18 @@ public class NodesFaultDetection extends FaultDetection {
     }
 
     private void notifyNodeFailure(final DiscoveryNode node, final String reason) {
-        threadPool.generic().execute(new Runnable() {
-            @Override
-            public void run() {
-                for (Listener listener : listeners) {
-                    listener.onNodeFailure(node, reason);
+        try {
+            threadPool.generic().execute(new Runnable() {
+                @Override
+                public void run() {
+                    for (Listener listener : listeners) {
+                        listener.onNodeFailure(node, reason);
+                    }
                 }
-            }
-        });
+            });
+        } catch (EsRejectedExecutionException ex) {
+            logger.trace("[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down", ex, node, reason);
+        }
     }
 
     private void notifyPingReceived(final PingRequest pingRequest) {
@@ -189,7 +201,7 @@ public class NodesFaultDetection extends FaultDetection {
                 return;
             }
             final PingRequest pingRequest = new PingRequest(node.id(), clusterName, localNode, clusterStateVersion);
-            final TransportRequestOptions options = options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout);
+            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout).build();
             transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse newInstance() {
@@ -271,7 +283,7 @@ public class NodesFaultDetection extends FaultDetection {
 
         private long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
 
-        PingRequest() {
+        public PingRequest() {
         }
 
         PingRequest(String nodeId, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {

@@ -11,6 +11,6 @@ filter type:
 |Setting |Description
 |`min_gram` |Defaults to `1`.
 |`max_gram` |Defaults to `2`.
-|`side` |Either `front` or `back`. Defaults to `front`.
+|`side` |deprecated. Either `front` or `back`. Defaults to `front`.
 |======================================================
 

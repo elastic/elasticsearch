@@ -1,0 +1,29 @@
+{
+  "type":{
+    "properties":{
+      "a":{
+        "type":"multi_field",
+        "fields":{
+          "a":{
+            "type":"text",
+            "index":false
+          },
+          "b":{
+            "type":"geo_point"
+          }
+        }
+      },
+      "b":{
+        "type":"multi_field",
+        "fields":{
+          "a":{
+            "type":"keyword"
+          },
+          "b":{
+            "type":"geo_point"
+          }
+        }
+      }
+    }
+  }
+}

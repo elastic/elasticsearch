@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
@@ -63,7 +64,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
      * 
      * @param shardSize
      *            The number of top-scoring docs to collect for each bucket
-     * @param bigArrays
      */
     public BestDocsDeferringCollector(int shardSize, BigArrays bigArrays) {
         this.shardSize = shardSize;
@@ -278,17 +278,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            throw new ElasticsearchException("This caching scorer implementation only implements score() and docID()");
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new ElasticsearchException("This caching scorer implementation only implements score() and docID()");
-        }
-
-        @Override
-        public long cost() {
+        public DocIdSetIterator iterator() {
             throw new ElasticsearchException("This caching scorer implementation only implements score() and docID()");
         }
 

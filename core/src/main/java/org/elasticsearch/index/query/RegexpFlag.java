@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.index.query;
 
-import java.util.Locale;
-
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
+
+import java.util.Locale;
 
 /**
  * Regular expression syntax flags. Each flag represents optional syntax support in the regular expression:
@@ -89,9 +89,9 @@ public enum RegexpFlag {
     /**
      * Resolves the combined OR'ed value for the given list of regular expression flags. The given flags must follow the
      * following syntax:
-     * <p/>
+     * <p>
      * <tt>flag_name</tt>(|<tt>flag_name</tt>)*
-     * <p/>
+     * <p>
      * Where <tt>flag_name</tt> is one of the following:
      * <ul>
      *     <li>INTERSECTION</li>
@@ -102,13 +102,13 @@ public enum RegexpFlag {
      *     <li>NONE</li>
      *     <li>ALL</li>
      * </ul>
-     * <p/>
+     * <p>
      * Example: <tt>INTERSECTION|COMPLEMENT|EMPTY</tt>
      *
-     * @param flags A string representing a list of regualr expression flags
+     * @param flags A string representing a list of regular expression flags
      * @return The combined OR'ed value for all the flags
      */
-    static int resolveValue(String flags) {
+    public static int resolveValue(String flags) {
         if (flags == null || flags.isEmpty()) {
             return RegExp.ALL;
         }

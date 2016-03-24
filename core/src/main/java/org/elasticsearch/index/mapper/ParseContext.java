@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.google.common.collect.Lists;
-
+import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LegacyIntField;
+import org.apache.lucene.document.LegacyLongField;
+import org.apache.lucene.document.LegacyFloatField;
+import org.apache.lucene.document.LegacyDoubleField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -36,10 +38,8 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -56,7 +56,7 @@ public abstract class ParseContext {
         private ObjectObjectMap<Object, IndexableField> keyedFields;
 
         private Document(String path, Document parent) {
-            fields = Lists.newArrayList();
+            fields = new ArrayList<>();
             this.path = path;
             this.prefix = path.isEmpty() ? "" : path + ".";
             this.parent = parent;
@@ -132,8 +132,8 @@ public abstract class ParseContext {
          * Returns an array of values of the field specified as the method parameter.
          * This method returns an empty array when there are no
          * matching fields.  It never returns null.
-         * For {@link org.apache.lucene.document.IntField}, {@link org.apache.lucene.document.LongField}, {@link
-         * org.apache.lucene.document.FloatField} and {@link org.apache.lucene.document.DoubleField} it returns the string value of the number.
+         * For {@link org.apache.lucene.document.LegacyIntField}, {@link org.apache.lucene.document.LegacyLongField}, {@link
+         * org.apache.lucene.document.LegacyFloatField} and {@link org.apache.lucene.document.LegacyDoubleField} it returns the string value of the number.
          * If you want the actual numeric field instances back, use {@link #getFields}.
          * @param name the name of the field
          * @return a <code>String[]</code> of field values
@@ -183,11 +183,6 @@ public abstract class ParseContext {
 
         private FilterParseContext(ParseContext in) {
             this.in = in;
-        }
-
-        @Override
-        public boolean flyweight() {
-            return in.flyweight();
         }
 
         @Override
@@ -291,16 +286,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void ignoredValue(String indexName, String value) {
-            in.ignoredValue(indexName, value);
-        }
-
-        @Override
-        public String ignoredValue(String indexName) {
-            return in.ignoredValue(indexName);
-        }
-
-        @Override
         public void id(String id) {
             in.id(id);
         }
@@ -341,28 +326,18 @@ public abstract class ParseContext {
         }
 
         @Override
-        public float docBoost() {
-            return in.docBoost();
-        }
-
-        @Override
-        public void docBoost(float docBoost) {
-            in.docBoost(docBoost);
-        }
-
-        @Override
         public StringBuilder stringBuilder() {
             return in.stringBuilder();
         }
 
         @Override
-        public void addDynamicMappingsUpdate(Mapper update) {
-            in.addDynamicMappingsUpdate(update);
+        public void addDynamicMapper(Mapper update) {
+            in.addDynamicMapper(update);
         }
 
         @Override
-        public Mapper dynamicMappingsUpdate() {
-            return in.dynamicMappingsUpdate();
+        public List<Mapper> getDynamicMappers() {
+            return in.getDynamicMappers();
         }
     }
 
@@ -378,7 +353,7 @@ public abstract class ParseContext {
 
         private Document document;
 
-        private List<Document> documents = Lists.newArrayList();
+        private List<Document> documents = new ArrayList<>();
 
         @Nullable
         private final Settings indexSettings;
@@ -392,13 +367,9 @@ public abstract class ParseContext {
 
         private StringBuilder stringBuilder = new StringBuilder();
 
-        private Map<String, String> ignoredValues = new HashMap<>();
-
         private AllEntries allEntries = new AllEntries();
 
-        private float docBoost = 1.0f;
-
-        private Mapper dynamicMappingsUpdate = null;
+        private List<Mapper> dynamicMappers = new ArrayList<>();
 
         public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
             this.indexSettings = indexSettings;
@@ -411,7 +382,7 @@ public abstract class ParseContext {
             this.parser = parser;
             this.document = document;
             if (document != null) {
-                this.documents = Lists.newArrayList();
+                this.documents = new ArrayList<>();
                 this.documents.add(document);
             } else {
                 this.documents = null;
@@ -423,14 +394,7 @@ public abstract class ParseContext {
             this.source = source == null ? null : sourceToParse.source();
             this.path.reset();
             this.allEntries = new AllEntries();
-            this.ignoredValues.clear();
-            this.docBoost = 1.0f;
-            this.dynamicMappingsUpdate = null;
-        }
-
-        @Override
-        public boolean flyweight() {
-            return sourceToParse.flyweight();
+            this.dynamicMappers = new ArrayList<>();
         }
 
         @Override
@@ -525,16 +489,6 @@ public abstract class ParseContext {
             return id;
         }
 
-        @Override
-        public void ignoredValue(String indexName, String value) {
-            ignoredValues.put(indexName, value);
-        }
-
-        @Override
-        public String ignoredValue(String indexName) {
-            return ignoredValues.get(indexName);
-        }
-
         /**
          * Really, just the id mapper should set this.
          */
@@ -571,16 +525,6 @@ public abstract class ParseContext {
             return this.allEntries;
         }
 
-        @Override
-        public float docBoost() {
-            return this.docBoost;
-        }
-
-        @Override
-        public void docBoost(float docBoost) {
-            this.docBoost = docBoost;
-        }
-
         /**
          * A string builder that can be used to construct complex names for example.
          * Its better to reuse the.
@@ -592,22 +536,15 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicMappingsUpdate(Mapper mapper) {
-            assert mapper instanceof RootObjectMapper : mapper;
-            if (dynamicMappingsUpdate == null) {
-                dynamicMappingsUpdate = mapper;
-            } else {
-                MapperUtils.merge(dynamicMappingsUpdate, mapper);
-            }
+        public void addDynamicMapper(Mapper mapper) {
+            dynamicMappers.add(mapper);
         }
 
         @Override
-        public Mapper dynamicMappingsUpdate() {
-            return dynamicMappingsUpdate;
+        public List<Mapper> getDynamicMappers() {
+            return dynamicMappers;
         }
     }
-
-    public abstract boolean flyweight();
 
     public abstract DocumentMapperParser docMapperParser();
 
@@ -685,6 +622,7 @@ public abstract class ParseContext {
 
     public abstract SourceToParse sourceToParse();
 
+    @Nullable
     public abstract BytesReference source();
 
     // only should be used by SourceFieldMapper to update with a compressed source
@@ -711,10 +649,6 @@ public abstract class ParseContext {
     public abstract MapperService mapperService();
 
     public abstract String id();
-
-    public abstract void ignoredValue(String indexName, String value);
-
-    public abstract String ignoredValue(String indexName);
 
     /**
      * Really, just the id mapper should set this.
@@ -801,10 +735,6 @@ public abstract class ParseContext {
         return clazz.cast(externalValue());
     }
 
-    public abstract float docBoost();
-
-    public abstract void docBoost(float docBoost);
-
     /**
      * A string builder that can be used to construct complex names for example.
      * Its better to reuse the.
@@ -812,12 +742,12 @@ public abstract class ParseContext {
     public abstract StringBuilder stringBuilder();
 
     /**
-     * Add a dynamic update to the root object mapper.
+     * Add a new mapper dynamically created while parsing.
      */
-    public abstract void addDynamicMappingsUpdate(Mapper update);
+    public abstract void addDynamicMapper(Mapper update);
 
     /**
-     * Get dynamic updates to the root object mapper.
+     * Get dynamic mappers created while parsing.
      */
-    public abstract Mapper dynamicMappingsUpdate();
+    public abstract List<Mapper> getDynamicMappers();
 }

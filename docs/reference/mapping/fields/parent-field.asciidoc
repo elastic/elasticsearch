@@ -1,8 +1,6 @@
 [[mapping-parent-field]]
 === `_parent` field
 
-added[2.0.0,The parent-child implementation has been completely rewritten. It is advisable to reindex any 1.x indices which use parent-child to take advantage of the new optimizations]
-
 A parent-child relationship can be established between documents in the same
 index by making one mapping type the parent of another:
 
@@ -129,7 +127,7 @@ global ordinals for the `_parent` field.
 Global ordinals, by default, are built lazily: the first parent-child query or
 aggregation after a refresh will trigger building of global ordinals. This can
 introduce a significant latency spike for your users. You can use
-<<fielddata-loading,eager_global_ordinals>> to shift the cost of building global
+<<global-ordinals,eager_global_ordinals>> to shift the cost of building global
 ordinals from query time to refresh time, by mapping the `_parent` field as follows:
 
 [source,js]
@@ -141,9 +139,7 @@ PUT my_index
     "my_child": {
       "_parent": {
         "type": "my_parent",
-        "fielddata": {
-          "loading": "eager_global_ordinals"
-        }
+        "eager_global_ordinals": true
       }
     }
   }

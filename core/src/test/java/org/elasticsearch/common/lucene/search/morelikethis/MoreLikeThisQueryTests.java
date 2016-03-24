@@ -31,22 +31,18 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class MoreLikeThisQueryTests extends ElasticsearchTestCase {
-
-    @Test
+public class MoreLikeThisQueryTests extends ESTestCase {
     public void testSimple() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         indexWriter.commit();
-
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
@@ -58,15 +54,15 @@ public class MoreLikeThisQueryTests extends ElasticsearchTestCase {
         document.add(new TextField("text", "lucene release", Field.Store.YES));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER);
         mltQuery.setLikeText("lucene");
         mltQuery.setMinTermFrequency(1);
         mltQuery.setMinDocFreq(1);
-        long count = Lucene.count(searcher, mltQuery);
-        assertThat(count, equalTo(2l));
+        long count = searcher.count(mltQuery);
+        assertThat(count, equalTo(2L));
 
         reader.close();
         indexWriter.close();

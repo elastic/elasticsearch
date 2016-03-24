@@ -19,104 +19,139 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<IdsQueryBuilder> {
+public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
-    private final List<String> types;
+    public static final String NAME = "ids";
 
-    private List<String> values = new ArrayList<>();
+    private final Set<String> ids = new HashSet<>();
 
-    private float boost = -1;
+    private final String[] types;
 
-    private String queryName;
+    static final IdsQueryBuilder PROTOTYPE = new IdsQueryBuilder();
 
-    public IdsQueryBuilder(String... types) {
-        this.types = types == null ? null : Arrays.asList(types);
+    /**
+     * Creates a new IdsQueryBuilder without providing the types of the documents to look for
+     */
+    public IdsQueryBuilder() {
+        this.types = new String[0];
     }
 
     /**
-     * Adds ids to the filter.
+     * Creates a new IdsQueryBuilder by providing the types of the documents to look for
+     */
+    public IdsQueryBuilder(String... types) {
+        if (types == null) {
+            throw new IllegalArgumentException("[ids] types cannot be null");
+        }
+        this.types = types;
+    }
+
+    /**
+     * Returns the types used in this query
+     */
+    public String[] types() {
+        return this.types;
+    }
+
+    /**
+     * Adds ids to the query.
      */
     public IdsQueryBuilder addIds(String... ids) {
-        values.addAll(Arrays.asList(ids));
+        if (ids == null) {
+            throw new IllegalArgumentException("[ids] ids cannot be null");
+        }
+        Collections.addAll(this.ids, ids);
         return this;
     }
 
     /**
-     * Adds ids to the filter.
+     * Returns the ids for the query.
      */
-    public IdsQueryBuilder addIds(Collection<String> ids) {
-        values.addAll(ids);
-        return this;
-    }
-
-    /**
-     * Adds ids to the filter.
-     */
-    public IdsQueryBuilder ids(String... ids) {
-        return addIds(ids);
-    }
-
-    /**
-     * Adds ids to the filter.
-     */
-    public IdsQueryBuilder ids(Collection<String> ids) {
-        return addIds(ids);
-    }
-
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public IdsQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public IdsQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public Set<String> ids() {
+        return this.ids;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(IdsQueryParser.NAME);
-        if (types != null) {
-            if (types.size() == 1) {
-                builder.field("type", types.get(0));
-            } else {
-                builder.startArray("types");
-                for (Object type : types) {
-                    builder.value(type);
-                }
-                builder.endArray();
-            }
-        }
-        builder.startArray("values");
-        for (Object value : values) {
+        builder.startObject(NAME);
+        builder.array(IdsQueryParser.TYPE_FIELD.getPreferredName(), types);
+        builder.startArray(IdsQueryParser.VALUES_FIELD.getPreferredName());
+        for (String value : ids) {
             builder.value(value);
         }
         builder.endArray();
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query query;
+        if (this.ids.isEmpty()) {
+             query = Queries.newMatchNoDocsQuery();
+        } else {
+            Collection<String> typesForQuery;
+            if (types.length == 0) {
+                typesForQuery = context.queryTypes();
+            } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
+                typesForQuery = context.getMapperService().types();
+            } else {
+                typesForQuery = new HashSet<>();
+                Collections.addAll(typesForQuery, types);
+            }
+
+            query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));
+        }
+        return query;
+    }
+
+    @Override
+    protected IdsQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder(in.readStringArray());
+        idsQueryBuilder.addIds(in.readStringArray());
+        return idsQueryBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeStringArray(types);
+        out.writeStringArray(ids.toArray(new String[ids.size()]));
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(ids, Arrays.hashCode(types));
+    }
+
+    @Override
+    protected boolean doEquals(IdsQueryBuilder other) {
+        return Objects.equals(ids, other.ids) &&
+               Arrays.equals(types, other.types);
     }
 }

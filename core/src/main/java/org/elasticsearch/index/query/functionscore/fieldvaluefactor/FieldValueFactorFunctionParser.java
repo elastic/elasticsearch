@@ -19,20 +19,13 @@
 
 package org.elasticsearch.index.query.functionscore.fieldvaluefactor;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Locale;
 
 /**
  * Parses out a function_score function that looks like:
@@ -48,15 +41,16 @@ import java.util.Locale;
  *     }
  * </pre>
  */
-public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
+public class FieldValueFactorFunctionParser implements ScoreFunctionParser<FieldValueFactorFunctionBuilder> {
     public static String[] NAMES = { "field_value_factor", "fieldValueFactor" };
 
-    @Override
-    public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
+    private static final FieldValueFactorFunctionBuilder PROTOTYPE = new FieldValueFactorFunctionBuilder("");
 
+    @Override
+    public FieldValueFactorFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser) throws IOException, ParsingException {
         String currentFieldName = null;
         String field = null;
-        float boostFactor = 1;
+        float boostFactor = FieldValueFactorFunctionBuilder.DEFAULT_FACTOR;
         FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
         Double missing = null;
         XContentParser.Token token;
@@ -69,32 +63,35 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
                 } else if ("factor".equals(currentFieldName)) {
                     boostFactor = parser.floatValue();
                 } else if ("modifier".equals(currentFieldName)) {
-                    modifier = FieldValueFactorFunction.Modifier.valueOf(parser.text().toUpperCase(Locale.ROOT));
+                    modifier = FieldValueFactorFunction.Modifier.fromString(parser.text());
                 } else if ("missing".equals(currentFieldName)) {
                     missing = parser.doubleValue();
                 } else {
-                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             } else if("factor".equals(currentFieldName) && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
-                throw new QueryParsingException(parseContext, "[" + NAMES[0] + "] field 'factor' does not support lists or objects");
+                throw new ParsingException(parser.getTokenLocation(), "[" + NAMES[0] + "] field 'factor' does not support lists or objects");
             }
         }
 
         if (field == null) {
-            throw new QueryParsingException(parseContext, "[" + NAMES[0] + "] required field 'field' missing");
+            throw new ParsingException(parser.getTokenLocation(), "[" + NAMES[0] + "] required field 'field' missing");
         }
 
-        SearchContext searchContext = SearchContext.current();
-        MappedFieldType fieldType = searchContext.mapperService().smartNameFieldType(field);
-        if (fieldType == null) {
-            throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]");
+        FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = new FieldValueFactorFunctionBuilder(field).factor(boostFactor).modifier(modifier);
+        if (missing != null) {
+            fieldValueFactorFunctionBuilder.missing(missing);
         }
-        return new FieldValueFactorFunction(field, boostFactor, modifier, missing,
-                (IndexNumericFieldData)searchContext.fieldData().getForField(fieldType));
+        return fieldValueFactorFunctionBuilder;
     }
 
     @Override
     public String[] getNames() {
         return NAMES;
+    }
+
+    @Override
+    public FieldValueFactorFunctionBuilder getBuilderPrototype() {
+        return PROTOTYPE;
     }
 }

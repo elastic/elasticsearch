@@ -21,8 +21,6 @@ package org.elasticsearch.search.controller;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -44,7 +42,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -53,6 +50,8 @@ import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.profile.InternalProfileShardResults;
+import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
@@ -64,6 +63,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  *
@@ -75,17 +76,15 @@ public class SearchPhaseController extends AbstractComponent {
         public int compare(AtomicArray.Entry<? extends QuerySearchResultProvider> o1, AtomicArray.Entry<? extends QuerySearchResultProvider> o2) {
             int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
             if (i == 0) {
-                i = o1.value.shardTarget().shardId() - o2.value.shardTarget().shardId();
+                i = o1.value.shardTarget().shardId().id() - o2.value.shardTarget().shardId().id();
             }
             return i;
         }
     };
 
     public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
-    public static final String SEARCH_CONTROLLER_OPTIMIZE_SINGLE_SHARD_KEY = "search.controller.optimize_single_shard";
 
     private final BigArrays bigArrays;
-    private final boolean optimizeSingleShard;
 
     private ScriptService scriptService;
 
@@ -94,11 +93,6 @@ public class SearchPhaseController extends AbstractComponent {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
-        this.optimizeSingleShard = settings.getAsBoolean(SEARCH_CONTROLLER_OPTIMIZE_SINGLE_SHARD_KEY, true);
-    }
-
-    public boolean optimizeSingleShard() {
-        return optimizeSingleShard;
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {
@@ -167,50 +161,48 @@ public class SearchPhaseController extends AbstractComponent {
             return EMPTY_DOCS;
         }
 
-        if (optimizeSingleShard) {
-            boolean canOptimize = false;
-            QuerySearchResult result = null;
-            int shardIndex = -1;
-            if (results.size() == 1) {
-                canOptimize = true;
-                result = results.get(0).value.queryResult();
-                shardIndex = results.get(0).index;
-            } else {
-                // lets see if we only got hits from a single shard, if so, we can optimize...
-                for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : results) {
-                    if (entry.value.queryResult().topDocs().scoreDocs.length > 0) {
-                        if (result != null) { // we already have one, can't really optimize
-                            canOptimize = false;
-                            break;
-                        }
-                        canOptimize = true;
-                        result = entry.value.queryResult();
-                        shardIndex = entry.index;
+        boolean canOptimize = false;
+        QuerySearchResult result = null;
+        int shardIndex = -1;
+        if (results.size() == 1) {
+            canOptimize = true;
+            result = results.get(0).value.queryResult();
+            shardIndex = results.get(0).index;
+        } else {
+            // lets see if we only got hits from a single shard, if so, we can optimize...
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : results) {
+                if (entry.value.queryResult().topDocs().scoreDocs.length > 0) {
+                    if (result != null) { // we already have one, can't really optimize
+                        canOptimize = false;
+                        break;
                     }
+                    canOptimize = true;
+                    result = entry.value.queryResult();
+                    shardIndex = entry.index;
                 }
             }
-            if (canOptimize) {
-                int offset = result.from();
-                if (ignoreFrom) {
-                    offset = 0;
-                }
-                ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;
-                if (scoreDocs.length == 0 || scoreDocs.length < offset) {
-                    return EMPTY_DOCS;
-                }
+        }
+        if (canOptimize) {
+            int offset = result.from();
+            if (ignoreFrom) {
+                offset = 0;
+            }
+            ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;
+            if (scoreDocs.length == 0 || scoreDocs.length < offset) {
+                return EMPTY_DOCS;
+            }
 
-                int resultDocsSize = result.size();
-                if ((scoreDocs.length - offset) < resultDocsSize) {
-                    resultDocsSize = scoreDocs.length - offset;
-                }
-                ScoreDoc[] docs = new ScoreDoc[resultDocsSize];
-                for (int i = 0; i < resultDocsSize; i++) {
-                    ScoreDoc scoreDoc = scoreDocs[offset + i];
-                    scoreDoc.shardIndex = shardIndex;
-                    docs[i] = scoreDoc;
-                }
-                return docs;
+            int resultDocsSize = result.size();
+            if ((scoreDocs.length - offset) < resultDocsSize) {
+                resultDocsSize = scoreDocs.length - offset;
             }
+            ScoreDoc[] docs = new ScoreDoc[resultDocsSize];
+            for (int i = 0; i < resultDocsSize; i++) {
+                ScoreDoc scoreDoc = scoreDocs[offset + i];
+                scoreDoc.shardIndex = shardIndex;
+                docs[i] = scoreDoc;
+            }
+            return docs;
         }
 
         @SuppressWarnings("unchecked")
@@ -296,7 +288,8 @@ public class SearchPhaseController extends AbstractComponent {
         }
     }
 
-    public InternalSearchResponse merge(ScoreDoc[] sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResultsArr, AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
+    public InternalSearchResponse merge(ScoreDoc[] sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResultsArr,
+                                        AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
 
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults = queryResultsArr.asList();
         List<? extends AtomicArray.Entry<? extends FetchSearchResultProvider>> fetchResults = fetchResultsArr.asList();
@@ -393,7 +386,7 @@ public class SearchPhaseController extends AbstractComponent {
                 Suggest.group(groupedSuggestions, shardResult);
             }
 
-            suggest = hasSuggestions ? new Suggest(Suggest.Fields.SUGGEST, Suggest.reduce(groupedSuggestions)) : null;
+            suggest = hasSuggestions ? new Suggest(Suggest.reduce(groupedSuggestions)) : null;
         }
 
         // merge addAggregation
@@ -408,13 +401,26 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
 
+        //Collect profile results
+        InternalProfileShardResults shardResults = null;
+        if (!queryResults.isEmpty() && firstResult.profileResults() != null) {
+            Map<String, List<ProfileShardResult>> profileResults = new HashMap<>(queryResults.size());
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
+                String key = entry.value.queryResult().shardTarget().toString();
+                profileResults.put(key, entry.value.queryResult().profileResults());
+            }
+            shardResults = new InternalProfileShardResults(profileResults);
+        }
+
         if (aggregations != null) {
             List<SiblingPipelineAggregator> pipelineAggregators = firstResult.pipelineAggregators();
             if (pipelineAggregators != null) {
-                List<InternalAggregation> newAggs = new ArrayList<>(Lists.transform(aggregations.asList(), PipelineAggregator.AGGREGATION_TRANFORM_FUNCTION));
+                List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false).map((p) -> {
+                    return (InternalAggregation) p;
+                }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
-                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(bigArrays,
-                            scriptService));
+                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(
+                            bigArrays, scriptService));
                     newAggs.add(newAgg);
                 }
                 aggregations = new InternalAggregations(newAggs);
@@ -423,7 +429,7 @@ public class SearchPhaseController extends AbstractComponent {
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
 
-        return new InternalSearchResponse(searchHits, aggregations, suggest, timedOut, terminatedEarly);
+        return new InternalSearchResponse(searchHits, aggregations, suggest, shardResults, timedOut, terminatedEarly);
     }
 
 }

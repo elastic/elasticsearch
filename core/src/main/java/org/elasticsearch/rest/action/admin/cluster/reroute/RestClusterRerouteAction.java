@@ -30,7 +30,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.io.IOException;
@@ -46,7 +49,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     @Inject
     public RestClusterRerouteAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, controller, client);
+        super(settings, client);
         this.settingsFilter = settingsFilter;
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }

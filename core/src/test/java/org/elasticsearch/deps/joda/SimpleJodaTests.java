@@ -22,28 +22,30 @@ package org.elasticsearch.deps.joda;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeFieldType;
 import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDateTime;
 import org.joda.time.MutableDateTime;
-import org.joda.time.format.*;
-import org.junit.Test;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.DateTimeFormatterBuilder;
+import org.joda.time.format.DateTimeParser;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.Date;
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
-public class SimpleJodaTests extends ElasticsearchTestCase {
-
-    @Test
+public class SimpleJodaTests extends ESTestCase {
     public void testMultiParsers() {
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
         DateTimeParser[] parsers = new DateTimeParser[3];
@@ -57,15 +59,13 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         formatter.parseMillis("2009-11-15 14:12:12");
     }
 
-    @Test
     public void testIsoDateFormatDateTimeNoMillisUTC() {
         DateTimeFormatter formatter = ISODateTimeFormat.dateTimeNoMillis().withZone(DateTimeZone.UTC);
         long millis = formatter.parseMillis("1970-01-01T00:00:00Z");
 
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
     }
 
-    @Test
     public void testUpperBound() {
         MutableDateTime dateTime = new MutableDateTime(3000, 12, 31, 23, 59, 59, 999, DateTimeZone.UTC);
         DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
@@ -76,24 +76,23 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         assertThat(dateTime.toString(), equalTo("2000-01-01T23:59:59.999Z"));
     }
 
-    @Test
     public void testIsoDateFormatDateOptionalTimeUTC() {
         DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
         long millis = formatter.parseMillis("1970-01-01T00:00:00Z");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
         millis = formatter.parseMillis("1970-01-01T00:00:00.001Z");
-        assertThat(millis, equalTo(1l));
+        assertThat(millis, equalTo(1L));
         millis = formatter.parseMillis("1970-01-01T00:00:00.1Z");
-        assertThat(millis, equalTo(100l));
+        assertThat(millis, equalTo(100L));
         millis = formatter.parseMillis("1970-01-01T00:00:00.1");
-        assertThat(millis, equalTo(100l));
+        assertThat(millis, equalTo(100L));
         millis = formatter.parseMillis("1970-01-01T00:00:00");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
         millis = formatter.parseMillis("1970-01-01");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
 
         millis = formatter.parseMillis("1970");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
 
         try {
             formatter.parseMillis("1970 kuku");
@@ -107,22 +106,20 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         assertThat(millis, equalTo(TimeValue.timeValueHours(2).millis()));
     }
 
-    @Test
     public void testIsoVsCustom() {
         DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
         long millis = formatter.parseMillis("1970-01-01T00:00:00");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
 
         formatter = DateTimeFormat.forPattern("yyyy/MM/dd HH:mm:ss").withZone(DateTimeZone.UTC);
         millis = formatter.parseMillis("1970/01/01 00:00:00");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
 
         FormatDateTimeFormatter formatter2 = Joda.forPattern("yyyy/MM/dd HH:mm:ss");
         millis = formatter2.parser().parseMillis("1970/01/01 00:00:00");
-        assertThat(millis, equalTo(0l));
+        assertThat(millis, equalTo(0L));
     }
 
-    @Test
     public void testWriteAndParse() {
         DateTimeFormatter dateTimeWriter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
         DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
@@ -130,7 +127,6 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         assertThat(formatter.parseMillis(dateTimeWriter.print(date.getTime())), equalTo(date.getTime()));
     }
 
-    @Test
     public void testSlashInFormat() {
         FormatDateTimeFormatter formatter = Joda.forPattern("MM/yyyy");
         formatter.parser().parseMillis("01/2001");
@@ -147,14 +143,12 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testMultipleFormats() {
         FormatDateTimeFormatter formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
         long millis = formatter.parser().parseMillis("1970/01/01 00:00:00");
         assertThat("1970/01/01 00:00:00", is(formatter.printer().print(millis)));
     }
 
-    @Test
     public void testMultipleDifferentFormats() {
         FormatDateTimeFormatter formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
         String input = "1970/01/01 00:00:00";
@@ -168,7 +162,6 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         Joda.forPattern(" date_time || date_time_no_millis");
     }
 
-    @Test
     public void testInvalidPatterns() {
         expectInvalidPattern("does_not_exist_pattern", "Invalid format: [does_not_exist_pattern]: Illegal pattern component: o");
         expectInvalidPattern("OOOOO", "Invalid format: [OOOOO]: Illegal pattern component: OOOOO");
@@ -188,7 +181,6 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testRounding() {
         long TIME = utcTimeInMillis("2009-02-03T01:01:01");
         MutableDateTime time = new MutableDateTime(DateTimeZone.UTC);
@@ -200,7 +192,6 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         assertThat(time.dayOfMonth().roundFloor().toString(), equalTo("2009-02-03T00:00:00.000Z"));
     }
 
-    @Test
     public void testRoundingSetOnTime() {
         MutableDateTime time = new MutableDateTime(DateTimeZone.UTC);
         time.setRounding(time.getChronology().monthOfYear(), MutableDateTime.ROUND_FLOOR);
@@ -229,7 +220,6 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         assertThat(time.getMillis(), equalTo(utcTimeInMillis("2011-05-02T00:00:00.000Z")));
     }
 
-    @Test
     public void testRoundingWithTimeZone() {
         MutableDateTime time = new MutableDateTime(DateTimeZone.UTC);
         time.setZone(DateTimeZone.forOffsetHours(-2));
@@ -254,7 +244,6 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         assertThat(time.getMillis(), equalTo(utcTime.getMillis() - TimeValue.timeValueHours(22).millis()));
     }
 
-    @Test
     public void testThatEpochsCanBeParsed() {
         boolean parseMilliSeconds = randomBoolean();
 
@@ -276,7 +265,6 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testThatNegativeEpochsCanBeParsed() {
         // problem: negative epochs can be arbitrary in size...
         boolean parseMilliSeconds = randomBoolean();
@@ -307,16 +295,24 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testForInvalidDatesInEpochSecond() {
         FormatDateTimeFormatter formatter = Joda.forPattern("epoch_second");
-        formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901", "12345678901234"));
+        try {
+            formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901", "12345678901234"));
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Invalid format"));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testForInvalidDatesInEpochMillis() {
         FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
-        formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901234"));
+        try {
+            formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901234"));
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Invalid format"));
+        }
     }
 
     public void testThatEpochParserIsPrinter() {
@@ -336,7 +332,7 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         Joda.EpochTimePrinter epochTimePrinter = new Joda.EpochTimePrinter(false);
         epochTimePrinter.printTo(buffer, now, Locale.ROOT);
         assertThat(buffer.length(), is(10));
-        // only check the last digit, as seconds go from 0-99 in the unix timestamp and dont stop at 60
+        // only check the last digit, as seconds go from 0-99 in the unix timestamp and don't stop at 60
         assertThat(buffer.toString(), endsWith(String.valueOf(now.getSecondOfMinute() % 10)));
 
         buffer = new StringBuffer();
@@ -349,19 +345,19 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
     public void testThatEpochParserIsIdempotent() {
         FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
         DateTime dateTime = formatter.parser().parseDateTime("1234567890123");
-        assertThat(dateTime.getMillis(), is(1234567890123l));
+        assertThat(dateTime.getMillis(), is(1234567890123L));
         dateTime = formatter.printer().parseDateTime("1234567890456");
-        assertThat(dateTime.getMillis(), is(1234567890456l));
+        assertThat(dateTime.getMillis(), is(1234567890456L));
         dateTime = formatter.parser().parseDateTime("1234567890789");
-        assertThat(dateTime.getMillis(), is(1234567890789l));
+        assertThat(dateTime.getMillis(), is(1234567890789L));
 
         FormatDateTimeFormatter secondsFormatter = Joda.forPattern("epoch_second");
         DateTime secondsDateTime = secondsFormatter.parser().parseDateTime("1234567890");
-        assertThat(secondsDateTime.getMillis(), is(1234567890000l));
+        assertThat(secondsDateTime.getMillis(), is(1234567890000L));
         secondsDateTime = secondsFormatter.printer().parseDateTime("1234567890");
-        assertThat(secondsDateTime.getMillis(), is(1234567890000l));
+        assertThat(secondsDateTime.getMillis(), is(1234567890000L));
         secondsDateTime = secondsFormatter.parser().parseDateTime("1234567890");
-        assertThat(secondsDateTime.getMillis(), is(1234567890000l));
+        assertThat(secondsDateTime.getMillis(), is(1234567890000L));
     }
 
     public void testThatDefaultFormatterChecksForCorrectYearLength() throws Exception {
@@ -672,7 +668,6 @@ public class SimpleJodaTests extends ElasticsearchTestCase {
         assertDateFormatParsingThrowingException("strictYearMonthDay", "2014-05-5");
     }
 
-    @Test
     public void testThatRootObjectParsingIsStrict() throws Exception {
         String[] datesThatWork = new String[] { "2014/10/10", "2014/10/10 12:12:12", "2014-05-05",  "2014-05-05T12:12:12.123Z" };
         String[] datesThatShouldNotWork = new String[]{ "5-05-05", "2014-5-05", "2014-05-5",

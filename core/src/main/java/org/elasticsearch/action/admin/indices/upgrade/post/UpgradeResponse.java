@@ -19,31 +19,32 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
-
 /**
- * A response for optimize action.
+ * A response for the upgrade action.
  *
  *
  */
 public class UpgradeResponse extends BroadcastResponse {
 
-    private Map<String, String> versions;
+    private Map<String, Tuple<Version, String>> versions;
 
     UpgradeResponse() {
 
     }
 
-    UpgradeResponse(Map<String, String> versions, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    UpgradeResponse(Map<String, Tuple<Version, String>> versions, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.versions = versions;
     }
@@ -52,11 +53,12 @@ public class UpgradeResponse extends BroadcastResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        versions = newHashMap();
+        versions = new HashMap<>();
         for (int i=0; i<size; i++) {
             String index = in.readString();
-            String version = in.readString();
-            versions.put(index, version);
+            Version upgradeVersion = Version.readVersion(in);
+            String oldestLuceneSegment = in.readString();
+            versions.put(index, new Tuple<>(upgradeVersion, oldestLuceneSegment));
         }
     }
 
@@ -64,13 +66,18 @@ public class UpgradeResponse extends BroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(versions.size());
-        for(Map.Entry<String, String> entry : versions.entrySet()) {
+        for(Map.Entry<String, Tuple<Version, String>> entry : versions.entrySet()) {
             out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+            Version.writeVersion(entry.getValue().v1(), out);
+            out.writeString(entry.getValue().v2());
         }
     }
 
-    public Map<String, String> versions() {
+    /**
+     * Returns the highest upgrade version of the node that performed metadata upgrade and the
+     * the version of the oldest lucene segment for each index that was upgraded.
+     */
+    public Map<String, Tuple<Version, String>> versions() {
         return versions;
     }
 }

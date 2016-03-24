@@ -30,7 +30,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
@@ -48,7 +51,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
     @Inject
     public RestSearchScrollAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
 
         controller.registerHandler(GET, "/_search/scroll", this);
         controller.registerHandler(POST, "/_search/scroll", this);
@@ -84,7 +87,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
     public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IllegalArgumentException("Malforrmed content, must start with an object");
+                throw new IllegalArgumentException("Malformed content, must start with an object");
             } else {
                 XContentParser.Token token;
                 String currentFieldName = null;

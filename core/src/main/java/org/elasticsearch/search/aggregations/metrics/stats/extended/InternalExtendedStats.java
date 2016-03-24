@@ -65,7 +65,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     private double sumOfSqrs;
     private double sigma;
 
-    InternalExtendedStats() {} // for serialization
+    protected InternalExtendedStats() {} // for serialization
 
     public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
             ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
@@ -158,19 +158,13 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     @Override
     public void readOtherStatsFrom(StreamInput in) throws IOException {
         sumOfSqrs = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_1_4_3)) {
-            sigma = in.readDouble();
-        } else {
-            sigma = 2.0;
-        }
+        sigma = in.readDouble();
     }
 
     @Override
     protected void writeOtherStatsTo(StreamOutput out) throws IOException {
         out.writeDouble(sumOfSqrs);
-        if (out.getVersion().onOrAfter(Version.V_1_4_3)) {
-            out.writeDouble(sigma);
-        }
+        out.writeDouble(sigma);
     }
 
 

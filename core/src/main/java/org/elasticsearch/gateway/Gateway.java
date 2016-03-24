@@ -20,20 +20,27 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
-
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.indices.IndicesService;
 
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.function.Supplier;
 
 /**
  *
@@ -48,55 +55,32 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final String initialMeta;
-    private final ClusterName clusterName;
+    private final Supplier<Integer> minimumMasterNodesProvider;
+    private final IndicesService indicesService;
+    private final NodeServicesProvider nodeServicesProvider;
 
-    @Inject
     public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
-                   TransportNodesListGatewayMetaState listGatewayMetaState, ClusterName clusterName) {
+                   TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
+                   NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
         super(settings);
+        this.nodeServicesProvider = nodeServicesProvider;
+        this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
-        this.clusterName = clusterName;
-
+        this.minimumMasterNodesProvider = discovery::getMinimumMasterNodes;
         clusterService.addLast(this);
-
-        // we define what is our minimum "master" nodes, use that to allow for recovery
-        this.initialMeta = settings.get("gateway.initial_meta", settings.get("gateway.local.initial_meta", settings.get("discovery.zen.minimum_master_nodes", "1")));
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        ObjectHashSet<String> nodesIds = new ObjectHashSet<>(clusterService.state().nodes().masterNodes().keys());
-        logger.trace("performing state recovery from {}", nodesIds);
-        TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds.toArray(String.class), null).actionGet();
+        String[] nodesIds = clusterService.state().nodes().masterNodes().keys().toArray(String.class);
+        logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
+        TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
 
-        int requiredAllocation = 1;
-        try {
-            if ("quorum".equals(initialMeta)) {
-                if (nodesIds.size() > 2) {
-                    requiredAllocation = (nodesIds.size() / 2) + 1;
-                }
-            } else if ("quorum-1".equals(initialMeta) || "half".equals(initialMeta)) {
-                if (nodesIds.size() > 2) {
-                    requiredAllocation = ((1 + nodesIds.size()) / 2);
-                }
-            } else if ("one".equals(initialMeta)) {
-                requiredAllocation = 1;
-            } else if ("full".equals(initialMeta) || "all".equals(initialMeta)) {
-                requiredAllocation = nodesIds.size();
-            } else if ("full-1".equals(initialMeta) || "all-1".equals(initialMeta)) {
-                if (nodesIds.size() > 1) {
-                    requiredAllocation = nodesIds.size() - 1;
-                }
-            } else {
-                requiredAllocation = Integer.parseInt(initialMeta);
-            }
-        } catch (Exception e) {
-            logger.warn("failed to derived initial_meta from value {}", initialMeta);
-        }
+        int requiredAllocation = Math.max(1, minimumMasterNodesProvider.get());
+
 
         if (nodesState.failures().length > 0) {
             for (FailedNodeException failedNodeException : nodesState.failures()) {
@@ -104,7 +88,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
             }
         }
 
-        ObjectFloatHashMap<String> indices = new ObjectFloatHashMap<>();
+        ObjectFloatHashMap<Index> indices = new ObjectFloatHashMap<>();
         MetaData electedGlobalState = null;
         int found = 0;
         for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
@@ -118,7 +102,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 electedGlobalState = nodeState.metaData();
             }
             for (ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
-                indices.addTo(cursor.value.index(), 1);
+                indices.addTo(cursor.value.getIndex(), 1);
             }
         }
         if (found < requiredAllocation) {
@@ -132,7 +116,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         final Object[] keys = indices.keys;
         for (int i = 0; i < keys.length; i++) {
             if (keys[i] != null) {
-                String index = (String) keys[i];
+                Index index = (Index) keys[i];
                 IndexMetaData electedIndexMetaData = null;
                 int indexMetaDataCount = 0;
                 for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
@@ -145,7 +129,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                     }
                     if (electedIndexMetaData == null) {
                         electedIndexMetaData = indexMetaData;
-                    } else if (indexMetaData.version() > electedIndexMetaData.version()) {
+                    } else if (indexMetaData.getVersion() > electedIndexMetaData.getVersion()) {
                         electedIndexMetaData = indexMetaData;
                     }
                     indexMetaDataCount++;
@@ -153,20 +137,32 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 if (electedIndexMetaData != null) {
                     if (indexMetaDataCount < requiredAllocation) {
                         logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
+                    } // TODO if this logging statement is correct then we are missing an else here
+                    try {
+                        if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
+                            // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
+                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData);
+                        }
+                    } catch (Exception e) {
+                        logger.warn("recovering index {} failed - recovering as closed", e, electedIndexMetaData.getIndex());
+                        electedIndexMetaData = IndexMetaData.builder(electedIndexMetaData).state(IndexMetaData.State.CLOSE).build();
                     }
+
                     metaDataBuilder.put(electedIndexMetaData, false);
                 }
             }
         }
-        ClusterState.Builder builder = ClusterState.builder(clusterName);
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        metaDataBuilder.persistentSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.persistentSettings()));
+        metaDataBuilder.transientSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.transientSettings()));
+        ClusterState.Builder builder = ClusterState.builder(clusterService.state().getClusterName());
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }
-
     public void reset() throws Exception {
         try {
             Path[] dataPaths = nodeEnv.nodeDataPaths();
-            logger.trace("removing node data paths: [{}]", dataPaths);
+            logger.trace("removing node data paths: [{}]", (Object)dataPaths);
             IOUtils.rm(dataPaths);
         } catch (Exception ex) {
             logger.debug("failed to delete shard locations", ex);

@@ -28,18 +28,20 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 public class DiskUsage {
     final String nodeId;
     final String nodeName;
+    final String path;
     final long totalBytes;
     final long freeBytes;
 
     /**
-     * Create a new DiskUsage, if {@code totalBytes} is 0, {@get getFreeDiskAsPercentage}
+     * Create a new DiskUsage, if {@code totalBytes} is 0, {@link #getFreeDiskAsPercentage()}
      * will always return 100.0% free
      */
-    public DiskUsage(String nodeId, String nodeName, long totalBytes, long freeBytes) {
+    public DiskUsage(String nodeId, String nodeName, String path, long totalBytes, long freeBytes) {
         this.nodeId = nodeId;
         this.nodeName = nodeName;
         this.freeBytes = freeBytes;
         this.totalBytes = totalBytes;
+        this.path = path;
     }
 
     public String getNodeId() {
@@ -48,6 +50,10 @@ public class DiskUsage {
 
     public String getNodeName() {
         return nodeName;
+    }
+
+    public String getPath() {
+        return path;
     }
 
     public double getFreeDiskAsPercentage() {
@@ -77,7 +83,7 @@ public class DiskUsage {
 
     @Override
     public String toString() {
-        return "[" + nodeId + "][" + nodeName + "] free: " + new ByteSizeValue(getFreeBytes()) +
+        return "[" + nodeId + "][" + nodeName + "][" + path + "] free: " + new ByteSizeValue(getFreeBytes()) +
                 "[" + Strings.format1Decimals(getFreeDiskAsPercentage(), "%") + "]";
     }
 }

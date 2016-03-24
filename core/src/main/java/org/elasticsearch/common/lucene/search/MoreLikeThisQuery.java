@@ -22,11 +22,15 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
@@ -38,6 +42,7 @@ import java.io.Reader;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -79,29 +84,17 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public int hashCode() {
-        int result = boostTerms ? 1 : 0;
-        result = 31 * result + Float.floatToIntBits(boostTermsFactor);
-        result = 31 * result + Arrays.hashCode(likeText);
-        result = 31 * result + maxDocFreq;
-        result = 31 * result + maxQueryTerms;
-        result = 31 * result + maxWordLen;
-        result = 31 * result + minDocFreq;
-        result = 31 * result + minTermFrequency;
-        result = 31 * result + minWordLen;
-        result = 31 * result + Arrays.hashCode(moreLikeFields);
-        result = 31 * result + minimumShouldMatch.hashCode();
-        result = 31 * result + (stopWords == null ? 0 : stopWords.hashCode());
-        result = 31 * result + Float.floatToIntBits(getBoost());
-        return result;
+        return Objects.hash(super.hashCode(), boostTerms, boostTermsFactor, Arrays.hashCode(likeText),
+                maxDocFreq, maxQueryTerms, maxWordLen, minDocFreq, minTermFrequency, minWordLen,
+                Arrays.hashCode(moreLikeFields), minimumShouldMatch, stopWords);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass())
+        if (super.equals(obj) == false) {
             return false;
+        }
         MoreLikeThisQuery other = (MoreLikeThisQuery) obj;
-        if (getBoost() != other.getBoost())
-            return false;
         if (!analyzer.equals(other.analyzer))
             return false;
         if (boostTerms != other.boostTerms)
@@ -141,7 +134,11 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new DefaultSimilarity() : similarity);
+        Query rewritten = super.rewrite(reader);
+        if (rewritten != this) {
+            return rewritten;
+        }
+        XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new ClassicSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
         mlt.setAnalyzer(analyzer);
@@ -158,16 +155,16 @@ public class MoreLikeThisQuery extends Query {
         if (this.unlikeText != null || this.unlikeFields != null) {
             handleUnlike(mlt, this.unlikeText, this.unlikeFields);
         }
-        
+
         return createQuery(mlt);
     }
 
     private Query createQuery(XMoreLikeThis mlt) throws IOException {
-        BooleanQuery bq = new BooleanQuery();
+        BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
         if (this.likeFields != null) {
             Query mltQuery = mlt.like(this.likeFields);
-            Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
-            bq.add(mltQuery, BooleanClause.Occur.SHOULD);
+            mltQuery = Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
+            bqBuilder.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
         if (this.likeText != null) {
             Reader[] readers = new Reader[likeText.length];
@@ -176,12 +173,10 @@ public class MoreLikeThisQuery extends Query {
             }
             //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
             Query mltQuery = mlt.like(moreLikeFields[0], readers);
-            Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
-            bq.add(mltQuery, BooleanClause.Occur.SHOULD);
+            mltQuery = Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
+            bqBuilder.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
-
-        bq.setBoost(getBoost());
-        return bq;    
+        return bqBuilder.build();
     }
 
     private void handleUnlike(XMoreLikeThis mlt, String[] unlikeText, Fields[] unlikeFields) throws IOException {
@@ -252,12 +247,12 @@ public class MoreLikeThisQuery extends Query {
         setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
-    public void setUnlikeText(Fields... ignoreFields) {
-        this.unlikeFields = ignoreFields;
+    public void setUnlikeText(Fields... unlikeFields) {
+        this.unlikeFields = unlikeFields;
     }
 
-    public void setIgnoreText(List<String> ignoreText) {
-        this.unlikeText = ignoreText.toArray(Strings.EMPTY_ARRAY);
+    public void setUnlikeText(String[] unlikeText) {
+        this.unlikeText = unlikeText;
     }
 
     public String[] getMoreLikeFields() {

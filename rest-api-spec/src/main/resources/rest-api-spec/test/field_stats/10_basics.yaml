@@ -1,5 +1,15 @@
----
-"Basic field stats":
+setup:
+  - do:
+      indices.create:
+          index:  test_1
+          body:
+            mappings:
+              test:
+                  properties:
+                    foo:
+                      type: text
+                    number:
+                      type: long
   - do:
       index:
           index:  test_1
@@ -10,6 +20,8 @@
   - do:
       indices.refresh: {}
 
+---
+"Basic field stats":
   - do:
       field_stats:
           index:  test_1
@@ -22,20 +34,12 @@
   - match: { indices._all.fields.number.max_doc: 1 }
   - match: { indices._all.fields.number.doc_count: 1 }
   - match: { indices._all.fields.number.min_value: 123 }
+  - match: { indices._all.fields.number.min_value_as_string: "123" }
   - match: { indices._all.fields.number.max_value: 123 }
+  - match: { indices._all.fields.number.max_value_as_string: "123" }
 
 ---
 "Basic field stats with level set to indices":
-  - do:
-      index:
-          index:  test_1
-          type:   test
-          id:     id_1
-          body:   { foo: "bar", number: 123 }
-
-  - do:
-      indices.refresh: {}
-
   - do:
       field_stats:
           index:  test_1
@@ -49,19 +53,12 @@
   - match: { indices.test_1.fields.number.max_doc: 1 }
   - match: { indices.test_1.fields.number.doc_count: 1 }
   - match: { indices.test_1.fields.number.min_value: 123 }
+  - match: { indices.test_1.fields.number.min_value_as_string: "123" }
   - match: { indices.test_1.fields.number.max_value: 123 }
+  - match: { indices.test_1.fields.number.max_value_as_string: "123" }
 
 ---
 "Field stats with filtering":
-  - do:
-      index:
-          index:  test_1
-          type:   test
-          id:     id_1
-          body:   { foo: "bar", number: 123 }
-
-  - do:
-      indices.refresh: {}
 
   - do:
       field_stats:

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -43,7 +42,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
         this.collector = BucketCollector.wrap(deferredCollectors);
     }
-    
+
 
     public final void replay(long... selectedBuckets) throws IOException
     {

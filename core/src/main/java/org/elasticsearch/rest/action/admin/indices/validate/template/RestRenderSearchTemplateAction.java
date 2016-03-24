@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action.admin.indices.validate.template;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateResponse;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -41,7 +41,6 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.util.Map;
 
@@ -53,7 +52,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
 
     @Inject
     public RestRenderSearchTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_render/template", this);
         controller.registerHandler(POST, "/_render/template", this);
         controller.registerHandler(GET, "/_render/template/{id}", this);
@@ -89,11 +88,11 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
                     throw new ElasticsearchParseException("failed to parse request. unknown field [{}] of type [{}]", currentFieldName, token);
                 }
             }
-            template = new Template(templateId, ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, params);
+            template = new Template(templateId, ScriptType.INDEXED, Template.DEFAULT_LANG, null, params);
         }
         renderSearchTemplateRequest = new RenderSearchTemplateRequest();
         renderSearchTemplateRequest.template(template);
-        client.admin().indices().renderSearchTemplate(renderSearchTemplateRequest, new RestBuilderListener<RenderSearchTemplateResponse>(channel) {
+        client.admin().cluster().renderSearchTemplate(renderSearchTemplateRequest, new RestBuilderListener<RenderSearchTemplateResponse>(channel) {
 
             @Override
             public RestResponse buildResponse(RenderSearchTemplateResponse response, XContentBuilder builder) throws Exception {

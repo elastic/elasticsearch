@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2007 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,8 +26,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * <p>Constructors annotated with {@code @AssistedInject} indicate that they can be instantiated by
  * the {@link FactoryProvider}. Each constructor must exactly match one corresponding factory method
  * within the factory interface.
- * <p/>
- * <p>Constructor parameters must be either supplied by the factory interface and marked with
+ * <p>
+ * Constructor parameters must be either supplied by the factory interface and marked with
  * <code>@Assisted</code>, or they must be injectable.
  *
  * @author jmourits@google.com (Jerome Mourits)

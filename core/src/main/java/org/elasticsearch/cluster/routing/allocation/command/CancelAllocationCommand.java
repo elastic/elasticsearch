@@ -21,7 +21,10 @@ package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -30,11 +33,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
@@ -51,12 +52,13 @@ public class CancelAllocationCommand implements AllocationCommand {
 
         @Override
         public CancelAllocationCommand readFrom(StreamInput in) throws IOException {
-            return new CancelAllocationCommand(ShardId.readShardId(in), in.readString(), in.readBoolean());
+            return new CancelAllocationCommand(in.readString(), in.readVInt(), in.readString(), in.readBoolean());
         }
 
         @Override
         public void writeTo(CancelAllocationCommand command, StreamOutput out) throws IOException {
-            command.shardId().writeTo(out);
+            out.writeString(command.index());
+            out.writeVInt(command.shardId());
             out.writeString(command.node());
             out.writeBoolean(command.allowPrimary());
         }
@@ -98,7 +100,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             if (nodeId == null) {
                 throw new ElasticsearchParseException("[{}] command missing the node parameter", NAME);
             }
-            return new CancelAllocationCommand(new ShardId(index, shardId), nodeId, allowPrimary);
+            return new CancelAllocationCommand(index, shardId, nodeId, allowPrimary);
         }
 
         @Override
@@ -108,8 +110,8 @@ public class CancelAllocationCommand implements AllocationCommand {
             } else {
                 builder.startObject(objectName);
             }
-            builder.field("index", command.shardId().index().name());
-            builder.field("shard", command.shardId().id());
+            builder.field("index", command.index());
+            builder.field("shard", command.shardId());
             builder.field("node", command.node());
             builder.field("allow_primary", command.allowPrimary());
             builder.endObject();
@@ -117,18 +119,20 @@ public class CancelAllocationCommand implements AllocationCommand {
     }
 
 
-    private final ShardId shardId;
+    private final String index;
+    private final int shardId;
     private final String node;
     private final boolean allowPrimary;
 
     /**
      * Creates a new {@link CancelAllocationCommand}
-     * 
+     *
+     * @param index index of the shard which allocation should be canceled
      * @param shardId id of the shard which allocation should be canceled
      * @param node id of the node that manages the shard which allocation should be canceled
-     * @param allowPrimary 
      */
-    public CancelAllocationCommand(ShardId shardId, String node, boolean allowPrimary) {
+    public CancelAllocationCommand(String index, int shardId, String node, boolean allowPrimary) {
+        this.index = index;
         this.shardId = shardId;
         this.node = node;
         this.allowPrimary = allowPrimary;
@@ -140,10 +144,18 @@ public class CancelAllocationCommand implements AllocationCommand {
     }
 
     /**
+     * Get the index of the shard which allocation should be canceled
+     * @return index of the shard which allocation should be canceled
+     */
+    public String index() {
+        return this.index;
+    }
+    /**
+
      * Get the id of the shard which allocation should be canceled
      * @return id of the shard which allocation should be canceled
      */
-    public ShardId shardId() {
+    public int shardId() {
         return this.shardId;
     }
 
@@ -165,7 +177,10 @@ public class CancelAllocationCommand implements AllocationCommand {
         boolean found = false;
         for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
             ShardRouting shardRouting = it.next();
-            if (!shardRouting.shardId().equals(shardId)) {
+            if (!shardRouting.shardId().getIndex().getName().equals(index)) {
+                continue;
+            }
+            if (shardRouting.shardId().id() != shardId) {
                 continue;
             }
             found = true;

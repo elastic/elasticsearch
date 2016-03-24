@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,12 +30,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A simple {@link AllocationCommand} composite managing several
@@ -68,16 +67,18 @@ public class AllocationCommands {
     }
 
     static {
-        registerFactory(AllocateAllocationCommand.NAME, new AllocateAllocationCommand.Factory());
+        registerFactory(AllocateEmptyPrimaryAllocationCommand.NAME, new AllocateEmptyPrimaryAllocationCommand.Factory());
+        registerFactory(AllocateStalePrimaryAllocationCommand.NAME, new AllocateStalePrimaryAllocationCommand.Factory());
+        registerFactory(AllocateReplicaAllocationCommand.NAME, new AllocateReplicaAllocationCommand.Factory());
         registerFactory(CancelAllocationCommand.NAME, new CancelAllocationCommand.Factory());
         registerFactory(MoveAllocationCommand.NAME, new MoveAllocationCommand.Factory());
     }
 
-    private final List<AllocationCommand> commands = newArrayList();
+    private final List<AllocationCommand> commands = new ArrayList<>();
 
     /**
      * Creates a new set of {@link AllocationCommands}
-     *   
+     *
      * @param commands {@link AllocationCommand}s that are wrapped by this instance
      */
     public AllocationCommands(AllocationCommand... commands) {
@@ -123,7 +124,7 @@ public class AllocationCommands {
      * Reads a {@link AllocationCommands} from a {@link StreamInput}
      * @param in {@link StreamInput} to read from
      * @return {@link AllocationCommands} read
-     * 
+     *
      * @throws IOException if something happens during read
      */
     public static AllocationCommands readFrom(StreamInput in) throws IOException {
@@ -138,7 +139,7 @@ public class AllocationCommands {
 
     /**
      * Writes {@link AllocationCommands} to a {@link StreamOutput}
-     * 
+     *
      * @param commands Commands to write
      * @param out {@link StreamOutput} to write the commands to
      * @throws IOException if something happens during write
@@ -150,7 +151,7 @@ public class AllocationCommands {
             lookupFactorySafe(command.name()).writeTo(command, out);
         }
     }
-    
+
     /**
      * Reads {@link AllocationCommands} from a {@link XContentParser}
      * <pre>
@@ -162,7 +163,7 @@ public class AllocationCommands {
      * </pre>
      * @param parser {@link XContentParser} to read the commands from
      * @return {@link AllocationCommands} read
-     * @throws IOException if something bad happens while reading the stream 
+     * @throws IOException if something bad happens while reading the stream
      */
     public static AllocationCommands fromXContent(XContentParser parser) throws IOException {
         AllocationCommands commands = new AllocationCommands();
@@ -204,10 +205,10 @@ public class AllocationCommands {
         }
         return commands;
     }
-    
+
     /**
      * Writes {@link AllocationCommands} to a {@link XContentBuilder}
-     * 
+     *
      * @param commands {@link AllocationCommands} to write
      * @param builder {@link XContentBuilder} to use
      * @param params Parameters to use for building

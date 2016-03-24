@@ -20,17 +20,14 @@ package org.elasticsearch.common.hppc;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class HppcMapsTests extends ElasticsearchTestCase {
-
-    @Test
+public class HppcMapsTests extends ESTestCase {
     public void testIntersection() throws Exception {
         boolean enabled = false;
         assert enabled = true;

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.get;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,19 +28,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class UpgradeStatusResponse extends BroadcastResponse implements ToXContent {
-
-
     private ShardUpgradeStatus[] shards;
 
     private Map<String, IndexUpgradeStatus> indicesUpgradeStatus;
 
     UpgradeStatusResponse() {
-
     }
 
     UpgradeStatusResponse(ShardUpgradeStatus[] shards, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
@@ -55,26 +52,25 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
         if (indicesUpgradeStatus != null) {
             return indicesUpgradeStatus;
         }
-        Map<String, IndexUpgradeStatus> indicesUpgradeStats = Maps.newHashMap();
+        Map<String, IndexUpgradeStatus> indicesUpgradeStats = new HashMap<>();
 
-        Set<String> indices = Sets.newHashSet();
+        Set<String> indices = new HashSet<>();
         for (ShardUpgradeStatus shard : shards) {
             indices.add(shard.getIndex());
         }
 
-        for (String index : indices) {
-            List<ShardUpgradeStatus> shards = Lists.newArrayList();
+        for (String indexName : indices) {
+            List<ShardUpgradeStatus> shards = new ArrayList<>();
             for (ShardUpgradeStatus shard : this.shards) {
-                if (shard.getShardRouting().index().equals(index)) {
+                if (shard.getShardRouting().getIndexName().equals(indexName)) {
                     shards.add(shard);
                 }
             }
-            indicesUpgradeStats.put(index, new IndexUpgradeStatus(index, shards.toArray(new ShardUpgradeStatus[shards.size()])));
+            indicesUpgradeStats.put(indexName, new IndexUpgradeStatus(indexName, shards.toArray(new ShardUpgradeStatus[shards.size()])));
         }
         this.indicesUpgradeStatus = indicesUpgradeStats;
         return indicesUpgradeStats;
     }
-
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
@@ -120,8 +116,6 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-
-
         builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, getTotalBytes());
         builder.byteSizeField(Fields.SIZE_TO_UPGRADE_IN_BYTES, Fields.SIZE_TO_UPGRADE, getToUpgradeBytes());
         builder.byteSizeField(Fields.SIZE_TO_UPGRADE_ANCIENT_IN_BYTES, Fields.SIZE_TO_UPGRADE_ANCIENT, getToUpgradeBytesAncient());
@@ -163,10 +157,8 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
                     }
                     builder.endObject();
                 }
-
                 builder.endObject();
             }
-
             builder.endObject();
         }
         return builder;
@@ -186,6 +178,5 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
         static final XContentBuilderString SIZE_TO_UPGRADE_ANCIENT = new XContentBuilderString("size_to_upgrade_ancient");
         static final XContentBuilderString SIZE_TO_UPGRADE_IN_BYTES = new XContentBuilderString("size_to_upgrade_in_bytes");
         static final XContentBuilderString SIZE_TO_UPGRADE_ANCIENT_IN_BYTES = new XContentBuilderString("size_to_upgrade_ancient_in_bytes");
-
     }
 }

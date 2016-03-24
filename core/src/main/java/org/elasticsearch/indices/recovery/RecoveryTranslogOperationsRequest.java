@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,14 +31,14 @@ import java.util.List;
 /**
  *
  */
-class RecoveryTranslogOperationsRequest extends TransportRequest {
+public class RecoveryTranslogOperationsRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
     private List<Translog.Operation> operations;
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
 
-    RecoveryTranslogOperationsRequest() {
+    public RecoveryTranslogOperationsRequest() {
     }
 
     RecoveryTranslogOperationsRequest(long recoveryId, ShardId shardId, List<Translog.Operation> operations, int totalTranslogOps) {

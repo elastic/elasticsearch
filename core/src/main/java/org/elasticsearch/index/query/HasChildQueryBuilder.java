@@ -18,51 +18,96 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiDocValues;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.JoinUtil;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 
-public class HasChildQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<HasChildQueryBuilder> {
-
-    private final QueryBuilder queryBuilder;
-
-    private String childType;
-
-    private float boost = 1.0f;
-
-    private String scoreType;
-
-    private Integer minChildren;
-
-    private Integer maxChildren;
-
-    private Integer shortCircuitCutoff;
-
-    private String queryName;
-
-    private QueryInnerHitBuilder innerHit = null;
-
-    public HasChildQueryBuilder(String type, QueryBuilder queryBuilder) {
-        this.childType = type;
-        this.queryBuilder = queryBuilder;
-    }
+/**
+ * A query builder for <tt>has_child</tt> queries.
+ */
+public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
+     * The queries name
      */
-    @Override
-    public HasChildQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    public static final String NAME = "has_child";
+
+    /**
+     * The default maximum number of children that are required to match for the parent to be considered a match.
+     */
+    public static final int DEFAULT_MAX_CHILDREN = Integer.MAX_VALUE;
+    /**
+     * The default minimum number of children that are required to match for the parent to be considered a match.
+     */
+    public static final int DEFAULT_MIN_CHILDREN = 0;
+    /*
+     * The default score mode that is used to combine score coming from multiple parent documents.
+     */
+    public static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.None;
+
+    private final QueryBuilder query;
+
+    private final String type;
+
+    private ScoreMode scoreMode = DEFAULT_SCORE_MODE;
+
+    private int minChildren = DEFAULT_MIN_CHILDREN;
+
+    private int maxChildren = DEFAULT_MAX_CHILDREN;
+
+    private QueryInnerHits queryInnerHits;
+
+    static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
+
+    public HasChildQueryBuilder(String type, QueryBuilder query, int maxChildren, int minChildren, ScoreMode scoreMode, QueryInnerHits queryInnerHits) {
+        this(type, query);
+        scoreMode(scoreMode);
+        this.maxChildren = maxChildren;
+        this.minChildren = minChildren;
+        this.queryInnerHits = queryInnerHits;
+    }
+
+    public HasChildQueryBuilder(String type, QueryBuilder query) {
+        if (type == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires 'type' field");
+        }
+        if (query == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires 'query' field");
+        }
+        this.type = type;
+        this.query = query;
     }
 
     /**
      * Defines how the scores from the matching child documents are mapped into the parent document.
      */
-    public HasChildQueryBuilder scoreType(String scoreType) {
-        this.scoreType = scoreType;
+    public HasChildQueryBuilder scoreMode(ScoreMode scoreMode) {
+        if (scoreMode == null) {
+            throw new IllegalArgumentException("[" + NAME + "]  requires 'score_mode' field");
+        }
+        this.scoreMode = scoreMode;
         return this;
     }
 
@@ -70,6 +115,9 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
      * Defines the minimum number of children that are required to match for the parent to be considered a match.
      */
     public HasChildQueryBuilder minChildren(int minChildren) {
+        if (minChildren < 0) {
+            throw new IllegalArgumentException("[" + NAME + "]  requires non-negative 'min_children' field");
+        }
         this.minChildren = minChildren;
         return this;
     }
@@ -78,64 +126,294 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
      * Defines the maximum number of children that are required to match for the parent to be considered a match.
      */
     public HasChildQueryBuilder maxChildren(int maxChildren) {
+        if (maxChildren < 0) {
+            throw new IllegalArgumentException("[" + NAME + "]  requires non-negative 'max_children' field");
+        }
         this.maxChildren = maxChildren;
-        return this;
-    }
-
-    /**
-     * Configures at what cut off point only to evaluate parent documents that contain the matching parent id terms
-     * instead of evaluating all parent docs.
-     */
-    public HasChildQueryBuilder setShortCircuitCutoff(int shortCircuitCutoff) {
-        this.shortCircuitCutoff = shortCircuitCutoff;
         return this;
     }
 
     /**
      * Sets the query name for the filter that can be used when searching for matched_filters per hit.
      */
-    public HasChildQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
+    public HasChildQueryBuilder innerHit(QueryInnerHits queryInnerHits) {
+        this.queryInnerHits = queryInnerHits;
         return this;
     }
 
     /**
-     * Sets inner hit definition in the scope of this query and reusing the defined type and query.
+     * Returns inner hit definition in the scope of this query and reusing the defined type and query.
      */
-    public HasChildQueryBuilder innerHit(QueryInnerHitBuilder innerHit) {
-        this.innerHit = innerHit;
-        return this;
+    public QueryInnerHits innerHit() {
+        return queryInnerHits;
     }
+
+    /**
+     * Returns the children query to execute.
+     */
+    public QueryBuilder query() {
+        return query;
+    }
+
+    /**
+     * Returns the child type
+     */
+    public String childType() {
+        return type;
+    }
+
+    /**
+     * Returns how the scores from the matching child documents are mapped into the parent document.
+     */
+    public ScoreMode scoreMode() {
+        return scoreMode;
+    }
+
+    /**
+     * Returns the minimum number of children that are required to match for the parent to be considered a match.
+     * The default is {@value #DEFAULT_MAX_CHILDREN}
+     */
+    public int minChildren() {
+        return minChildren;
+    }
+
+    /**
+     * Returns the maximum number of children that are required to match for the parent to be considered a match.
+     * The default is {@value #DEFAULT_MIN_CHILDREN}
+     */
+    public int maxChildren() { return maxChildren; }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(HasChildQueryParser.NAME);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
-        builder.field("child_type", childType);
-        if (boost != 1.0f) {
-            builder.field("boost", boost);
-        }
-        if (scoreType != null) {
-            builder.field("score_type", scoreType);
-        }
-        if (minChildren != null) {
-            builder.field("min_children", minChildren);
-        }
-        if (maxChildren != null) {
-            builder.field("max_children", maxChildren);
-        }
-        if (shortCircuitCutoff != null) {
-            builder.field("short_circuit_cutoff", shortCircuitCutoff);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
-        if (innerHit != null) {
-            builder.startObject("inner_hits");
-            builder.value(innerHit);
-            builder.endObject();
+        builder.startObject(NAME);
+        builder.field(HasChildQueryParser.QUERY_FIELD.getPreferredName());
+        query.toXContent(builder, params);
+        builder.field(HasChildQueryParser.TYPE_FIELD.getPreferredName(), type);
+        builder.field(HasChildQueryParser.SCORE_MODE_FIELD.getPreferredName(), HasChildQueryParser.scoreModeAsString(scoreMode));
+        builder.field(HasChildQueryParser.MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
+        builder.field(HasChildQueryParser.MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
+        printBoostAndQueryName(builder);
+        if (queryInnerHits != null) {
+            queryInnerHits.toXContent(builder, params);
         }
         builder.endObject();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query innerQuery;
+        final String[] previousTypes = context.getTypes();
+        context.setTypes(type);
+        try {
+            innerQuery = query.toQuery(context);
+        } finally {
+            context.setTypes(previousTypes);
+        }
+
+        if (innerQuery == null) {
+            return null;
+        }
+        DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
+        if (childDocMapper == null) {
+            throw new QueryShardException(context, "[" + NAME + "] no mapping found for type [" + type + "]");
+        }
+        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
+        if (parentFieldMapper.active() == false) {
+            throw new QueryShardException(context, "[" + NAME + "] _parent field has no parent type configured");
+        }
+        if (queryInnerHits != null) {
+            try (XContentParser parser = queryInnerHits.getXcontentParser()) {
+                XContentParser.Token token = parser.nextToken();
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new IllegalStateException("start object expected but was: [" + token + "]");
+                }
+                InnerHitsSubSearchContext innerHits = context.getInnerHitsContext(parser);
+                if (innerHits != null) {
+                    ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
+                    InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.getMapperService(), childDocMapper);
+                    String name = innerHits.getName() != null ? innerHits.getName() : type;
+                    context.addInnerHits(name, parentChildInnerHits);
+                }
+            }
+        }
+
+        String parentType = parentFieldMapper.type();
+        DocumentMapper parentDocMapper = context.getMapperService().documentMapper(parentType);
+        if (parentDocMapper == null) {
+            throw new QueryShardException(context, "[" + NAME + "] Type [" + type + "] points to a non existent parent type ["
+                    + parentType + "]");
+        }
+
+        if (maxChildren > 0 && maxChildren < minChildren) {
+            throw new QueryShardException(context, "[" + NAME + "] 'max_children' is less than 'min_children'");
+        }
+
+        // wrap the query with type query
+        innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
+
+        final ParentChildIndexFieldData parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
+        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren(),
+                                    parentType, scoreMode, parentChildIndexFieldData, context.getSearchSimilarity());
+    }
+
+    final static class LateParsingQuery extends Query {
+
+        private final Query toQuery;
+        private final Query innerQuery;
+        private final int minChildren;
+        private final int maxChildren;
+        private final String parentType;
+        private final ScoreMode scoreMode;
+        private final ParentChildIndexFieldData parentChildIndexFieldData;
+        private final Similarity similarity;
+
+        LateParsingQuery(Query toQuery, Query innerQuery, int minChildren, int maxChildren,
+                         String parentType, ScoreMode scoreMode, ParentChildIndexFieldData parentChildIndexFieldData,
+                         Similarity similarity) {
+            this.toQuery = toQuery;
+            this.innerQuery = innerQuery;
+            this.minChildren = minChildren;
+            this.maxChildren = maxChildren;
+            this.parentType = parentType;
+            this.scoreMode = scoreMode;
+            this.parentChildIndexFieldData = parentChildIndexFieldData;
+            this.similarity = similarity;
+        }
+
+        @Override
+        public Query rewrite(IndexReader reader) throws IOException {
+            Query rewritten = super.rewrite(reader);
+            if (rewritten != this) {
+                return rewritten;
+            }
+            if (reader instanceof DirectoryReader) {
+                String joinField = ParentFieldMapper.joinField(parentType);
+                IndexSearcher indexSearcher = new IndexSearcher(reader);
+                indexSearcher.setQueryCache(null);
+                indexSearcher.setSimilarity(similarity);
+                IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal((DirectoryReader) reader);
+                MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
+                return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);
+            } else {
+                if (reader.leaves().isEmpty() && reader.numDocs() == 0) {
+                    // asserting reader passes down a MultiReader during rewrite which makes this
+                    // blow up since for this query to work we have to have a DirectoryReader otherwise
+                    // we can't load global ordinals - for this to work we simply check if the reader has no leaves
+                    // and rewrite to match nothing
+                    return new MatchNoDocsQuery();
+                }
+                throw new IllegalStateException("can't load global ordinals for reader of type: " + reader.getClass() + " must be a DirectoryReader");
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!super.equals(o)) return false;
+
+            LateParsingQuery that = (LateParsingQuery) o;
+
+            if (minChildren != that.minChildren) return false;
+            if (maxChildren != that.maxChildren) return false;
+            if (!toQuery.equals(that.toQuery)) return false;
+            if (!innerQuery.equals(that.innerQuery)) return false;
+            if (!parentType.equals(that.parentType)) return false;
+            return scoreMode == that.scoreMode;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), toQuery, innerQuery, minChildren, maxChildren, parentType, scoreMode);
+        }
+
+        @Override
+        public String toString(String s) {
+            return "LateParsingQuery {parentType=" + parentType + "}";
+        }
+
+        public int getMinChildren() {
+            return minChildren;
+        }
+
+        public int getMaxChildren() {
+            return maxChildren;
+        }
+
+        public ScoreMode getScoreMode() {
+            return scoreMode;
+        }
+
+        public Query getInnerQuery() {
+            return innerQuery;
+        }
+
+        public Similarity getSimilarity() {
+            return similarity;
+        }
+    }
+
+    @Override
+    protected boolean doEquals(HasChildQueryBuilder that) {
+        return Objects.equals(query, that.query)
+                && Objects.equals(type, that.type)
+                && Objects.equals(scoreMode, that.scoreMode)
+                && Objects.equals(minChildren, that.minChildren)
+                && Objects.equals(maxChildren, that.maxChildren)
+                && Objects.equals(queryInnerHits, that.queryInnerHits);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(query, type, scoreMode, minChildren, maxChildren, queryInnerHits);
+    }
+
+    protected HasChildQueryBuilder(StreamInput in) throws IOException {
+        type = in.readString();
+        minChildren = in.readInt();
+        maxChildren = in.readInt();
+        final int ordinal = in.readVInt();
+        scoreMode = ScoreMode.values()[ordinal];
+        query = in.readQuery();
+        if (in.readBoolean()) {
+            queryInnerHits = new QueryInnerHits(in);
+        }
+    }
+
+    @Override
+    protected HasChildQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        return new HasChildQueryBuilder(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(type);
+        out.writeInt(minChildren());
+        out.writeInt(maxChildren());
+        out.writeVInt(scoreMode.ordinal());
+        out.writeQuery(query);
+        if (queryInnerHits != null) {
+            out.writeBoolean(true);
+            queryInnerHits.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrite = query.rewrite(queryRewriteContext);
+        if (rewrite != query) {
+            HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(type, rewrite);
+            hasChildQueryBuilder.minChildren = minChildren;
+            hasChildQueryBuilder.maxChildren = maxChildren;
+            hasChildQueryBuilder.scoreMode = scoreMode;
+            hasChildQueryBuilder.queryInnerHits = queryInnerHits;
+            return hasChildQueryBuilder;
+        }
+        return this;
     }
 }

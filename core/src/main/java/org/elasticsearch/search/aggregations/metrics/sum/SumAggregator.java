@@ -31,8 +31,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -103,26 +101,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalSum(name, 0.0, formatter, pipelineAggregators(), metaData());
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
-
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
-            super(name, InternalSum.TYPE.name(), valuesSourceConfig);
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new SumAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new SumAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
-        }
     }
 
     @Override

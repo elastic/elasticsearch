@@ -38,33 +38,33 @@ import java.util.regex.Pattern;
  * <p>Algorithm description:
  * <pre>
  * 1. Transcode first characters of name
- *   1a. MAC ->   MCC
- *   1b. KN  ->   NN
- *   1c. K   ->   C
- *   1d. PH  ->   FF
- *   1e. PF  ->   FF
- *   1f. SCH ->   SSS
+ *   1a. MAC -&gt;   MCC
+ *   1b. KN  -&gt;   NN
+ *   1c. K   -&gt;   C
+ *   1d. PH  -&gt;   FF
+ *   1e. PF  -&gt;   FF
+ *   1f. SCH -&gt;   SSS
  * 2. Transcode last characters of name
- *   2a. EE, IE          ->   Y
- *   2b. DT,RT,RD,NT,ND  ->   D
+ *   2a. EE, IE          -&gt;   Y
+ *   2b. DT,RT,RD,NT,ND  -&gt;   D
  * 3. First character of key = first character of name
  * 4. Transcode remaining characters by following these rules, incrementing by one character each time
- *   4a. EV  ->   AF  else A,E,I,O,U -> A
- *   4b. Q   ->   G
- *   4c. Z   ->   S
- *   4d. M   ->   N
- *   4e. KN  ->   N   else K -> C
- *   4f. SCH ->   SSS
- *   4g. PH  ->   FF
- *   4h. H   ->   If previous or next is nonvowel, previous
- *   4i. W   ->   If previous is vowel, previous
+ *   4a. EV  -&gt;   AF  else A,E,I,O,U -&gt; A
+ *   4b. Q   -&gt;   G
+ *   4c. Z   -&gt;   S
+ *   4d. M   -&gt;   N
+ *   4e. KN  -&gt;   N   else K -&gt; C
+ *   4f. SCH -&gt;   SSS
+ *   4g. PH  -&gt;   FF
+ *   4h. H   -&gt;   If previous or next is nonvowel, previous
+ *   4i. W   -&gt;   If previous is vowel, previous
  *   4j. Add current to key if current != last key character
  * 5. If last character is S, remove it
  * 6. If last characters are AY, replace with Y
  * 7. If last character is A, remove it
  * 8. Collapse all strings of repeated characters
  * 9. Add original first character of name as first character of key
- * </pre></p>
+ * </pre>
  *
  * @see <a href="http://en.wikipedia.org/wiki/NYSIIS">NYSIIS on Wikipedia</a>
  * @see <a href="http://www.dropby.com/NYSIIS.html">NYSIIS on dropby.com</a>

@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class FloatFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -27,8 +28,8 @@ public class FloatFieldTypeTests extends FieldTypeTestCase {
         return new DoubleFieldMapper.DoubleFieldType();
     }
 
-    @Override
-    protected Object dummyNullValue() {
-        return 10.0;
+    @Before
+    public void setupProperties() {
+        setDummyNullValue(10.0);
     }
 }

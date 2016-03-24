@@ -2,7 +2,7 @@
 === `_all` field
 
 The `_all` field is a special _catch-all_ field which concatenates the values
-of all of the other fields into one big string, which is then
+of all of the other fields into one big string, using space as a delimiter, which is then
 <<analysis,analyzed>> and indexed, but not stored.  This means that it can be
 searched, but not retrieved.
 
@@ -45,7 +45,7 @@ from each field as a string. It does not combine the _terms_ from each field.
 
 =============================================================================
 
-The `_all` field is just a <<string,`string`>> field, and accepts the same
+The `_all` field is just a <<text,`text`>> field, and accepts the same
 parameters that  other string fields accept, including `analyzer`,
 `term_vectors`, `index_options`, and `store`.
 
@@ -136,7 +136,7 @@ PUT my_index
       },
       "properties": {
         "content": {
-          "type": "string"
+          "type": "text"
         }
       }
     }
@@ -151,82 +151,18 @@ PUT my_index
 <1> The `_all` field is disabled for the `my_type` type.
 <2> The `query_string` query will default to querying the `content` field in this index.
 
-[[include-in-all]]
-==== Including specific fields in `_all`
+[[excluding-from-all]]
+==== Excluding fields from `_all`
 
 Individual fields can be included or excluded from the `_all` field with the
-`include_in_all` setting, which defaults to `true`:
+<<include-in-all,`include_in_all`>> setting.
 
-[source,js]
---------------------------------
-PUT my_index
-{
-  "mappings": {
-    "my_type": {
-      "properties": {
-        "title": { <1>
-          "type": "string"
-        }
-        "content": { <1>
-          "type": "string"
-        },
-        "date": { <2>
-          "type": "date",
-          "include_in_all": false
-        }
-      }
-    }
-  }
-}
---------------------------------
-// AUTOSENSE
-
-<1> The `title` and `content` fields with be included in the `_all` field.
-<2> The `date` field will not be included in the `_all` field.
-
-The `include_in_all` parameter can also be set at the type level and on
-<<mapping-object-type,`object`>> or <<mapping-nested-type,`nested`>> fields,
-in which case all sub-fields inherit that setting.  For instance:
-
-[source,js]
---------------------------------
-PUT my_index
-{
-  "mappings": {
-    "my_type": {
-      "include_in_all": false, <1>
-      "properties": {
-        "title":          { "type": "string" },
-        "author": {
-          "include_in_all": true, <2>
-          "properties": {
-            "first_name": { "type": "string" },
-            "last_name":  { "type": "string" }
-          }
-        },
-        "editor": {
-          "properties": {
-            "first_name": { "type": "string" }, <3>
-            "last_name":  { "type": "string", "include_in_all": true } <3>
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------
-// AUTOSENSE
-
-<1> All fields in `my_type` are excluded from `_all`.
-<2> The `author.first_name` and `author.last_name` fields are included in `_all`.
-<3> Only the `editor.last_name` field is included in `_all`.
-    The `editor.first_name` inherits the type-level setting and is excluded.
 
 [[all-field-and-boosting]]
 ==== Index boosting and the `_all` field
 
-Individual fields can be _boosted_  at index time, with the `boost` parameter.
-The `_all` field takes these boosts into account:
+Individual fields can be _boosted_ at index time, with the <<mapping-boost,`boost`>>
+parameter. The `_all` field takes these boosts into account:
 
 [source,js]
 --------------------------------
@@ -236,11 +172,11 @@ PUT myindex
     "mytype": {
       "properties": {
         "title": { <1>
-          "type": "string",
+          "type": "text",
           "boost": 2
         },
         "content": { <1>
-          "type": "string"
+          "type": "text"
         }
       }
     }
@@ -274,15 +210,15 @@ PUT myindex
     "mytype": {
       "properties": {
         "first_name": {
-          "type":    "string",
+          "type":    "text",
           "copy_to": "full_name" <1>
         },
         "last_name": {
-          "type":    "string",
+          "type":    "text",
           "copy_to": "full_name" <1>
         },
         "full_name": {
-          "type":    "string"
+          "type":    "text"
         }
       }
     }

@@ -33,21 +33,21 @@ public interface TransportServiceAdapter {
     /** called by the {@link Transport} implementation once a request has been sent */
     void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options);
 
-    /** called by the {@link Transport) implementation once a response was sent to calling node */
+    /** called by the {@link Transport} implementation once a response was sent to calling node */
     void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions options);
 
-    /** called by the {@link Transport) implementation after an exception was sent as a response to an incoming request */
+    /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
     void onResponseSent(long requestId, String action, Throwable t);
 
     /**
-     * called by the {@link Transport) implementation when a response or an exception has been recieved for a previously
+     * called by the {@link Transport} implementation when a response or an exception has been received for a previously
      * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
      * found.
      */
     TransportResponseHandler onResponseReceived(long requestId);
 
     /**
-     * called by the {@link Transport) implementation when an incoming request arrives but before
+     * called by the {@link Transport} implementation when an incoming request arrives but before
      * any parsing of it has happened (with the exception of the requestId and action)
      */
     void onRequestReceived(long requestId, String action);

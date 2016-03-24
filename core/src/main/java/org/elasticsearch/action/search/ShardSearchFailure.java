@@ -25,17 +25,12 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-
-import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 
 /**
  * Represents a failure to search on a specific shard.
@@ -109,7 +104,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Override
     public int shardId() {
         if (shardTarget != null) {
-            return shardTarget.shardId();
+            return shardTarget.shardId().id();
         }
         return -1;
     }
@@ -136,7 +131,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            shardTarget = readSearchShardTarget(in);
+            shardTarget = new SearchShardTarget(in);
         }
         reason = in.readString();
         status = RestStatus.readFrom(in);

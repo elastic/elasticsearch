@@ -19,19 +19,13 @@
 
 package org.elasticsearch.common.xcontent.cbor;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -40,10 +34,8 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class JsonVsCborTests extends ElasticsearchTestCase {
-
-    @Test
-    public void compareParsingTokens() throws IOException {
+public class JsonVsCborTests extends ESTestCase {
+    public void testCompareParsingTokens() throws IOException {
         BytesStreamOutput xsonOs = new BytesStreamOutput();
         XContentGenerator xsonGen = XContentFactory.xContent(XContentType.CBOR).createGenerator(xsonOs);
 

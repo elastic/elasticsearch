@@ -19,13 +19,10 @@
 
 package org.elasticsearch.common.math;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-public class MathUtilsTests extends ElasticsearchTestCase {
-
-    @Test
-    public void mod() {
+public class MathUtilsTests extends ESTestCase {
+    public void testMod() {
         final int iters = scaledRandomIntBetween(1000, 10000);
         for (int i = 0; i < iters; ++i) {
             final int v = rarely() ? Integer.MIN_VALUE : rarely() ? Integer.MAX_VALUE : randomInt();
@@ -35,5 +32,4 @@ public class MathUtilsTests extends ElasticsearchTestCase {
             assertTrue(mod < m);
         }
     }
-
 }

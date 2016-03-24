@@ -1,12 +1,22 @@
 #!/bin/sh
 
-ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*"
+# check in case a user was using this mechanism
+if [ "x$ES_CLASSPATH" != "x" ]; then
+    cat >&2 << EOF
+Error: Don't modify the classpath with ES_CLASSPATH. Best is to add
+additional elements via the plugin mechanism, or if code must really be
+added to the main classpath, add jars to lib/ (unsupported).
+EOF
+    exit 1
+fi
+
+ES_CLASSPATH="$ES_HOME/lib/elasticsearch-${project.version}.jar:$ES_HOME/lib/*"
 
 if [ "x$ES_MIN_MEM" = "x" ]; then
-    ES_MIN_MEM=${packaging.elasticsearch.heap.min}
+    ES_MIN_MEM=${heap.min}
 fi
 if [ "x$ES_MAX_MEM" = "x" ]; then
-    ES_MAX_MEM=${packaging.elasticsearch.heap.max}
+    ES_MAX_MEM=${heap.max}
 fi
 if [ "x$ES_HEAP_SIZE" != "x" ]; then
     ES_MIN_MEM=$ES_HEAP_SIZE
@@ -38,11 +48,15 @@ if [ "x$ES_USE_IPV4" != "x" ]; then
   JAVA_OPTS="$JAVA_OPTS -Djava.net.preferIPv4Stack=true"
 fi
 
-JAVA_OPTS="$JAVA_OPTS -XX:+UseParNewGC"
-JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC"
+# Add gc options. ES_GC_OPTS is unsupported, for internal testing
+if [ "x$ES_GC_OPTS" = "x" ]; then
+  ES_GC_OPTS="$ES_GC_OPTS -XX:+UseParNewGC"
+  ES_GC_OPTS="$ES_GC_OPTS -XX:+UseConcMarkSweepGC"
+  ES_GC_OPTS="$ES_GC_OPTS -XX:CMSInitiatingOccupancyFraction=75"
+  ES_GC_OPTS="$ES_GC_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
+fi
 
-JAVA_OPTS="$JAVA_OPTS -XX:CMSInitiatingOccupancyFraction=75"
-JAVA_OPTS="$JAVA_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
+JAVA_OPTS="$JAVA_OPTS $ES_GC_OPTS"
 
 # GC logging options
 if [ -n "$ES_GC_LOG_FILE" ]; then
@@ -52,7 +66,7 @@ if [ -n "$ES_GC_LOG_FILE" ]; then
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintClassHistogram"
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintTenuringDistribution"
   JAVA_OPTS="$JAVA_OPTS -XX:+PrintGCApplicationStoppedTime"
-  JAVA_OPTS="$JAVA_OPTS \"-Xloggc:$ES_GC_LOG_FILE\""
+  JAVA_OPTS="$JAVA_OPTS -Xloggc:$ES_GC_LOG_FILE"
 
   # Ensure that the directory for the log file exists: the JVM will not create it.
   mkdir -p "`dirname \"$ES_GC_LOG_FILE\"`"
@@ -66,6 +80,10 @@ JAVA_OPTS="$JAVA_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 
 # Disables explicit GC
 JAVA_OPTS="$JAVA_OPTS -XX:+DisableExplicitGC"
+
+# Enable pre-touching of memory pages used by the JVM during hotspot
+# initialization
+JAVA_OPTS="$JAVA_OPTS -XX:+AlwaysPreTouch"
 
 # Ensure UTF-8 encoding by default (e.g. filenames)
 JAVA_OPTS="$JAVA_OPTS -Dfile.encoding=UTF-8"

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
@@ -29,12 +30,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * ShadowEngine is a specialized engine that only allows read-only operations
@@ -67,7 +68,7 @@ public class ShadowEngine extends Engine {
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
         SearcherFactory searcherFactory = new EngineSearcherFactory(engineConfig);
-        final long nonexistentRetryTime = engineConfig.getIndexSettings()
+        final long nonexistentRetryTime = engineConfig.getIndexSettings().getSettings()
                 .getAsTime(NONEXISTENT_INDEX_RETRY_WAIT, DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT)
                 .getMillis();
         try {
@@ -102,11 +103,6 @@ public class ShadowEngine extends Engine {
 
 
     @Override
-    public void create(Create create) throws EngineException {
-        throw new UnsupportedOperationException(shardId + " create operation not allowed on shadow engine");
-    }
-
-    @Override
     public boolean index(Index index) throws EngineException {
         throw new UnsupportedOperationException(shardId + " index operation not allowed on shadow engine");
     }
@@ -114,13 +110,6 @@ public class ShadowEngine extends Engine {
     @Override
     public void delete(Delete delete) throws EngineException {
         throw new UnsupportedOperationException(shardId + " delete operation not allowed on shadow engine");
-    }
-
-    /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
-    @Deprecated
-    @Override
-    public void delete(DeleteByQuery delete) throws EngineException {
-        throw new UnsupportedOperationException(shardId + " delete-by-query operation not allowed on shadow engine");
     }
 
     @Override
@@ -168,9 +157,9 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get) throws EngineException {
+    public GetResult get(Get get, Function<String, Searcher> searcherFacotry) throws EngineException {
         // There is no translog, so we can get it directly from the searcher
-        return getFromSearcher(get);
+        return getFromSearcher(get, searcherFacotry);
     }
 
     @Override
@@ -209,7 +198,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
+    public IndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
         throw new UnsupportedOperationException("Can not take snapshot from a shadow engine");
     }
 
@@ -233,13 +222,29 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public boolean hasUncommittedChanges() {
-        return false;
-    }
-
-    @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
     }
 
+    @Override
+    public long getIndexBufferRAMBytesUsed() {
+        // No IndexWriter nor version map
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
+
+    @Override
+    public void writeIndexingBuffer() {
+        // No indexing buffer
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
+
+    @Override
+    public void activateThrottling() {
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
+
+    @Override
+    public void deactivateThrottling() {
+        throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
 }

@@ -19,178 +19,136 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
-import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
-import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
-import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.lucene.spatial.query.SpatialOperation;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.index.search.shape.ShapeFetchService;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-public class GeoShapeQueryParser implements QueryParser {
+public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
 
-    public static final String NAME = "geo_shape";
-
-    private ShapeFetchService fetchService;
-
-    public static class DEFAULTS {
-        public static final String INDEX_NAME = "shapes";
-        public static final String SHAPE_FIELD_NAME = "shape";
-    }
+    public static final ParseField SHAPE_FIELD = new ParseField("shape");
+    public static final ParseField STRATEGY_FIELD = new ParseField("strategy");
+    public static final ParseField RELATION_FIELD = new ParseField("relation");
+    public static final ParseField INDEXED_SHAPE_FIELD = new ParseField("indexed_shape");
+    public static final ParseField SHAPE_ID_FIELD = new ParseField("id");
+    public static final ParseField SHAPE_TYPE_FIELD = new ParseField("type");
+    public static final ParseField SHAPE_INDEX_FIELD = new ParseField("index");
+    public static final ParseField SHAPE_PATH_FIELD = new ParseField("path");
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{GeoShapeQueryBuilder.NAME, Strings.toCamelCase(GeoShapeQueryBuilder.NAME)};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public GeoShapeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
-        ShapeRelation shapeRelation = ShapeRelation.INTERSECTS;
-        String strategyName = null;
+        ShapeRelation shapeRelation = null;
+        SpatialStrategy strategy = null;
         ShapeBuilder shape = null;
 
         String id = null;
         String type = null;
-        String index = DEFAULTS.INDEX_NAME;
-        String shapePath = DEFAULTS.SHAPE_FIELD_NAME;
+        String index = null;
+        String shapePath = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
-        float boost = 1f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] point specified twice. [" + currentFieldName + "]");
+                }
                 fieldName = currentFieldName;
-
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                         token = parser.nextToken();
-                        if ("shape".equals(currentFieldName)) {
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_FIELD)) {
                             shape = ShapeBuilder.parse(parser);
-                        } else if ("strategy".equals(currentFieldName)) {
-                            strategyName = parser.text();
-                        } else if ("relation".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, STRATEGY_FIELD)) {
+                            String strategyName = parser.text();
+                            strategy = SpatialStrategy.fromString(strategyName);
+                            if (strategy == null) {
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown strategy [" + strategyName + " ]");
+                            }
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, RELATION_FIELD)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {
-                                throw new QueryParsingException(parseContext, "Unknown shape operation [" + parser.text() + " ]");
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown shape operation [" + parser.text() + " ]");
                             }
-                        } else if ("indexed_shape".equals(currentFieldName) || "indexedShape".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_SHAPE_FIELD)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
-                                    if ("id".equals(currentFieldName)) {
+                                    if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_ID_FIELD)) {
                                         id = parser.text();
-                                    } else if ("type".equals(currentFieldName)) {
+                                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_TYPE_FIELD)) {
                                         type = parser.text();
-                                    } else if ("index".equals(currentFieldName)) {
+                                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_INDEX_FIELD)) {
                                         index = parser.text();
-                                    } else if ("path".equals(currentFieldName)) {
+                                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_PATH_FIELD)) {
                                         shapePath = parser.text();
                                     }
+                                } else {
+                                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
                                 }
                             }
-                            if (id == null) {
-                                throw new QueryParsingException(parseContext, "ID for indexed shape not provided");
-                            } else if (type == null) {
-                                throw new QueryParsingException(parseContext, "Type for indexed shape not provided");
-                            }
-                            GetRequest getRequest = new GetRequest(index, type, id);
-                            getRequest.copyContextAndHeadersFrom(SearchContext.current());
-                            shape = fetchService.fetch(getRequest, shapePath);
                         } else {
-                            throw new QueryParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
             } else if (token.isValue()) {
-                if ("boost".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             }
         }
-
-        if (shape == null) {
-            throw new QueryParsingException(parseContext, "No Shape defined");
-        } else if (shapeRelation == null) {
-            throw new QueryParsingException(parseContext, "No Shape Relation defined");
-        }
-
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "Failed to find geo_shape field [" + fieldName + "]");
-        }
-
-        // TODO: This isn't the nicest way to check this
-        if (!(fieldType instanceof GeoShapeFieldMapper.GeoShapeFieldType)) {
-            throw new QueryParsingException(parseContext, "Field [" + fieldName + "] is not a geo_shape");
-        }
-
-        GeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (GeoShapeFieldMapper.GeoShapeFieldType) fieldType;
-
-        PrefixTreeStrategy strategy = shapeFieldType.defaultStrategy();
-        if (strategyName != null) {
-            strategy = shapeFieldType.resolveStrategy(strategyName);
-        }
-        Query query;
-        if (strategy instanceof RecursivePrefixTreeStrategy && shapeRelation == ShapeRelation.DISJOINT) {
-            // this strategy doesn't support disjoint anymore: but it did before, including creating lucene fieldcache (!)
-            // in this case, execute disjoint as exists && !intersects
-            BooleanQuery bool = new BooleanQuery();
-            Query exists = ExistsQueryParser.newFilter(parseContext, fieldName, null);
-            Filter intersects = strategy.makeFilter(getArgs(shape, ShapeRelation.INTERSECTS));
-            bool.add(exists, BooleanClause.Occur.MUST);
-            bool.add(intersects, BooleanClause.Occur.MUST_NOT);
-            query = new ConstantScoreQuery(bool);
+        GeoShapeQueryBuilder builder;
+        if (shape != null) {
+            builder = new GeoShapeQueryBuilder(fieldName, shape);
         } else {
-            query = strategy.makeQuery(getArgs(shape, shapeRelation));
+            builder = new GeoShapeQueryBuilder(fieldName, id, type);
         }
-        query.setBoost(boost);
+        if (index != null) {
+            builder.indexedShapeIndex(index);
+        }
+        if (shapePath != null) {
+            builder.indexedShapePath(shapePath);
+        }
+        if (shapeRelation != null) {
+            builder.relation(shapeRelation);
+        }
+        if (strategy != null) {
+            builder.strategy(strategy);
+        }
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            builder.queryName(queryName);
         }
-        return query;
+            builder.boost(boost);
+        return builder;
     }
 
-    @Inject(optional = true)
-    public void setFetchService(@Nullable ShapeFetchService fetchService) {
-        this.fetchService = fetchService;
-    }
-
-    public static SpatialArgs getArgs(ShapeBuilder shape, ShapeRelation relation) {
-        switch(relation) {
-        case DISJOINT:
-            return new SpatialArgs(SpatialOperation.IsDisjointTo, shape.build());
-        case INTERSECTS:
-            return new SpatialArgs(SpatialOperation.Intersects, shape.build());
-        case WITHIN:
-            return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
-        default:
-            throw new IllegalArgumentException("");
-
-        }
+    @Override
+    public GeoShapeQueryBuilder getBuilderPrototype() {
+        return GeoShapeQueryBuilder.PROTOTYPE;
     }
 }

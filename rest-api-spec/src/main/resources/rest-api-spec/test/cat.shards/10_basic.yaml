@@ -15,6 +15,7 @@
                     ip                               .+   \n
                     id                               .+   \n
                     node                             .+   \n
+                    sync_id                          .+   \n
                     unassigned.reason                .+   \n
                     unassigned.at                    .+   \n
                     unassigned.for                   .+   \n
@@ -39,6 +40,7 @@
                     indexing.index_current           .+   \n
                     indexing.index_time              .+   \n
                     indexing.index_total             .+   \n
+                    indexing.index_failed            .+   \n
                     merges.current                   .+   \n
                     merges.current_docs              .+   \n
                     merges.current_size              .+   \n
@@ -46,11 +48,7 @@
                     merges.total_docs                .+   \n
                     merges.total_size                .+   \n
                     merges.total_time                .+   \n
-                    percolate.current                .+   \n
-                    percolate.memory_size            .+   \n
                     percolate.queries                .+   \n
-                    percolate.time                   .+   \n
-                    percolate.total                  .+   \n
                     refresh.total                    .+   \n
                     refresh.time                     .+   \n
                     search.fetch_current             .+   \n
@@ -77,12 +75,64 @@
 "Test cat shards output":
 
   - do:
-      cat.shards:
-        v: false
+      cat.shards: {}
 
   - match:
       $body: |
                /^$/
+
+  - do:
+      indices.create:
+        index: sync_id_test
+        body:
+          settings:
+            number_of_shards: 5
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+  - do:
+      indices.flush_synced:
+        index: sync_id_test
+
+  - is_false: _shards.failed
+
+  - do:
+      cat.shards:
+        index: sync_id_test
+        h: index,state,sync_id
+  - match:
+      $body: |
+               /^(sync_id_test\s+STARTED\s+[A-Za-z0-9_\-]{20}\n){5}$/
+
+  - do:
+      indices.delete:
+        index: sync_id_test
+
+  - do:
+      indices.create:
+        index: sync_id_no_flush_test
+        body:
+          settings:
+            number_of_shards: 5
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      cat.shards:
+        index: sync_id_no_flush_test
+        h: index,state,sync_id
+  - match:
+      $body: |
+               /^(sync_id_no_flush_test\s+STARTED\s+\n){5}$/
+
+  - do:
+      indices.delete:
+        index: sync_id_no_flush_test
 
   - do:
       indices.create:
@@ -95,8 +145,7 @@
        cluster.health:
          wait_for_status: yellow
   - do:
-      cat.shards:
-        v: false
+      cat.shards: {}
 
   - match:
       $body: |
@@ -115,8 +164,7 @@
          wait_for_relocating_shards: 0
 
   - do:
-      cat.shards:
-        v: false
+      cat.shards: {}
   - match:
       $body: |
                /^(index(1|2) \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){15}$/
@@ -124,7 +172,6 @@
   - do:
       cat.shards:
         index: index2
-        v: false
   - match:
       $body: |
                /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){5}$/
@@ -146,8 +193,6 @@
   - do:
       cat.shards:
         index: index3
-        v: false
   - match:
       $body: |
                /^(index3 \s+ \d \s+ (p|s) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){2}$/
-               

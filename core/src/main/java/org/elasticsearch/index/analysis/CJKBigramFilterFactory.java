@@ -21,11 +21,9 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -34,15 +32,15 @@ import java.util.Set;
 /**
  * Factory that creates a {@link CJKBigramFilter} to form bigrams of CJK terms
  * that are generated from StandardTokenizer or ICUTokenizer.
- * <p/>
+ * <p>
  * CJK types are set by these tokenizers, but you can also use flags to
  * explicitly control which of the CJK scripts are turned into bigrams.
- * <p/>
+ * <p>
  * By default, when a CJK character has no adjacent characters to form a bigram,
  * it is output in unigram form. If you want to always output both unigrams and
  * bigrams, set the <code>outputUnigrams</code> flag. This can be used for a
  * combined unigram+bigram approach.
- * <p/>
+ * <p>
  * In all cases, all non-CJK input is passed thru unmodified.
  */
 public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
@@ -50,9 +48,8 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
     private final int flags;
     private final boolean outputUnigrams;
 
-    @Inject
-    public CJKBigramFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public CJKBigramFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
         outputUnigrams = settings.getAsBoolean("output_unigrams", false);
         final String[] asArray = settings.getAsArray("ignored_scripts");
         Set<String> scripts = new HashSet<>(Arrays.asList("han", "hiragana", "katakana", "hangul"));

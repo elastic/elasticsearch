@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,22 +16,22 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import org.elasticsearch.common.inject.internal.*;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.InternalContext;
+import org.elasticsearch.common.inject.internal.Stopwatch;
 import org.elasticsearch.common.inject.spi.Dependency;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Builds a tree of injectors. This is a primary injector, plus child injectors needed for each
  * {@link Binder#newPrivateBinder() private environment}. The primary injector is not necessarily a
  * top-level injector.
- * <p/>
- * <p>Injector construction happens in two phases.
+ * <p>
+ * Injector construction happens in two phases.
  * <ol>
  * <li>Static building. In this phase, we interpret commands, create bindings, and inspect
  * dependencies. During this phase, we hold a lock to ensure consistency with parent injectors.
@@ -182,35 +182,38 @@ class InjectorBuilder {
      * Loads eager singletons, or all singletons if we're in Stage.PRODUCTION. Bindings discovered
      * while we're binding these singletons are not be eager.
      */
-    public void loadEagerSingletons(InjectorImpl injector, Stage stage, final Errors errors) {
-        @SuppressWarnings("unchecked") // casting Collection<Binding> to Collection<BindingImpl> is safe
-                Set<BindingImpl<?>> candidateBindings = ImmutableSet.copyOf(Iterables.concat(
-                (Collection) injector.state.getExplicitBindingsThisLevel().values(),
-                injector.jitBindings.values()));
-        for (final BindingImpl<?> binding : candidateBindings) {
-            if (binding.getScoping().isEagerSingleton(stage)) {
-                try {
-                    injector.callInContext(new ContextualCallable<Void>() {
-                        Dependency<?> dependency = Dependency.get(binding.getKey());
+    public void loadEagerSingletons(InjectorImpl injector, Stage stage, Errors errors) {
+        for (final Binding<?> binding : injector.state.getExplicitBindingsThisLevel().values()) {
+            loadEagerSingletons(injector, stage, errors, (BindingImpl<?>)binding);
+        }
+        for (final Binding<?> binding : injector.jitBindings.values()) {
+            loadEagerSingletons(injector, stage, errors, (BindingImpl<?>)binding);
+        }
+    }
 
-                        @Override
-                        public Void call(InternalContext context) {
-                            context.setDependency(dependency);
-                            Errors errorsForBinding = errors.withSource(dependency);
-                            try {
-                                binding.getInternalFactory().get(errorsForBinding, context, dependency);
-                            } catch (ErrorsException e) {
-                                errorsForBinding.merge(e.getErrors());
-                            } finally {
-                                context.setDependency(null);
-                            }
+    private void loadEagerSingletons(InjectorImpl injector, Stage stage, final Errors errors, BindingImpl<?> binding) {
+        if (binding.getScoping().isEagerSingleton(stage)) {
+            try {
+                injector.callInContext(new ContextualCallable<Void>() {
+                    Dependency<?> dependency = Dependency.get(binding.getKey());
 
-                            return null;
+                    @Override
+                    public Void call(InternalContext context) {
+                        context.setDependency(dependency);
+                        Errors errorsForBinding = errors.withSource(dependency);
+                        try {
+                            binding.getInternalFactory().get(errorsForBinding, context, dependency);
+                        } catch (ErrorsException e) {
+                            errorsForBinding.merge(e.getErrors());
+                        } finally {
+                            context.setDependency(null);
                         }
-                    });
-                } catch (ErrorsException e) {
-                    throw new AssertionError();
-                }
+
+                        return null;
+                    }
+                });
+            } catch (ErrorsException e) {
+                throw new AssertionError();
             }
         }
     }

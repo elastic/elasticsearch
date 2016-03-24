@@ -2,8 +2,8 @@
 === `_type` field
 
 Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
-<<all-mapping-types,Mapping Types>>) and an <<mapping-id-field,`_id`>>.  The
-`_type` field is indexed in order to make searching by type name fast.
+<<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_type` field is
+indexed in order to make searching by type name fast.
 
 The value of the `_type` field is accessible in queries, aggregations,
 scripts, and when sorting:

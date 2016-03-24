@@ -19,8 +19,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticsearchException;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -36,16 +34,19 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Top level suggest result, containing the result for each suggestion.
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    public static class Fields {
-        public static final XContentBuilderString SUGGEST = new XContentBuilderString("suggest");
-    }
+    private static final XContentBuilderString NAME = new XContentBuilderString("suggest");
 
     private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
         @Override
@@ -58,41 +59,29 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          }
     };
 
-    private final XContentBuilderString name;
-
     private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
     public Suggest() {
-        this.name = null;
-    }
-
-    public Suggest(XContentBuilderString name) {
-        this.name = name;
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
-        this(null, suggestions);
-    }
-
-    public Suggest(XContentBuilderString name, List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
-        this.name = name;
         this.suggestions = suggestions;
     }
-    
+
     @Override
     public Iterator<Suggestion<? extends Entry<? extends Option>>> iterator() {
         return suggestions.iterator();
     }
-    
+
     /**
      * The number of suggestions in this {@link Suggest} result
      */
     public int size() {
         return suggestions.size();
     }
-    
+
     public <T extends Suggestion<? extends Entry<? extends Option>>> T getSuggestion(String name) {
         if (suggestions.isEmpty() || name == null) {
             return null;
@@ -112,6 +101,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         final int size = in.readVInt();
         suggestions = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
+            // TODO: remove these complicated generics
             Suggestion<? extends Entry<? extends Option>> suggestion;
             final int type = in.readVInt();
             switch (type) {
@@ -125,7 +115,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 suggestion = new PhraseSuggestion();
                 break;
             default:
-                suggestion = new Suggestion<>();
+                suggestion = new Suggestion();
                 break;
             }
             suggestion.readFrom(in);
@@ -144,27 +134,28 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if(name == null) {
-            for (Suggestion<?> suggestion : suggestions) {
-                suggestion.toXContent(builder, params);
-            }
-        } else {
-            builder.startObject(name);
-            for (Suggestion<?> suggestion : suggestions) {
-                suggestion.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-        
+        builder.startObject(NAME);
+        toInnerXContent(builder, params);
+        builder.endObject();
         return builder;
     }
 
-    public static Suggest readSuggest(XContentBuilderString name, StreamInput in) throws IOException {
-        Suggest result = new Suggest(name);
+    /**
+     * use to write suggestion entries without <code>NAME</code> object
+     */
+    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
+        for (Suggestion<?> suggestion : suggestions) {
+            suggestion.toXContent(builder, params);
+        }
+        return builder;
+    }
+
+    public static Suggest readSuggest(StreamInput in) throws IOException {
+        Suggest result = new Suggest();
         result.readFrom(in);
         return result;
     }
-    
+
     public static Map<String, List<Suggest.Suggestion>> group(Map<String, List<Suggest.Suggestion>> groupedSuggestions, Suggest suggest) {
         for (Suggestion<? extends Entry<? extends Option>> suggestion : suggest) {
             List<Suggestion> list = groupedSuggestions.get(suggestion.getName());
@@ -192,8 +183,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
      * The suggestion responses corresponding with the suggestions in the request.
      */
     public static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, Streamable, ToXContent {
-        
-        
+
         public static final int TYPE = 0;
         protected String name;
         protected int size;
@@ -210,7 +200,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public void addTerm(T entry) {
             entries.add(entry);
         }
-        
+
         public int getType() {
             return TYPE;
         }
@@ -266,11 +256,11 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             }
             return leader;
         }
-        
+
         protected Comparator<Option> sortComparator() {
             return COMPARATOR;
         }
-        
+
         /**
          * Trims the number of options per suggest text term to the requested size.
          * For internal usage.
@@ -292,12 +282,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 entries.add(newEntry);
             }
         }
-        
+
         protected T newEntry() {
             return (T)new Entry();
         }
 
-        
+
         protected void innerReadFrom(StreamInput in) throws IOException {
             name = in.readString();
             size = in.readVInt();
@@ -361,7 +351,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             public void addOption(O option) {
                 options.add(option);
             }
-            
+
             protected void sort(Comparator<O> comparator) {
                 CollectionUtil.timSort(options, comparator);
             }
@@ -480,7 +470,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     options.add(newOption);
                 }
             }
-            
+
             protected O newOption(){
                 return (O) new Option();
             }
@@ -577,7 +567,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 public boolean collateMatch() {
                     return (collateMatch != null) ? collateMatch : true;
                 }
-                
+
                 protected void setScore(float score) {
                     this.score = score;
                 }
@@ -605,7 +595,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     builder.endObject();
                     return builder;
                 }
-                
+
                 protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                     builder.field(Fields.TEXT, text);
                     if (highlighted != null) {
@@ -617,7 +607,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     }
                     return builder;
                 }
-                
+
                 protected void mergeInto(Option otherOption) {
                     score = Math.max(score, otherOption.score);
                 }
@@ -635,39 +625,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 @Override
                 public int hashCode() {
                     return text.hashCode();
-                }
-            }
-        }
-
-        public enum Sort {
-
-            /**
-             * Sort should first be based on score.
-             */
-            SCORE((byte) 0x0),
-
-            /**
-             * Sort should first be based on document frequency.
-             */
-            FREQUENCY((byte) 0x1);
-
-            private byte id;
-
-            private Sort(byte id) {
-                this.id = id;
-            }
-
-            public byte id() {
-                return id;
-            }
-
-            public static Sort fromId(byte id) {
-                if (id == 0) {
-                    return SCORE;
-                } else if (id == 1) {
-                    return FREQUENCY;
-                } else {
-                    throw new ElasticsearchException("Illegal suggest sort " + id);
                 }
             }
         }

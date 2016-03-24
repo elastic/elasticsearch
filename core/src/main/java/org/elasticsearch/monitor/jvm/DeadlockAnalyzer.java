@@ -19,13 +19,18 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  *
@@ -50,7 +55,7 @@ public class DeadlockAnalyzer {
         if (deadlockedThreads == null || deadlockedThreads.length == 0) {
             return NULL_RESULT;
         }
-        ImmutableMap<Long, ThreadInfo> threadInfoMap = createThreadInfoMap(deadlockedThreads);
+        Map<Long, ThreadInfo> threadInfoMap = createThreadInfoMap(deadlockedThreads);
         Set<LinkedHashSet<ThreadInfo>> cycles = calculateCycles(threadInfoMap);
         Set<LinkedHashSet<ThreadInfo>> chains = calculateCycleDeadlockChains(threadInfoMap, cycles);
         cycles.addAll(chains);
@@ -70,7 +75,7 @@ public class DeadlockAnalyzer {
     }
 
 
-    private Set<LinkedHashSet<ThreadInfo>> calculateCycles(ImmutableMap<Long, ThreadInfo> threadInfoMap) {
+    private Set<LinkedHashSet<ThreadInfo>> calculateCycles(Map<Long, ThreadInfo> threadInfoMap) {
         Set<LinkedHashSet<ThreadInfo>> cycles = new HashSet<>();
         for (Map.Entry<Long, ThreadInfo> entry : threadInfoMap.entrySet()) {
             LinkedHashSet<ThreadInfo> cycle = new LinkedHashSet<>();
@@ -84,7 +89,7 @@ public class DeadlockAnalyzer {
     }
 
 
-    private Set<LinkedHashSet<ThreadInfo>> calculateCycleDeadlockChains(ImmutableMap<Long, ThreadInfo> threadInfoMap, Set<LinkedHashSet<ThreadInfo>> cycles) {
+    private Set<LinkedHashSet<ThreadInfo>> calculateCycleDeadlockChains(Map<Long, ThreadInfo> threadInfoMap, Set<LinkedHashSet<ThreadInfo>> cycles) {
         ThreadInfo allThreads[] = threadBean.getThreadInfo(threadBean.getAllThreadIds());
         Set<LinkedHashSet<ThreadInfo>> deadlockChain = new HashSet<>();
         Set<Long> knownDeadlockedThreads = threadInfoMap.keySet();
@@ -108,26 +113,24 @@ public class DeadlockAnalyzer {
     }
 
 
-    private ImmutableMap<Long, ThreadInfo> createThreadInfoMap(long threadIds[]) {
+    private Map<Long, ThreadInfo> createThreadInfoMap(long threadIds[]) {
         ThreadInfo threadInfos[] = threadBean.getThreadInfo(threadIds);
-        ImmutableMap.Builder<Long, ThreadInfo> threadInfoMap = ImmutableMap.builder();
+        Map<Long, ThreadInfo> threadInfoMap = new HashMap<>();
         for (ThreadInfo threadInfo : threadInfos) {
             threadInfoMap.put(threadInfo.getThreadId(), threadInfo);
         }
-        return threadInfoMap.build();
+        return unmodifiableMap(threadInfoMap);
     }
 
-
     public static class Deadlock {
-
         private final ThreadInfo members[];
         private final String description;
-        private final ImmutableSet<Long> memberIds;
+        private final Set<Long> memberIds;
 
         public Deadlock(ThreadInfo[] members) {
             this.members = members;
 
-            ImmutableSet.Builder<Long> builder = ImmutableSet.builder();
+            Set<Long> builder = new HashSet<>();
             StringBuilder sb = new StringBuilder();
             for (int x = 0; x < members.length; x++) {
                 ThreadInfo ti = members[x];
@@ -139,7 +142,7 @@ public class DeadlockAnalyzer {
                 builder.add(ti.getThreadId());
             }
             this.description = sb.toString();
-            this.memberIds = builder.build();
+            this.memberIds = unmodifiableSet(builder);
         }
 
         public ThreadInfo[] members() {

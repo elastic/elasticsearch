@@ -19,38 +19,106 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Objects;
 
 /**
  * Constructs a query that only match on documents that the field has a value in them.
  */
-public class ExistsQueryBuilder extends QueryBuilder {
+public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> {
 
-    private String name;
+    public static final String NAME = "exists";
 
-    private String queryName;
+    private final String fieldName;
 
-    public ExistsQueryBuilder(String name) {
-        this.name = name;
+    static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder("field");
+
+    public ExistsQueryBuilder(String fieldName) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        this.fieldName = fieldName;
     }
 
     /**
-     * Sets the query name for the query that can be used when searching for matched_queries per hit.
+     * @return the field name that has to exist for this query to match
      */
-    public ExistsQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public String fieldName() {
+        return this.fieldName;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(ExistsQueryParser.NAME);
-        builder.field("field", name);
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        builder.startObject(NAME);
+        builder.field(ExistsQueryParser.FIELD_FIELD.getPreferredName(), fieldName);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        return newFilter(context, fieldName);
+    }
+
+    public static Query newFilter(QueryShardContext context, String fieldPattern) {
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldType == null) {
+            // can only happen when no types exist, so no docs exist either
+            return Queries.newMatchNoDocsQuery();
+        }
+
+        final Collection<String> fields;
+        if (context.getObjectMapper(fieldPattern) != null) {
+            // the _field_names field also indexes objects, so we don't have to
+            // do any more work to support exists queries on whole objects
+            fields = Collections.singleton(fieldPattern);
+        } else {
+            fields = context.simpleMatchToIndexNames(fieldPattern);
+        }
+
+        BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
+        for (String field : fields) {
+            Query filter = fieldNamesFieldType.termQuery(field, context);
+            boolFilterBuilder.add(filter, BooleanClause.Occur.SHOULD);
+        }
+        return new ConstantScoreQuery(boolFilterBuilder.build());
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(fieldName);
+    }
+
+    @Override
+    protected boolean doEquals(ExistsQueryBuilder other) {
+        return Objects.equals(fieldName, other.fieldName);
+    }
+
+    @Override
+    protected ExistsQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        return new ExistsQueryBuilder(in.readString());
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

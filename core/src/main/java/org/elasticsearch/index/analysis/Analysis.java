@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -46,6 +44,7 @@ import org.apache.lucene.analysis.hu.HungarianAnalyzer;
 import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.id.IndonesianAnalyzer;
 import org.apache.lucene.analysis.it.ItalianAnalyzer;
+import org.apache.lucene.analysis.lt.LithuanianAnalyzer;
 import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.no.NorwegianAnalyzer;
@@ -58,37 +57,46 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
-
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
-import java.net.URL;
-import java.util.*;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
  */
 public class Analysis {
 
-    public static Version parseAnalysisVersion(@IndexSettings Settings indexSettings, Settings settings, ESLogger logger) {
+    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, ESLogger logger) {
         // check for explicit version on the specific analyzer component
         String sVersion = settings.get("version");
         if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Lucene.ANALYZER_VERSION, logger);
+            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
         }
         // check for explicit version on the index itself as default for all analysis components
         sVersion = indexSettings.get("index.analysis.version");
         if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Lucene.ANALYZER_VERSION, logger);
+            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
         }
         // resolve the analysis version based on the version the index was created with
         return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;
@@ -118,41 +126,47 @@ public class Analysis {
         }
     }
 
-    public static final ImmutableMap<String, Set<?>> namedStopWords = MapBuilder.<String, Set<?>>newMapBuilder()
-            .put("_arabic_", ArabicAnalyzer.getDefaultStopSet())
-            .put("_armenian_", ArmenianAnalyzer.getDefaultStopSet())
-            .put("_basque_", BasqueAnalyzer.getDefaultStopSet())
-            .put("_brazilian_", BrazilianAnalyzer.getDefaultStopSet())
-            .put("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet())
-            .put("_catalan_", CatalanAnalyzer.getDefaultStopSet())
-            .put("_czech_", CzechAnalyzer.getDefaultStopSet())
-            .put("_danish_", DanishAnalyzer.getDefaultStopSet())
-            .put("_dutch_", DutchAnalyzer.getDefaultStopSet())
-            .put("_english_", EnglishAnalyzer.getDefaultStopSet())
-            .put("_finnish_", FinnishAnalyzer.getDefaultStopSet())
-            .put("_french_", FrenchAnalyzer.getDefaultStopSet())
-            .put("_galician_", GalicianAnalyzer.getDefaultStopSet())
-            .put("_german_", GermanAnalyzer.getDefaultStopSet())
-            .put("_greek_", GreekAnalyzer.getDefaultStopSet())
-            .put("_hindi_", HindiAnalyzer.getDefaultStopSet())
-            .put("_hungarian_", HungarianAnalyzer.getDefaultStopSet())
-            .put("_indonesian_", IndonesianAnalyzer.getDefaultStopSet())
-            .put("_irish_", IrishAnalyzer.getDefaultStopSet())
-            .put("_italian_", ItalianAnalyzer.getDefaultStopSet())
-            .put("_latvian_", LatvianAnalyzer.getDefaultStopSet())
-            .put("_norwegian_", NorwegianAnalyzer.getDefaultStopSet())
-            .put("_persian_", PersianAnalyzer.getDefaultStopSet())
-            .put("_portuguese_", PortugueseAnalyzer.getDefaultStopSet())
-            .put("_romanian_", RomanianAnalyzer.getDefaultStopSet())
-            .put("_russian_", RussianAnalyzer.getDefaultStopSet())
-            .put("_sorani_", SoraniAnalyzer.getDefaultStopSet())
-            .put("_spanish_", SpanishAnalyzer.getDefaultStopSet())
-            .put("_swedish_", SwedishAnalyzer.getDefaultStopSet())
-            .put("_thai_", ThaiAnalyzer.getDefaultStopSet())
-            .put("_turkish_", TurkishAnalyzer.getDefaultStopSet())
-            .immutableMap();
+    public static final Map<String, Set<?>> NAMED_STOP_WORDS;
+    static {
+        Map<String, Set<?>> namedStopWords = new HashMap<>();
+        namedStopWords.put("_arabic_", ArabicAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_armenian_", ArmenianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_basque_", BasqueAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_brazilian_", BrazilianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_catalan_", CatalanAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_czech_", CzechAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_danish_", DanishAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_dutch_", DutchAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_english_", EnglishAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_finnish_", FinnishAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_french_", FrenchAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_galician_", GalicianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_german_", GermanAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_greek_", GreekAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_hindi_", HindiAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_hungarian_", HungarianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_indonesian_", IndonesianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_irish_", IrishAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_italian_", ItalianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_latvian_", LatvianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_lithuanian_", LithuanianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_norwegian_", NorwegianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_persian_", PersianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_portuguese_", PortugueseAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_romanian_", RomanianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_russian_", RussianAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_sorani_", SoraniAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_spanish_", SpanishAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_swedish_", SwedishAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_thai_", ThaiAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_turkish_", TurkishAnalyzer.getDefaultStopSet());
 
-    public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords, Map<String, Set<?>> namedWords, boolean ignoreCase) {
+        NAMED_STOP_WORDS = unmodifiableMap(namedStopWords);
+    }
+
+    public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords,
+                                          Map<String, Set<?>> namedWords, boolean ignoreCase) {
         String value = settings.get(name);
         if (value != null) {
             if ("_none_".equals(value)) {
@@ -169,7 +183,7 @@ public class Analysis {
     }
 
     public static CharArraySet parseCommonWords(Environment env, Settings settings, CharArraySet defaultCommonWords, boolean ignoreCase) {
-        return parseWords(env, settings, "common_words", defaultCommonWords, namedStopWords, ignoreCase);
+        return parseWords(env, settings, "common_words", defaultCommonWords, NAMED_STOP_WORDS, ignoreCase);
     }
 
     public static CharArraySet parseArticles(Environment env, Settings settings) {
@@ -181,7 +195,7 @@ public class Analysis {
     }
 
     public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords, boolean ignoreCase) {
-        return parseWords(env, settings, "stopwords", defaultStopWords, namedStopWords, ignoreCase);
+        return parseWords(env, settings, "stopwords", defaultStopWords, NAMED_STOP_WORDS, ignoreCase);
     }
 
     private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {
@@ -226,13 +240,18 @@ public class Analysis {
             }
         }
 
-        final URL wordListFile = env.resolveConfig(wordListPath);
+        final Path path = env.configFile().resolve(wordListPath);
 
-        try (BufferedReader reader = FileSystemUtils.newBufferedReader(wordListFile, Charsets.UTF_8)) {
+        try (BufferedReader reader = FileSystemUtils.newBufferedReader(path.toUri().toURL(), StandardCharsets.UTF_8)) {
             return loadWordList(reader, "#");
+        } catch (CharacterCodingException ex) {
+            String message = String.format(Locale.ROOT,
+                "Unsupported character encoding detected while reading %s_path: %s - files must be UTF-8 encoded",
+                settingPrefix, path.toString());
+            throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
-            throw new IllegalArgumentException(message);
+            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
+            throw new IllegalArgumentException(message, ioe);
         }
     }
 
@@ -245,7 +264,7 @@ public class Analysis {
             } else {
                 br = new BufferedReader(reader);
             }
-            String word = null;
+            String word;
             while ((word = br.readLine()) != null) {
                 if (!Strings.hasText(word)) {
                     continue;
@@ -272,14 +291,17 @@ public class Analysis {
         if (filePath == null) {
             return null;
         }
-
-        final URL fileUrl = env.resolveConfig(filePath);
-
+        final Path path = env.configFile().resolve(filePath);
         try {
-            return FileSystemUtils.newBufferedReader(fileUrl, Charsets.UTF_8);
+            return FileSystemUtils.newBufferedReader(path.toUri().toURL(), StandardCharsets.UTF_8);
+        } catch (CharacterCodingException ex) {
+            String message = String.format(Locale.ROOT,
+                "Unsupported character encoding detected while reading %s_path: %s files must be UTF-8 encoded",
+                settingPrefix, path.toString());
+            throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
-            throw new IllegalArgumentException(message);
+            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
+            throw new IllegalArgumentException(message, ioe);
         }
     }
 
@@ -289,7 +311,7 @@ public class Analysis {
      * <p>Although most analyzers generate character terms (CharTermAttribute),
      * some token only contain binary terms (BinaryTermAttribute,
      * CharTermAttribute being a special type of BinaryTermAttribute), such as
-     * {@link NumericTokenStream} and unsuitable for highlighting and
+     * {@link LegacyNumericTokenStream} and unsuitable for highlighting and
      * more-like-this queries which expect character terms.</p>
      */
     public static boolean isCharacterTokenStream(TokenStream tokenStream) {
@@ -307,7 +329,9 @@ public class Analysis {
      * @see #isCharacterTokenStream(TokenStream)
      */
     public static boolean generatesCharacterTokenStream(Analyzer analyzer, String fieldName) throws IOException {
-        return isCharacterTokenStream(analyzer.tokenStream(fieldName, ""));
+        try (TokenStream ts = analyzer.tokenStream(fieldName, "")) {
+            return isCharacterTokenStream(ts);
+        }
     }
 
 }

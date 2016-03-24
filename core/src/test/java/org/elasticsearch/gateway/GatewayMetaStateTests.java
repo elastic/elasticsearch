@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,11 +28,15 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
-import org.junit.Test;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.test.ESAllocationTestCase;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,13 +52,13 @@ import static org.hamcrest.Matchers.equalTo;
  * - node is master eligible
  * for data only nodes: shard initializing on shard
  */
-public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
+public class GatewayMetaStateTests extends ESAllocationTestCase {
 
     ClusterChangedEvent generateEvent(boolean initializing, boolean versionChanged, boolean masterEligible) {
         //ridiculous settings to make sure we don't run into uninitialized because fo default
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 100)
-                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", 100)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
                 .build());
@@ -75,7 +78,7 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
         // new cluster state will have initializing shards on node 1
-        RoutingTable routingTableNewClusterState = strategy.reroute(init).routingTable();
+        RoutingTable routingTableNewClusterState = strategy.reroute(init, "reroute").routingTable();
         if (initializing == false) {
             // pretend all initialized, nothing happened
             ClusterState temp = ClusterState.builder(init).routingTable(routingTableNewClusterState).metaData(metaDataOldClusterState).build();
@@ -108,8 +111,8 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
     ClusterChangedEvent generateCloseEvent(boolean masterEligible) {
         //ridiculous settings to make sure we don't run into uninitialized because fo default
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 100)
-                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", 100)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
                 .build());
@@ -128,7 +131,7 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
                 .routingTable(routingTableIndexCreated)
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
-        RoutingTable routingTableInitializing = strategy.reroute(init).routingTable();
+        RoutingTable routingTableInitializing = strategy.reroute(init, "reroute").routingTable();
         ClusterState temp = ClusterState.builder(init).routingTable(routingTableInitializing).build();
         RoutingTable routingTableStarted = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
 
@@ -170,26 +173,24 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
                             boolean stateInMemory,
                             boolean expectMetaData) throws Exception {
         MetaData inMemoryMetaData = null;
-        ImmutableSet<String> oldIndicesList = ImmutableSet.of();
+        Set<Index> oldIndicesList = emptySet();
         if (stateInMemory) {
             inMemoryMetaData = event.previousState().metaData();
-            ImmutableSet.Builder<String> relevantIndices = ImmutableSet.builder();
-            oldIndicesList = relevantIndices.addAll(GatewayMetaState.getRelevantIndices(event.previousState(), event.previousState(), oldIndicesList)).build();
+            oldIndicesList = GatewayMetaState.getRelevantIndices(event.previousState(), event.previousState(), oldIndicesList);
         }
-        Set<String> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(),event.previousState(), oldIndicesList);
+        Set<Index> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(),event.previousState(), oldIndicesList);
         // third, get the actual write info
         Iterator<GatewayMetaState.IndexMetaWriteInfo> indices = GatewayMetaState.resolveStatesToBeWritten(oldIndicesList, newIndicesList, inMemoryMetaData, event.state().metaData()).iterator();
 
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));
-            assertThat(indices.next().getNewMetaData().index(), equalTo("test"));
+            assertThat(indices.next().getNewMetaData().getIndex().getName(), equalTo("test"));
             assertThat(indices.hasNext(), equalTo(false));
         } else {
             assertThat(indices.hasNext(), equalTo(false));
         }
     }
 
-    @Test
     public void testVersionChangeIsAlwaysWritten() throws Exception {
         // test that version changes are always written
         boolean initializing = randomBoolean();
@@ -201,7 +202,6 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testNewShardsAlwaysWritten() throws Exception {
         // make sure new shards on data only node always written
         boolean initializing = true;
@@ -213,7 +213,6 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testAllUpToDateNothingWritten() throws Exception {
         // make sure state is not written again if we wrote already
         boolean initializing = false;
@@ -225,7 +224,6 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testNoWriteIfNothingChanged() throws Exception {
         boolean initializing = false;
         boolean versionChanged = false;
@@ -237,7 +235,6 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         assertState(newEventWithNothingChanged, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testWriteClosedIndex() throws Exception {
         // test that the closing of an index is written also on data only node
         boolean masterEligible = randomBoolean();

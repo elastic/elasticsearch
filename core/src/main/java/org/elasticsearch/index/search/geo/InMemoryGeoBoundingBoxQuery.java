@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  *
@@ -56,7 +57,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
     }
 
     public String fieldName() {
-        return indexFieldData.getFieldNames().indexName();
+        return indexFieldData.getFieldName();
     }
 
     @Override
@@ -78,7 +79,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "GeoBoundingBoxFilter(" + indexFieldData.getFieldNames().indexName() + ", " + topLeft + ", " + bottomRight + ")";
+        return "GeoBoundingBoxFilter(" + indexFieldData.getFieldName() + ", " + topLeft + ", " + bottomRight + ")";
     }
 
     @Override
@@ -94,11 +95,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
 
     @Override
     public int hashCode() {
-        int h = super.hashCode();
-        h = 31 * h + fieldName().hashCode();
-        h = 31 * h + topLeft.hashCode();
-        h = 31 * h + bottomRight.hashCode();
-        return h;
+        return Objects.hash(super.hashCode(), fieldName(), topLeft, bottomRight);
     }
 
     private static class Meridian180GeoBoundingBoxBits implements Bits {

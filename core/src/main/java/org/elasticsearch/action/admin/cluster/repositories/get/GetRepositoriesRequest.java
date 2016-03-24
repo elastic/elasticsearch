@@ -36,12 +36,12 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
 
     private String[] repositories = Strings.EMPTY_ARRAY;
 
-    GetRepositoriesRequest() {
+    public GetRepositoriesRequest() {
     }
 
     /**
      * Constructs a new get repositories request with a list of repositories.
-     * <p/>
+     * <p>
      * If the list of repositories is empty or it contains a single element "_all", all registered repositories
      * are returned.
      *
@@ -71,7 +71,7 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
 
     /**
      * Sets the list or repositories.
-     * <p/>
+     * <p>
      * If the list of repositories is empty or it contains a single element "_all", all registered repositories
      * are returned.
      *

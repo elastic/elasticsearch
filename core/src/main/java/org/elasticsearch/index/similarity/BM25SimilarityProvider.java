@@ -21,13 +21,11 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  * {@link SimilarityProvider} for the {@link BM25Similarity}.
- * <p/>
+ * <p>
  * Configuration options available:
  * <ul>
  *     <li>k1</li>
@@ -40,8 +38,7 @@ public class BM25SimilarityProvider extends AbstractSimilarityProvider {
 
     private final BM25Similarity similarity;
 
-    @Inject
-    public BM25SimilarityProvider(@Assisted String name, @Assisted Settings settings) {
+    public BM25SimilarityProvider(String name, Settings settings) {
         super(name);
         float k1 = settings.getAsFloat("k1", 1.2f);
         float b = settings.getAsFloat("b", 0.75f);

@@ -20,15 +20,15 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.TestQueryParsingException;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.junit.Test;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -41,9 +41,8 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class BytesRestResponseTests extends ElasticsearchTestCase {
+public class BytesRestResponseTests extends ESTestCase {
 
-    @Test
     public void testWithHeaders() throws Exception {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = randomBoolean() ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
@@ -55,7 +54,6 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         assertThat(response.getHeaders().get("n2"), contains("v21", "v22"));
     }
 
-    @Test
     public void testSimpleExceptionMessage() throws Exception {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new SimpleExceptionRestChannel(request);
@@ -69,7 +67,6 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         assertThat(text, not(containsString("error_trace")));
     }
 
-    @Test
     public void testDetailedExceptionMessage() throws Exception {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);
@@ -81,7 +78,6 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         assertThat(text, containsString("{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}"));
     }
 
-    @Test
     public void testNonElasticsearchExceptionIsNotShownAsSimpleMessage() throws Exception {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new SimpleExceptionRestChannel(request);
@@ -95,7 +91,6 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         assertThat(text, containsString("\"error\":\"No ElasticsearchException found\""));
     }
 
-    @Test
     public void testErrorTrace() throws Exception {
         RestRequest request = new FakeRestRequest();
         request.params().put("error_trace", "true");
@@ -105,8 +100,8 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().toUtf8();
         assertThat(text, containsString("\"type\":\"throwable\",\"reason\":\"an error occurred reading data\""));
-        assertThat(text, containsString("{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}"));
-        assertThat(text, containsString("\"error_trace\":{\"message\":\"an error occurred reading data\""));
+        assertThat(text, containsString("{\"type\":\"file_not_found_exception\""));
+        assertThat(text, containsString("\"stack_trace\":\"[an error occurred reading data]"));
     }
 
     public void testGuessRootCause() throws IOException {
@@ -126,7 +121,6 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testNullThrowable() throws Exception {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new SimpleExceptionRestChannel(request);
@@ -137,19 +131,20 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         assertThat(text, not(containsString("error_trace")));
     }
 
-    @Test
     public void testConvert() throws IOException {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);
-        ShardSearchFailure failure = new ShardSearchFailure(new TestQueryParsingException(new Index("foo"), "foobar", null),
-                new SearchShardTarget("node_1", "foo", 1));
-        ShardSearchFailure failure1 = new ShardSearchFailure(new TestQueryParsingException(new Index("foo"), "foobar", null),
-                new SearchShardTarget("node_1", "foo", 2));
+        ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new Index("foo", "_na_"), 1));
+        ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
+                new SearchShardTarget("node_1", new Index("foo", "_na_"), 2));
         SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",  new ShardSearchFailure[] {failure, failure1});
         BytesRestResponse response = new BytesRestResponse(channel, new RemoteTransportException("foo", ex));
         String text = response.content().toUtf8();
-        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}],\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}}]},\"status\":400}";
+        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}],\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]},\"status\":400}";
         assertEquals(expected.trim(), text.trim());
+        String stackTrace = ExceptionsHelper.stackTrace(ex);
+        assertTrue(stackTrace.contains("Caused by: ParsingException[foobar]"));
     }
 
     public static class WithHeadersException extends ElasticsearchException {

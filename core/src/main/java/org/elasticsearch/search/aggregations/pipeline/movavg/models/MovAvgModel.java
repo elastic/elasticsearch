@@ -22,7 +22,8 @@ package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -30,12 +31,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
-public abstract class MovAvgModel {
+public abstract class MovAvgModel implements Writeable<MovAvgModel>, ToXContent {
 
     /**
      * Should this model be fit to the data via a cost minimizing algorithm by default?
-     *
-     * @return
      */
     public boolean minimizeByDefault() {
         return false;
@@ -44,16 +43,12 @@ public abstract class MovAvgModel {
     /**
      * Returns if the model can be cost minimized.  Not all models have parameters
      * which can be tuned / optimized.
-     *
-     * @return
      */
     public abstract boolean canBeMinimized();
 
     /**
      * Generates a "neighboring" model, where one of the tunable parameters has been
      * randomly mutated within the allowed range.  Used for minimization
-     *
-     * @return
      */
     public abstract MovAvgModel neighboringModel();
 
@@ -111,7 +106,6 @@ public abstract class MovAvgModel {
     /**
      * Returns an empty set of predictions, filled with NaNs
      * @param numPredictions Number of empty predictions to generate
-     * @return
      */
     protected double[] emptyPredictions(int numPredictions) {
         double[] predictions = new double[numPredictions];
@@ -123,16 +117,21 @@ public abstract class MovAvgModel {
      * Write the model to the output stream
      *
      * @param out   Output stream
-     * @throws IOException
      */
+    @Override
     public abstract void writeTo(StreamOutput out) throws IOException;
 
     /**
      * Clone the model, returning an exact copy
-     *
-     * @return
      */
+    @Override
     public abstract MovAvgModel clone();
+
+    @Override
+    public abstract int hashCode();
+
+    @Override
+    public abstract boolean equals(Object obj);
 
     /**
      * Abstract class which also provides some concrete parsing functionality.
@@ -165,9 +164,6 @@ public abstract class MovAvgModel {
          * @param settings      Map of settings provided to this model
          * @param name          Name of parameter we are attempting to extract
          * @param defaultValue  Default value to be used if value does not exist in map
-         *
-         * @throws ParseException
-         *
          * @return Double value extracted from settings map
          */
         protected double parseDoubleParam(@Nullable Map<String, Object> settings, String name, double defaultValue) throws ParseException {
@@ -199,9 +195,6 @@ public abstract class MovAvgModel {
          * @param settings      Map of settings provided to this model
          * @param name          Name of parameter we are attempting to extract
          * @param defaultValue  Default value to be used if value does not exist in map
-         *
-         * @throws ParseException
-         *
          * @return Integer value extracted from settings map
          */
         protected int parseIntegerParam(@Nullable Map<String, Object> settings, String name, int defaultValue) throws ParseException {
@@ -227,9 +220,6 @@ public abstract class MovAvgModel {
          * @param settings      Map of settings provided to this model
          * @param name          Name of parameter we are attempting to extract
          * @param defaultValue  Default value to be used if value does not exist in map
-         *
-         * @throws SearchParseException
-         *
          * @return Boolean value extracted from settings map
          */
         protected boolean parseBoolParam(@Nullable Map<String, Object> settings, String name, boolean defaultValue) throws ParseException {

@@ -19,23 +19,21 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Collection;
@@ -46,9 +44,9 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new IndexIndexFieldData(index, fieldType.names());
+            return new IndexIndexFieldData(indexSettings, fieldType.name());
         }
 
     }
@@ -102,17 +100,16 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final AtomicOrdinalsFieldData atomicFieldData;
 
-    private IndexIndexFieldData(Index index, MappedFieldType.Names names) {
-        super(index, Settings.EMPTY, names, new FieldDataType("string"), null, null);
-        atomicFieldData = new IndexAtomicFieldData(index().name());
+    private IndexIndexFieldData(IndexSettings indexSettings, String name) {
+        super(indexSettings, name, null, null,
+                TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
+        atomicFieldData = new IndexAtomicFieldData(index().getName());
     }
 
     @Override
     public void clear() {
-    }
-
-    @Override
-    public void clear(IndexReader reader) {
     }
 
     @Override
@@ -127,12 +124,12 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         return this;
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return loadGlobal(indexReader);
     }
 

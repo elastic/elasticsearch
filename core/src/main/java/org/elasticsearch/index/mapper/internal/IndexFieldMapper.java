@@ -24,29 +24,24 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  *
@@ -69,7 +64,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -81,7 +76,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 
@@ -98,26 +93,15 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                return builder;
-            }
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            return new Builder(parserContext.mapperService().fullName(NAME));
+        }
 
-            parseField(builder, builder.name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("enabled")) {
-                    EnabledAttributeMapper mapper = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
-                    builder.enabled(mapper);
-                    iterator.remove();
-                }
-            }
-            return builder;
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new IndexFieldMapper(indexSettings, fieldType);
         }
     }
 
@@ -157,7 +141,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
          * indices
          */
         @Override
-        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (context == null) {
                 return super.termQuery(value, context);
             }
@@ -171,7 +155,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         
 
         @Override
-        public Query termsQuery(List values, QueryParseContext context) {
+        public Query termsQuery(List values, QueryShardContext context) {
             if (context == null) {
                 return super.termsQuery(values, context);
             }
@@ -202,15 +186,20 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             }
             return value.toString();
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            return new IndexIndexFieldData.Builder();
+        }
     }
 
     private EnabledAttributeMapper enabledState;
 
-    public IndexFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private IndexFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, Defaults.ENABLED_STATE, indexSettings);
     }
 
-    public IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState, Settings indexSettings) {
+    private IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.enabledState = enabledState;
     }
@@ -220,7 +209,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().names().indexName());
+        Field field = (Field) document.getField(fieldType().name());
         return field == null ? null : (String)fieldType().value(field);
     }
 
@@ -244,7 +233,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         if (!enabledState.enabled) {
             return;
         }
-        fields.add(new Field(fieldType().names().indexName(), context.index(), fieldType()));
+        fields.add(new Field(fieldType().name(), context.index(), fieldType()));
     }
 
     @Override
@@ -257,30 +246,22 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all defaults, no need to write it at all
-        if (!includeDefaults && fieldType().stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED_STATE && hasCustomFieldDataSettings() == false) {
+        if (includeDefaults == false && enabledState == Defaults.ENABLED_STATE) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored())) {
-            builder.field("store", fieldType().stored());
-        }
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
-        }
-        if (indexCreatedBefore2x && (includeDefaults || hasCustomFieldDataSettings())) {
-            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
         }
         builder.endObject();
         return builder;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         IndexFieldMapper indexFieldMapperMergeWith = (IndexFieldMapper) mergeWith;
-        if (!mergeResult.simulate()) {
-            if (indexFieldMapperMergeWith.enabledState != enabledState && !indexFieldMapperMergeWith.enabledState.unset()) {
-                this.enabledState = indexFieldMapperMergeWith.enabledState;
-            }
+        if (indexFieldMapperMergeWith.enabledState != enabledState && !indexFieldMapperMergeWith.enabledState.unset()) {
+            this.enabledState = indexFieldMapperMergeWith.enabledState;
         }
     }
 

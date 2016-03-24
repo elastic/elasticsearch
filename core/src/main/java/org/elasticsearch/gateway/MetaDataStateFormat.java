@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.gateway;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -43,16 +39,21 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * MetaDataStateFormat is a base class to write checksummed
@@ -100,8 +101,12 @@ public abstract class MetaDataStateFormat<T> {
      * @throws IOException if an IOException occurs
      */
     public final void write(final T state, final long version, final Path... locations) throws IOException {
-        Preconditions.checkArgument(locations != null, "Locations must not be null");
-        Preconditions.checkArgument(locations.length > 0, "One or more locations required");
+        if (locations == null) {
+            throw new IllegalArgumentException("Locations must not be null");
+        }
+        if (locations.length <= 0) {
+            throw new IllegalArgumentException("One or more locations required");
+        }
         final long maxStateId = findMaxStateId(prefix, locations)+1;
         assert maxStateId >= 0 : "maxStateId must be positive but was: [" + maxStateId + "]";
         final String fileName = prefix + maxStateId + STATE_FILE_EXTENSION;
@@ -111,7 +116,7 @@ public abstract class MetaDataStateFormat<T> {
         final Path finalStatePath = stateLocation.resolve(fileName);
         try {
             final String resourceDesc = "MetaDataStateFormat.write(path=\"" + tmpStatePath + "\")";
-            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, fileName, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(format.index());
                 out.writeLong(version);
@@ -250,13 +255,12 @@ public abstract class MetaDataStateFormat<T> {
         List<PathAndStateId> files = new ArrayList<>();
         long maxStateId = -1;
         boolean maxStateIdIsLegacy = true;
-        if (dataLocations != null) { // select all eligable files first
+        if (dataLocations != null) { // select all eligible files first
             for (Path dataLocation : dataLocations) {
                 final Path stateDir = dataLocation.resolve(STATE_DIR_NAME);
-                if (!Files.isDirectory(stateDir)) {
-                    continue;
-                }
                 // now, iterate over the current versions, and find latest one
+                // we don't check if the stateDir is present since it could be deleted
+                // after the check. Also if there is a _state file and it's not a dir something is really wrong
                 try (DirectoryStream<Path> paths = Files.newDirectoryStream(stateDir)) { // we don't pass a glob since we need the group part for parsing
                     for (Path stateFile : paths) {
                         final Matcher matcher = stateFilePattern.matcher(stateFile.getFileName().toString());
@@ -270,6 +274,8 @@ public abstract class MetaDataStateFormat<T> {
                             files.add(pav);
                         }
                     }
+                } catch (NoSuchFileException | FileNotFoundException ex) {
+                    // no _state directory -- move on
                 }
             }
         }
@@ -280,7 +286,12 @@ public abstract class MetaDataStateFormat<T> {
         //       new format (ie. legacy == false) then we know that the latest version state ought to use this new format.
         //       In case the state file with the latest version does not use the new format while older state files do,
         //       the list below will be empty and loading the state will fail
-        for (PathAndStateId pathAndStateId : Collections2.filter(files, new StateIdAndLegacyPredicate(maxStateId, maxStateIdIsLegacy))) {
+        Collection<PathAndStateId> pathAndStateIds = files
+                .stream()
+                .filter(new StateIdAndLegacyPredicate(maxStateId, maxStateIdIsLegacy))
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        for (PathAndStateId pathAndStateId : pathAndStateIds) {
             try {
                 final Path stateFile = pathAndStateId.file;
                 final long id = pathAndStateId.id;
@@ -302,7 +313,7 @@ public abstract class MetaDataStateFormat<T> {
                 }
                 return state;
             } catch (Throwable e) {
-                exceptions.add(e);
+                exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
                 logger.debug("{}: failed to read [{}], ignoring...", e, pathAndStateId.file.toAbsolutePath(), prefix);
             }
         }
@@ -329,7 +340,7 @@ public abstract class MetaDataStateFormat<T> {
         }
 
         @Override
-        public boolean apply(PathAndStateId input) {
+        public boolean test(PathAndStateId input) {
             return input.id == id && input.legacy == legacy;
         }
     }

@@ -19,42 +19,35 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
-
 /**
- *
+ * Parser for span_or query
  */
-public class SpanOrQueryParser implements QueryParser {
+public class SpanOrQueryParser implements QueryParser<SpanOrQueryBuilder> {
 
-    public static final String NAME = "span_or";
-
-    @Inject
-    public SpanOrQueryParser() {
-    }
+    public static final ParseField CLAUSES_FIELD = new ParseField("clauses");
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{SpanOrQueryBuilder.NAME, Strings.toCamelCase(SpanOrQueryBuilder.NAME)};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanOrQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        float boost = 1.0f;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
 
-        List<SpanQuery> clauses = newArrayList();
+        List<SpanQueryBuilder> clauses = new ArrayList<>();
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -62,36 +55,43 @@ public class SpanOrQueryParser implements QueryParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("clauses".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        Query query = parseContext.parseInnerQuery();
-                        if (!(query instanceof SpanQuery)) {
-                            throw new QueryParsingException(parseContext, "spanOr [clauses] must be of type span query");
+                        QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                        if (!(query instanceof SpanQueryBuilder)) {
+                            throw new ParsingException(parser.getTokenLocation(), "spanOr [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQuery) query);
+                        clauses.add((SpanQueryBuilder) query);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[span_or] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[span_or] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if ("boost".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[span_or] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[span_or] query does not support [" + currentFieldName + "]");
                 }
             }
         }
+
         if (clauses.isEmpty()) {
-            throw new QueryParsingException(parseContext, "spanOr must include [clauses]");
+            throw new ParsingException(parser.getTokenLocation(), "spanOr must include [clauses]");
         }
 
-        SpanOrQuery query = new SpanOrQuery(clauses.toArray(new SpanQuery[clauses.size()]));
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+        SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder(clauses.get(0));
+        for (int i = 1; i < clauses.size(); i++) {
+            queryBuilder.clause(clauses.get(i));
         }
-        return query;
+        queryBuilder.boost(boost);
+        queryBuilder.queryName(queryName);
+        return queryBuilder;
+    }
+
+    @Override
+    public SpanOrQueryBuilder getBuilderPrototype() {
+        return SpanOrQueryBuilder.PROTOTYPE;
     }
 }

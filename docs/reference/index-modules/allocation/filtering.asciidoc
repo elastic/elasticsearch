@@ -14,9 +14,9 @@ attribute as follows:
 
 [source,sh]
 ------------------------
-bin/elasticsearch --node.rack rack1 --node.size big  <1>
+bin/elasticsearch -Ees.node.rack=rack1 -Ees.node.size=big  <1>
 ------------------------
-<1> These attribute settings can also be specfied in the `elasticsearch.yml` config file.
+<1> These attribute settings can also be specified in the `elasticsearch.yml` config file.
 
 These metadata attributes can be used with the
 `index.routing.allocation.*` settings to allocate an index to a particular
@@ -81,9 +81,11 @@ one set of nodes to another:
 These special attributes are also supported:
 
 [horizontal]
-`_name`::   Match nodes by node name
-`_ip`::     Match nodes by IP address (the IP address associated with the hostname)
-`_host`::   Match nodes by hostname
+`_name`::       Match nodes by node name
+`_host_ip`::    Match nodes by host IP address (IP associated with hostname)
+`_publish_ip`:: Match nodes by publish IP address
+`_ip`::         Match either `_host_ip` or `_publish_ip`
+`_host`::       Match nodes by hostname
 
 All attribute values can be specified with wildcards, eg:
 

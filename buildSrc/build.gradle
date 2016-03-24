@@ -1,0 +1,125 @@
+import java.nio.file.Files
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// we must use buildscript + apply so that an external plugin
+// can apply this file, since the plugins directive is not
+// supported through file includes
+buildscript {
+  repositories {
+    jcenter()
+  }
+  dependencies {
+    classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+  }
+}
+apply plugin: 'groovy'
+apply plugin: 'com.bmuschko.nexus'
+// TODO: move common IDE configuration to a common file to include
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+
+group = 'org.elasticsearch.gradle'
+archivesBaseName = 'build-tools'
+
+Properties props = new Properties()
+props.load(project.file('version.properties').newDataInputStream())
+version = props.getProperty('elasticsearch')
+boolean snapshot = "true".equals(System.getProperty("build.snapshot", "true"));
+if (snapshot) {
+  // we update the version property to reflect if we are building a snapshot or a release build
+  // we write this back out below to load it in the Build.java which will be shown in rest main action
+  // to indicate this being a snapshot build or a release build.
+  version += "-SNAPSHOT"
+  props.put("elasticsearch", version);
+}
+
+
+repositories {
+  mavenCentral()
+  maven {
+    name 'sonatype-snapshots'
+    url "https://oss.sonatype.org/content/repositories/snapshots/"
+  }
+  jcenter()
+}
+
+dependencies {
+  compile gradleApi()
+  compile localGroovy()
+  compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
+  compile("junit:junit:${props.getProperty('junit')}") {
+    transitive = false
+  }
+  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
+  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
+  compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
+  compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
+  compile 'de.thetaphi:forbiddenapis:2.0'
+  compile 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+  compile 'org.apache.rat:apache-rat:0.11'
+}
+
+File tempPropertiesFile = new File(project.buildDir, "version.properties")
+task writeVersionProperties {
+  inputs.properties(props)
+  doLast {
+    OutputStream stream = Files.newOutputStream(tempPropertiesFile.toPath());
+    try {
+      props.store(stream, "UTF-8");
+    } finally {
+      stream.close();
+    }
+  }
+}
+
+processResources {
+  dependsOn writeVersionProperties
+  from tempPropertiesFile
+}
+
+extraArchive {
+  javadoc = false
+  tests = false
+}
+
+idea {
+  module {
+    inheritOutputDirs = false
+    outputDir = file('build-idea/classes/main')
+    testOutputDir = file('build-idea/classes/test')
+  }
+}
+
+eclipse {
+  classpath {
+    defaultOutputDir = file('build-eclipse')
+  }
+}
+
+task copyEclipseSettings(type: Copy) {
+  from project.file('src/main/resources/eclipse.settings')
+  into '.settings'
+}
+// otherwise .settings is not nuked entirely
+tasks.cleanEclipse {
+  delete '.settings'
+}
+tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)

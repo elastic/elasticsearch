@@ -20,14 +20,14 @@
 package org.elasticsearch.common.settings.loader;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Settings loader that loads (parses) the settings in a properties format.
@@ -36,11 +36,11 @@ public class PropertiesSettingsLoader implements SettingsLoader {
 
     @Override
     public Map<String, String> load(String source) throws IOException {
-        Properties props = new Properties();
+        Properties props = new NoDuplicatesProperties();
         FastStringReader reader = new FastStringReader(source);
         try {
             props.load(reader);
-            Map<String, String> result = newHashMap();
+            Map<String, String> result = new HashMap<>();
             for (Map.Entry entry : props.entrySet()) {
                 result.put((String) entry.getKey(), (String) entry.getValue());
             }
@@ -52,17 +52,28 @@ public class PropertiesSettingsLoader implements SettingsLoader {
 
     @Override
     public Map<String, String> load(byte[] source) throws IOException {
-        Properties props = new Properties();
+        Properties props = new NoDuplicatesProperties();
         StreamInput stream = StreamInput.wrap(source);
         try {
             props.load(stream);
-            Map<String, String> result = newHashMap();
+            Map<String, String> result = new HashMap<>();
             for (Map.Entry entry : props.entrySet()) {
                 result.put((String) entry.getKey(), (String) entry.getValue());
             }
             return result;
         } finally {
             IOUtils.closeWhileHandlingException(stream);
+        }
+    }
+
+    class NoDuplicatesProperties extends Properties {
+        @Override
+        public synchronized Object put(Object key, Object value) {
+            Object previousValue = super.put(key, value);
+            if (previousValue != null) {
+                throw new ElasticsearchParseException("duplicate settings key [{}] found, previous value [{}], current value [{}]", key, previousValue, value);
+            }
+            return previousValue;
         }
     }
 }

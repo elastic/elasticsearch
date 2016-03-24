@@ -302,10 +302,17 @@ document to match.  (Compare this to
 
 That solves one of the two problems. The problem of differing term frequencies
 is solved by _blending_ the term frequencies for all fields in order to even
-out the differences.  In other words, `first_name:smith` will be treated as
-though it has the same weight as `last_name:smith`. (Actually,
-`first_name:smith` is given a tiny advantage over `last_name:smith`, just to
-make the order of results more stable.)
+out the differences.
+
+In practice, `first_name:smith` will be treated as though it has the same
+frequencies as `last_name:smith`, plus one. This will make matches on
+`first_name` and `last_name` have comparable scores, with a tiny advantage
+for `last_name` since it is the most likely field that contains `smith`.
+
+Note that `cross_fields` is usually only useful on short string fields
+that all have a `boost` of `1`. Otherwise boosts, term freqs and length
+normalization contribute to the score in such a way that the blending of term
+statistics is not meaningful anymore.
 
 If you run the above query through the <<search-validate>>, it returns this
 explanation:

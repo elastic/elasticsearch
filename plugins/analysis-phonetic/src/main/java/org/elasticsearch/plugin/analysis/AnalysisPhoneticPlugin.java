@@ -19,13 +19,13 @@
 
 package org.elasticsearch.plugin.analysis;
 
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.analysis.PhoneticAnalysisBinderProcessor;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.index.analysis.PhoneticTokenFilterFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.Plugin;
 
 /**
  */
-public class AnalysisPhoneticPlugin extends AbstractPlugin {
+public class AnalysisPhoneticPlugin extends Plugin {
 
     @Override
     public String name() {
@@ -38,7 +38,7 @@ public class AnalysisPhoneticPlugin extends AbstractPlugin {
     }
 
     public void onModule(AnalysisModule module) {
-        module.addProcessor(new PhoneticAnalysisBinderProcessor());
+        module.registerTokenFilter("phonetic", PhoneticTokenFilterFactory::new);
     }
 }
 

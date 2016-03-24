@@ -29,6 +29,9 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -40,9 +43,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.booleanField;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
  * A field mapper for boolean fields.
@@ -72,7 +75,7 @@ public class BooleanFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, BooleanFieldMapper> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             this.builder = this;
         }
 
@@ -95,7 +98,7 @@ public class BooleanFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            BooleanFieldMapper.Builder builder = booleanField(name);
+            BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -105,7 +108,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(nodeBooleanValue(propNode));
+                    builder.nullValue(lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 }
             }
@@ -189,6 +192,12 @@ public class BooleanFieldMapper extends FieldMapper {
         public boolean useTermQueryWithQueryString() {
             return true;
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.BOOLEAN);
+        }
     }
 
     protected BooleanFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -222,9 +231,11 @@ public class BooleanFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
-        fields.add(new Field(fieldType().names().indexName(), value ? "T" : "F", fieldType()));
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            fields.add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
+        }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedNumericDocValuesField(fieldType().names().indexName(), value ? 1 : 0));
+            fields.add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         }
     }
 

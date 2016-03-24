@@ -19,25 +19,26 @@
 
 package org.elasticsearch.rest.action.index;
 
-import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 /**
  *
@@ -46,7 +47,7 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Inject
     public RestIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
@@ -57,7 +58,7 @@ public class RestIndexAction extends BaseRestHandler {
 
     final class CreateHandler extends BaseRestHandler {
         protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, controller, client);
+            super(settings, client);
         }
 
         @Override
@@ -70,13 +71,13 @@ public class RestIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
-        indexRequest.operationThreaded(true);
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         indexRequest.timestamp(request.param("timestamp"));
         if (request.hasParam("ttl")) {
-            indexRequest.ttl(request.paramAsTime("ttl", null).millis());
+            indexRequest.ttl(request.param("ttl"));
         }
+        indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.content());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
@@ -100,33 +101,6 @@ public class RestIndexAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        client.index(indexRequest, new RestBuilderListener<IndexResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(IndexResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                ActionWriteResponse.ShardInfo shardInfo = response.getShardInfo();
-                builder.field(Fields._INDEX, response.getIndex())
-                        .field(Fields._TYPE, response.getType())
-                        .field(Fields._ID, response.getId())
-                        .field(Fields._VERSION, response.getVersion());
-                shardInfo.toXContent(builder, request);
-                builder.field(Fields.CREATED, response.isCreated());
-                builder.endObject();
-                RestStatus status = shardInfo.status();
-                if (response.isCreated()) {
-                    status = CREATED;
-                }
-                return new BytesRestResponse(status, builder);
-            }
-        });
+        client.index(indexRequest, new RestStatusToXContentListener<>(channel));
     }
-
-    static final class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString CREATED = new XContentBuilderString("created");
-    }
-
 }

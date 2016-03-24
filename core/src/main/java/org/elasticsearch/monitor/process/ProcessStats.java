@@ -197,7 +197,7 @@ public class ProcessStats implements Streamable, ToXContent {
         /**
          * Get the Process cpu usage.
          * <p>
-         * <p>Supported Platforms: All.
+         * Supported Platforms: All.
          */
         public short getPercent() {
             return percent;

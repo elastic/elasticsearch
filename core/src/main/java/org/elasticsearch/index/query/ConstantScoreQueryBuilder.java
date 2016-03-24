@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -28,41 +32,85 @@ import java.util.Objects;
  * A query that wraps a filter and simply returns a constant score equal to the
  * query boost for every document in the filter.
  */
-public class ConstantScoreQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
+public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder> {
+
+    public static final String NAME = "constant_score";
 
     private final QueryBuilder filterBuilder;
 
-    private float boost = -1;
+    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder(EmptyQueryBuilder.PROTOTYPE);
 
     /**
-     * A query that wraps a query and simply returns a constant score equal to the
+     * A query that wraps another query and simply returns a constant score equal to the
      * query boost for every document in the query.
      *
      * @param filterBuilder The query to wrap in a constant score query
      */
     public ConstantScoreQueryBuilder(QueryBuilder filterBuilder) {
-        this.filterBuilder = Objects.requireNonNull(filterBuilder);
+        if (filterBuilder == null) {
+            throw new IllegalArgumentException("inner clause [filter] cannot be null.");
+        }
+        this.filterBuilder = filterBuilder;
     }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
+     * @return the query that was wrapped in this constant score query
      */
-    @Override
-    public ConstantScoreQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    public QueryBuilder innerQuery() {
+        return this.filterBuilder;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(ConstantScoreQueryParser.NAME);
-        builder.field("filter");
+        builder.startObject(NAME);
+        builder.field(ConstantScoreQueryParser.INNER_QUERY_FIELD.getPreferredName());
         filterBuilder.toXContent(builder, params);
-
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query innerFilter = filterBuilder.toFilter(context);
+        if (innerFilter == null ) {
+            // return null so that parent queries (e.g. bool) also ignore this
+            return null;
+        }
+        return new ConstantScoreQuery(innerFilter);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(filterBuilder);
+    }
+
+    @Override
+    protected boolean doEquals(ConstantScoreQueryBuilder other) {
+        return Objects.equals(filterBuilder, other.filterBuilder);
+    }
+
+    @Override
+    protected ConstantScoreQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        QueryBuilder innerFilterBuilder = in.readQuery();
+        return new ConstantScoreQueryBuilder(innerFilterBuilder);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(filterBuilder);
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrite = filterBuilder.rewrite(queryRewriteContext);
+        if (rewrite != filterBuilder) {
+            return new ConstantScoreQueryBuilder(rewrite);
+        }
+        return this;
     }
 }

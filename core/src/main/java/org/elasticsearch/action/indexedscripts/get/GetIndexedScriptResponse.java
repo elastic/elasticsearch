@@ -30,7 +30,6 @@ import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.Map;
 
 /**
  * The response of a get script action.

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.name.Names;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.lang.reflect.Type;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -50,10 +50,10 @@ public class Injectors {
     /**
      * Returns an instance of the given type with the {@link org.elasticsearch.common.inject.name.Named}
      * annotation value.
-     * <p/>
+     * <p>
      * This method allows you to switch this code
      * <code>injector.getInstance(Key.get(type, Names.named(name)));</code>
-     * <p/>
+     * <p>
      * to the more concise
      * <code>Injectors.getInstance(injector, type, name);</code>
      */
@@ -69,7 +69,7 @@ public class Injectors {
      * @return a set of objects returned from this injector
      */
     public static <T> Set<T> getInstancesOf(Injector injector, Class<T> baseClass) {
-        Set<T> answer = Sets.newHashSet();
+        Set<T> answer = new HashSet<>();
         Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
         for (Entry<Key<?>, Binding<?>> entry : entries) {
             Key<?> key = entry.getKey();
@@ -93,7 +93,7 @@ public class Injectors {
      * @return a set of objects returned from this injector
      */
     public static <T> Set<T> getInstancesOf(Injector injector, Matcher<Class> matcher) {
-        Set<T> answer = Sets.newHashSet();
+        Set<T> answer = new HashSet<>();
         Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
         for (Entry<Key<?>, Binding<?>> entry : entries) {
             Key<?> key = entry.getKey();
@@ -114,7 +114,7 @@ public class Injectors {
      * @return a set of objects returned from this injector
      */
     public static <T> Set<Provider<T>> getProvidersOf(Injector injector, Matcher<Class> matcher) {
-        Set<Provider<T>> answer = Sets.newHashSet();
+        Set<Provider<T>> answer = new HashSet<>();
         Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
         for (Entry<Key<?>, Binding<?>> entry : entries) {
             Key<?> key = entry.getKey();
@@ -135,7 +135,7 @@ public class Injectors {
      * @return a set of objects returned from this injector
      */
     public static <T> Set<Provider<T>> getProvidersOf(Injector injector, Class<T> baseClass) {
-        Set<Provider<T>> answer = Sets.newHashSet();
+        Set<Provider<T>> answer = new HashSet<>();
         Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
         for (Entry<Key<?>, Binding<?>> entry : entries) {
             Key<?> key = entry.getKey();
@@ -186,7 +186,7 @@ public class Injectors {
      * @return a set of objects returned from this injector
      */
     public static Set<Binding<?>> getBindingsOf(Injector injector, Matcher<Class> matcher) {
-        Set<Binding<?>> answer = Sets.newHashSet();
+        Set<Binding<?>> answer = new HashSet<>();
         Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
         for (Entry<Key<?>, Binding<?>> entry : entries) {
             Key<?> key = entry.getKey();
@@ -205,7 +205,7 @@ public class Injectors {
      * @return a set of objects returned from this injector
      */
     public static Set<Binding<?>> getBindingsOf(Injector injector, Class<?> baseClass) {
-        Set<Binding<?>> answer = Sets.newHashSet();
+        Set<Binding<?>> answer = new HashSet<>();
         Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
         for (Entry<Key<?>, Binding<?>> entry : entries) {
             Key<?> key = entry.getKey();

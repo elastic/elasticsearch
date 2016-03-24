@@ -1,4 +1,4 @@
-# you can override this using by setting a system property, for example -Des.logger.level=DEBUG
+# you can override this using by setting a system property, for example -Ees.logger.level=DEBUG
 es.logger.level: INFO
 rootLogger: ${es.logger.level}, console, file
 logger:
@@ -10,6 +10,10 @@ logger:
 
   # reduce the logging for aws, too much is logged under the default INFO
   com.amazonaws: WARN
+  # aws will try to do some sketchy JMX stuff, but its not needed.
+  com.amazonaws.jmx.SdkMBeanRegistrySupport: ERROR
+  com.amazonaws.metrics.AwsSdkMetrics: ERROR
+
   org.apache.http: INFO
 
   # gateway

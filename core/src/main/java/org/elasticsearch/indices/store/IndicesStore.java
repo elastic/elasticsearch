@@ -19,30 +19,42 @@
 
 package org.elasticsearch.indices.store;
 
-import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -57,89 +69,34 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener, Closeable {
 
-    public static final String INDICES_STORE_THROTTLE_TYPE = "indices.store.throttle.type";
-    public static final String INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC = "indices.store.throttle.max_bytes_per_sec";
-    public static final String INDICES_STORE_DELETE_SHARD_TIMEOUT = "indices.store.delete.shard.timeout";
-
+    // TODO this class can be foled into either IndicesService and partially into IndicesClusterStateService there is no need for a separate public service
+    public static final Setting<TimeValue> INDICES_STORE_DELETE_SHARD_TIMEOUT =
+        Setting.positiveTimeSetting("indices.store.delete.shard.timeout", new TimeValue(30, TimeUnit.SECONDS),
+            Property.NodeScope);
     public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
-
     private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED);
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            String rateLimitingType = settings.get(INDICES_STORE_THROTTLE_TYPE, IndicesStore.this.rateLimitingType);
-            // try and parse the type
-            StoreRateLimiting.Type.fromString(rateLimitingType);
-            if (!rateLimitingType.equals(IndicesStore.this.rateLimitingType)) {
-                logger.info("updating indices.store.throttle.type from [{}] to [{}]", IndicesStore.this.rateLimitingType, rateLimitingType);
-                IndicesStore.this.rateLimitingType = rateLimitingType;
-                IndicesStore.this.rateLimiting.setType(rateLimitingType);
-            }
-
-            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize(INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, IndicesStore.this.rateLimitingThrottle);
-            if (!rateLimitingThrottle.equals(IndicesStore.this.rateLimitingThrottle)) {
-                logger.info("updating indices.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", IndicesStore.this.rateLimitingThrottle, rateLimitingThrottle, IndicesStore.this.rateLimitingType);
-                IndicesStore.this.rateLimitingThrottle = rateLimitingThrottle;
-                IndicesStore.this.rateLimiting.setMaxRate(rateLimitingThrottle);
-            }
-        }
-    }
-
-    private final NodeSettingsService nodeSettingsService;
-
     private final IndicesService indicesService;
-
     private final ClusterService clusterService;
     private final TransportService transportService;
-
-    private volatile String rateLimitingType;
-    private volatile ByteSizeValue rateLimitingThrottle;
-    private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
-
-    private final ApplySettings applySettings = new ApplySettings();
+    private final ThreadPool threadPool;
 
     private TimeValue deleteShardTimeout;
 
     @Inject
-    public IndicesStore(Settings settings, NodeSettingsService nodeSettingsService, IndicesService indicesService,
-                        ClusterService clusterService, TransportService transportService) {
+    public IndicesStore(Settings settings, IndicesService indicesService,
+                        ClusterService clusterService, TransportService transportService, ThreadPool threadPool) {
         super(settings);
-        this.nodeSettingsService = nodeSettingsService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest.class, ThreadPool.Names.SAME, new ShardActiveRequestHandler());
-
-        // we don't limit by default (we default to CMS's auto throttle instead):
-        this.rateLimitingType = settings.get("indices.store.throttle.type", StoreRateLimiting.Type.NONE.name());
-        rateLimiting.setType(rateLimitingType);
-        this.rateLimitingThrottle = settings.getAsBytesSize("indices.store.throttle.max_bytes_per_sec", new ByteSizeValue(10240, ByteSizeUnit.MB));
-        rateLimiting.setMaxRate(rateLimitingThrottle);
-
-        this.deleteShardTimeout = settings.getAsTime(INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(30, TimeUnit.SECONDS));
-
-        logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
-
-        nodeSettingsService.addListener(applySettings);
+        this.threadPool = threadPool;
+        transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest::new, ThreadPool.Names.SAME, new ShardActiveRequestHandler());
+        this.deleteShardTimeout = INDICES_STORE_DELETE_SHARD_TIMEOUT.get(settings);
         clusterService.addLast(this);
-    }
-
-    IndicesStore() {
-        super(Settings.EMPTY);
-        nodeSettingsService = null;
-        indicesService = null;
-        this.clusterService = null;
-        this.transportService = null;
-    }
-
-    public StoreRateLimiting rateLimiting() {
-        return this.rateLimiting;
     }
 
     @Override
     public void close() {
-        nodeSettingsService.removeListener(applySettings);
         clusterService.remove(this);
     }
 
@@ -158,7 +115,15 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 if (shardCanBeDeleted(event.state(), indexShardRoutingTable)) {
                     ShardId shardId = indexShardRoutingTable.shardId();
-                    if (indicesService.canDeleteShardContent(shardId, event.state().getMetaData().index(shardId.getIndex()))) {
+                    IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
+                    final IndexSettings indexSettings;
+                    if (indexService == null) {
+                        IndexMetaData indexMetaData = event.state().getMetaData().getIndexSafe(indexRoutingTable.getIndex());
+                        indexSettings = new IndexSettings(indexMetaData, settings);
+                    } else {
+                        indexSettings = indexService.getIndexSettings();
+                    }
+                    if (indicesService.canDeleteShardContent(shardId, indexSettings)) {
                         deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
                     }
                 }
@@ -204,10 +169,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         return true;
     }
 
-    // TODO will have to ammend this for shadow replicas so we don't delete the shared copy...
     private void deleteShardIfExistElseWhere(ClusterState state, IndexShardRoutingTable indexShardRoutingTable) {
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(indexShardRoutingTable.size());
-        String indexUUID = state.getMetaData().index(indexShardRoutingTable.shardId().getIndex()).getIndexUUID();
+        String indexUUID = indexShardRoutingTable.shardId().getIndex().getUUID();
         ClusterName clusterName = state.getClusterName();
         for (ShardRouting shardRouting : indexShardRoutingTable) {
             // Node can't be null, because otherwise shardCanBeDeleted() would have returned false
@@ -287,7 +251,12 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 return;
             }
 
-            clusterService.submitStateUpdateTask("indices_store ([" + shardId + "] active fully on other nodes)", new ClusterStateNonMasterUpdateTask() {
+            clusterService.submitStateUpdateTask("indices_store ([" + shardId + "] active fully on other nodes)", new ClusterStateUpdateTask() {
+                @Override
+                public boolean runOnlyOnMaster() {
+                    return false;
+                }
+
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     if (clusterState.getVersion() != currentState.getVersion()) {
@@ -316,6 +285,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         @Override
         public void messageReceived(final ShardActiveRequest request, final TransportChannel channel) throws Exception {
             IndexShard indexShard = getShard(request);
+
             // make sure shard is really there before register cluster state observer
             if (indexShard == null) {
                 channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
@@ -326,7 +296,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 // in general, using a cluster state observer here is a workaround for the fact that we cannot listen on shard state changes explicitly.
                 // instead we wait for the cluster state changes because we know any shard state change will trigger or be
                 // triggered by a cluster state change.
-                ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout, logger);
+                ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout, logger, threadPool.getThreadContext());
                 // check if shard is active. if so, all is good
                 boolean shardActive = shardActive(indexShard);
                 if (shardActive) {
@@ -386,14 +356,14 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request", request.clusterName, thisClusterName);
                 return null;
             }
-
             ShardId shardId = request.shardId;
-            IndexService indexService = indicesService.indexService(shardId.index().getName());
+            IndexService indexService = indicesService.indexService(shardId.getIndex());
             if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
-                return indexService.shard(shardId.id());
+                return indexService.getShardOrNull(shardId.id());
             }
             return null;
         }
+
     }
 
     private static class ShardActiveRequest extends TransportRequest {
@@ -402,7 +372,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         private String indexUUID;
         private ShardId shardId;
 
-        ShardActiveRequest() {
+        public ShardActiveRequest() {
         }
 
         ShardActiveRequest(ClusterName clusterName, String indexUUID, ShardId shardId, TimeValue timeout) {

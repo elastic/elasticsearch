@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
  * A simple field data cache abstraction on the *index* level.
@@ -32,7 +31,7 @@ public interface IndexFieldDataCache {
 
     <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception;
 
-    <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception;
+    <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader, final IFD indexFieldData) throws Exception;
 
     /**
      * Clears all the field data stored cached in on this index.
@@ -44,13 +43,17 @@ public interface IndexFieldDataCache {
      */
     void clear(String fieldName);
 
-    void clear(Object coreCacheKey);
-
     interface Listener {
 
-        void onLoad(MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage);
+        /**
+         * Called after the fielddata is loaded during the cache phase
+         */
+        default void onCache(ShardId shardId, String fieldName, Accountable ramUsage){}
 
-        void onUnload(MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes);
+        /**
+         * Called after the fielddata is unloaded
+         */
+        default void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes){}
     }
 
     class None implements IndexFieldDataCache {
@@ -62,7 +65,7 @@ public interface IndexFieldDataCache {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(IndexReader indexReader, IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData) throws Exception {
             return (IFD) indexFieldData.localGlobalDirect(indexReader);
         }
 
@@ -72,11 +75,6 @@ public interface IndexFieldDataCache {
 
         @Override
         public void clear(String fieldName) {
-        }
-
-        @Override
-        public void clear(Object coreCacheKey) {
-
         }
     }
 }

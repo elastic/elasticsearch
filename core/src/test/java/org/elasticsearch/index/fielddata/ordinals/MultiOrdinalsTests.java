@@ -21,32 +21,29 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class MultiOrdinalsTests extends ElasticsearchTestCase {
+public class MultiOrdinalsTests extends ESTestCase {
 
-    protected final Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
-        return this.creationMultiOrdinals(builder, Settings.builder());
+    protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
+        return builder.build();
     }
 
-
-    protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder, Settings.Builder settings) {
-        return builder.build(settings.build());
-    }
-
-
-    @Test
     public void testRandomValues() throws IOException {
         Random random = getRandom();
         int numDocs = 100 + random.nextInt(1000);
@@ -182,7 +179,6 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testOrdinals() throws Exception {
         int maxDoc = 7;
         long maxOrds = 32;
@@ -227,7 +223,6 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testMultiValuesDocsWithOverlappingStorageArrays() throws Exception {
         int maxDoc = 7;
         long maxOrds = 15;

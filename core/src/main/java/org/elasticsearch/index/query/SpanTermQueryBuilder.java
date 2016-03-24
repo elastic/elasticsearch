@@ -19,75 +19,76 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 
-public class SpanTermQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanTermQueryBuilder> {
+/**
+ * A Span Query that matches documents containing a term.
+ * @see SpanTermQuery
+ */
+public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder<SpanTermQueryBuilder> {
 
-    private final String name;
+    public static final String NAME = "span_term";
+    static final SpanTermQueryBuilder PROTOTYPE = new SpanTermQueryBuilder("name", "value");
 
-    private final Object value;
-
-    private float boost = -1;
-
-    private String queryName;
-
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, String) */
     public SpanTermQueryBuilder(String name, String value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
     }
 
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, int) */
     public SpanTermQueryBuilder(String name, int value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
     }
 
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, long) */
     public SpanTermQueryBuilder(String name, long value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
     }
 
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, float) */
     public SpanTermQueryBuilder(String name, float value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
     }
 
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, double) */
     public SpanTermQueryBuilder(String name, double value) {
-        this(name, (Object) value);
+        super(name, (Object) value);
     }
 
-    private SpanTermQueryBuilder(String name, Object value) {
-        this.name = name;
-        this.value = value;
-    }
-
-    @Override
-    public SpanTermQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public SpanTermQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, Object) */
+    public SpanTermQueryBuilder(String name, Object value) {
+        super(name, value);
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SpanTermQueryParser.NAME);
-        if (boost == -1 && queryName != null) {
-            builder.field(name, value);
-        } else {
-            builder.startObject(name);
-            builder.field("value", value);
-            if (boost != -1) {
-                builder.field("boost", boost);
-            }
-            if (queryName != null) {
-                builder.field("_name", queryName);
-            }
-            builder.endObject();
+    protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
+        BytesRef valueBytes = null;
+        String fieldName = this.fieldName;
+        MappedFieldType mapper = context.fieldMapper(fieldName);
+        if (mapper != null) {
+            fieldName = mapper.name();
+            valueBytes = mapper.indexedValueForSearch(value);
         }
-        builder.endObject();
+        if (valueBytes == null) {
+            valueBytes = BytesRefs.toBytesRef(this.value);
+        }
+        return new SpanTermQuery(new Term(fieldName, valueBytes));
+    }
+
+    @Override
+    protected SpanTermQueryBuilder createBuilder(String fieldName, Object value) {
+        return new SpanTermQueryBuilder(fieldName, value);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

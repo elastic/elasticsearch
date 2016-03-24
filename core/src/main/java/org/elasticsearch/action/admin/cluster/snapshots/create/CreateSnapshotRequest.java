@@ -45,11 +45,11 @@ import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
  * Create snapshot request
- * <p/>
+ * <p>
  * The only mandatory parameter is repository name. The repository name has to satisfy the following requirements
  * <ul>
  * <li>be a non-empty string</li>
@@ -79,7 +79,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private boolean waitForCompletion;
 
-    CreateSnapshotRequest() {
+    public CreateSnapshotRequest() {
     }
 
     /**
@@ -162,12 +162,11 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     /**
      * Sets a list of indices that should be included into the snapshot
-     * <p/>
+     * <p>
      * The list of indices supports multi-index syntax. For example: "+test*" ,"-test42" will index all indices with
      * prefix "test" except index "test42". Aliases are supported. An empty list or {"_all"} will snapshot all open
      * indices in the cluster.
      *
-     * @param indices
      * @return this request
      */
     @Override
@@ -178,12 +177,11 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     /**
      * Sets a list of indices that should be included into the snapshot
-     * <p/>
+     * <p>
      * The list of indices supports multi-index syntax. For example: "+test*" ,"-test42" will index all indices with
      * prefix "test" except index "test42". Aliases are supported. An empty list or {"_all"} will snapshot all open
      * indices in the cluster.
      *
-     * @param indices
      * @return this request
      */
     public CreateSnapshotRequest indices(List<String> indices) {
@@ -268,7 +266,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     /**
      * Sets repository-specific snapshot settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param settings repository-specific snapshot settings
@@ -281,7 +279,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     /**
      * Sets repository-specific snapshot settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param settings repository-specific snapshot settings
@@ -294,7 +292,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     /**
      * Sets repository-specific snapshot settings in JSON, YAML or properties format
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
@@ -307,7 +305,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     /**
      * Sets repository-specific snapshot settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
@@ -381,14 +379,14 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(nodeBooleanValue(entry.getValue()));
+                partial(lenientNodeBooleanValue(entry.getValue()));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section, should indices an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = nodeBooleanValue(entry.getValue());
+                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
             }
         }
         indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.nodesinfo.plugin.dummy1;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-public class TestPlugin extends AbstractPlugin {
+public class TestPlugin extends Plugin {
 
     static final public class Fields {
         static public final String NAME = "test-plugin";

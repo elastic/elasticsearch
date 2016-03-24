@@ -20,37 +20,46 @@
 package org.elasticsearch.codecs;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
 
-/**
- */
-@Slow
-public class CodecTests extends ElasticsearchSingleNodeTest {
+public class CodecTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     public void testAcceptPostingsFormat() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("postings_format", Codec.getDefault().postingsFormat().getName()).endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "keyword").field("postings_format", Codec.getDefault().postingsFormat().getName()).endObject().endObject()
                 .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {
+            if (v.onOrAfter(Version.V_2_0_0) == false) {
+                // no need to test, we don't support upgrading from these versions
+                continue;
+            }
             IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
-                parser.parse(mapping);
+                parser.parse("type", new CompressedXContent(mapping));
                 if (v.onOrAfter(Version.V_2_0_0_beta1)) {
                     fail("Elasticsearch 2.0 should not support custom postings formats");
                 }
@@ -66,14 +75,18 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
 
     public void testAcceptDocValuesFormat() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("doc_values_format", Codec.getDefault().docValuesFormat().getName()).endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "keyword").field("doc_values_format", Codec.getDefault().docValuesFormat().getName()).endObject().endObject()
                 .endObject().endObject().string();
         int i = 0;
         for (Version v : VersionUtils.allVersions()) {
+            if (v.onOrAfter(Version.V_2_0_0) == false) {
+                // no need to test, we don't support upgrading from these versions
+                continue;
+            }
             IndexService indexService = createIndex("test-" + i++, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
-                parser.parse(mapping);
+                parser.parse("type", new CompressedXContent(mapping));
                 if (v.onOrAfter(Version.V_2_0_0_beta1)) {
                     fail("Elasticsearch 2.0 should not support custom postings formats");
                 }

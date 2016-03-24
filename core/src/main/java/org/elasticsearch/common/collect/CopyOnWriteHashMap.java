@@ -19,13 +19,20 @@
 
 package org.elasticsearch.common.collect;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
-import com.google.common.collect.UnmodifiableIterator;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.lucene.util.mutable.MutableValueInt;
 
-import java.util.*;
+import java.lang.reflect.Array;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * An immutable map whose writes result in a new copy of the map to be created.
@@ -128,18 +135,19 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         @Override
         void visit(Deque<Map.Entry<K, V>> entries, Deque<Node<K, V>> nodes) {
             for (int i = 0; i < keys.length; ++i) {
-                entries.add(Maps.immutableEntry(keys[i], values[i]));
+                entries.add(new AbstractMap.SimpleImmutableEntry<>(keys[i], values[i]));
             }
         }
 
         @Override
         V get(Object key, int hash) {
-            final int slot = ArrayUtils.indexOf(keys, key);
-            if (slot < 0) {
-                return null;
-            } else {
-                return values[slot];
+            for (int i = 0; i < keys.length; i++) {
+                if (key.equals(keys[i])) {
+                    return values[i];
+                }
             }
+            return null;
+
         }
 
         private static <T> T[] replace(T[] array, int index, T value) {
@@ -151,14 +159,20 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         @Override
         Leaf<K, V> put(K key, int hash, int hashBits, V value, MutableValueInt newValue) {
             assert hashBits <= 0 : hashBits;
-            final int slot = ArrayUtils.indexOf(keys, key);
+            int slot = -1;
+            for (int i = 0; i < keys.length; i++) {
+                if (key.equals(keys[i])) {
+                    slot = i;
+                    break;
+                }
+            }
 
             final K[] keys2;
             final V[] values2;
 
             if (slot < 0) {
-                keys2 = ArrayUtils.add(keys, key);
-                values2 = ArrayUtils.add(values, value);
+                keys2 = appendElement(keys, key);
+                values2 = appendElement(values, value);
                 newValue.value = 1;
             } else {
                 keys2 = replace(keys, slot, key);
@@ -170,15 +184,48 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
         @Override
         Leaf<K, V> remove(Object key, int hash) {
-            final int slot = ArrayUtils.indexOf(keys, key);
+            int slot = -1;
+            for (int i = 0; i < keys.length; i++) {
+                if (key.equals(keys[i])) {
+                    slot = i;
+                    break;
+                }
+            }
             if (slot < 0) {
                 return this;
             }
-            final K[] keys2 = ArrayUtils.remove(keys, slot);
-            final V[] values2 = ArrayUtils.remove(values, slot);
+            final K[] keys2 = removeArrayElement(keys, slot);
+            final V[] values2 = removeArrayElement(values, slot);
             return new Leaf<>(keys2, values2);
         }
     }
+
+    private static <T> T[] removeArrayElement(T[] array, int index) {
+        final Object result = Array.newInstance(array.getClass().getComponentType(), array.length - 1);
+        System.arraycopy(array, 0, result, 0, index);
+        if (index < array.length - 1) {
+            System.arraycopy(array, index + 1, result, index, array.length - index - 1);
+        }
+
+        return (T[]) result;
+    }
+
+    public static <T> T[] appendElement(final T[] array, final T element) {
+        final T[] newArray = Arrays.copyOf(array, array.length + 1);
+        newArray[newArray.length - 1] = element;
+        return newArray;
+    }
+
+    public static <T> T[] insertElement(final T[] array, final T element, final int index) {
+        final T[] result = Arrays.copyOf(array, array.length + 1);
+        System.arraycopy(array, 0, result, 0, index);
+        result[index] = element;
+        if (index < array.length) {
+            System.arraycopy(array, index, result, index + 1, array.length - index);
+        }
+        return result;
+    }
+
 
     /**
      * An inner node in this trie. Inner nodes store up to 64 key-value pairs
@@ -238,7 +285,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
                 } else {
                     @SuppressWarnings("unchecked")
                     final V value = (V) sub;
-                    entries.add(Maps.immutableEntry(keys[i], value));
+                    entries.add(new AbstractMap.SimpleImmutableEntry<>(keys[i], value));
                 }
             }
         }
@@ -320,8 +367,8 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
         private InnerNode<K, V> putNew(K key, int hash6, int slot, V value) {
             final long mask2 = mask | (1L << hash6);
-            final K[] keys2 = ArrayUtils.add(keys, slot, key);
-            final Object[] subNodes2 = ArrayUtils.add(subNodes, slot, value);
+            final K[] keys2 = insertElement(keys, key, slot);
+            final Object[] subNodes2 = insertElement(subNodes, value, slot);
             return new InnerNode<>(mask2, keys2, subNodes2);
         }
 
@@ -342,8 +389,8 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
         private InnerNode<K, V> removeSlot(int hash6, int slot) {
             final long mask2 = mask  & ~(1L << hash6);
-            final K[] keys2 = ArrayUtils.remove(keys, slot);
-            final Object[] subNodes2 = ArrayUtils.remove(subNodes, slot);
+            final K[] keys2 = removeArrayElement(keys, slot);
+            final Object[] subNodes2 = removeArrayElement(subNodes, slot);
             return new InnerNode<>(mask2, keys2, subNodes2);
         }
 
@@ -381,7 +428,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
     }
 
-    private static class EntryIterator<K, V> extends UnmodifiableIterator<Map.Entry<K, V>> {
+    private static class EntryIterator<K, V> implements Iterator<Map.Entry<K, V>> {
 
         private final Deque<Map.Entry<K, V>> entries;
         private final Deque<Node<K, V>> nodes;
@@ -409,6 +456,11 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
             return entries.pop();
         }
 
+        @Override
+        public final void remove() {
+            throw new UnsupportedOperationException();
+        }
+
     }
 
     private final InnerNode<K, V> root;
@@ -434,7 +486,9 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
     @Override
     public V get(Object key) {
-        Preconditions.checkArgument(key != null, "Null keys are not supported");
+        if (key == null) {
+            throw new IllegalArgumentException("null keys are not supported");
+        }
         final int hash = key.hashCode();
         return root.get(key, hash);
     }
@@ -450,8 +504,12 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
      * of the hash table. The current hash table is not modified.
      */
     public CopyOnWriteHashMap<K, V> copyAndPut(K key, V value) {
-        Preconditions.checkArgument(key != null, "null keys are not supported");
-        Preconditions.checkArgument(value != null, "null values are not supported");
+        if (key == null) {
+            throw new IllegalArgumentException("null keys are not supported");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("null values are not supported");
+        }
         final int hash = key.hashCode();
         final MutableValueInt newValue = new MutableValueInt();
         final InnerNode<K, V> newRoot = root.put(key, hash, TOTAL_HASH_BITS, value, newValue);
@@ -466,19 +524,25 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         return copyAndPutAll(other.entrySet());
     }
 
-    <K1 extends K, V1 extends V> CopyOnWriteHashMap<K, V> copyAndPutAll(Collection<Map.Entry<K1, V1>> entries) {
+    public <K1 extends K, V1 extends V> CopyOnWriteHashMap<K, V> copyAndPutAll(Iterable<Entry<K1, V1>> entries) {
         CopyOnWriteHashMap<K, V> result = this;
-        for (Map.Entry<K1, V1> entry : entries) {
+        for (Entry<K1, V1> entry : entries) {
             result = result.copyAndPut(entry.getKey(), entry.getValue());
         }
         return result;
+    }
+
+    public <K1 extends K, V1 extends V> CopyOnWriteHashMap<K, V> copyAndPutAll(Stream<Entry<K1, V1>> entries) {
+        return copyAndPutAll(entries::iterator);
     }
 
     /**
      * Remove the given key from this map. The current hash table is not modified.
      */
     public CopyOnWriteHashMap<K, V> copyAndRemove(Object key) {
-        Preconditions.checkArgument(key != null, "Null keys are not supported");
+        if (key == null) {
+            throw new IllegalArgumentException("null keys are not supported");
+        }
         final int hash = key.hashCode();
         final InnerNode<K, V> newRoot = root.remove(key, hash);
         if (root == newRoot) {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.ConstructionContext;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.inject.internal.InternalContext;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.Set;
 
 /**
  * Creates instances using an injectable constructor. After construction, all injectable fields and
@@ -33,12 +33,12 @@ import java.lang.reflect.InvocationTargetException;
  */
 class ConstructorInjector<T> {
 
-    private final ImmutableSet<InjectionPoint> injectableMembers;
+    private final Set<InjectionPoint> injectableMembers;
     private final SingleParameterInjector<?>[] parameterInjectors;
     private final ConstructionProxy<T> constructionProxy;
     private final MembersInjectorImpl<T> membersInjector;
 
-    ConstructorInjector(ImmutableSet<InjectionPoint> injectableMembers,
+    ConstructorInjector(Set<InjectionPoint> injectableMembers,
                         ConstructionProxy<T> constructionProxy,
                         SingleParameterInjector<?>[] parameterInjectors,
                         MembersInjectorImpl<T> membersInjector)
@@ -49,7 +49,7 @@ class ConstructorInjector<T> {
         this.membersInjector = membersInjector;
     }
 
-    public ImmutableSet<InjectionPoint> getInjectableMembers() {
+    public Set<InjectionPoint> getInjectableMembers() {
         return injectableMembers;
     }
 

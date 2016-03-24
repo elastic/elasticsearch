@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@ import java.lang.annotation.Target;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
- * Acccompanies a {@literal @}{@link org.elasticsearch.common.inject.Provides Provides} method annotation in a
+ * Accompanies a {@literal @}{@link org.elasticsearch.common.inject.Provides Provides} method annotation in a
  * private module to indicate that the provided binding is exposed.
  *
  * @author jessewilson@google.com (Jesse Wilson)

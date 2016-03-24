@@ -25,7 +25,9 @@ def main():
   tmp_dir = tempfile.mkdtemp()
   try:
     data_dir = os.path.join(tmp_dir, 'data')
+    repo_dir = os.path.join(tmp_dir, 'repo')
     logging.info('Temp data dir: %s' % data_dir)
+    logging.info('Temp repo dir: %s' % repo_dir)
 
     first_version = '0.20.6'
     second_version = '0.90.6'
@@ -36,7 +38,7 @@ def main():
     if not os.path.exists(release_dir):
       fetch_version(first_version)
 
-    node = create_bwc_index.start_node(first_version, release_dir, data_dir, cluster_name=index_name)
+    node = create_bwc_index.start_node(first_version, release_dir, data_dir, repo_dir, cluster_name=index_name)
     client = create_bwc_index.create_client()
 
     # Creates the index & indexes docs w/ first_version:
@@ -63,7 +65,7 @@ def main():
       fetch_version(second_version)
 
     # Now also index docs with second_version:
-    node = create_bwc_index.start_node(second_version, release_dir, data_dir, cluster_name=index_name)
+    node = create_bwc_index.start_node(second_version, release_dir, data_dir, repo_dir, cluster_name=index_name)
     client = create_bwc_index.create_client()
 
     # If we index too many docs, the random refresh/flush causes the ancient segments to be merged away:
@@ -102,7 +104,7 @@ def main():
     create_bwc_index.shutdown_node(node)
     print('%s server output:\n%s' % (second_version, node.stdout.read().decode('utf-8')))
     node = None
-    create_bwc_index.compress_index('%s-and-%s' % (first_version, second_version), tmp_dir, 'src/test/resources/org/elasticsearch/rest/action/admin/indices/upgrade')
+    create_bwc_index.compress_index('%s-and-%s' % (first_version, second_version), tmp_dir, 'core/src/test/resources/org/elasticsearch/action/admin/indices/upgrade')
   finally:
     if node is not None:
       create_bwc_index.shutdown_node(node)

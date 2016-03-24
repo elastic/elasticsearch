@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-derivative-aggregation]]
 === Derivative Aggregation
 
-coming[2.0.0]
-
 experimental[]
 
 A parent pipeline aggregation which calculates the derivative of a specified metric in a parent histogram (or date_histogram) 
@@ -25,7 +23,7 @@ A `derivative` aggregation looks like this in isolation:
 .`derivative` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`buckets_path` |The path to the buckets we wish to find the derivative for (see <<bucket-path-syntax>> for more
+|`buckets_path` |The path to the buckets we wish to find the derivative for (see <<buckets-path-syntax>> for more
  details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional, defaults to `skip` |
@@ -54,7 +52,7 @@ The following snippet calculates the derivative of the total monthly `sales`:
                 },
                 "sales_deriv": {
                     "derivative": {
-                        "buckets_paths": "sales" <1>
+                        "buckets_path": "sales" <1>
                     }
                 }
             }
@@ -63,7 +61,7 @@ The following snippet calculates the derivative of the total monthly `sales`:
 }
 --------------------------------------------------
 
-<1> `bucket_paths` instructs this derivative aggregation to use the output of the `sales` aggregation for the derivative
+<1> `buckets_path` instructs this derivative aggregation to use the output of the `sales` aggregation for the derivative
 
 And the following may be the response:
 
@@ -137,12 +135,12 @@ monthly sales:
                 },
                 "sales_deriv": {
                     "derivative": {
-                        "buckets_paths": "sales"
+                        "buckets_path": "sales"
                     }
                 },
                 "sales_2nd_deriv": {
                     "derivative": {
-                        "buckets_paths": "sales_deriv" <1>
+                        "buckets_path": "sales_deriv" <1>
                     }
                 }
             }
@@ -151,7 +149,7 @@ monthly sales:
 }
 --------------------------------------------------
 
-<1> `bucket_paths` for the second derivative points to the name of the first derivative
+<1> `buckets_path` for the second derivative points to the name of the first derivative
 
 And the following may be the response:
 
@@ -225,7 +223,7 @@ of the total sales per month but ask for the derivative of the sales as in the u
                 },
                 "sales_deriv": {
                     "derivative": {
-                        "buckets_paths": "sales",
+                        "buckets_path": "sales",
                         "unit": "day" <1>
                     }
                 }

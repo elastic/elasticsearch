@@ -19,11 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,11 +29,19 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Transport action for get repositories operation
@@ -45,7 +51,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     @Inject
     public TransportGetRepositoriesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetRepositoriesRequest.class);
+        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetRepositoriesRequest::new);
     }
 
     @Override
@@ -71,12 +77,24 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             if (repositories != null) {
                 listener.onResponse(new GetRepositoriesResponse(repositories.repositories()));
             } else {
-                listener.onResponse(new GetRepositoriesResponse(ImmutableList.<RepositoryMetaData>of()));
+                listener.onResponse(new GetRepositoriesResponse(Collections.<RepositoryMetaData>emptyList()));
             }
         } else {
             if (repositories != null) {
-                ImmutableList.Builder<RepositoryMetaData> repositoryListBuilder = ImmutableList.builder();
-                for (String repository : request.repositories()) {
+                Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
+                for (String repositoryOrPattern : request.repositories()) {
+                    if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
+                        repositoriesToGet.add(repositoryOrPattern);
+                    } else {
+                        for (RepositoryMetaData repository : repositories.repositories()) {
+                            if (Regex.simpleMatch(repositoryOrPattern, repository.name())) {
+                                repositoriesToGet.add(repository.name());
+                            }
+                        }
+                    }
+                }
+                List<RepositoryMetaData> repositoryListBuilder = new ArrayList<>();
+                for (String repository : repositoriesToGet) {
                     RepositoryMetaData repositoryMetaData = repositories.repository(repository);
                     if (repositoryMetaData == null) {
                         listener.onFailure(new RepositoryMissingException(repository));
@@ -84,7 +102,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                     }
                     repositoryListBuilder.add(repositoryMetaData);
                 }
-                listener.onResponse(new GetRepositoriesResponse(repositoryListBuilder.build()));
+                listener.onResponse(new GetRepositoriesResponse(Collections.unmodifiableList(repositoryListBuilder)));
             } else {
                 listener.onFailure(new RepositoryMissingException(request.repositories()[0]));
             }

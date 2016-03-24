@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
@@ -28,5 +28,5 @@ public interface IndexShardComponent {
 
     ShardId shardId();
 
-    Settings indexSettings();
+    IndexSettings indexSettings();
 }

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.plugins.responseheader;
 
-import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.rest.RestModule;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.plugins.Plugin;
 
-public class TestResponseHeaderPlugin extends AbstractPlugin {
+public class TestResponseHeaderPlugin extends Plugin {
 
     @Override
     public String name() {
@@ -34,7 +34,7 @@ public class TestResponseHeaderPlugin extends AbstractPlugin {
         return "test-plugin-custom-header-desc";
     }
 
-    public void onModule(RestModule restModule) {
-        restModule.addRestAction(TestResponseHeaderRestAction.class);
+    public void onModule(NetworkModule module) {
+        module.registerRestHandler(TestResponseHeaderRestAction.class);
     }
 }

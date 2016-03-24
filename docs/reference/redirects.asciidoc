@@ -77,26 +77,10 @@ in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
 Queries and filters have been merged.  Any query clause can now be used as a query
 in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
 
-[role="exclude",id="query-dsl-and-filter"]
-=== And Filter
-
-The `and` filter has been replaced by the <<query-dsl-and-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-or-filter"]
-=== Or Filter
-
-The `or` filter has been replaced by the <<query-dsl-or-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
 [role="exclude",id="query-dsl-not-filter"]
 === Not Filter
 
-The `not` filter has been replaced by the <<query-dsl-not-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
+The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
 
 [role="exclude",id="query-dsl-bool-filter"]
 === Bool Filter
@@ -111,14 +95,6 @@ as a query in ``query context'' and as a filter in ``filter context'' (see
 The `exists` filter has been replaced by the <<query-dsl-exists-query>>.  It behaves
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
-
-[role="exclude",id="query-dsl-missing-filter"]
-=== Missing Filter
-
-The `missing` filter has been replaced by the <<query-dsl-missing-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
 
 [role="exclude",id="query-dsl-geo-bounding-box-filter"]
 === Geo Bounding Box Filter
@@ -194,13 +170,6 @@ as a query in ``query context'' and as a filter in ``filter context'' (see
 The `indices` filter has been replaced by the <<query-dsl-indices-query>>.  It behaves
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
-
-[role="exclude",id="query-dsl-limit-filter"]
-=== Limit Filter
-
-The `limit` filter has been replaced by the <<query-dsl-limit-query>>.
-It behaves as a query in ``query context'' and as a filter in ``filter
-context'' (see <<query-dsl>>).
 
 [role="exclude",id="query-dsl-match-all-filter"]
 === Match All Filter
@@ -381,3 +350,107 @@ The shard query cache has been renamed <<shard-request-cache>>.
 === Query cache
 
 The filter cache has been renamed <<query-cache>>.
+
+[role="exclude",id="query-dsl-filtered-query"]
+=== Filtered query
+
+The `filtered` query is replaced by the <<query-dsl-bool-query,bool>> query. Instead of
+the following:
+
+[source,js]
+-------------------------
+GET _search
+{
+  "query": {
+    "filtered": {
+      "query": {
+        "match": {
+          "text": "quick brown fox"
+        }
+      },
+      "filter": {
+        "term": {
+          "status": "published"
+        }
+      }
+    }
+  }
+}
+-------------------------
+
+move the query and filter to the `must` and `filter` parameters in the `bool`
+query:
+
+[source,js]
+-------------------------
+GET _search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "text": "quick brown fox"
+        }
+      },
+      "filter": {
+        "term": {
+          "status": "published"
+        }
+      }
+    }
+  }
+}
+-------------------------
+
+[role="exclude",id="query-dsl-or-query"]
+=== Or query
+
+The `or` query is replaced in favour of the <<query-dsl-bool-query,bool>> query.
+
+[role="exclude",id="query-dsl-or-filter"]
+=== Or filter
+
+The `or` filter is replaced in favour of the <<query-dsl-bool-query,bool>> query.
+
+[role="exclude",id="query-dsl-and-query"]
+=== And query
+
+The `and` query is replaced in favour of the <<query-dsl-bool-query,bool>> query.
+
+[role="exclude",id="query-dsl-and-filter"]
+=== And filter
+
+The `and` filter is replaced in favour of the <<query-dsl-bool-query,bool>> query.
+
+[role="exclude",id="query-dsl-limit-query"]
+=== Limit query
+
+The `limit` query is replaced in favour of the <<search-request-body,terminate_after>>
+parameter of search requests.
+
+[role="exclude",id="query-dsl-limit-filter"]
+=== Limit filter
+
+The `limit` filter is replaced in favour of the <<search-request-body,terminate_after>>
+parameter of search requests.
+
+[role="exclude",id="query-dsl-not-query"]
+=== Not query
+
+The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
+
+[role="exclude",id="mapping-nested-type"]
+=== Nested type
+
+The docs for the `nested` field datatype have moved to <<nested>>.
+
+[role="exclude",id="indices-warmers"]
+=== Warmers
+
+Warmers have been removed. There have been significant improvements to the
+index that make warmers not necessary anymore.
+
+[role="exclude",id="index-boost"]
+=== Index time boosting
+
+The index time boost mapping has been replaced with query time boost (see <<mapping-boost>>).

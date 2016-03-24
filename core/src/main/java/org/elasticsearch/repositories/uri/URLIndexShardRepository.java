@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories.uri;
 
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
@@ -31,7 +31,7 @@ import org.elasticsearch.repositories.RepositoryName;
 public class URLIndexShardRepository extends BlobStoreIndexShardRepository {
 
     @Inject
-    URLIndexShardRepository(Settings settings, RepositoryName repositoryName, IndicesService indicesService, ClusterService clusterService) {
+    public URLIndexShardRepository(Settings settings, RepositoryName repositoryName, IndicesService indicesService, ClusterService clusterService) {
         super(settings, repositoryName, indicesService, clusterService);
     }
 

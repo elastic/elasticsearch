@@ -19,24 +19,33 @@
 
 package org.elasticsearch.fieldstats;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.*;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GT;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GTE;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LT;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LTE;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class FieldStatsTests extends ElasticsearchSingleNodeTest {
+public class FieldStatsTests extends ESSingleNodeTestCase {
 
     public void testByte() {
         testNumberRange("field1", "byte", 12, 18);
@@ -57,60 +66,65 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
     }
 
     public void testLong() {
-        testNumberRange("field1", "long", 312321312312412l, 312321312312422l);
+        testNumberRange("field1", "long", 312321312312412L, 312321312312422L);
         testNumberRange("field1", "long", -5, 5);
-        testNumberRange("field1", "long", -312321312312422l, -312321312312412l);
+        testNumberRange("field1", "long", -312321312312422L, -312321312312412L);
     }
 
     public void testString() {
-        createIndex("test", Settings.EMPTY, "field", "value", "type=string");
+        createIndex("test", Settings.EMPTY, "test", "field", "type=text");
         for (int value = 0; value <= 10; value++) {
             client().prepareIndex("test", "test").setSource("field", String.format(Locale.ENGLISH, "%03d", value)).get();
         }
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse result = client().prepareFieldStats().setFields("field").get();
-        assertThat(result.getAllFieldStats().get("field").getMaxDoc(), equalTo(11l));
-        assertThat(result.getAllFieldStats().get("field").getDocCount(), equalTo(11l));
+        assertThat(result.getAllFieldStats().get("field").getMaxDoc(), equalTo(11L));
+        assertThat(result.getAllFieldStats().get("field").getDocCount(), equalTo(11L));
         assertThat(result.getAllFieldStats().get("field").getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get("field").getMinValue(), equalTo(String.format(Locale.ENGLISH, "%03d", 0)));
-        assertThat(result.getAllFieldStats().get("field").getMaxValue(), equalTo(String.format(Locale.ENGLISH, "%03d", 10)));
+        assertThat(result.getAllFieldStats().get("field").getMinValue(), equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 0))));
+        assertThat(result.getAllFieldStats().get("field").getMaxValue(), equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 10))));
+        assertThat(result.getAllFieldStats().get("field").getMinValueAsString(), equalTo(String.format(Locale.ENGLISH, "%03d", 0)));
+        assertThat(result.getAllFieldStats().get("field").getMaxValueAsString(), equalTo(String.format(Locale.ENGLISH, "%03d", 10)));
     }
 
     public void testDouble() {
         String fieldName = "field";
-        createIndex("test", Settings.EMPTY, fieldName, "value", "type=double");
+        createIndex("test", Settings.EMPTY, "test", fieldName, "type=double");
         for (double value = -1; value <= 9; value++) {
             client().prepareIndex("test", "test").setSource(fieldName, value).get();
         }
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse result = client().prepareFieldStats().setFields(fieldName).get();
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11l));
-        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11l));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
+        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(Double.toString(-1)));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(Double.toString(9)));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Double.toString(-1)));
     }
 
     public void testFloat() {
         String fieldName = "field";
-        createIndex("test", Settings.EMPTY, fieldName, "value", "type=float");
+        createIndex("test", Settings.EMPTY, "test", fieldName, "type=float");
         for (float value = -1; value <= 9; value++) {
             client().prepareIndex("test", "test").setSource(fieldName, value).get();
         }
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse result = client().prepareFieldStats().setFields(fieldName).get();
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11l));
-        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11l));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
+        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(Float.toString(-1)));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(Float.toString(9)));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1f));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9f));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
     }
 
     private void testNumberRange(String fieldName, String fieldType, long min, long max) {
-        createIndex("test", Settings.EMPTY, fieldName, "value", "type=" + fieldType);
+        createIndex("test", Settings.EMPTY, "test", fieldName, "type=" + fieldType);
         for (long value = min; value <= max; value++) {
             client().prepareIndex("test", "test").setSource(fieldName, value).get();
         }
@@ -121,59 +135,61 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
         assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(numDocs));
         assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(numDocs));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(java.lang.Long.toString(min)));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(java.lang.Long.toString(max)));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(min));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(max));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(java.lang.Long.toString(min)));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(java.lang.Long.toString(max)));
         client().admin().indices().prepareDelete("test").get();
     }
 
     public void testMerge() {
         List<FieldStats> stats = new ArrayList<>();
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
 
-        FieldStats stat = new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l);
+        FieldStats stat = new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L);
         for (FieldStats otherStat : stats) {
             stat.append(otherStat);
         }
-        assertThat(stat.getMaxDoc(), equalTo(4l));
-        assertThat(stat.getDocCount(), equalTo(4l));
-        assertThat(stat.getSumDocFreq(), equalTo(4l));
-        assertThat(stat.getSumTotalTermFreq(), equalTo(4l));
+        assertThat(stat.getMaxDoc(), equalTo(4L));
+        assertThat(stat.getDocCount(), equalTo(4L));
+        assertThat(stat.getSumDocFreq(), equalTo(4L));
+        assertThat(stat.getSumTotalTermFreq(), equalTo(4L));
     }
 
     public void testMerge_notAvailable() {
         List<FieldStats> stats = new ArrayList<>();
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
-        stats.add(new FieldStats.Long(1, 1l, 1l, 1l, 1l, 1l));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
+        stats.add(new FieldStats.Long(1, 1L, 1L, 1L, 1L, 1L));
 
-        FieldStats stat = new FieldStats.Long(1, -1l, -1l, -1l, 1l, 1l);
+        FieldStats stat = new FieldStats.Long(1, -1L, -1L, -1L, 1L, 1L);
         for (FieldStats otherStat : stats) {
             stat.append(otherStat);
         }
-        assertThat(stat.getMaxDoc(), equalTo(4l));
-        assertThat(stat.getDocCount(), equalTo(-1l));
-        assertThat(stat.getSumDocFreq(), equalTo(-1l));
-        assertThat(stat.getSumTotalTermFreq(), equalTo(-1l));
+        assertThat(stat.getMaxDoc(), equalTo(4L));
+        assertThat(stat.getDocCount(), equalTo(-1L));
+        assertThat(stat.getSumDocFreq(), equalTo(-1L));
+        assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
 
-        stats.add(new FieldStats.Long(1, -1l, -1l, -1l, 1l, 1l));
+        stats.add(new FieldStats.Long(1, -1L, -1L, -1L, 1L, 1L));
         stat = stats.remove(0);
         for (FieldStats otherStat : stats) {
             stat.append(otherStat);
         }
-        assertThat(stat.getMaxDoc(), equalTo(4l));
-        assertThat(stat.getDocCount(), equalTo(-1l));
-        assertThat(stat.getSumDocFreq(), equalTo(-1l));
-        assertThat(stat.getSumTotalTermFreq(), equalTo(-1l));
+        assertThat(stat.getMaxDoc(), equalTo(4L));
+        assertThat(stat.getDocCount(), equalTo(-1L));
+        assertThat(stat.getSumDocFreq(), equalTo(-1L));
+        assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
     }
 
     public void testInvalidField() {
-        createIndex("test1", Settings.EMPTY, "field1", "value", "type=string");
+        createIndex("test1", Settings.EMPTY, "test", "field1", "type=text");
         client().prepareIndex("test1", "test").setSource("field1", "a").get();
         client().prepareIndex("test1", "test").setSource("field1", "b").get();
 
-        createIndex("test2", Settings.EMPTY, "field2", "value", "type=string");
+        createIndex("test2", Settings.EMPTY, "test", "field2",  "type=text");
         client().prepareIndex("test2", "test").setSource("field2", "a").get();
         client().prepareIndex("test2", "test").setSource("field2", "b").get();
         client().admin().indices().prepareRefresh().get();
@@ -191,15 +207,15 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
         assertThat(result.getTotalShards(), equalTo(2));
         assertThat(result.getSuccessfulShards(), equalTo(1));
         assertThat(result.getShardFailures()[0].reason(), either(containsString("field [field1] doesn't exist")).or(containsString("field [field2] doesn't exist")));
-        assertThat(result.getIndicesMergedFieldStats().get("_all").get("field1").getMinValue(), equalTo("a"));
-        assertThat(result.getIndicesMergedFieldStats().get("_all").get("field1").getMaxValue(), equalTo("b"));
+        assertThat(result.getIndicesMergedFieldStats().get("_all").get("field1").getMinValueAsString(), equalTo("a"));
+        assertThat(result.getIndicesMergedFieldStats().get("_all").get("field1").getMaxValueAsString(), equalTo("b"));
     }
 
     public void testNumberFiltering() {
         createIndex("test1", Settings.EMPTY, "type", "value", "type=long");
-        client().prepareIndex("test1", "test").setSource("value", 1).get();
+        client().prepareIndex("test1", "test").setSource("value", 1L).get();
         createIndex("test2", Settings.EMPTY, "type", "value", "type=long");
-        client().prepareIndex("test2", "test").setSource("value", 3).get();
+        client().prepareIndex("test2", "test").setSource("value", 3L).get();
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()
@@ -207,8 +223,8 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("1"));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("3"));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -230,7 +246,7 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("1"));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -238,7 +254,7 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("1"));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -253,7 +269,7 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("3"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -261,7 +277,7 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("3"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -276,8 +292,8 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("1"));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("3"));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1L));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3L));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -288,10 +304,15 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
     }
 
     public void testDateFiltering() {
+        DateTime dateTime1 = new DateTime(2014, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC);
+        String dateTime1Str = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().print(dateTime1);
+        DateTime dateTime2 = new DateTime(2014, 1, 2, 0, 0, 0, 0, DateTimeZone.UTC);
+        String dateTime2Str = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().print(dateTime2);
+
         createIndex("test1", Settings.EMPTY, "type", "value", "type=date");
-        client().prepareIndex("test1", "test").setSource("value", "2014-01-01T00:00:00.000Z").get();
+        client().prepareIndex("test1", "test").setSource("value", dateTime1Str).get();
         createIndex("test2", Settings.EMPTY, "type", "value", "type=date");
-        client().prepareIndex("test2", "test").setSource("value", "2014-01-02T00:00:00.000Z").get();
+        client().prepareIndex("test2", "test").setSource("value", dateTime2Str).get();
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()
@@ -299,8 +320,10 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("2014-01-01T00:00:00.000Z"));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(dateTime1.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(), equalTo(dateTime1Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -315,7 +338,8 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("2014-01-01T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(dateTime1.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(), equalTo(dateTime1Str));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -323,7 +347,8 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -338,7 +363,8 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -346,8 +372,10 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("2014-01-01T00:00:00.000Z"));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(dateTime1.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(), equalTo(dateTime1Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -355,8 +383,56 @@ public class FieldStatsTests extends ElasticsearchSingleNodeTest {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("2014-01-01T00:00:00.000Z"));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(dateTime1.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(), equalTo(dateTime1Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
+    }
+
+    public void testDateFiltering_optionalFormat() {
+        createIndex("test1", Settings.EMPTY, "type", "value", "type=date,format=strict_date_optional_time");
+        client().prepareIndex("test1", "type").setSource("value", "2014-01-01T00:00:00.000Z").get();
+        createIndex("test2", Settings.EMPTY, "type", "value", "type=date,format=strict_date_optional_time");
+        client().prepareIndex("test2", "type").setSource("value", "2014-01-02T00:00:00.000Z").get();
+        client().admin().indices().prepareRefresh().get();
+
+        DateTime dateTime1 = new DateTime(2014, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC);
+        DateTime dateTime2 = new DateTime(2014, 1, 2, 0, 0, 0, 0, DateTimeZone.UTC);
+        FieldStatsResponse response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GT, String.valueOf(dateTime1.getMillis()), "epoch_millis"), new IndexConstraint("value", MAX, LTE, String.valueOf(dateTime2.getMillis()), "epoch_millis"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo("2014-01-02T00:00:00.000Z"));
+
+        try {
+            client().prepareFieldStats()
+                    .setFields("value")
+                    .setIndexContraints(new IndexConstraint("value", MIN, GT, String.valueOf(dateTime1.getMillis()), "xyz"))
+                    .setLevel("indices")
+                    .get();
+            fail("IllegalArgumentException should have been thrown");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Invalid format"));
+        }
+    }
+
+    public void testEmptyIndex() {
+        createIndex("test1", Settings.EMPTY, "type", "value", "type=date");
+        FieldStatsResponse response = client().prepareFieldStats()
+                .setFields("value")
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "1998-01-01T00:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
     }
 
 }

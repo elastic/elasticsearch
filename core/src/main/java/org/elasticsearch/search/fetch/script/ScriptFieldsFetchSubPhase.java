@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.search.fetch.script;
 
-import com.google.common.collect.ImmutableMap;
-
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -38,21 +34,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  *
  */
 public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
-
-    @Inject
-    public ScriptFieldsFetchSubPhase() {
+    private static final Map<String, SearchParseElement> PARSE_ELEMENTS;
+    static {
+        Map<String, SearchParseElement> parseElements = new HashMap<>();
+        parseElements.put("script_fields", new ScriptFieldsParseElement());
+        parseElements.put("scriptFields", new ScriptFieldsParseElement());
+        PARSE_ELEMENTS = unmodifiableMap(parseElements);
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("script_fields", new ScriptFieldsParseElement())
-                .put("scriptFields", new ScriptFieldsParseElement());
-        return parseElements.build();
+        return PARSE_ELEMENTS;
     }
 
     @Override

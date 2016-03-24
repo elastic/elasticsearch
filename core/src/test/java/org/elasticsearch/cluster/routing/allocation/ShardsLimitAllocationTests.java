@@ -24,30 +24,29 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESAllocationTestCase;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase {
-
+public class ShardsLimitAllocationTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(ShardsLimitAllocationTests.class);
 
-    @Test
-    public void indexLevelShardsLimitAllocate() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
+    public void testIndexLevelShardsLimitAllocate() {
+        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -55,7 +54,7 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 2)))
+                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -65,33 +64,90 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(2));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(2));
 
         logger.info("Start the primary shards");
-        RoutingNodes routingNodes = clusterState.routingNodes();
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(0));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(0));
-        assertThat(clusterState.readOnlyRoutingNodes().unassigned().size(), equalTo(4));
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(4));
 
         logger.info("Do another reroute, make sure its still not allocated");
-        routingNodes = clusterState.routingNodes();
+        routingNodes = clusterState.getRoutingNodes();
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
     }
 
-    @Test
-    public void indexLevelShardsLimitRemain() {
+    public void testClusterLevelShardsLimitAllocate() {
         AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+                .build());
+
+        logger.info("Building initial routing table");
+
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)))
+                .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metaData.index("test"))
+                .build();
+
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        logger.info("Adding two nodes and performing rerouting");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
+
+        logger.info("Start the primary shards");
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(2));
+
+        // Bump the cluster total shards to 2
+        strategy = createAllocationService(settingsBuilder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
+                .build());
+
+        logger.info("Do another reroute, make sure shards are now allocated");
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
+
+        routingNodes = clusterState.getRoutingNodes();
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(0));
+    }
+
+    public void testIndexLevelShardsLimitRemain() {
+        AllocationService strategy = createAllocationService(settingsBuilder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.balance.index", 0.0f)
@@ -115,15 +171,15 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
         logger.info("Adding one node and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Start the primary shards");
-        RoutingNodes routingNodes = clusterState.routingNodes();
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), STARTED), equalTo(5));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(5));
 
         logger.info("add another index with 5 shards");
         metaData = MetaData.builder(metaData)
@@ -140,28 +196,28 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
 
         logger.info("Add another one node and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        routingNodes = clusterState.routingNodes();
+        routingNodes = clusterState.getRoutingNodes();
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), STARTED), equalTo(10));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(10));
 
-        for (ShardRouting shardRouting : clusterState.readOnlyRoutingNodes().node("node1")) {
-            assertThat(shardRouting.index(), equalTo("test"));
+        for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node1")) {
+            assertThat(shardRouting.getIndexName(), equalTo("test"));
         }
-        for (ShardRouting shardRouting : clusterState.readOnlyRoutingNodes().node("node2")) {
-            assertThat(shardRouting.index(), equalTo("test1"));
+        for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node2")) {
+            assertThat(shardRouting.getIndexName(), equalTo("test1"));
         }
 
-        logger.info("update " + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE + " for test, see that things move");
+        logger.info("update {} for test, see that things move", ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey());
         metaData = MetaData.builder(metaData)
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 3)
+                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 3)
                 ))
                 .build();
 
@@ -169,20 +225,20 @@ public class ShardsLimitAllocationTests extends ElasticsearchAllocationTestCase 
         clusterState = ClusterState.builder(clusterState).metaData(metaData).build();
 
         logger.info("reroute after setting");
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(3));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(RELOCATING), equalTo(2));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(RELOCATING), equalTo(2));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(RELOCATING), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(RELOCATING), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(3));
         // the first move will destroy the balance and the balancer will move 2 shards from node2 to node one right after
         // moving the nodes to node2 since we consider INITIALIZING nodes during rebalance
-        routingNodes = clusterState.routingNodes();
+        routingNodes = clusterState.getRoutingNodes();
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        // now we are done compared to EvenShardCountAllocator since the Balancer is not soely based on the average 
-        assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(5));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(5));
+        // now we are done compared to EvenShardCountAllocator since the Balancer is not soely based on the average
+        assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(5));
     }
 }

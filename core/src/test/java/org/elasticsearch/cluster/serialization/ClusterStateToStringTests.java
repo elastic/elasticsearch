@@ -28,16 +28,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESAllocationTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
 /**
  *
  */
-public class ClusterStateToStringTests extends ElasticsearchAllocationTestCase {
-    @Test
+public class ClusterStateToStringTests extends ESAllocationTestCase {
     public void testClusterStateSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test_idx").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
@@ -53,7 +51,7 @@ public class ClusterStateToStringTests extends ElasticsearchAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
         AllocationService strategy = createAllocationService();
-        clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
 
         String clusterStateString = clusterState.toString();
         assertNotNull(clusterStateString);
@@ -61,7 +59,5 @@ public class ClusterStateToStringTests extends ElasticsearchAllocationTestCase {
         assertThat(clusterStateString, containsString("test_idx"));
         assertThat(clusterStateString, containsString("test_template"));
         assertThat(clusterStateString, containsString("node_foo"));
-
     }
-
 }

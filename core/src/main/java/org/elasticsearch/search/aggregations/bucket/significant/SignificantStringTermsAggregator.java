@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -46,16 +47,16 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     protected long numCollectedDocs;
     protected final SignificantTermsAggregatorFactory termsAggFactory;
+    private final SignificanceHeuristic significanceHeuristic;
 
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            BucketCountThresholds bucketCountThresholds,
-            IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
- SignificantTermsAggregatorFactory termsAggFactory, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData)
-            throws IOException {
+            BucketCountThresholds bucketCountThresholds, IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext,
+            Aggregator parent, SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent,
                 SubAggCollectionMode.DEPTH_FIRST, false, pipelineAggregators, metaData);
+        this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }
 
@@ -100,7 +101,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             // that are for this shard only
             // Back at the central reducer these properties will be updated with
             // global stats
-            spare.updateScore(termsAggFactory.getSignificanceHeuristic());
+            spare.updateScore(significanceHeuristic);
 
             spare.bucketOrd = i;
             spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
@@ -116,7 +117,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         }
 
         return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), pipelineAggregators(),
+                bucketCountThresholds.getMinDocCount(), significanceHeuristic, Arrays.asList(list), pipelineAggregators(),
                 metaData());
     }
 
@@ -127,7 +128,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(),
+                bucketCountThresholds.getMinDocCount(), significanceHeuristic,
                 Collections.<InternalSignificantTerms.Bucket> emptyList(), pipelineAggregators(), metaData());
     }
 

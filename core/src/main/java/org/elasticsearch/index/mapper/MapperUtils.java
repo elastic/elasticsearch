@@ -27,52 +27,6 @@ import java.util.Collection;
 public enum MapperUtils {
     ;
 
-    private static MergeResult newStrictMergeResult() {
-        return new MergeResult(false, false) {
-
-            @Override
-            public void addFieldMappers(Collection<FieldMapper> fieldMappers) {
-                // no-op
-            }
-
-            @Override
-            public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-                // no-op
-            }
-
-            @Override
-            public Collection<FieldMapper> getNewFieldMappers() {
-                throw new UnsupportedOperationException("Strict merge result does not support new field mappers");
-            }
-
-            @Override
-            public Collection<ObjectMapper> getNewObjectMappers() {
-                throw new UnsupportedOperationException("Strict merge result does not support new object mappers");
-            }
-
-            @Override
-            public void addConflict(String mergeFailure) {
-                throw new MapperParsingException("Merging dynamic updates triggered a conflict: " + mergeFailure);
-            }
-        };
-    }
-
-    /**
-     * Merge {@code mergeWith} into {@code mergeTo}. Note: this method only
-     * merges mappings, not lookup structures. Conflicts are returned as exceptions.
-     */
-    public static void merge(Mapper mergeInto, Mapper mergeWith) {
-        mergeInto.merge(mergeWith, newStrictMergeResult());
-    }
-
-    /**
-     * Merge {@code mergeWith} into {@code mergeTo}. Note: this method only
-     * merges mappings, not lookup structures. Conflicts are returned as exceptions.
-     */
-    public static void merge(Mapping mergeInto, Mapping mergeWith) {
-        mergeInto.merge(mergeWith, newStrictMergeResult());
-    }
-
     /** Split mapper and its descendants into object and field mappers. */
     public static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
         if (mapper instanceof RootObjectMapper) {

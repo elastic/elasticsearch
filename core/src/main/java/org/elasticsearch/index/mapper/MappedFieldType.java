@@ -19,21 +19,30 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.base.Strings;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -45,109 +54,7 @@ import java.util.Objects;
  */
 public abstract class MappedFieldType extends FieldType {
 
-    public static class Names {
-
-        private final String indexName;
-
-        private final String originalIndexName;
-
-        private final String fullName;
-
-        public Names(String name) {
-            this(name, name, name);
-        }
-
-        public Names(String indexName, String originalIndexName, String fullName) {
-            this.indexName = indexName;
-            this.originalIndexName = originalIndexName;
-            this.fullName = fullName;
-        }
-
-        /**
-         * The indexed name of the field. This is the name under which we will
-         * store it in the index.
-         */
-        public String indexName() {
-            return indexName;
-        }
-
-        /**
-         * The original index name, before any "path" modifications performed on it.
-         */
-        public String originalIndexName() {
-            return originalIndexName;
-        }
-
-        /**
-         * The full name, including dot path.
-         */
-        public String fullName() {
-            return fullName;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Names names = (Names) o;
-
-            if (!fullName.equals(names.fullName)) return false;
-            if (!indexName.equals(names.indexName)) return false;
-            if (!originalIndexName.equals(names.originalIndexName)) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            int result = indexName.hashCode();
-            result = 31 * result + originalIndexName.hashCode();
-            result = 31 * result + fullName.hashCode();
-            return result;
-        }
-    }
-
-    public enum Loading {
-        LAZY {
-            @Override
-            public String toString() {
-                return LAZY_VALUE;
-            }
-        },
-        EAGER {
-            @Override
-            public String toString() {
-                return EAGER_VALUE;
-            }
-        },
-        EAGER_GLOBAL_ORDINALS {
-            @Override
-            public String toString() {
-                return EAGER_GLOBAL_ORDINALS_VALUE;
-            }
-        };
-
-        public static final String KEY = "loading";
-        public static final String EAGER_GLOBAL_ORDINALS_VALUE = "eager_global_ordinals";
-        public static final String EAGER_VALUE = "eager";
-        public static final String LAZY_VALUE = "lazy";
-
-        public static Loading parse(String loading, Loading defaultValue) {
-            if (Strings.isNullOrEmpty(loading)) {
-                return defaultValue;
-            } else if (EAGER_GLOBAL_ORDINALS_VALUE.equalsIgnoreCase(loading)) {
-                return EAGER_GLOBAL_ORDINALS;
-            } else if (EAGER_VALUE.equalsIgnoreCase(loading)) {
-                return EAGER;
-            } else if (LAZY_VALUE.equalsIgnoreCase(loading)) {
-                return LAZY;
-            } else {
-                throw new MapperParsingException("Unknown [" + KEY + "] value: [" + loading + "]");
-            }
-        }
-    }
-
-    private Names names;
+    private String name;
     private float boost;
     // TODO: remove this docvalues flag and use docValuesType
     private boolean docValues;
@@ -155,24 +62,22 @@ public abstract class MappedFieldType extends FieldType {
     private NamedAnalyzer searchAnalyzer;
     private NamedAnalyzer searchQuoteAnalyzer;
     private SimilarityProvider similarity;
-    private Loading normsLoading;
-    private FieldDataType fieldDataType;
     private Object nullValue;
     private String nullValueAsString; // for sending null value to _all field
+    private boolean eagerGlobalOrdinals;
 
     protected MappedFieldType(MappedFieldType ref) {
         super(ref);
-        this.names = ref.names();
+        this.name = ref.name();
         this.boost = ref.boost();
         this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
         this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer();
         this.similarity = ref.similarity();
-        this.normsLoading = ref.normsLoading();
-        this.fieldDataType = ref.fieldDataType();
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
+        this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
     }
 
     public MappedFieldType() {
@@ -182,43 +87,58 @@ public abstract class MappedFieldType extends FieldType {
         setOmitNorms(false);
         setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
         setBoost(1.0f);
-        fieldDataType = new FieldDataType(typeName());
     }
 
     @Override
     public abstract MappedFieldType clone();
 
+    /** Return a fielddata builder for this field. */
+    public IndexFieldData.Builder fielddataBuilder() {
+        throw new IllegalArgumentException("Fielddata is not supported on fields of type [" + typeName() + "]");
+    }
+
     @Override
     public boolean equals(Object o) {
         if (!super.equals(o)) return false;
         MappedFieldType fieldType = (MappedFieldType) o;
+        // check similarity first because we need to check the name, and it might be null
+        // TODO: SimilarityProvider should have equals?
+        if (similarity == null || fieldType.similarity == null) {
+            if (similarity != fieldType.similarity) {
+                return false;
+            }
+        } else {
+            if (Objects.equals(similarity.name(), fieldType.similarity.name()) == false) {
+                return false;
+            }
+        }
+
         return boost == fieldType.boost &&
             docValues == fieldType.docValues &&
-            Objects.equals(names, fieldType.names) &&
+            Objects.equals(name, fieldType.name) &&
             Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
             Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
             Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
-            Objects.equals(similarity, fieldType.similarity) &&
-            Objects.equals(normsLoading, fieldType.normsLoading) &&
-            Objects.equals(fieldDataType, fieldType.fieldDataType) &&
+            Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
             Objects.equals(nullValueAsString, fieldType.nullValueAsString);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), names, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer, similarity, normsLoading, fieldDataType, nullValue, nullValueAsString);
+        return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
+            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
     }
 
-// norelease: we need to override freeze() and add safety checks that all settings are actually set
+    // norelease: we need to override freeze() and add safety checks that all settings are actually set
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
 
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    public final void checkTypeName(MappedFieldType other, List<String> conflicts) {
+    private final void checkTypeName(MappedFieldType other) {
         if (typeName().equals(other.typeName()) == false) {
-            conflicts.add("mapper [" + names().fullName() + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
+            throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {
             throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and " + other.getClass().getSimpleName());
         }
@@ -230,75 +150,69 @@ public abstract class MappedFieldType extends FieldType {
      * Otherwise, only properties which must never change in an index are checked.
      */
     public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
+        checkTypeName(other);
+
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
         // TODO: should be validating if index options go "up" (but "down" is ok)
         if (indexed != mergeWithIndexed || tokenized() != other.tokenized()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different index values");
+            conflicts.add("mapper [" + name() + "] has different [index] values");
         }
         if (stored() != other.stored()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different store values");
+            conflicts.add("mapper [" + name() + "] has different [store] values");
         }
-        if (hasDocValues() == false && other.hasDocValues()) {
-            // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitly set
-            // when the doc_values field data format is configured
-            conflicts.add("mapper [" + names().fullName() + "] has different doc_values values");
+        if (hasDocValues() != other.hasDocValues()) {
+            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
         }
         if (omitNorms() && !other.omitNorms()) {
-            conflicts.add("mapper [" + names().fullName() + "] cannot enable norms (`norms.enabled`)");
-        }
-        if (tokenized() != other.tokenized()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different tokenize values");
+            conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
         }
         if (storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different store_term_vector values");
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
         }
         if (storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different store_term_vector_offsets values");
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
         }
         if (storeTermVectorPositions() != other.storeTermVectorPositions()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different store_term_vector_positions values");
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_positions] values");
         }
         if (storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different store_term_vector_payloads values");
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_payloads] values");
         }
 
         // null and "default"-named index analyzers both mean the default is used
         if (indexAnalyzer() == null || "default".equals(indexAnalyzer().name())) {
             if (other.indexAnalyzer() != null && "default".equals(other.indexAnalyzer().name()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] has different analyzer");
+                conflicts.add("mapper [" + name() + "] has different [analyzer]");
             }
         } else if (other.indexAnalyzer() == null || "default".equals(other.indexAnalyzer().name())) {
-            conflicts.add("mapper [" + names().fullName() + "] has different analyzer");
+            conflicts.add("mapper [" + name() + "] has different [analyzer]");
         } else if (indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
-            conflicts.add("mapper [" + names().fullName() + "] has different analyzer");
+            conflicts.add("mapper [" + name() + "] has different [analyzer]");
         }
 
-        if (!names().equals(other.names())) {
-            conflicts.add("mapper [" + names().fullName() + "] has different index_name");
-        }
         if (Objects.equals(similarity(), other.similarity()) == false) {
-            conflicts.add("mapper [" + names().fullName() + "] has different similarity");
+            conflicts.add("mapper [" + name() + "] has different [similarity]");
         }
 
         if (strict) {
             if (omitNorms() != other.omitNorms()) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [omit_norms] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [omit_norms] across all types.");
             }
             if (boost() != other.boost()) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [boost] across all types.");
-            }
-            if (normsLoading() != other.normsLoading()) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [norms].loading across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [boost] across all types.");
             }
             if (Objects.equals(searchAnalyzer(), other.searchAnalyzer()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [search_analyzer] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [search_analyzer] across all types.");
             }
-            if (Objects.equals(fieldDataType(), other.fieldDataType()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [fielddata] across all types.");
+            if (Objects.equals(searchQuoteAnalyzer(), other.searchQuoteAnalyzer()) == false) {
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [search_quote_analyzer] across all types.");
             }
             if (Objects.equals(nullValue(), other.nullValue()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [null_value] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [null_value] across all types.");
+            }
+            if (eagerGlobalOrdinals() != other.eagerGlobalOrdinals()) {
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [eager_global_ordinals] across all types.");
             }
         }
     }
@@ -311,13 +225,13 @@ public abstract class MappedFieldType extends FieldType {
         return true;
     }
 
-    public Names names() {
-        return names;
+    public String name() {
+        return name;
     }
 
-    public void setNames(Names names) {
+    public void setName(String name) {
         checkIfFrozen();
-        this.names = names;
+        this.name = name;
     }
 
     public float boost() {
@@ -329,15 +243,6 @@ public abstract class MappedFieldType extends FieldType {
         this.boost = boost;
     }
 
-    public FieldDataType fieldDataType() {
-        return fieldDataType;
-    }
-
-    public void setFieldDataType(FieldDataType fieldDataType) {
-        checkIfFrozen();
-        this.fieldDataType = fieldDataType;
-    }
-
     public boolean hasDocValues() {
         return docValues;
     }
@@ -345,15 +250,6 @@ public abstract class MappedFieldType extends FieldType {
     public void setHasDocValues(boolean hasDocValues) {
         checkIfFrozen();
         this.docValues = hasDocValues;
-    }
-
-    public Loading normsLoading() {
-        return normsLoading;
-    }
-
-    public void setNormsLoading(Loading normsLoading) {
-        checkIfFrozen();
-        this.normsLoading = normsLoading;
     }
 
     public NamedAnalyzer indexAnalyzer() {
@@ -425,32 +321,42 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     /**
-     * Should the field query {@link #termQuery(Object, org.elasticsearch.index.query.QueryParseContext)}  be used when detecting this
+     * Should the field query {@link #termQuery(Object, org.elasticsearch.index.query.QueryShardContext)}  be used when detecting this
      * field in query string.
      */
     public boolean useTermQueryWithQueryString() {
         return false;
     }
 
-    /** Creates a term associated with the field of this mapper for the given value */
+    /**
+     * Creates a term associated with the field of this mapper for the given
+     * value. Its important to use termQuery when building term queries because
+     * things like ParentFieldMapper override it to make more interesting
+     * queries.
+     */
     protected Term createTerm(Object value) {
-        return new Term(names().indexName(), indexedValueForSearch(value));
+        return new Term(name(), indexedValueForSearch(value));
     }
 
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return new TermQuery(createTerm(value));
+    public Query termQuery(Object value, @Nullable QueryShardContext context) {
+        TermQuery query = new TermQuery(createTerm(value));
+        if (boost == 1f ||
+            (context != null && context.indexVersionCreated().before(Version.V_5_0_0_alpha1))) {
+            return query;
+        }
+        return new BoostQuery(query, boost);
     }
 
-    public Query termsQuery(List values, @Nullable QueryParseContext context) {
+    public Query termsQuery(List values, @Nullable QueryShardContext context) {
         BytesRef[] bytesRefs = new BytesRef[values.size()];
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
         }
-        return new TermsQuery(names.indexName(), bytesRefs);
+        return new TermsQuery(name(), bytesRefs);
     }
 
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-        return new TermRangeQuery(names().indexName(),
+        return new TermRangeQuery(name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
             upperTerm == null ? null : indexedValueForSearch(upperTerm),
             includeLower, includeUpper);
@@ -460,7 +366,7 @@ public abstract class MappedFieldType extends FieldType {
         return new FuzzyQuery(createTerm(value), fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
     }
 
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
         PrefixQuery query = new PrefixQuery(createTerm(value));
         if (method != null) {
             query.setRewriteMethod(method);
@@ -468,7 +374,11 @@ public abstract class MappedFieldType extends FieldType {
         return query;
     }
 
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
+        if (numericType() != null) {
+            throw new QueryShardException(context, "Cannot use regular expression to filter numeric field [" + name + "]");
+        }
+
         RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);
@@ -496,5 +406,22 @@ public abstract class MappedFieldType extends FieldType {
     @Nullable
     public Query queryStringTermQuery(Term term) {
         return null;
+    }
+
+    protected final void failIfNoDocValues() {
+        if (hasDocValues() == false) {
+            throw new IllegalStateException("Can't load fielddata on [" + name()
+                + "] because fielddata is unsupported on fields of type ["
+                + typeName() + "]. Use doc values instead.");
+        }
+    }
+
+    public boolean eagerGlobalOrdinals() {
+        return eagerGlobalOrdinals;
+    }
+
+    public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+        checkIfFrozen();
+        this.eagerGlobalOrdinals = eagerGlobalOrdinals;
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.indexedscripts.put;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -40,21 +39,22 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Index request to index a script to the script index and make it available at search time.
- * <p/>
- * <p>The request requires the  {@link #scriptLang(String)}, {@link #id(String)} and
+ * <p>
+ * The request requires the  {@link #scriptLang(String)}, {@link #id(String)} and
  * {@link #source(byte[])} to be set.
- * <p/>
- * <p>The source (content to index) can be set in its bytes form using ({@link #source()} (byte[])}),
+ * <p>
+ * The source (content to index) can be set in its bytes form using ({@link #source()} (byte[])}),
  * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
  * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
- * <p/>
- * <p>If the {@link #id(String)} is not set, it will be automatically generated.
+ * <p>
+ * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see PutIndexedScriptResponse
  */
@@ -164,7 +164,7 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
     }
 
     /**
-     * The source of the document to index, recopied to a new array if it is unsage.
+     * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
         return source;
@@ -200,12 +200,12 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
 
     /**
      * Sets the document source to index.
-     * <p/>
-     * <p>Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * <p>
+     * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[])}.
      */
     public PutIndexedScriptRequest source(String source) {
-        this.source = new BytesArray(source.getBytes(Charsets.UTF_8));
+        this.source = new BytesArray(source.getBytes(StandardCharsets.UTF_8));
         return this;
     }
 

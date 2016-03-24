@@ -27,7 +27,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
@@ -49,7 +52,7 @@ public class RestAliasAction extends AbstractCatAction {
 
 
     @Override
-    void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(request.param("alias")) :
                 new GetAliasesRequest();
@@ -65,13 +68,13 @@ public class RestAliasAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/aliases\n");
         sb.append("/_cat/aliases/{alias}\n");
     }
 
     @Override
-    Table getTableWithHeader(RestRequest request) {
+    protected Table getTableWithHeader(RestRequest request) {
         final Table table = new Table();
         table.startHeaders();
         table.addCell("alias", "alias:a;desc:alias name");

@@ -78,7 +78,6 @@ public class RepositoryMetaData {
      *
      * @param in stream input
      * @return repository metadata
-     * @throws IOException
      */
     public static RepositoryMetaData readFrom(StreamInput in) throws IOException {
         String name = in.readString();
@@ -91,7 +90,6 @@ public class RepositoryMetaData {
      * Writes repository metadata to stream output
      *
      * @param out stream output
-     * @throws IOException
      */
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);

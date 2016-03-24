@@ -19,15 +19,20 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.BoostingQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.
  * Unlike the "NOT" clause, this still selects documents that contain undesirable terms,
  * but reduces their overall score:
- * <p/>
+ * <p>
  * Query balancedQuery = new BoostingQuery(positiveQuery, negativeQuery, 0.01f);
  * In this scenario the positiveQuery contains the mandatory, desirable criteria which is used to
  * select all matching documents, and the negativeQuery contains the undesirable elements which
@@ -35,63 +40,134 @@ import java.io.IOException;
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
  */
-public class BoostingQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<BoostingQueryBuilder> {
+public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
 
-    private QueryBuilder positiveQuery;
+    public static final String NAME = "boosting";
 
-    private QueryBuilder negativeQuery;
+    private final QueryBuilder positiveQuery;
+
+    private final QueryBuilder negativeQuery;
 
     private float negativeBoost = -1;
 
-    private float boost = -1;
+    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder(EmptyQueryBuilder.PROTOTYPE, EmptyQueryBuilder.PROTOTYPE);
 
-    public BoostingQueryBuilder() {
-
-    }
-
-    public BoostingQueryBuilder positive(QueryBuilder positiveQuery) {
+    /**
+     * Create a new {@link BoostingQueryBuilder}
+     *
+     * @param positiveQuery the positive query for this boosting query.
+     * @param negativeQuery the negative query for this boosting query.
+     */
+    public BoostingQueryBuilder(QueryBuilder positiveQuery, QueryBuilder negativeQuery) {
+        if (positiveQuery == null) {
+            throw new IllegalArgumentException("inner clause [positive] cannot be null.");
+        }
+        if (negativeQuery == null) {
+            throw new IllegalArgumentException("inner clause [negative] cannot be null.");
+        }
         this.positiveQuery = positiveQuery;
-        return this;
-    }
-
-    public BoostingQueryBuilder negative(QueryBuilder negativeQuery) {
         this.negativeQuery = negativeQuery;
-        return this;
     }
 
+    /**
+     * Get the positive query for this boosting query.
+     */
+    public QueryBuilder positiveQuery() {
+        return this.positiveQuery;
+    }
+
+    /**
+     * Get the negative query for this boosting query.
+     */
+    public QueryBuilder negativeQuery() {
+        return this.negativeQuery;
+    }
+
+    /**
+     * Set the negative boost factor.
+     */
     public BoostingQueryBuilder negativeBoost(float negativeBoost) {
+        if (negativeBoost < 0) {
+            throw new IllegalArgumentException("query requires negativeBoost to be set to positive value");
+        }
         this.negativeBoost = negativeBoost;
         return this;
     }
 
-    @Override
-    public BoostingQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    /**
+     * Get the negative boost factor.
+     */
+    public float negativeBoost() {
+        return this.negativeBoost;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (positiveQuery == null) {
-            throw new IllegalArgumentException("boosting query requires positive query to be set");
-        }
-        if (negativeQuery == null) {
-            throw new IllegalArgumentException("boosting query requires negative query to be set");
-        }
-        if (negativeBoost == -1) {
-            throw new IllegalArgumentException("boosting query requires negativeBoost to be set");
-        }
-        builder.startObject(BoostingQueryParser.NAME);
-        builder.field("positive");
+        builder.startObject(NAME);
+        builder.field(BoostingQueryParser.POSITIVE_FIELD.getPreferredName());
         positiveQuery.toXContent(builder, params);
-        builder.field("negative");
+        builder.field(BoostingQueryParser.NEGATIVE_FIELD.getPreferredName());
         negativeQuery.toXContent(builder, params);
-
-        builder.field("negative_boost", negativeBoost);
-
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
+        builder.field(BoostingQueryParser.NEGATIVE_BOOST_FIELD.getPreferredName(), negativeBoost);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query positive = positiveQuery.toQuery(context);
+        Query negative = negativeQuery.toQuery(context);
+        // make upstream queries ignore this query by returning `null`
+        // if either inner query builder returns null
+        if (positive == null || negative == null) {
+            return null;
+        }
+
+        return new BoostingQuery(positive, negative, negativeBoost);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(negativeBoost, positiveQuery, negativeQuery);
+    }
+
+    @Override
+    protected boolean doEquals(BoostingQueryBuilder other) {
+        return Objects.equals(negativeBoost, other.negativeBoost) &&
+                Objects.equals(positiveQuery, other.positiveQuery) &&
+                Objects.equals(negativeQuery, other.negativeQuery);
+    }
+
+    @Override
+    protected BoostingQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        QueryBuilder positiveQuery = in.readQuery();
+        QueryBuilder negativeQuery = in.readQuery();
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
+        boostingQuery.negativeBoost = in.readFloat();
+        return boostingQuery;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(positiveQuery);
+        out.writeQuery(negativeQuery);
+        out.writeFloat(negativeBoost);
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder positiveQuery = this.positiveQuery.rewrite(queryRewriteContext);
+        QueryBuilder negativeQuery = this.negativeQuery.rewrite(queryRewriteContext);
+        if (positiveQuery != this.positiveQuery || negativeQuery != this.negativeQuery) {
+            BoostingQueryBuilder newQueryBuilder = new BoostingQueryBuilder(positiveQuery, negativeQuery);
+            newQueryBuilder.negativeBoost = negativeBoost;
+            return newQueryBuilder;
+        }
+        return this;
     }
 }

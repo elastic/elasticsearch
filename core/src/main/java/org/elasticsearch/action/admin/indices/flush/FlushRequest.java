@@ -30,8 +30,8 @@ import java.io.IOException;
  * A flush request to flush one or more indices. The flush process of an index basically frees memory from the index
  * by flushing data to the index storage and clearing the internal transaction log. By default, Elasticsearch uses
  * memory heuristics in order to automatically trigger flush operations as required in order to clear memory.
- * <p/>
- * <p>Best created with {@link org.elasticsearch.client.Requests#flushRequest(String...)}.
+ * <p>
+ * Best created with {@link org.elasticsearch.client.Requests#flushRequest(String...)}.
  *
  * @see org.elasticsearch.client.Requests#flushRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#flush(FlushRequest)
@@ -41,17 +41,6 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
 
     private boolean force = false;
     private boolean waitIfOngoing = false;
-
-    FlushRequest() {
-    }
-
-    /**
-     * Copy constructor that creates a new flush request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public FlushRequest(ActionRequest originalRequest) {
-        super(originalRequest);
-    }
 
     /**
      * Constructs a new flush request against one or more indices. If nothing is provided, all indices will

@@ -29,7 +29,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.lang.management.*;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ManagementPermission;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.PlatformManagedObject;
+import java.lang.management.RuntimeMXBean;
+import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +65,7 @@ public class JvmInfo implements Streamable, ToXContent {
         JvmInfo info = new JvmInfo();
         info.pid = pid;
         info.startTime = runtimeMXBean.getStartTime();
-        info.version = runtimeMXBean.getSystemProperties().get("java.version");
+        info.version = System.getProperty("java.version");
         info.vmName = runtimeMXBean.getVmName();
         info.vmVendor = runtimeMXBean.getVmVendor();
         info.vmVersion = runtimeMXBean.getVmVersion();
@@ -73,9 +81,18 @@ public class JvmInfo implements Streamable, ToXContent {
             // ignore
         }
         info.inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
-        info.bootClassPath = runtimeMXBean.getBootClassPath();
+        try {
+            info.bootClassPath = runtimeMXBean.getBootClassPath();
+        } catch (UnsupportedOperationException e) {
+            // oracle java 9
+            info.bootClassPath = System.getProperty("sun.boot.class.path");
+            if (info.bootClassPath == null) {
+                // something else
+                info.bootClassPath = "<unknown>";
+            }
+        }
         info.classPath = runtimeMXBean.getClassPath();
-        info.systemProperties = runtimeMXBean.getSystemProperties();
+        info.systemProperties = Collections.unmodifiableMap(runtimeMXBean.getSystemProperties());
 
         List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
         info.gcCollectors = new String[gcMxBeans.size()];
@@ -91,10 +108,32 @@ public class JvmInfo implements Streamable, ToXContent {
             info.memoryPools[i] = memoryPoolMXBean.getName();
         }
 
+        try {
+            @SuppressWarnings("unchecked") Class<? extends PlatformManagedObject> clazz =
+                (Class<? extends PlatformManagedObject>)Class.forName("com.sun.management.HotSpotDiagnosticMXBean");
+            Class<?> vmOptionClazz = Class.forName("com.sun.management.VMOption");
+            PlatformManagedObject hotSpotDiagnosticMXBean = ManagementFactory.getPlatformMXBean(clazz);
+            Method vmOptionMethod = clazz.getMethod("getVMOption", String.class);
+            Object useCompressedOopsVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
+            Method valueMethod = vmOptionClazz.getMethod("getValue");
+            info.useCompressedOops = (String)valueMethod.invoke(useCompressedOopsVmOption);
+            Object useG1GCVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
+            info.useG1GC = (String)valueMethod.invoke(useG1GCVmOption);
+        } catch (Throwable t) {
+            // unable to deduce the state of compressed oops
+            info.useCompressedOops = "unknown";
+            info.useG1GC = "unknown";
+        }
+
         INSTANCE = info;
     }
 
     public static JvmInfo jvmInfo() {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new ManagementPermission("monitor"));
+            sm.checkPropertyAccess("*");
+        }
         return INSTANCE;
     }
 
@@ -119,6 +158,10 @@ public class JvmInfo implements Streamable, ToXContent {
 
     String[] gcCollectors = Strings.EMPTY_ARRAY;
     String[] memoryPools = Strings.EMPTY_ARRAY;
+
+    private String useCompressedOops;
+
+    private String useG1GC;
 
     private JvmInfo() {
     }
@@ -243,6 +286,22 @@ public class JvmInfo implements Streamable, ToXContent {
         return this.systemProperties;
     }
 
+    /**
+     * The value of the JVM flag UseCompressedOops, if available otherwise
+     * "unknown". The value "unknown" indicates that an attempt was
+     * made to obtain the value of the flag on this JVM and the attempt
+     * failed.
+     *
+     * @return the value of the JVM flag UseCompressedOops or "unknown"
+     */
+    public String useCompressedOops() {
+        return this.useCompressedOops;
+    }
+
+    public String useG1GC() {
+        return this.useG1GC;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
@@ -263,6 +322,8 @@ public class JvmInfo implements Streamable, ToXContent {
 
         builder.field(Fields.GC_COLLECTORS, gcCollectors);
         builder.field(Fields.MEMORY_POOLS, memoryPools);
+
+        builder.field(Fields.USING_COMPRESSED_OOPS, useCompressedOops);
 
         builder.endObject();
         return builder;
@@ -291,6 +352,7 @@ public class JvmInfo implements Streamable, ToXContent {
         static final XContentBuilderString DIRECT_MAX_IN_BYTES = new XContentBuilderString("direct_max_in_bytes");
         static final XContentBuilderString GC_COLLECTORS = new XContentBuilderString("gc_collectors");
         static final XContentBuilderString MEMORY_POOLS = new XContentBuilderString("memory_pools");
+        static final XContentBuilderString USING_COMPRESSED_OOPS = new XContentBuilderString("using_compressed_ordinary_object_pointers");
     }
 
     public static JvmInfo readJvmInfo(StreamInput in) throws IOException {
@@ -322,6 +384,7 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.readFrom(in);
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
+        useCompressedOops = in.readString();
     }
 
     @Override
@@ -346,6 +409,7 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.writeTo(out);
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);
+        out.writeString(useCompressedOops);
     }
 
     public static class Mem implements Streamable {

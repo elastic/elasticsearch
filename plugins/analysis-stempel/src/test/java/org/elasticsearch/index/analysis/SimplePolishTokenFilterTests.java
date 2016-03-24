@@ -24,31 +24,17 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.pl.PolishAnalysisBinderProcessor;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
-
-    @Test
+public class SimplePolishTokenFilterTests extends ESTestCase {
     public void testBasicUsage() throws Exception {
         testToken("kwiaty", "kwć");
         testToken("canona", "ć");
@@ -59,13 +45,11 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
     }
 
     private void testToken(String source, String expected) throws IOException {
-        Index index = new Index("test");
+        Index index = new Index("test", "_na_");
         Settings settings = Settings.settingsBuilder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
-        AnalysisService analysisService = createAnalysisService(index, settings);
+        AnalysisService analysisService = createAnalysisService(index, settings, new AnalysisStempelPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myStemmer");
 
@@ -81,12 +65,8 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
     }
 
     private void testAnalyzer(String source, String... expected_terms) throws IOException {
-        Index index = new Index("test");
-        Settings settings = Settings.settingsBuilder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
-                .build();
-        AnalysisService analysisService = createAnalysisService(index, settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), Settings.EMPTY,
+            new AnalysisStempelPlugin()::onModule);
 
         Analyzer analyzer = analysisService.analyzer("polish").analyzer();
 
@@ -101,14 +81,4 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
         }
     }
 
-    private AnalysisService createAnalysisService(Index index, Settings settings) {
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)).addProcessor(new PolishAnalysisBinderProcessor()))
-                .createChildInjector(parentInjector);
-
-        return injector.getInstance(AnalysisService.class);
-    }
 }

@@ -2,8 +2,8 @@
 === Zen Discovery
 
 The zen discovery is the built in discovery module for elasticsearch and
-the default. It provides both multicast and unicast discovery as well
-being easily extended to support cloud environments.
+the default. It provides unicast discovery, but can be extended to
+support cloud environments and other forms of discovery.
 
 The zen discovery is integrated with other modules, for example, all
 communication between nodes is done using the
@@ -16,39 +16,13 @@ It is separated into several sub modules, which are explained below:
 ==== Ping
 
 This is the process where a node uses the discovery mechanisms to find
-other nodes. There is support for both multicast and unicast based
-discovery (these mechanisms can be used in conjunction as well).
-
-[float]
-[[multicast]]
-===== Multicast
-
-Multicast ping discovery of other nodes is done by sending one or more
-multicast requests which existing nodes will receive and
-respond to. It provides the following settings with the
-`discovery.zen.ping.multicast` prefix:
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`group` |The group address to use. Defaults to `224.2.2.4`.
-
-|`port` |The port to use. Defaults to `54328`.
-
-|`ttl` |The ttl of the multicast message. Defaults to `3`.
-
-|`address` |The address to bind to, defaults to `null` which means it
-will bind to all available network interfaces.
-
-|`enabled` |Whether multicast ping discovery is enabled. Defaults to `true`.
-|=======================================================================
+other nodes.
 
 [float]
 [[unicast]]
 ===== Unicast
 
-The unicast discovery allows for discovery when multicast is
-not enabled. It basically requires a list of hosts to use that will act
+The unicast discovery requires a list of hosts to use that will act
 as gossip routers. It provides the following settings with the
 `discovery.zen.ping.unicast` prefix:
 
@@ -56,8 +30,8 @@ as gossip routers. It provides the following settings with the
 |=======================================================================
 |Setting |Description
 |`hosts` |Either an array setting or a comma delimited setting. Each
-value is either in the form of `host:port`, or in the form of
-`host[port1-port2]`.
+value should be in the form of `host:port` or `host` (where `port` defaults to `9300`). Note that IPv6 hosts must be bracketed. Defaults to
+`127.0.0.1, [::1]`
 |=======================================================================
 
 The unicast discovery uses the
@@ -82,6 +56,12 @@ serves as a protection against (partial) network failures where node may unjustl
 think that the master has failed. In this case the node will simply hear from
 other nodes about the currently active master.
 
+If `discovery.zen.master_election.filter_client` is `true`, pings from client nodes (nodes where `node.client` is
+`true`, or both `node.data` and `node.master` are `false`) are ignored during master election; the default value is
+`true`. If `discovery.zen.master_election.filter_data` is `true`, pings from non-master-eligible data nodes (nodes
+where `node.data` is `true` and `node.master` is `false`) are ignored during master election; the default value is
+`false`. Pings from master-eligible nodes are always observed during master election.
+
 Nodes can be excluded from becoming a master by setting `node.master` to
 `false`. Note, once a node is a client node (`node.client` set to
 `true`), it will not be allowed to become a master (`node.master` is
@@ -91,7 +71,7 @@ The `discovery.zen.minimum_master_nodes` sets the minimum
 number of master eligible nodes that need to join a newly elected master in order for an election to
 complete and for the elected node to accept it's mastership. The same setting controls the minimum number of
 active master eligible nodes that should be a part of any active cluster. If this requirement is not met the
-active master node will step down and a new mastser election will be begin.
+active master node will step down and a new master election will be begin.
 
 This setting must be set to a quorum of your master eligible nodes. It is recommended to avoid
 having only two master eligible nodes, since a quorum of two is two. Therefore, a loss
@@ -122,56 +102,23 @@ considered failed. Defaults to `3`.
 |=======================================================================
 
 [float]
-==== External Multicast
-
-The multicast discovery also supports external multicast requests to
-discover nodes. The external client can send a request to the multicast
-IP/group and port, in the form of:
-
-[source,js]
---------------------------------------------------
-{
-    "request" : {
-        "cluster_name": "test_cluster"
-    }
-}
---------------------------------------------------
-
-And the response will be similar to node info response (with node level
-information only, including transport/http addresses, and node
-attributes):
-
-[source,js]
---------------------------------------------------
-{
-    "response" : {
-        "cluster_name" : "test_cluster",
-        "transport_address" : "...",
-        "http_address" : "...",
-        "attributes" : {
-            "..."
-        }
-    }
-}
---------------------------------------------------
-
-Note, it can still be enabled, with disabled internal multicast
-discovery, but still have external discovery working by keeping
-`discovery.zen.ping.multicast.enabled` set to `true` (the default), but,
-setting `discovery.zen.ping.multicast.ping.enabled` to `false`.
-
-[float]
 ==== Cluster state updates
 
 The master node is the only node in a cluster that can make changes to the
 cluster state. The master node processes one cluster state update at a time,
 applies the required changes and publishes the updated cluster state to all
-the other nodes in the cluster. Each node receives the publish message,
-updates its own cluster state and replies to the master node, which waits for
-all nodes to respond, up to a timeout, before going ahead processing the next
-updates in the queue. The `discovery.zen.publish_timeout` is set by default
-to 30 seconds and can be changed dynamically through the
-<<cluster-update-settings,cluster update settings api>>
+the other nodes in the cluster. Each node receives the publish message, acknowledges
+it, but does *not* yet apply it. If the master does not receive acknowledgement from
+at least `discovery.zen.minimum_master_nodes` nodes within a certain time (controlled by
+the `discovery.zen.commit_timeout` setting and defaults to 30 seconds) the cluster state
+change is rejected.
+
+Once enough nodes have responded, the cluster state is committed and a message will
+be sent to all the nodes. The nodes then proceed to apply the new cluster state to their
+internal state. The master node waits for all nodes to respond, up to a timeout, before
+going ahead processing the next updates in the queue. The `discovery.zen.publish_timeout` is
+set by default to 30 seconds and is measured from the moment the publishing started. Both
+timeout settings can be changed dynamically through the <<cluster-update-settings,cluster update settings api>>
 
 [float]
 [[no-master-block]]

@@ -45,7 +45,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
 
     @Inject
     public RestIndexPutAliasAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(PUT, "/{index}/_alias/{name}", this);
         controller.registerHandler(PUT, "/_alias/{name}", this);
         controller.registerHandler(PUT, "/{index}/_aliases/{name}", this);

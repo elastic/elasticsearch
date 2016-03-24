@@ -19,43 +19,31 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.readScroll;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
- * <p/>
- * <p>Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
+ * <p>
+ * Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
- * <p/>
- * <p>There is an option to specify an addition search source using the {@link #extraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
- *
+ * </p>
  * @see org.elasticsearch.client.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
@@ -71,12 +59,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     @Nullable
     private String preference;
 
-    private BytesReference templateSource;
-    private Template template;
+    private SearchSourceBuilder source;
 
-    private BytesReference source;
-
-    private BytesReference extraSource;
     private Boolean requestCache;
 
     private Scroll scroll;
@@ -87,35 +71,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
+    private Template template;
+
     public SearchRequest() {
-    }
-
-    /**
-     * Copy constructor that creates a new search request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public SearchRequest(SearchRequest searchRequest, ActionRequest originalRequest) {
-        super(originalRequest);
-        this.searchType = searchRequest.searchType;
-        this.indices = searchRequest.indices;
-        this.routing = searchRequest.routing;
-        this.preference = searchRequest.preference;
-        this.templateSource = searchRequest.templateSource;
-        this.template = searchRequest.template;
-        this.source = searchRequest.source;
-        this.extraSource = searchRequest.extraSource;
-        this.requestCache = searchRequest.requestCache;
-        this.scroll = searchRequest.scroll;
-        this.types = searchRequest.types;
-        this.indicesOptions = searchRequest.indicesOptions;
-    }
-
-    /**
-     * Constructs a new search request starting from the provided request, meaning that it will
-     * inherit its headers and context
-     */
-    public SearchRequest(ActionRequest request) {
-        super(request);
     }
 
     /**
@@ -123,15 +81,18 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * will run against all indices.
      */
     public SearchRequest(String... indices) {
-        indices(indices);
+        this(indices, new SearchSourceBuilder());
     }
 
     /**
      * Constructs a new search request against the provided indices with the given search source.
      */
-    public SearchRequest(String[] indices, byte[] source) {
+    public SearchRequest(String[] indices, SearchSourceBuilder source) {
+        if (source == null) {
+            throw new IllegalArgumentException("source must not be null");
+        }
         indices(indices);
-        this.source = new BytesArray(source);
+        this.source = source;
     }
 
     @Override
@@ -247,146 +208,20 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        return this;
-    }
-
-    /**
-     * The source of the search request. Consider using either {@link #source(byte[])} or
-     * {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}.
-     */
-    public SearchRequest source(String source) {
-        this.source = new BytesArray(source);
-        return this;
-    }
-
-    /**
-     * The source of the search request in the form of a map.
-     */
-    public SearchRequest source(Map source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(source);
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        if (sourceBuilder == null) {
+            throw new IllegalArgumentException("source must not be null");
         }
-    }
-
-    public SearchRequest source(XContentBuilder builder) {
-        this.source = builder.bytes();
+        this.source = sourceBuilder;
         return this;
     }
 
     /**
      * The search source to execute.
      */
-    public SearchRequest source(byte[] source) {
-        return source(source, 0, source.length);
-    }
-
-
-    /**
-     * The search source to execute.
-     */
-    public SearchRequest source(byte[] source, int offset, int length) {
-        return source(new BytesArray(source, offset, length));
-    }
-
-    /**
-     * The search source to execute.
-     */
-    public SearchRequest source(BytesReference source) {
-        this.source = source;
-        return this;
-    }
-
-    /**
-     * The search source to execute.
-     */
-    public BytesReference source() {
+    public SearchSourceBuilder source() {
         return source;
     }
 
-    /**
-     * The search source template to execute.
-     */
-    public BytesReference templateSource() {
-        return templateSource;
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
-        if (sourceBuilder == null) {
-            extraSource = null;
-            return this;
-        }
-        this.extraSource = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        return this;
-    }
-
-    public SearchRequest extraSource(Map extraSource) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(extraSource);
-            return extraSource(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + extraSource + "]", e);
-        }
-    }
-
-    public SearchRequest extraSource(XContentBuilder builder) {
-        this.extraSource = builder.bytes();
-        return this;
-    }
-
-    /**
-     * Allows to provide additional source that will use used as well.
-     */
-    public SearchRequest extraSource(String source) {
-        this.extraSource = new BytesArray(source);
-        return this;
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(byte[] source) {
-        return extraSource(source, 0, source.length);
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(byte[] source, int offset, int length) {
-        return extraSource(new BytesArray(source, offset, length));
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(BytesReference source) {
-        this.extraSource = source;
-        return this;
-    }
-
-    /**
-     * Allows to provide template as source.
-     */
-    public SearchRequest templateSource(BytesReference template) {
-        this.templateSource = template;
-        return this;
-    }
-
-    /**
-     * The template of the search request.
-     */
-    public SearchRequest templateSource(String template) {
-        this.templateSource = new BytesArray(template);
-        return this;
-    }
 
     /**
      * The stored template
@@ -400,88 +235,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      */
     public Template template() {
         return template;
-    }
-
-    /**
-     * The name of the stored template
-     * 
-     * @deprecated use {@link #template(Template))} instead.
-     */
-    @Deprecated
-    public void templateName(String templateName) {
-        updateOrCreateScript(templateName, null, null, null);
-    }
-
-    /**
-     * The type of the stored template
-     * 
-     * @deprecated use {@link #template(Template))} instead.
-     */
-    @Deprecated
-    public void templateType(ScriptService.ScriptType templateType) {
-        updateOrCreateScript(null, templateType, null, null);
-    }
-
-    /**
-     * Template parameters used for rendering
-     * 
-     * @deprecated use {@link #template(Template))} instead.
-     */
-    @Deprecated
-    public void templateParams(Map<String, Object> params) {
-        updateOrCreateScript(null, null, null, params);
-    }
-
-    /**
-     * The name of the stored template
-     * 
-     * @deprecated use {@link #template()} instead.
-     */
-    @Deprecated
-    public String templateName() {
-        return template == null ? null : template.getScript();
-    }
-
-    /**
-     * The name of the stored template
-     * 
-     * @deprecated use {@link #template()} instead.
-     */
-    @Deprecated
-    public ScriptService.ScriptType templateType() {
-        return template == null ? null : template.getType();
-    }
-
-    /**
-     * Template parameters used for rendering
-     * 
-     * @deprecated use {@link #template()} instead.
-     */
-    @Deprecated
-    public Map<String, Object> templateParams() {
-        return template == null ? null : template.getParams();
-    }
-
-    private void updateOrCreateScript(String templateContent, ScriptType type, String lang, Map<String, Object> params) {
-        Template template = template();
-        if (template == null) {
-            template = new Template(templateContent == null ? "" : templateContent, type == null ? ScriptType.INLINE : type, lang, null,
-                    params);
-        } else {
-            String newTemplateContent = templateContent == null ? template.getScript() : templateContent;
-            ScriptType newTemplateType = type == null ? template.getType() : type;
-            String newTemplateLang = lang == null ? template.getLang() : lang;
-            Map<String, Object> newTemplateParams = params == null ? template.getParams() : params;
-            template = new Template(newTemplateContent, newTemplateType, MustacheScriptEngineService.NAME, null, newTemplateParams);
-        }
-        template(template);
-    }
-
-    /**
-     * Additional search source to execute.
-     */
-    public BytesReference extraSource() {
-        return this.extraSource;
     }
 
     /**
@@ -542,6 +295,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return this.requestCache;
     }
 
+    /**
+     * @return true if the request only has suggest
+     */
+    public boolean isSuggestOnly() {
+        return source != null && source.isSuggestOnly();
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -558,18 +318,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
-
-        source = in.readBytesReference();
-        extraSource = in.readBytesReference();
+        if (in.readBoolean()) {
+            source = SearchSourceBuilder.readSearchSourceFrom(in);
+        }
 
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
-        templateSource = in.readBytesReference();
-        if (in.readBoolean()) {
-            template = Template.readTemplate(in);
-        }
         requestCache = in.readOptionalBoolean();
+        template = in.readOptionalStreamable(Template::new);
     }
 
     @Override
@@ -591,18 +348,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        out.writeBytesReference(source);
-        out.writeBytesReference(extraSource);
+        if (source == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            source.writeTo(out);
+        }
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
-
-        out.writeBytesReference(templateSource);
-        boolean hasTemplate = template != null;
-        out.writeBoolean(hasTemplate);
-        if (hasTemplate) {
-            template.writeTo(out);
-        }
-
         out.writeOptionalBoolean(requestCache);
+        out.writeOptionalStreamable(template);
     }
 }

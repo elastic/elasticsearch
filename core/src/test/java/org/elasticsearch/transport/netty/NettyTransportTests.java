@@ -16,167 +16,115 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.junit.Test;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
+/** Unit tests for NettyTransport */
+public class NettyTransportTests extends ESTestCase {
+    
+    /** Test ipv4 host with a default port works */
+    public void testParseV4DefaultPort() throws Exception {
+        TransportAddress[] addresses = NettyTransport.parse("127.0.0.1", "1234", Integer.MAX_VALUE);
+        assertEquals(1, addresses.length);
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
-
-/**
- *
- */
-@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
-public class NettyTransportTests extends ElasticsearchIntegrationTest {
-
-    // static so we can use it in anonymous classes
-    private static String channelProfileName = null;
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("node.mode", "network")
-                .put(TransportModule.TRANSPORT_TYPE_KEY, ExceptionThrowingNettyTransport.class.getName()).build();
+        assertEquals("127.0.0.1", addresses[0].getAddress());
+        assertEquals(1234, addresses[0].getPort());
     }
 
-    @Test
-    public void testThatConnectionFailsAsIntended() throws Exception {
-        Client transportClient = internalCluster().transportClient();
-        ClusterHealthResponse clusterIndexHealths = transportClient.admin().cluster().prepareHealth().get();
-        assertThat(clusterIndexHealths.getStatus(), is(ClusterHealthStatus.GREEN));
+    /** Test ipv4 host with a default port range works */
+    public void testParseV4DefaultRange() throws Exception {
+        TransportAddress[] addresses = NettyTransport.parse("127.0.0.1", "1234-1235", Integer.MAX_VALUE);
+        assertEquals(2, addresses.length);
 
+        assertEquals("127.0.0.1", addresses[0].getAddress());
+        assertEquals(1234, addresses[0].getPort());
+        
+        assertEquals("127.0.0.1", addresses[1].getAddress());
+        assertEquals(1235, addresses[1].getPort());
+    }
+
+    /** Test ipv4 host with port works */
+    public void testParseV4WithPort() throws Exception {
+        TransportAddress[] addresses = NettyTransport.parse("127.0.0.1:2345", "1234", Integer.MAX_VALUE);
+        assertEquals(1, addresses.length);
+
+        assertEquals("127.0.0.1", addresses[0].getAddress());
+        assertEquals(2345, addresses[0].getPort());
+    }
+
+    /** Test ipv4 host with port range works */
+    public void testParseV4WithPortRange() throws Exception {
+        TransportAddress[] addresses = NettyTransport.parse("127.0.0.1:2345-2346", "1234", Integer.MAX_VALUE);
+        assertEquals(2, addresses.length);
+
+        assertEquals("127.0.0.1", addresses[0].getAddress());
+        assertEquals(2345, addresses[0].getPort());
+
+        assertEquals("127.0.0.1", addresses[1].getAddress());
+        assertEquals(2346, addresses[1].getPort());
+    }
+
+    /** Test unbracketed ipv6 hosts in configuration fail. Leave no ambiguity */
+    public void testParseV6UnBracketed() throws Exception {
         try {
-            transportClient.admin().cluster().prepareHealth().putHeader("ERROR", "MY MESSAGE").get();
-            fail("Expected exception, but didnt happen");
-        } catch (ElasticsearchException e) {
-            assertThat(e.getMessage(), containsString("MY MESSAGE"));
-            assertThat(channelProfileName, is(NettyTransport.DEFAULT_PROFILE));
+            NettyTransport.parse("::1", "1234", Integer.MAX_VALUE);
+            fail("should have gotten exception");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("must be bracketed"));
         }
     }
 
-    public static final class ExceptionThrowingNettyTransport extends NettyTransport {
+    /** Test ipv6 host with a default port works */
+    public void testParseV6DefaultPort() throws Exception {
+        TransportAddress[] addresses = NettyTransport.parse("[::1]", "1234", Integer.MAX_VALUE);
+        assertEquals(1, addresses.length);
 
-        @Inject
-        public ExceptionThrowingNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version) {
-            super(settings, threadPool, networkService, bigArrays, version);
-        }
+        assertEquals("::1", addresses[0].getAddress());
+        assertEquals(1234, addresses[0].getPort());
+    }
 
-        @Override
-        public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings groupSettings) {
-            return new ErrorPipelineFactory(this, name, groupSettings);
-        }
+    /** Test ipv6 host with a default port range works */
+    public void testParseV6DefaultRange() throws Exception {
+        TransportAddress[] addresses = NettyTransport.parse("[::1]", "1234-1235", Integer.MAX_VALUE);
+        assertEquals(2, addresses.length);
 
-        private static class ErrorPipelineFactory extends ServerChannelPipelineFactory {
+        assertEquals("::1", addresses[0].getAddress());
+        assertEquals(1234, addresses[0].getPort());
+        
+        assertEquals("::1", addresses[1].getAddress());
+        assertEquals(1235, addresses[1].getPort());
+    }
 
-            private final ESLogger logger;
+    /** Test ipv6 host with port works */
+    public void testParseV6WithPort() throws Exception {
+        TransportAddress[] addresses = NettyTransport.parse("[::1]:2345", "1234", Integer.MAX_VALUE);
+        assertEquals(1, addresses.length);
 
-            public ErrorPipelineFactory(ExceptionThrowingNettyTransport exceptionThrowingNettyTransport, String name, Settings groupSettings) {
-                super(exceptionThrowingNettyTransport, name, groupSettings);
-                this.logger = exceptionThrowingNettyTransport.logger;
-            }
+        assertEquals("::1", addresses[0].getAddress());
+        assertEquals(2345, addresses[0].getPort());
+    }
 
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = super.getPipeline();
-                pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger, NettyTransport.DEFAULT_PROFILE) {
+    /** Test ipv6 host with port range works */
+    public void testParseV6WithPortRange() throws Exception {
+        TransportAddress[] addresses = NettyTransport.parse("[::1]:2345-2346", "1234", Integer.MAX_VALUE);
+        assertEquals(2, addresses.length);
 
-                    @Override
-                    protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
-                        final String action = buffer.readString();
+        assertEquals("::1", addresses[0].getAddress());
+        assertEquals(2345, addresses[0].getPort());
 
-                        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, name);
-                        try {
-                            final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
-                            if (reg == null) {
-                                throw new ActionNotFoundTransportException(action);
-                            }
-                            final TransportRequest request = reg.newRequest();
-                            request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
-                            request.readFrom(buffer);
-                            if (request.hasHeader("ERROR")) {
-                                throw new ElasticsearchException((String) request.getHeader("ERROR"));
-                            }
-                            if (reg.getExecutor() == ThreadPool.Names.SAME) {
-                                //noinspection unchecked
-                                reg.getHandler().messageReceived(request, transportChannel);
-                            } else {
-                                threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
-                            }
-                        } catch (Throwable e) {
-                            try {
-                                transportChannel.sendResponse(e);
-                            } catch (IOException e1) {
-                                logger.warn("Failed to send error message back to client for action [" + action + "]", e);
-                                logger.warn("Actual Exception", e1);
-                            }
-                        }
-                        channelProfileName = transportChannel.getProfileName();
-                        return action;
-                    }
-
-                    class RequestHandler extends AbstractRunnable {
-                        private final RequestHandlerRegistry reg;
-                        private final TransportRequest request;
-                        private final NettyTransportChannel transportChannel;
-
-                        public RequestHandler(RequestHandlerRegistry reg, TransportRequest request, NettyTransportChannel transportChannel) {
-                            this.reg = reg;
-                            this.request = request;
-                            this.transportChannel = transportChannel;
-                        }
-
-                        @SuppressWarnings({"unchecked"})
-                        @Override
-                        protected void doRun() throws Exception {
-                            reg.getHandler().messageReceived(request, transportChannel);
-                        }
-
-                        @Override
-                        public boolean isForceExecution() {
-                            return reg.isForceExecution();
-                        }
-
-                        @Override
-                        public void onFailure(Throwable e) {
-                            if (transport.lifecycleState() == Lifecycle.State.STARTED) {
-                                // we can only send a response transport is started....
-                                try {
-                                    transportChannel.sendResponse(e);
-                                } catch (Throwable e1) {
-                                    logger.warn("Failed to send error message back to client for action [" + reg.getAction() + "]", e1);
-                                    logger.warn("Actual Exception", e);
-                                }
-                            }                        }
-                    }
-                });
-                return pipeline;
-            }
-        }
+        assertEquals("::1", addresses[1].getAddress());
+        assertEquals(2346, addresses[1].getPort());
+    }
+    
+    /** Test per-address limit */
+    public void testAddressLimit() throws Exception {
+        TransportAddress[] addresses = NettyTransport.parse("[::1]:100-200", "1000", 3);
+        assertEquals(3, addresses.length);
+        assertEquals(100, addresses[0].getPort());
+        assertEquals(101, addresses[1].getPort());
+        assertEquals(102, addresses[2].getPort());
     }
 }

@@ -7,9 +7,9 @@ timestamping.
 
 [source,sh]
 --------------------------------------------------
-% curl 192.168.56.10:9200/_cat/health
+% curl localhost:9200/_cat/health
 1384308967 18:16:07 foo green 3 3 3 3 0 0 0
-% curl '192.168.56.10:9200/_cat/health?v&ts=0'
+% curl 'localhost:9200/_cat/health?v&ts=0'
 cluster status nodeTotal nodeData shards pri relo init unassign tasks
 foo     green          3        3      3   3    0    0        0     0
 --------------------------------------------------
@@ -35,7 +35,7 @@ to track its progress is by using this command in a delayed loop:
 
 [source,sh]
 --------------------------------------------------
-% while true; do curl 192.168.56.10:9200/_cat/health; sleep 120; done
+% while true; do curl localhost:9200/_cat/health; sleep 120; done
 1384309446 18:24:06 foo red 3 3 20 20 0 0 1812 0
 1384309566 18:26:06 foo yellow 3 3 950 916 0 12 870 0
 1384309686 18:28:06 foo yellow 3 3 1328 916 0 12 492 0

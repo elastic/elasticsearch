@@ -19,14 +19,20 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -35,12 +41,52 @@ import java.io.IOException;
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message incase it failed).
  */
-public class BulkItemResponse implements Streamable {
+public class BulkItemResponse implements Streamable, StatusToXContent {
+
+    @Override
+    public RestStatus status() {
+        return failure == null ? response.status() : failure.getStatus();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(opType);
+        if (failure == null) {
+            response.toXContent(builder, params);
+            builder.field(Fields.STATUS, response.status().getStatus());
+        } else {
+            builder.field(Fields._INDEX, failure.getIndex());
+            builder.field(Fields._TYPE, failure.getType());
+            builder.field(Fields._ID, failure.getId());
+            builder.field(Fields.STATUS, failure.getStatus().getStatus());
+            builder.startObject(Fields.ERROR);
+            ElasticsearchException.toXContent(builder, params, failure.getCause());
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    static final class Fields {
+        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
+        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
+        static final XContentBuilderString ERROR = new XContentBuilderString("error");
+    }
 
     /**
      * Represents a failure.
      */
-    public static class Failure {
+    public static class Failure implements Writeable<Failure>, ToXContent {
+        static final String INDEX_FIELD = "index";
+        static final String TYPE_FIELD = "type";
+        static final String ID_FIELD = "id";
+        static final String CAUSE_FIELD = "cause";
+        static final String STATUS_FIELD = "status";
+
+        public static final Failure PROTOTYPE = new Failure(null, null, null, null);
+
         private final String index;
         private final String type;
         private final String id;
@@ -90,8 +136,38 @@ public class BulkItemResponse implements Streamable {
             return this.status;
         }
 
+        /**
+         * The actual cause of the failure.
+         */
         public Throwable getCause() {
             return cause;
+        }
+
+        @Override
+        public Failure readFrom(StreamInput in) throws IOException {
+            return new Failure(in.readString(), in.readString(), in.readOptionalString(), in.readThrowable());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(getIndex());
+            out.writeString(getType());
+            out.writeOptionalString(getId());
+            out.writeThrowable(getCause());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(INDEX_FIELD, index);
+            builder.field(TYPE_FIELD, type);
+            if (id != null) {
+                builder.field(ID_FIELD, id);
+            }
+            builder.startObject(CAUSE_FIELD);
+            ElasticsearchException.toXContent(builder, params, cause);
+            builder.endObject();
+            builder.field(STATUS_FIELD, status.getStatus());
+            return builder;
         }
     }
 
@@ -99,7 +175,7 @@ public class BulkItemResponse implements Streamable {
 
     private String opType;
 
-    private ActionWriteResponse response;
+    private DocWriteResponse response;
 
     private Failure failure;
 
@@ -107,7 +183,7 @@ public class BulkItemResponse implements Streamable {
 
     }
 
-    public BulkItemResponse(int id, String opType, ActionWriteResponse response) {
+    public BulkItemResponse(int id, String opType, DocWriteResponse response) {
         this.id = id;
         this.opType = opType;
         this.response = response;
@@ -140,14 +216,7 @@ public class BulkItemResponse implements Streamable {
         if (failure != null) {
             return failure.getIndex();
         }
-        if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).getIndex();
-        } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).getIndex();
-        } else if (response instanceof UpdateResponse) {
-            return ((UpdateResponse) response).getIndex();
-        }
-        return null;
+        return response.getIndex();
     }
 
     /**
@@ -157,14 +226,7 @@ public class BulkItemResponse implements Streamable {
         if (failure != null) {
             return failure.getType();
         }
-        if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).getType();
-        } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).getType();
-        } else if (response instanceof UpdateResponse) {
-            return ((UpdateResponse) response).getType();
-        }
-        return null;
+        return response.getType();
     }
 
     /**
@@ -174,14 +236,7 @@ public class BulkItemResponse implements Streamable {
         if (failure != null) {
             return failure.getId();
         }
-        if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).getId();
-        } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).getId();
-        } else if (response instanceof UpdateResponse) {
-            return ((UpdateResponse) response).getId();
-        }
-        return null;
+        return response.getId();
     }
 
     /**
@@ -191,21 +246,14 @@ public class BulkItemResponse implements Streamable {
         if (failure != null) {
             return -1;
         }
-        if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).getVersion();
-        } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).getVersion();
-        } else if (response instanceof UpdateResponse) {
-            return ((UpdateResponse) response).getVersion();
-        }
-        return -1;
+        return response.getVersion();
     }
 
     /**
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). <tt>null</tt> in
      * case of failure.
      */
-    public <T extends ActionWriteResponse> T getResponse() {
+    public <T extends DocWriteResponse> T getResponse() {
         return (T) response;
     }
 
@@ -257,11 +305,7 @@ public class BulkItemResponse implements Streamable {
         }
 
         if (in.readBoolean()) {
-            String fIndex = in.readString();
-            String fType = in.readString();
-            String fId = in.readOptionalString();
-            Throwable throwable = in.readThrowable();
-            failure = new Failure(fIndex, fType, fId, throwable);
+            failure = Failure.PROTOTYPE.readFrom(in);
         }
     }
 
@@ -286,10 +330,7 @@ public class BulkItemResponse implements Streamable {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeString(failure.getIndex());
-            out.writeString(failure.getType());
-            out.writeOptionalString(failure.getId());
-            out.writeThrowable(failure.getCause());
+            failure.writeTo(out);
         }
     }
 }

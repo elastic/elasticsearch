@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Contains a list of files participating in a snapshot
@@ -70,7 +68,7 @@ public class SnapshotFiles {
      */
     public FileInfo findPhysicalIndexFile(String physicalName) {
         if (physicalFiles == null) {
-            Map<String, FileInfo> files = newHashMap();
+            Map<String, FileInfo> files = new HashMap<>();
             for(FileInfo fileInfo : indexFiles) {
                 files.put(fileInfo.physicalName(), fileInfo);
             }

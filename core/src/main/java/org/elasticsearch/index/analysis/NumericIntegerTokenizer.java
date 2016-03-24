@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 
 import java.io.IOException;
 
@@ -29,11 +29,11 @@ import java.io.IOException;
 public class NumericIntegerTokenizer extends NumericTokenizer {
 
     public NumericIntegerTokenizer(int precisionStep, char[] buffer) throws IOException {
-        super(new NumericTokenStream(precisionStep), buffer, null);
+        super(new LegacyNumericTokenStream(precisionStep), buffer, null);
     }
 
     @Override
-    protected void setValue(NumericTokenStream tokenStream, String value) {
+    protected void setValue(LegacyNumericTokenStream tokenStream, String value) {
         tokenStream.setIntValue(Integer.parseInt(value));
     }
 }

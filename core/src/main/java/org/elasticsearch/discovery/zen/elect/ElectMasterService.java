@@ -20,22 +20,29 @@
 package org.elasticsearch.discovery.zen.elect;
 
 import com.carrotsearch.hppc.ObjectContainer;
-import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  *
  */
 public class ElectMasterService extends AbstractComponent {
 
-    public static final String DISCOVERY_ZEN_MINIMUM_MASTER_NODES = "discovery.zen.minimum_master_nodes";
+    public static final Setting<Integer> DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING =
+        Setting.intSetting("discovery.zen.minimum_master_nodes", -1, Property.Dynamic, Property.NodeScope);
 
     // This is the minimum version a master needs to be on, otherwise it gets ignored
     // This is based on the minimum compatible version of the current version this node is on
@@ -48,7 +55,7 @@ public class ElectMasterService extends AbstractComponent {
     public ElectMasterService(Settings settings, Version version) {
         super(settings);
         this.minMasterVersion = version.minimumCompatibilityVersion();
-        this.minimumMasterNodes = settings.getAsInt(DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1);
+        this.minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }
 
@@ -74,13 +81,11 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     /**
-     * Returns the given nodes sorted by likelyhood of being elected as master, most likely first.
+     * Returns the given nodes sorted by likelihood of being elected as master, most likely first.
      * Non-master nodes are not removed but are rather put in the end
-     * @param nodes
-     * @return
      */
     public List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {
-        ArrayList<DiscoveryNode> sortedNodes = Lists.newArrayList(nodes);
+        ArrayList<DiscoveryNode> sortedNodes = CollectionUtils.iterableAsArrayList(nodes);
         CollectionUtil.introSort(sortedNodes, nodeComparator);
         return sortedNodes;
     }
@@ -93,7 +98,7 @@ public class ElectMasterService extends AbstractComponent {
         if (sortedNodes == null) {
             return new DiscoveryNode[0];
         }
-        List<DiscoveryNode> nextPossibleMasters = Lists.newArrayListWithCapacity(numberOfPossibleMasters);
+        List<DiscoveryNode> nextPossibleMasters = new ArrayList<>(numberOfPossibleMasters);
         int counter = 0;
         for (DiscoveryNode nextPossibleMaster : sortedNodes) {
             if (++counter >= numberOfPossibleMasters) {
@@ -124,7 +129,7 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     private List<DiscoveryNode> sortedMasterNodes(Iterable<DiscoveryNode> nodes) {
-        List<DiscoveryNode> possibleNodes = Lists.newArrayList(nodes);
+        List<DiscoveryNode> possibleNodes = CollectionUtils.iterableAsArrayList(nodes);
         if (possibleNodes.isEmpty()) {
             return null;
         }

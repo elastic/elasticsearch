@@ -21,36 +21,47 @@ package org.elasticsearch.deps.lucene;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-public class VectorHighlighterTests extends ElasticsearchTestCase {
-
-    @Test
+public class VectorHighlighterTests extends ESTestCase {
     public void testVectorHighlighter() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        FieldType vectorsType = new FieldType(TextField.TYPE_STORED);
+        vectorsType.setStoreTermVectors(true);
+        vectorsType.setStoreTermVectorPositions(true);
+        vectorsType.setStoreTermVectorOffsets(true);
+        document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -63,17 +74,20 @@ public class VectorHighlighterTests extends ElasticsearchTestCase {
         assertThat(fragment, equalTo("the big <b>bad</b> dog"));
     }
 
-    @Test
     public void testVectorHighlighterPrefixQuery() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        FieldType vectorsType = new FieldType(TextField.TYPE_STORED);
+        vectorsType.setStoreTermVectors(true);
+        vectorsType.setStoreTermVectorPositions(true);
+        vectorsType.setStoreTermVectorOffsets(true);
+        document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -82,12 +96,12 @@ public class VectorHighlighterTests extends ElasticsearchTestCase {
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
 
         PrefixQuery prefixQuery = new PrefixQuery(new Term("content", "ba"));
-        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_FILTER_REWRITE.getClass().getName()));
+        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_REWRITE.getClass().getName()));
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(prefixQuery),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, nullValue());
 
-        prefixQuery.setRewriteMethod(PrefixQuery.SCORING_BOOLEAN_QUERY_REWRITE);
+        prefixQuery.setRewriteMethod(PrefixQuery.SCORING_BOOLEAN_REWRITE);
         Query rewriteQuery = prefixQuery.rewrite(reader);
         fragment = highlighter.getBestFragment(highlighter.getFieldQuery(rewriteQuery),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
@@ -95,23 +109,26 @@ public class VectorHighlighterTests extends ElasticsearchTestCase {
 
         // now check with the custom field query
         prefixQuery = new PrefixQuery(new Term("content", "ba"));
-        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_FILTER_REWRITE.getClass().getName()));
+        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_REWRITE.getClass().getName()));
         fragment = highlighter.getBestFragment(new CustomFieldQuery(prefixQuery, reader, highlighter),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, notNullValue());
     }
 
-    @Test
     public void testVectorHighlighterNoStore() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        FieldType vectorsType = new FieldType(TextField.TYPE_NOT_STORED);
+        vectorsType.setStoreTermVectors(true);
+        vectorsType.setStoreTermVectorPositions(true);
+        vectorsType.setStoreTermVectorOffsets(true);
+        document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -123,17 +140,16 @@ public class VectorHighlighterTests extends ElasticsearchTestCase {
         assertThat(fragment, nullValue());
     }
 
-    @Test
     public void testVectorHighlighterNoTermVector() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO));
+        document.add(new TextField("content", "the big bad dog", Field.Store.YES));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 

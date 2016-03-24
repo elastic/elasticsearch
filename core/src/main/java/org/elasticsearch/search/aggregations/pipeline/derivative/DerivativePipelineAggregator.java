@@ -19,21 +19,16 @@
 
 package org.elasticsearch.search.aggregations.pipeline.derivative;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -43,6 +38,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -95,14 +92,15 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         for (InternalHistogram.Bucket bucket : buckets) {
             Long thisBucketKey = resolveBucketKeyAsLong(bucket);
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
-            if (lastBucketValue != null) {
+            if (lastBucketValue != null && thisBucketValue != null) {
                 double gradient = thisBucketValue - lastBucketValue;
                 double xDiff = -1;
                 if (xAxisUnits != null) {
                     xDiff = (thisBucketKey - lastBucketKey) / xAxisUnits;
                 }
-                List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(),
-                        AGGREGATION_TRANFORM_FUNCTION));
+                final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
+                    return (InternalAggregation) p;
+                }).collect(Collectors.toList());
                 aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, new ArrayList<PipelineAggregator>(), metaData()));
                 InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
                         aggs), bucket.getKeyed(), bucket.getFormatter());
@@ -123,7 +121,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         } else if (key instanceof Number) {
             return ((Number) key).longValue();
         } else {
-            throw new AggregationExecutionException("Bucket keys must be either a Number or a DateTime for aggregation " + name()
+            throw new AggregationExecutionException("InternalBucket keys must be either a Number or a DateTime for aggregation " + name()
                     + ". Found bucket with key " + key);
         }
     }
@@ -149,43 +147,5 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         if (hasXAxisUnitsValue) {
             out.writeDouble(xAxisUnits);
         }
-    }
-
-    public static class Factory extends PipelineAggregatorFactory {
-
-        private final ValueFormatter formatter;
-        private GapPolicy gapPolicy;
-        private Long xAxisUnits;
-
-        public Factory(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy, Long xAxisUnits) {
-            super(name, TYPE.name(), bucketsPaths);
-            this.formatter = formatter;
-            this.gapPolicy = gapPolicy;
-            this.xAxisUnits = xAxisUnits;
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new DerivativePipelineAggregator(name, bucketsPaths, formatter, gapPolicy, xAxisUnits, metaData);
-        }
-
-        @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
-            if (bucketsPaths.length != 1) {
-                throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                        + " must contain a single entry for aggregation [" + name + "]");
-            }
-            if (!(parent instanceof HistogramAggregator.Factory)) {
-                throw new IllegalStateException("derivative aggregation [" + name
-                        + "] must have a histogram or date_histogram as parent");
-            } else {
-                HistogramAggregator.Factory histoParent = (HistogramAggregator.Factory) parent;
-                if (histoParent.minDocCount() != 0) {
-                    throw new IllegalStateException("parent histogram of derivative aggregation [" + name
-                            + "] must have min_doc_count of 0");
-                }
-            }
-        }
-
     }
 }

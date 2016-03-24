@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.filters;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +27,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation.InternalBucket;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -43,7 +40,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalFilters extends InternalMultiBucketAggregation<InternalFilters, InternalFilters.Bucket> implements Filters {
+public class InternalFilters extends InternalMultiBucketAggregation<InternalFilters, InternalFilters.InternalBucket> implements Filters {
 
     public final static Type TYPE = new Type("filters");
 
@@ -56,16 +53,16 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         }
     };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+    private final static BucketStreams.Stream<InternalBucket> BUCKET_STREAM = new BucketStreams.Stream<InternalBucket>() {
         @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket filters = new Bucket(context.keyed());
+        public InternalBucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            InternalBucket filters = new InternalBucket(context.keyed());
             filters.readFrom(in);
             return filters;
         }
 
         @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+        public BucketStreamContext getBucketStreamContext(InternalBucket bucket) {
             BucketStreamContext context = new BucketStreamContext();
             context.keyed(bucket.keyed);
             return context;
@@ -77,19 +74,19 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public static class Bucket extends InternalBucket implements Filters.Bucket {
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements Filters.Bucket {
 
         private final boolean keyed;
         private String key;
         private long docCount;
         InternalAggregations aggregations;
 
-        private Bucket(boolean keyed) {
+        private InternalBucket(boolean keyed) {
             // for serialization
             this.keyed = keyed;
         }
 
-        public Bucket(String key, long docCount, InternalAggregations aggregations, boolean keyed) {
+        public InternalBucket(String key, long docCount, InternalAggregations aggregations, boolean keyed) {
             this.key = key;
             this.docCount = docCount;
             this.aggregations = aggregations;
@@ -116,12 +113,12 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             return aggregations;
         }
 
-        Bucket reduce(List<Bucket> buckets, ReduceContext context) {
-            Bucket reduced = null;
-            List<InternalAggregations> aggregationsList = Lists.newArrayListWithCapacity(buckets.size());
-            for (Bucket bucket : buckets) {
+        InternalBucket reduce(List<InternalBucket> buckets, ReduceContext context) {
+            InternalBucket reduced = null;
+            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+            for (InternalBucket bucket : buckets) {
                 if (reduced == null) {
-                    reduced = new Bucket(bucket.key, bucket.docCount, bucket.aggregations, bucket.keyed);
+                    reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations, bucket.keyed);
                 } else {
                     reduced.docCount += bucket.docCount;
                 }
@@ -159,13 +156,13 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         }
     }
 
-    private List<Bucket> buckets;
-    private Map<String, Bucket> bucketMap;
+    private List<InternalBucket> buckets;
+    private Map<String, InternalBucket> bucketMap;
     private boolean keyed;
 
     public InternalFilters() {} // for serialization
 
-    public InternalFilters(String name, List<Bucket> buckets, boolean keyed, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    public InternalFilters(String name, List<InternalBucket> buckets, boolean keyed, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.buckets = buckets;
         this.keyed = keyed;
@@ -177,25 +174,25 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     }
 
     @Override
-    public InternalFilters create(List<Bucket> buckets) {
+    public InternalFilters create(List<InternalBucket> buckets) {
         return new InternalFilters(this.name, buckets, this.keyed, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
-    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.key, prototype.docCount, aggregations, prototype.keyed);
+    public InternalBucket createBucket(InternalAggregations aggregations, InternalBucket prototype) {
+        return new InternalBucket(prototype.key, prototype.docCount, aggregations, prototype.keyed);
     }
 
     @Override
-    public List<Bucket> getBuckets() {
+    public List<InternalBucket> getBuckets() {
         return buckets;
     }
 
     @Override
-    public Bucket getBucketByKey(String key) {
+    public InternalBucket getBucketByKey(String key) {
         if (bucketMap == null) {
             bucketMap = new HashMap<>(buckets.size());
-            for (Bucket bucket : buckets) {
+            for (InternalBucket bucket : buckets) {
                 bucketMap.put(bucket.getKey(), bucket);
             }
         }
@@ -204,26 +201,26 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        List<List<Bucket>> bucketsList = null;
+        List<List<InternalBucket>> bucketsList = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalFilters filters = (InternalFilters) aggregation;
             if (bucketsList == null) {
                 bucketsList = new ArrayList<>(filters.buckets.size());
-                for (Bucket bucket : filters.buckets) {
-                    List<Bucket> sameRangeList = new ArrayList<>(aggregations.size());
+                for (InternalBucket bucket : filters.buckets) {
+                    List<InternalBucket> sameRangeList = new ArrayList<>(aggregations.size());
                     sameRangeList.add(bucket);
                     bucketsList.add(sameRangeList);
                 }
             } else {
                 int i = 0;
-                for (Bucket bucket : filters.buckets) {
+                for (InternalBucket bucket : filters.buckets) {
                     bucketsList.get(i++).add(bucket);
                 }
             }
         }
 
-        InternalFilters reduced = new InternalFilters(name, new ArrayList<Bucket>(bucketsList.size()), keyed, pipelineAggregators(), getMetaData());
-        for (List<Bucket> sameRangeList : bucketsList) {
+        InternalFilters reduced = new InternalFilters(name, new ArrayList<InternalBucket>(bucketsList.size()), keyed, pipelineAggregators(), getMetaData());
+        for (List<InternalBucket> sameRangeList : bucketsList) {
             reduced.buckets.add((sameRangeList.get(0)).reduce(sameRangeList, reduceContext));
         }
         return reduced;
@@ -233,9 +230,9 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     protected void doReadFrom(StreamInput in) throws IOException {
         keyed = in.readBoolean();
         int size = in.readVInt();
-        List<Bucket> buckets = Lists.newArrayListWithCapacity(size);
+        List<InternalBucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            Bucket bucket = new Bucket(keyed);
+            InternalBucket bucket = new InternalBucket(keyed);
             bucket.readFrom(in);
             buckets.add(bucket);
         }
@@ -247,7 +244,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
         out.writeVInt(buckets.size());
-        for (Bucket bucket : buckets) {
+        for (InternalBucket bucket : buckets) {
             bucket.writeTo(out);
         }
     }
@@ -259,7 +256,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         } else {
             builder.startArray(CommonFields.BUCKETS);
         }
-        for (Bucket bucket : buckets) {
+        for (InternalBucket bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         if (keyed) {

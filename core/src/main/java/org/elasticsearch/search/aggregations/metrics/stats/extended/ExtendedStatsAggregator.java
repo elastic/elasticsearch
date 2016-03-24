@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -32,8 +33,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -44,6 +43,8 @@ import java.util.Map;
  *
  */
 public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
+
+    public static final ParseField SIGMA_FIELD = new ParseField("sigma");
 
     final ValuesSource.Numeric valuesSource;
     final ValueFormatter formatter;
@@ -166,14 +167,12 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
-            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d, formatter,
-                    pipelineAggregators(), metaData());
+    public InternalAggregation buildAggregation(long bucket) {
+        if (valuesSource == null || bucket >= counts.size()) {
+            return buildEmptyAggregation();
         }
-        assert owningBucketOrdinal < counts.size();
-        return new InternalExtendedStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal),
-                mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), sigma, formatter,
+        return new InternalExtendedStats(name, counts.get(bucket), sums.get(bucket),
+                mins.get(bucket), maxes.get(bucket), sumOfSqrs.get(bucket), sigma, formatter,
                 pipelineAggregators(), metaData());
     }
 
@@ -186,31 +185,5 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     @Override
     public void doClose() {
         Releasables.close(counts, maxes, mins, sumOfSqrs, sums);
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
-
-        private final double sigma;
-
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig, double sigma) {
-            super(name, InternalExtendedStats.TYPE.name(), valuesSourceConfig);
-
-            this.sigma = sigma;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new ExtendedStatsAggregator(name, null, config.formatter(), aggregationContext, parent, sigma, pipelineAggregators,
-                    metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, sigma,
-                    pipelineAggregators, metaData);
-        }
     }
 }

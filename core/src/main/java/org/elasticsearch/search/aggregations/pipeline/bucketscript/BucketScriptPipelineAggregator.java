@@ -19,16 +19,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -39,16 +35,18 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -56,25 +54,15 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
     public final static Type TYPE = new Type("bucket_script");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public BucketScriptPipelineAggregator readResult(StreamInput in) throws IOException {
-            BucketScriptPipelineAggregator result = new BucketScriptPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
+    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
+        BucketScriptPipelineAggregator result = new BucketScriptPipelineAggregator();
+        result.readFrom(in);
+        return result;
     };
 
     public static void registerStreams() {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
     }
-
-    private static final Function<Aggregation, InternalAggregation> FUNCTION = new Function<Aggregation, InternalAggregation>() {
-        @Override
-        public InternalAggregation apply(Aggregation input) {
-            return (InternalAggregation) input;
-        }
-    };
 
     private ValueFormatter formatter;
     private GapPolicy gapPolicy;
@@ -105,7 +93,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
-        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS);
+        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
         List newBuckets = new ArrayList<>();
         for (Bucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -135,9 +123,11 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                         throw new AggregationExecutionException("series_arithmetic script for reducer [" + name()
                                 + "] must return a Number");
                     }
-                    List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
+                    final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
+                        return (InternalAggregation) p;
+                    }).collect(Collectors.toList());
                     aggs.add(new InternalSimpleValue(name(), ((Number) returned).doubleValue(), formatter,
-                            new ArrayList<PipelineAggregator>(), metaData()));
+                            new ArrayList<>(), metaData()));
                     InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
                             (InternalMultiBucketAggregation.InternalBucket) bucket);
                     newBuckets.add(newBucket);
@@ -162,27 +152,6 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         formatter = ValueFormatterStreams.readOptional(in);
         gapPolicy = GapPolicy.readFrom(in);
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();
-    }
-
-    public static class Factory extends PipelineAggregatorFactory {
-
-        private Script script;
-        private final ValueFormatter formatter;
-        private GapPolicy gapPolicy;
-        private Map<String, String> bucketsPathsMap;
-
-        public Factory(String name, Map<String, String> bucketsPathsMap, Script script, ValueFormatter formatter, GapPolicy gapPolicy) {
-            super(name, TYPE.name(), bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]));
-            this.bucketsPathsMap = bucketsPathsMap;
-            this.script = script;
-            this.formatter = formatter;
-            this.gapPolicy = gapPolicy;
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new BucketScriptPipelineAggregator(name, bucketsPathsMap, script, formatter, gapPolicy, metaData);
-        }
     }
 
 }

@@ -19,21 +19,28 @@
 
 package org.elasticsearch.common.io;
 
-import com.google.common.base.Charsets;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.util.Callback;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Simple utility methods for file and stream copying.
  * All copy methods use a block size of 4096 bytes,
  * and close all affected streams when done.
- * <p/>
- * <p>Mainly for use within the framework,
+ * <p>
+ * Mainly for use within the framework,
  * but also useful for application code.
  */
 public abstract class Streams {
@@ -60,8 +67,9 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static long copy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
-        Preconditions.checkNotNull(in, "No InputStream specified");
-        Preconditions.checkNotNull(out, "No OutputStream specified");
+        Objects.requireNonNull(in, "No InputStream specified");
+        Objects.requireNonNull(out, "No OutputStream specified");
+        boolean success = false;
         try {
             long byteCount = 0;
             int bytesRead;
@@ -70,17 +78,13 @@ public abstract class Streams {
                 byteCount += bytesRead;
             }
             out.flush();
+            success = true;
             return byteCount;
         } finally {
-            try {
-                in.close();
-            } catch (IOException ex) {
-                // do nothing
-            }
-            try {
-                out.close();
-            } catch (IOException ex) {
-                // do nothing
+            if (success) {
+                IOUtils.close(in, out);
+            } else {
+                IOUtils.closeWhileHandlingException(in, out);
             }
         }
     }
@@ -94,8 +98,8 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static void copy(byte[] in, OutputStream out) throws IOException {
-        Preconditions.checkNotNull(in, "No input byte array specified");
-        Preconditions.checkNotNull(out, "No OutputStream specified");
+        Objects.requireNonNull(in, "No input byte array specified");
+        Objects.requireNonNull(out, "No OutputStream specified");
         try {
             out.write(in);
         } finally {
@@ -122,8 +126,9 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static int copy(Reader in, Writer out) throws IOException {
-        Preconditions.checkNotNull(in, "No Reader specified");
-        Preconditions.checkNotNull(out, "No Writer specified");
+        Objects.requireNonNull(in, "No Reader specified");
+        Objects.requireNonNull(out, "No Writer specified");
+        boolean success = false;
         try {
             int byteCount = 0;
             char[] buffer = new char[BUFFER_SIZE];
@@ -133,17 +138,13 @@ public abstract class Streams {
                 byteCount += bytesRead;
             }
             out.flush();
+            success = true;
             return byteCount;
         } finally {
-            try {
-                in.close();
-            } catch (IOException ex) {
-                // do nothing
-            }
-            try {
-                out.close();
-            } catch (IOException ex) {
-                // do nothing
+            if (success) {
+                IOUtils.close(in, out);
+            } else {
+                IOUtils.closeWhileHandlingException(in, out);
             }
         }
     }
@@ -157,8 +158,8 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static void copy(String in, Writer out) throws IOException {
-        Preconditions.checkNotNull(in, "No input String specified");
-        Preconditions.checkNotNull(out, "No Writer specified");
+        Objects.requireNonNull(in, "No input String specified");
+        Objects.requireNonNull(out, "No Writer specified");
         try {
             out.write(in);
         } finally {
@@ -182,34 +183,6 @@ public abstract class Streams {
         StringWriter out = new StringWriter();
         copy(in, out);
         return out.toString();
-    }
-
-    public static String copyToStringFromClasspath(ClassLoader classLoader, String path) throws IOException {
-        InputStream is = classLoader.getResourceAsStream(path);
-        if (is == null) {
-            throw new FileNotFoundException("Resource [" + path + "] not found in classpath with class loader [" + classLoader + "]");
-        }
-        return copyToString(new InputStreamReader(is, Charsets.UTF_8));
-    }
-
-    public static String copyToStringFromClasspath(String path) throws IOException {
-        InputStream is = Streams.class.getResourceAsStream(path);
-        if (is == null) {
-            throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
-        }
-        return copyToString(new InputStreamReader(is, Charsets.UTF_8));
-    }
-
-    public static byte[] copyToBytesFromClasspath(String path) throws IOException {
-        try (InputStream is = Streams.class.getResourceAsStream(path)) {
-            if (is == null) {
-                throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
-            }
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                copy(is, out);
-                return out.bytes().toBytes();
-            }
-        }
     }
 
     public static int readFully(Reader reader, char[] dest) throws IOException {
@@ -245,7 +218,7 @@ public abstract class Streams {
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
-        final List<String> lines = Lists.newArrayList();
+        final List<String> lines = new ArrayList<>();
         readAllLines(input, new Callback<String>() {
             @Override
             public void handle(String line) {
@@ -256,7 +229,7 @@ public abstract class Streams {
     }
 
     public static void readAllLines(InputStream input, Callback<String> callback) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, Charsets.UTF_8))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 callback.handle(line);

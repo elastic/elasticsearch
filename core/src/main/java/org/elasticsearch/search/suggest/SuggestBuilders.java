@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
@@ -30,46 +29,32 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 public abstract class SuggestBuilders {
 
     /**
-     * Creates a term suggestion lookup query with the provided <code>name</code>
+     * Creates a term suggestion lookup query with the provided <code>field</code>
      *
-     * @param name The suggestion name
      * @return a {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder}
      * instance
      */
-    public static TermSuggestionBuilder termSuggestion(String name) {
-        return new TermSuggestionBuilder(name);
+    public static TermSuggestionBuilder termSuggestion(String fieldname) {
+        return new TermSuggestionBuilder(fieldname);
     }
 
     /**
-     * Creates a phrase suggestion lookup query with the provided <code>name</code>
+     * Creates a phrase suggestion lookup query with the provided <code>field</code>
      *
-     * @param name The suggestion name
      * @return a {@link org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder}
      * instance
      */
-    public static PhraseSuggestionBuilder phraseSuggestion(String name) {
-        return new PhraseSuggestionBuilder(name);
+    public static PhraseSuggestionBuilder phraseSuggestion(String fieldname) {
+        return new PhraseSuggestionBuilder(fieldname);
     }
 
     /**
-     * Creates a completion suggestion lookup query with the provided <code>name</code>
+     * Creates a completion suggestion lookup query with the provided <code>field</code>
      *
-     * @param name The suggestion name
      * @return a {@link org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder}
      * instance
      */
-    public static CompletionSuggestionBuilder completionSuggestion(String name) {
-        return new CompletionSuggestionBuilder(name);
-    }
-
-    /**
-     * Creates a fuzzy completion suggestion lookup query with the provided <code>name</code>
-     *
-     * @param name The suggestion name
-     * @return a {@link org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder}
-     * instance
-     */
-    public static CompletionSuggestionFuzzyBuilder fuzzyCompletionSuggestion(String name) {
-        return new CompletionSuggestionFuzzyBuilder(name);
+    public static CompletionSuggestionBuilder completionSuggestion(String fieldname) {
+        return new CompletionSuggestionBuilder(fieldname);
     }
 }

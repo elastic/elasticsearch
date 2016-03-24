@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 
-import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -31,25 +30,15 @@ import java.util.Map;
  */
 public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
 
-    private final CopyOnWriteHashMap<String, Analyzer> analyzers;
-    private final Analyzer defaultAnalyzer;
+    private final Map<String, Analyzer> analyzers;
 
-    public FieldNameAnalyzer(Analyzer defaultAnalyzer) {
-        this(new CopyOnWriteHashMap<String, Analyzer>(), defaultAnalyzer);
-    }
-
-    public FieldNameAnalyzer(Map<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
+    public FieldNameAnalyzer(Map<String, Analyzer> analyzers) {
         super(Analyzer.PER_FIELD_REUSE_STRATEGY);
         this.analyzers = CopyOnWriteHashMap.copyOf(analyzers);
-        this.defaultAnalyzer = defaultAnalyzer;
     }
 
     public Map<String, Analyzer> analyzers() {
         return analyzers;
-    }
-
-    public Analyzer defaultAnalyzer() {
-        return defaultAnalyzer;
     }
 
     @Override
@@ -62,20 +51,4 @@ public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
         // Fields need to be explicitly added
         throw new IllegalArgumentException("Field [" + fieldName + "] has no associated analyzer");
     }
-
-    /**
-     * Return a new instance that contains the union of this and of the provided analyzers.
-     */
-    public FieldNameAnalyzer copyAndAddAll(Collection<? extends Map.Entry<String, Analyzer>> mappers) {
-        CopyOnWriteHashMap<String, Analyzer> analyzers = this.analyzers;
-        for (Map.Entry<String, Analyzer> entry : mappers) {
-            Analyzer analyzer = entry.getValue();
-            if (analyzer == null) {
-                analyzer = defaultAnalyzer;
-            }
-            analyzers = analyzers.copyAndPut(entry.getKey(), analyzer);
-        }
-        return new FieldNameAnalyzer(analyzers, defaultAnalyzer);
-    }
-
 }

@@ -19,69 +19,135 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * A query that will execute the wrapped query only for the specified indices, and "match_all" when
  * it does not match those indices (by default).
  */
-public class IndicesQueryBuilder extends QueryBuilder {
+public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilder> {
 
-    private final QueryBuilder queryBuilder;
+    public static final String NAME = "indices";
+
+    private final QueryBuilder innerQuery;
 
     private final String[] indices;
 
-    private String sNoMatchQuery;
-    private QueryBuilder noMatchQuery;
+    private QueryBuilder noMatchQuery = defaultNoMatchQuery();
 
-    private String queryName;
+    static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, "index");
 
-    public IndicesQueryBuilder(QueryBuilder queryBuilder, String... indices) {
-        this.queryBuilder = queryBuilder;
+    public IndicesQueryBuilder(QueryBuilder innerQuery, String... indices) {
+        if (innerQuery == null) {
+            throw new IllegalArgumentException("inner query cannot be null");
+        }
+        if (indices == null || indices.length == 0) {
+            throw new IllegalArgumentException("list of indices cannot be null or empty");
+        }
+        this.innerQuery = Objects.requireNonNull(innerQuery);
         this.indices = indices;
     }
 
-    /**
-     * Sets the no match query, can either be <tt>all</tt> or <tt>none</tt>.
-     */
-    public IndicesQueryBuilder noMatchQuery(String type) {
-        this.sNoMatchQuery = type;
-        return this;
+    public QueryBuilder innerQuery() {
+        return this.innerQuery;
+    }
+
+    public String[] indices() {
+        return this.indices;
     }
 
     /**
      * Sets the query to use when it executes on an index that does not match the indices provided.
      */
     public IndicesQueryBuilder noMatchQuery(QueryBuilder noMatchQuery) {
+        if (noMatchQuery == null) {
+            throw new IllegalArgumentException("noMatch query cannot be null");
+        }
         this.noMatchQuery = noMatchQuery;
         return this;
     }
 
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * Sets the no match query, can either be <tt>all</tt> or <tt>none</tt>.
      */
-    public IndicesQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
+    public IndicesQueryBuilder noMatchQuery(String type) {
+        this.noMatchQuery = IndicesQueryParser.parseNoMatchQuery(type);
         return this;
+    }
+
+    public QueryBuilder noMatchQuery() {
+        return this.noMatchQuery;
+    }
+
+    static QueryBuilder defaultNoMatchQuery() {
+        return QueryBuilders.matchAllQuery();
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(IndicesQueryParser.NAME);
-        builder.field("indices", indices);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
-        if (noMatchQuery != null) {
-            builder.field("no_match_query");
-            noMatchQuery.toXContent(builder, params);
-        } else if (sNoMatchQuery != null) {
-            builder.field("no_match_query", sNoMatchQuery);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        builder.startObject(NAME);
+        builder.field(IndicesQueryParser.INDICES_FIELD.getPreferredName(), indices);
+        builder.field(IndicesQueryParser.QUERY_FIELD.getPreferredName());
+        innerQuery.toXContent(builder, params);
+        builder.field(IndicesQueryParser.NO_MATCH_QUERY.getPreferredName());
+        noMatchQuery.toXContent(builder, params);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (context.matchesIndices(indices)) {
+            return innerQuery.toQuery(context);
+        }
+        return noMatchQuery.toQuery(context);
+    }
+
+    @Override
+    protected IndicesQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        IndicesQueryBuilder indicesQueryBuilder = new IndicesQueryBuilder(in.readQuery(), in.readStringArray());
+        indicesQueryBuilder.noMatchQuery = in.readQuery();
+        return indicesQueryBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(innerQuery);
+        out.writeStringArray(indices);
+        out.writeQuery(noMatchQuery);
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(innerQuery, noMatchQuery, Arrays.hashCode(indices));
+    }
+
+    @Override
+    protected boolean doEquals(IndicesQueryBuilder other) {
+        return Objects.equals(innerQuery, other.innerQuery) &&
+                Arrays.equals(indices, other.indices) &&  // otherwise we are comparing pointers
+                Objects.equals(noMatchQuery, other.noMatchQuery);
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder<?> newInnnerQuery = innerQuery.rewrite(queryShardContext);
+        QueryBuilder<?> newNoMatchQuery = noMatchQuery.rewrite(queryShardContext);
+        if (newInnnerQuery != innerQuery || newNoMatchQuery != noMatchQuery) {
+            return new IndicesQueryBuilder(innerQuery, indices).noMatchQuery(noMatchQuery);
+        }
+        return this;
     }
 }

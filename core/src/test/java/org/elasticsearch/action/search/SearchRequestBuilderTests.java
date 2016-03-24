@@ -22,24 +22,16 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
-import java.io.IOException;
-
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SearchRequestBuilderTests extends ElasticsearchTestCase {
-
+public class SearchRequestBuilderTests extends ESTestCase {
     private static Client client;
 
     @BeforeClass
@@ -47,7 +39,7 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
         //this client will not be hit by any request, but it needs to be a non null proper client
         //that is why we create it but we don't add any transport address to it
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         client = TransportClient.builder().settings(settings).build();
     }
@@ -58,76 +50,28 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
         client = null;
     }
 
-    @Test
     public void testEmptySourceToString() {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().toString()));
     }
 
-    @Test
     public void testQueryBuilderQueryToString() {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).toString()));
     }
 
-    @Test
-    public void testXContentBuilderQueryToString() throws IOException {
+    public void testSearchSourceBuilderToString() {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        xContentBuilder.startObject();
-        xContentBuilder.startObject("match_all");
-        xContentBuilder.endObject();
-        xContentBuilder.endObject();
-        searchRequestBuilder.setQuery(xContentBuilder);
-        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(xContentBuilder).toString()));
+        searchRequestBuilder.setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
+        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).toString()));
     }
 
-    @Test
-    public void testStringQueryToString() {
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
-        String query = "{ \"match_all\" : {} }";
-        searchRequestBuilder.setQuery(query);
-        assertThat(searchRequestBuilder.toString(), containsString("\"query\":{ \"match_all\" : {} }"));
-    }
-
-    @Test
-    public void testStringSourceToString() {
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
-        String source = "{ \"query\" : { \"match_all\" : {} } }";
-        searchRequestBuilder.setSource(source);
-        assertThat(searchRequestBuilder.toString(), equalTo(source));
-    }
-
-    @Test
-    public void testXContentBuilderSourceToString() throws IOException {
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        xContentBuilder.startObject();
-        xContentBuilder.startObject("query");
-        xContentBuilder.startObject("match_all");
-        xContentBuilder.endObject();
-        xContentBuilder.endObject();
-        xContentBuilder.endObject();
-        searchRequestBuilder.setSource(xContentBuilder);
-        assertThat(searchRequestBuilder.toString(), equalTo(XContentHelper.convertToJson(xContentBuilder.bytes(), false, true)));
-    }
-
-    @Test
     public void testThatToStringDoesntWipeRequestSource() {
-        String source = "{\n" +
-                "            \"query\" : {\n" +
-                "            \"match\" : {\n" +
-                "                \"field\" : {\n" +
-                "                    \"query\" : \"value\"" +
-                "                }\n" +
-                "            }\n" +
-                "        }\n" +
-                "        }";
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch().setSource(source);
-        String preToString = searchRequestBuilder.request().source().toUtf8();
-        assertThat(searchRequestBuilder.toString(), equalTo(source));
-        String postToString = searchRequestBuilder.request().source().toUtf8();
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch().setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
+        String preToString = searchRequestBuilder.request().toString();
+        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).toString()));
+        String postToString = searchRequestBuilder.request().toString();
         assertThat(preToString, equalTo(postToString));
     }
 }

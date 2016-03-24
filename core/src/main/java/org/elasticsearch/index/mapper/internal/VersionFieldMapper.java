@@ -22,22 +22,16 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -53,7 +47,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         public static final MappedFieldType FIELD_TYPE = new VersionFieldType();
 
         static {
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
@@ -63,7 +57,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder<Builder, VersionFieldMapper> {
 
         public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+            super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
         }
 
         @Override
@@ -72,26 +66,21 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder();
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                if (fieldName.equals("doc_values_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    // ignore in 1.x, reject in 2.x
-                    iterator.remove();
-                }
-            }
-            return builder;
+        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            throw new MapperParsingException(NAME + " is not configurable");
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new VersionFieldMapper(indexSettings);
         }
     }
 
     static final class VersionFieldType extends MappedFieldType {
 
         public VersionFieldType() {
-            setFieldDataType(new FieldDataType("long"));
         }
 
         protected VersionFieldType(VersionFieldType ref) {
@@ -118,7 +107,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public VersionFieldMapper(Settings indexSettings) {
+    private VersionFieldMapper(Settings indexSettings) {
         super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
     }
 
@@ -162,7 +151,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // nothing to do
     }
 }

@@ -22,14 +22,23 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.LongLongHashMap;
 import com.carrotsearch.hppc.LongLongMap;
 import com.carrotsearch.hppc.cursors.LongLongCursor;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.Test;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
-public class LongHashTests extends ElasticsearchSingleNodeTest {
-
+public class LongHashTests extends ESSingleNodeTestCase {
     LongHash hash;
+
+    private BigArrays randombigArrays() {
+        final PageCacheRecycler recycler = randomBoolean() ? null : getInstanceFromNode(PageCacheRecycler.class);
+        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
+    }
 
     private void newHash() {
         if (hash != null) {
@@ -38,7 +47,7 @@ public class LongHashTests extends ElasticsearchSingleNodeTest {
 
         // Test high load factors to make sure that collision resolution works fine
         final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
-        hash = new LongHash(randomIntBetween(0, 100), maxLoadFactor, BigArraysTests.randombigArrays());
+        hash = new LongHash(randomIntBetween(0, 100), maxLoadFactor, randombigArrays());
     }
 
     @Override
@@ -86,7 +95,6 @@ public class LongHashTests extends ElasticsearchSingleNodeTest {
         hash.close();
     }
 
-    @Test
     public void testSize() {
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
@@ -106,7 +114,6 @@ public class LongHashTests extends ElasticsearchSingleNodeTest {
         hash.close();
     }
 
-    @Test
     public void testKey() {
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
@@ -138,7 +145,6 @@ public class LongHashTests extends ElasticsearchSingleNodeTest {
         hash.close();
     }
 
-    @Test
     public void testAdd() {
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
@@ -167,7 +173,6 @@ public class LongHashTests extends ElasticsearchSingleNodeTest {
         hash.close();
     }
 
-    @Test
     public void testFind() throws Exception {
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
@@ -206,5 +211,4 @@ public class LongHashTests extends ElasticsearchSingleNodeTest {
             assertTrue("key: " + key + " count: " + count + " long: " + l, key < count);
         }
     }
-
 }

@@ -19,58 +19,63 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
 
-public class TypeQueryParser implements QueryParser {
+/**
+ * Parser for type query
+ */
+public class TypeQueryParser implements QueryParser<TypeQueryBuilder> {
 
-    public static final String NAME = "type";
-
-    @Inject
-    public TypeQueryParser() {
-    }
+    public static final ParseField VALUE_FIELD = new ParseField("value");
 
     @Override
     public String[] names() {
-        return new String[]{NAME};
+        return new String[]{TypeQueryBuilder.NAME};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public TypeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
+        BytesRef type = null;
 
-        XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
-        }
-        String fieldName = parser.currentName();
-        if (!fieldName.equals("value")) {
-            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
-        }
-        token = parser.nextToken();
-        if (token != XContentParser.Token.VALUE_STRING) {
-            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
-        }
-        BytesRef type = parser.utf8Bytes();
-        // move to the next token
-        parser.nextToken();
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
-        Query filter;
-        //LUCENE 4 UPGRADE document mapper should use bytesref as well? 
-        DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type.utf8ToString());
-        if (documentMapper == null) {
-            filter = new TermQuery(new Term(TypeFieldMapper.NAME, type));
-        } else {
-            filter = documentMapper.typeFilter();
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                    type = parser.utf8Bytes();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
+            }
         }
-        return filter;
+
+        if (type == null) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter needs to be provided with a value for the type");
+        }
+        return new TypeQueryBuilder(type)
+                .boost(boost)
+                .queryName(queryName);
+    }
+
+    @Override
+    public TypeQueryBuilder getBuilderPrototype() {
+        return TypeQueryBuilder.PROTOTYPE;
     }
 }

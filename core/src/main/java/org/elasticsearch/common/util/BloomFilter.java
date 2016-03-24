@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.common.util;
 
-import com.google.common.math.LongMath;
-import com.google.common.primitives.Ints;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.SizeValue;
 
 import java.io.IOException;
-import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -288,7 +285,7 @@ public class BloomFilter {
     /**
      * Computes the optimal k (number of hashes per element inserted in Bloom filter), given the
      * expected insertions and total number of bits in the Bloom filter.
-     * <p/>
+     * <p>
      * See http://en.wikipedia.org/wiki/File:Bloom_filter_fp_probability.svg for the formula.
      *
      * @param n expected insertions (must be positive)
@@ -301,11 +298,11 @@ public class BloomFilter {
     /**
      * Computes m (total bits of Bloom filter) which is expected to achieve, for the specified
      * expected insertions, the required false positive probability.
-     * <p/>
+     * <p>
      * See http://en.wikipedia.org/wiki/Bloom_filter#Probability_of_false_positives for the formula.
      *
      * @param n expected insertions (must be positive)
-     * @param p false positive rate (must be 0 < p < 1)
+     * @param p false positive rate (must be 0 &lt; p &lt; 1)
      */
     static long optimalNumOfBits(long n, double p) {
         if (p == 0) {
@@ -321,7 +318,13 @@ public class BloomFilter {
         long bitCount;
 
         BitArray(long bits) {
-            this(new long[Ints.checkedCast(LongMath.divide(bits, 64, RoundingMode.CEILING))]);
+            this(new long[size(bits)]);
+        }
+
+        private static int size(long bits) {
+            long quotient = bits / 64;
+            long remainder = bits - quotient * 64;
+            return Math.toIntExact(remainder == 0 ? quotient : 1 + quotient);
         }
 
         // Used by serialization
@@ -385,7 +388,7 @@ public class BloomFilter {
         }
 
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_LONG * data.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16;
+            return Long.BYTES * data.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16;
         }
     }
 
@@ -516,6 +519,7 @@ public class BloomFilter {
         return k;
     }
 
+    @SuppressWarnings("fallthrough") // Uses fallthrough to implement a well know hashing algorithm
     public static long hash3_x64_128(byte[] key, int offset, int length, long seed) {
         final int nblocks = length >> 4; // Process as 128-bit blocks.
 
@@ -595,7 +599,7 @@ public class BloomFilter {
             case 2:
                 k1 ^= ((long) key[offset + 1]) << 8;
             case 1:
-                k1 ^= ((long) key[offset]);
+                k1 ^= (key[offset]);
                 k1 *= c1;
                 k1 = rotl64(k1, 31);
                 k1 *= c2;

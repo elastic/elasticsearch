@@ -81,16 +81,12 @@ omit :
 [float]
 ==== Distributed frequencies
 
-coming[2.0]
-
 Setting `dfs` to `true` (default is `false`) will return the term statistics
 or the field statistics of the entire index, and not just at the shard. Use it
 with caution as distributed frequencies can have a serious performance impact.
 
 [float]
 ==== Terms Filtering
-
-coming[2.0]
 
 With the parameter `filter`, the terms returned could also be filtered based
 on their tf-idf scores. This could be useful in order find out a good
@@ -140,13 +136,13 @@ curl -s -XPUT 'http://localhost:9200/twitter/' -d '{
     "tweet": {
       "properties": {
         "text": {
-          "type": "string",
+          "type": "text",
           "term_vector": "with_positions_offsets_payloads",
           "store" : true,
           "analyzer" : "fulltext_analyzer"
          },
          "fullname": {
-          "type": "string",
+          "type": "text",
           "term_vector": "with_positions_offsets_payloads",
           "analyzer" : "fulltext_analyzer"
         }

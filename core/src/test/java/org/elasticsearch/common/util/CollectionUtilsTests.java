@@ -19,29 +19,31 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
+import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class CollectionUtilsTests extends ElasticsearchTestCase {
-
-    @Test
-    public void rotateEmpty() {
-        assertTrue(CollectionUtils.rotate(ImmutableList.of(), randomInt()).isEmpty());
+public class CollectionUtilsTests extends ESTestCase {
+    public void testRotateEmpty() {
+        assertTrue(CollectionUtils.rotate(Collections.emptyList(), randomInt()).isEmpty());
     }
 
-    @Test
-    public void rotate() {
+    public void testRotate() {
         final int iters = scaledRandomIntBetween(10, 100);
         for (int k = 0; k < iters; ++k) {
             final int size = randomIntBetween(1, 100);
@@ -53,7 +55,7 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
             final List<Object> rotated = CollectionUtils.rotate(list, distance);
             // check content is the same
             assertEquals(rotated.size(), list.size());
-            assertEquals(Iterables.size(rotated), list.size());
+            assertEquals(rotated.size(), list.size());
             assertEquals(new HashSet<>(rotated), new HashSet<>(list));
             // check stability
             for (int j = randomInt(4); j >= 0; --j) {
@@ -66,7 +68,6 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testSortAndDedupByteRefArray() {
         SortedSet<BytesRef> set = new TreeSet<>();
         final int numValues = scaledRandomIntBetween(0, 10000);
@@ -79,7 +80,7 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
             array.append(new BytesRef(s));
         }
         if (randomBoolean()) {
-            Collections.shuffle(tmpList, getRandom());
+            Collections.shuffle(tmpList, random());
             for (BytesRef ref : tmpList) {
                 array.append(ref);
             }
@@ -100,7 +101,6 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
 
     }
 
-    @Test
     public void testSortByteRefArray() {
         List<BytesRef> values = new ArrayList<>();
         final int numValues = scaledRandomIntBetween(0, 10000);
@@ -111,7 +111,7 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
             array.append(new BytesRef(s));
         }
         if (randomBoolean()) {
-            Collections.shuffle(values, getRandom());
+            Collections.shuffle(values, random());
         }
         int[] indices = new int[array.size()];
         for (int i = 0; i < indices.length; i++) {
@@ -129,4 +129,51 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
 
     }
 
+    public void testEmptyPartition() {
+        assertEquals(
+                Collections.emptyList(),
+                eagerPartition(Collections.emptyList(), 1)
+        );
+    }
+
+    public void testSimplePartition() {
+        assertEquals(
+                Arrays.asList(
+                        Arrays.asList(1, 2),
+                        Arrays.asList(3, 4),
+                        Arrays.asList(5)
+                ),
+                eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 2)
+        );
+    }
+
+    public void testSingletonPartition() {
+        assertEquals(
+                Arrays.asList(
+                        Arrays.asList(1),
+                        Arrays.asList(2),
+                        Arrays.asList(3),
+                        Arrays.asList(4),
+                        Arrays.asList(5)
+                ),
+                eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 1)
+        );
+    }
+
+    public void testOversizedPartition() {
+        assertEquals(
+                Arrays.asList(Arrays.asList(1, 2, 3, 4, 5)),
+                eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 15)
+        );
+    }
+
+    public void testPerfectPartition() {
+        assertEquals(
+                Arrays.asList(
+                        Arrays.asList(1, 2, 3, 4, 5, 6),
+                        Arrays.asList(7, 8, 9, 10, 11, 12)
+                ),
+                eagerPartition(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 6)
+        );
+    }
 }

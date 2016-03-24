@@ -29,9 +29,10 @@ public abstract class Suggester<T extends SuggestionSearchContext.SuggestionCont
     protected abstract Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
         innerExecute(String name, T suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException;
 
-    public abstract String[] names();
-
-    public abstract SuggestContextParser getContextParser();
+    /**
+     * link the suggester to its corresponding {@link SuggestionBuilder}
+     */
+    public abstract SuggestionBuilder<? extends SuggestionBuilder> getBuilderPrototype();
 
     public Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
         execute(String name, T suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {

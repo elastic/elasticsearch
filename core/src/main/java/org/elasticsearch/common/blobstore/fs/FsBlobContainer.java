@@ -19,20 +19,26 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.Streams;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -50,14 +56,14 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        // using MapBuilder and not ImmutableMap.Builder as it seems like File#listFiles might return duplicate files!
-        MapBuilder<String, BlobMetaData> builder = MapBuilder.newMapBuilder();
+    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+        // If we get duplicate files we should just take the last entry
+        Map<String, BlobMetaData> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
@@ -68,7 +74,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 }
             }
         }
-        return builder.immutableMap();
+        return unmodifiableMap(builder);
     }
 
     @Override
@@ -83,25 +89,19 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream openInput(String name) throws IOException {
+    public InputStream readBlob(String name) throws IOException {
         return new BufferedInputStream(Files.newInputStream(path.resolve(name)), blobStore.bufferSizeInBytes());
     }
 
     @Override
-    public OutputStream createOutput(String blobName) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final Path file = path.resolve(blobName);
-        return new BufferedOutputStream(new FilterOutputStream(Files.newOutputStream(file)) {
-
-            @Override // FilterOutputStream#write(byte[] b, int off, int len) is trappy writes every single byte
-            public void write(byte[] b, int off, int len) throws IOException { out.write(b, off, len);}
-
-            @Override
-            public void close() throws IOException {
-                super.close();
-                IOUtils.fsync(file, false);
-                IOUtils.fsync(path, true);
-            }
-        }, blobStore.bufferSizeInBytes());
+        // TODO: why is this not specifying CREATE_NEW? Do we really need to be able to truncate existing files?
+        try (OutputStream outputStream = Files.newOutputStream(file)) {
+            Streams.copy(inputStream, outputStream, new byte[blobStore.bufferSizeInBytes()]);
+        }
+        IOUtils.fsync(file, false);
+        IOUtils.fsync(path, true);
     }
 
     @Override

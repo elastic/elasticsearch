@@ -19,46 +19,14 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
-import org.elasticsearch.common.inject.SpawnModules;
-import org.elasticsearch.common.settings.Settings;
 
-import java.util.Collection;
-import java.util.List;
-
-import static org.elasticsearch.common.inject.Modules.createModule;
-
-/**
- *
- */
-public class PluginsModule extends AbstractModule implements SpawnModules, PreProcessModule {
-
-    private final Settings settings;
+public class PluginsModule extends AbstractModule {
 
     private final PluginsService pluginsService;
 
-    public PluginsModule(Settings settings, PluginsService pluginsService) {
-        this.settings = settings;
+    public PluginsModule(PluginsService pluginsService) {
         this.pluginsService = pluginsService;
-    }
-
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        List<Module> modules = Lists.newArrayList();
-        Collection<Class<? extends Module>> modulesClasses = pluginsService.modules();
-        for (Class<? extends Module> moduleClass : modulesClasses) {
-            modules.add(createModule(moduleClass, settings));
-        }
-        modules.addAll(pluginsService.modules(settings));
-        return modules;
-    }
-
-    @Override
-    public void processModule(Module module) {
-        pluginsService.processModule(module);
     }
 
     @Override

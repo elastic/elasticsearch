@@ -20,9 +20,6 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -32,20 +29,33 @@ import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAct
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.FutureTransportResponseHandler;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
@@ -70,15 +80,13 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final Version minCompatibilityVersion;
 
-    private final Headers headers;
-
     // nodes that are added to be discovered
-    private volatile ImmutableList<DiscoveryNode> listedNodes = ImmutableList.of();
+    private volatile List<DiscoveryNode> listedNodes = Collections.emptyList();
 
     private final Object mutex = new Object();
 
-    private volatile List<DiscoveryNode> nodes = ImmutableList.of();
-    private volatile List<DiscoveryNode> filteredNodes = ImmutableList.of();
+    private volatile List<DiscoveryNode> nodes = Collections.emptyList();
+    private volatile List<DiscoveryNode> filteredNodes = Collections.emptyList();
 
     private final AtomicInteger tempNodeIdGenerator = new AtomicInteger();
 
@@ -92,25 +100,34 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private volatile boolean closed;
 
+
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =
+        Setting.positiveTimeSetting("client.transport.nodes_sampler_interval", timeValueSeconds(5), Property.NodeScope);
+    public static final Setting<TimeValue> CLIENT_TRANSPORT_PING_TIMEOUT =
+        Setting.positiveTimeSetting("client.transport.ping_timeout", timeValueSeconds(5), Property.NodeScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME =
+        Setting.boolSetting("client.transport.ignore_cluster_name", false, Property.NodeScope);
+    public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
+        Setting.boolSetting("client.transport.sniff", false, Property.NodeScope);
+
     @Inject
     public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
-                                       ThreadPool threadPool, Headers headers, Version version) {
+                                       ThreadPool threadPool, Version version) {
         super(settings);
         this.clusterName = clusterName;
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.minCompatibilityVersion = version.minimumCompatibilityVersion();
-        this.headers = headers;
 
-        this.nodesSamplerInterval = this.settings.getAsTime("client.transport.nodes_sampler_interval", timeValueSeconds(5));
-        this.pingTimeout = this.settings.getAsTime("client.transport.ping_timeout", timeValueSeconds(5)).millis();
-        this.ignoreClusterName = this.settings.getAsBoolean("client.transport.ignore_cluster_name", false);
+        this.nodesSamplerInterval = CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
+        this.pingTimeout = CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();
+        this.ignoreClusterName = CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(this.settings);
 
         if (logger.isDebugEnabled()) {
-            logger.debug("node_sampler_interval[" + nodesSamplerInterval + "]");
+            logger.debug("node_sampler_interval[{}]", nodesSamplerInterval);
         }
 
-        if (this.settings.getAsBoolean("client.transport.sniff", false)) {
+        if (CLIENT_TRANSPORT_SNIFF.get(this.settings)) {
             this.nodesSampler = new SniffNodesSampler();
         } else {
             this.nodesSampler = new SimpleNodeSampler();
@@ -119,11 +136,11 @@ public class TransportClientNodesService extends AbstractComponent {
     }
 
     public List<TransportAddress> transportAddresses() {
-        ImmutableList.Builder<TransportAddress> lstBuilder = ImmutableList.builder();
+        List<TransportAddress> lstBuilder = new ArrayList<>();
         for (DiscoveryNode listedNode : listedNodes) {
             lstBuilder.add(listedNode.address());
         }
-        return lstBuilder.build();
+        return Collections.unmodifiableList(lstBuilder);
     }
 
     public List<DiscoveryNode> connectedNodes() {
@@ -143,7 +160,7 @@ public class TransportClientNodesService extends AbstractComponent {
             if (closed) {
                 throw new IllegalStateException("transport client is closed, can't add an address");
             }
-            List<TransportAddress> filtered = Lists.newArrayListWithExpectedSize(transportAddresses.length);
+            List<TransportAddress> filtered = new ArrayList<>(transportAddresses.length);
             for (TransportAddress transportAddress : transportAddresses) {
                 boolean found = false;
                 for (DiscoveryNode otherNode : listedNodes) {
@@ -160,14 +177,14 @@ public class TransportClientNodesService extends AbstractComponent {
             if (filtered.isEmpty()) {
                 return this;
             }
-            ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
+            List<DiscoveryNode> builder = new ArrayList<>();
             builder.addAll(listedNodes());
             for (TransportAddress transportAddress : filtered) {
                 DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress, minCompatibilityVersion);
                 logger.debug("adding address [{}]", node);
                 builder.add(node);
             }
-            listedNodes = builder.build();
+            listedNodes = Collections.unmodifiableList(builder);
             nodesSampler.sample();
         }
         return this;
@@ -178,7 +195,7 @@ public class TransportClientNodesService extends AbstractComponent {
             if (closed) {
                 throw new IllegalStateException("transport client is closed, can't remove an address");
             }
-            ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
+            List<DiscoveryNode> builder = new ArrayList<>();
             for (DiscoveryNode otherNode : listedNodes) {
                 if (!otherNode.address().equals(transportAddress)) {
                     builder.add(otherNode);
@@ -186,7 +203,7 @@ public class TransportClientNodesService extends AbstractComponent {
                     logger.debug("removing address [{}]", otherNode);
                 }
             }
-            listedNodes = builder.build();
+            listedNodes = Collections.unmodifiableList(builder);
             nodesSampler.sample();
         }
         return this;
@@ -261,7 +278,7 @@ public class TransportClientNodesService extends AbstractComponent {
             for (DiscoveryNode listedNode : listedNodes) {
                 transportService.disconnectFromNode(listedNode);
             }
-            nodes = ImmutableList.of();
+            nodes = Collections.emptyList();
         }
     }
 
@@ -276,7 +293,7 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private void ensureNodesAreAvailable(List<DiscoveryNode> nodes) {
         if (nodes.isEmpty()) {
-            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", nodes);
+            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", this.listedNodes);
             throw new NoNodeAvailableException(message);
         }
     }
@@ -306,12 +323,12 @@ public class TransportClientNodesService extends AbstractComponent {
                         transportService.connectToNode(node);
                     } catch (Throwable e) {
                         it.remove();
-                        logger.debug("failed to connect to discovered node [" + node + "]", e);
+                        logger.debug("failed to connect to discovered node [{}]", e, node);
                     }
                 }
             }
 
-            return new ImmutableList.Builder<DiscoveryNode>().addAll(nodes).build();
+            return Collections.unmodifiableList(new ArrayList<>(nodes));
         }
 
     }
@@ -349,8 +366,8 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
                 try {
                     LivenessResponse livenessResponse = transportService.submitRequest(listedNode, TransportLivenessAction.NAME,
-                            headers.applyTo(new LivenessRequest()),
-                            TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
+                            new LivenessRequest(),
+                            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
                             new FutureTransportResponseHandler<LivenessResponse>() {
                                 @Override
                                 public LivenessResponse newInstance() {
@@ -376,7 +393,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             nodes = validateNewNodes(newNodes);
-            filteredNodes = ImmutableList.copyOf(newFilteredNodes);
+            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }
 
@@ -386,7 +403,7 @@ public class TransportClientNodesService extends AbstractComponent {
         protected void doSample() {
             // the nodes we are going to ping include the core listed nodes that were added
             // and the last round of discovered nodes
-            Set<DiscoveryNode> nodesToPing = Sets.newHashSet();
+            Set<DiscoveryNode> nodesToPing = new HashSet<>();
             for (DiscoveryNode node : listedNodes) {
                 nodesToPing.add(node);
             }
@@ -419,9 +436,8 @@ public class TransportClientNodesService extends AbstractComponent {
                                     return;
                                 }
                             }
-                            transportService.sendRequest(listedNode, ClusterStateAction.NAME,
-                                    headers.applyTo(Requests.clusterStateRequest().clear().nodes(true).local(true)),
-                                    TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
+                            transportService.sendRequest(listedNode, ClusterStateAction.NAME, Requests.clusterStateRequest().clear().nodes(true).local(true),
+                                    TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
                                     new BaseTransportResponseHandler<ClusterStateResponse>() {
 
                                         @Override
@@ -476,7 +492,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             nodes = validateNewNodes(newNodes);
-            filteredNodes = ImmutableList.copyOf(newFilteredNodes);
+            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }
 

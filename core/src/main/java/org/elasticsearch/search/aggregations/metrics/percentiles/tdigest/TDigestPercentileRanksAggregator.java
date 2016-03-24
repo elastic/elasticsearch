@@ -22,10 +22,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -66,36 +63,6 @@ public class TDigestPercentileRanksAggregator extends AbstractTDigestPercentiles
             return Double.NaN;
         } else {
             return InternalTDigestPercentileRanks.percentileRank(state, Double.valueOf(name));
-        }
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
-
-        private final double[] values;
-        private final double compression;
-        private final boolean keyed;
-
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig,
-                double[] values, double compression, boolean keyed) {
-            super(name, InternalTDigestPercentiles.TYPE.name(), valuesSourceConfig);
-            this.values = values;
-            this.compression = compression;
-            this.keyed = keyed;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new TDigestPercentileRanksAggregator(name, null, aggregationContext, parent, values, compression, keyed, config.formatter(),
-                    pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new TDigestPercentileRanksAggregator(name, valuesSource, aggregationContext, parent, values, compression, keyed,
-                    config.formatter(), pipelineAggregators, metaData);
         }
     }
 }

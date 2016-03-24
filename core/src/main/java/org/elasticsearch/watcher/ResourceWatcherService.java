@@ -83,7 +83,8 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
 
         TimeValue interval = settings.getAsTime("resource.reload.interval.low", Frequency.LOW.interval);
         lowMonitor = new ResourceMonitor(interval, Frequency.LOW);
-        interval = settings.getAsTime("resource.reload.interval.medium", settings.getAsTime("resource.reload.interval", Frequency.MEDIUM.interval));
+        interval = settings.getAsTime("resource.reload.interval.medium",
+                settings.getAsTime("resource.reload.interval", Frequency.MEDIUM.interval));
         mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
         interval = settings.getAsTime("resource.reload.interval.high", Frequency.HIGH.interval);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);

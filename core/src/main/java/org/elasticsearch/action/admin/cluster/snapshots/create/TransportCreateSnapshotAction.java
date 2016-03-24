@@ -22,12 +22,12 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -45,7 +45,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     public TransportCreateSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateSnapshotRequest.class);
+        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateSnapshotRequest::new);
         this.snapshotsService = snapshotsService;
     }
 
@@ -66,7 +66,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         if (clusterBlockException != null) {
             return clusterBlockException;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override

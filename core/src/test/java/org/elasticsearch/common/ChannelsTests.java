@@ -23,18 +23,15 @@ import org.elasticsearch.common.bytes.ByteBufferBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.jboss.netty.buffer.ByteBufferBackedChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -44,7 +41,9 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
-public class ChannelsTests extends ElasticsearchTestCase {
+import static org.hamcrest.Matchers.containsString;
+
+public class ChannelsTests extends ESTestCase {
 
     byte[] randomBytes;
     FileChannel fileChannel;
@@ -66,7 +65,6 @@ public class ChannelsTests extends ElasticsearchTestCase {
         super.tearDown();
     }
 
-    @Test
     public void testReadWriteThoughArrays() throws Exception {
         Channels.writeToChannel(randomBytes, fileChannel);
         byte[] readBytes = Channels.readFromFileChannel(fileChannel, 0, randomBytes.length);
@@ -74,7 +72,6 @@ public class ChannelsTests extends ElasticsearchTestCase {
     }
 
 
-    @Test
     public void testPartialReadWriteThroughArrays() throws Exception {
         int length = randomIntBetween(1, randomBytes.length / 2);
         int offset = randomIntBetween(0, randomBytes.length - length);
@@ -91,14 +88,17 @@ public class ChannelsTests extends ElasticsearchTestCase {
         assertThat("read bytes didn't match written bytes", source.toBytes(), Matchers.equalTo(read.toBytes()));
     }
 
-    @Test(expected = EOFException.class)
     public void testBufferReadPastEOFWithException() throws Exception {
         int bytesToWrite = randomIntBetween(0, randomBytes.length - 1);
         Channels.writeToChannel(randomBytes, 0, bytesToWrite, fileChannel);
-        Channels.readFromFileChannel(fileChannel, 0, bytesToWrite + 1 + randomInt(1000));
+        try {
+            Channels.readFromFileChannel(fileChannel, 0, bytesToWrite + 1 + randomInt(1000));
+            fail("Expected an EOFException");
+        } catch (EOFException e) {
+            assertThat(e.getMessage(), containsString("read past EOF"));
+        }
     }
 
-    @Test
     public void testBufferReadPastEOFWithoutException() throws Exception {
         int bytesToWrite = randomIntBetween(0, randomBytes.length - 1);
         Channels.writeToChannel(randomBytes, 0, bytesToWrite, fileChannel);
@@ -107,7 +107,6 @@ public class ChannelsTests extends ElasticsearchTestCase {
         assertThat(read, Matchers.lessThan(0));
     }
 
-    @Test
     public void testReadWriteThroughBuffers() throws IOException {
         ByteBuffer source;
         if (randomBoolean()) {
@@ -132,7 +131,6 @@ public class ChannelsTests extends ElasticsearchTestCase {
         assertThat("read bytes didn't match written bytes", randomBytes, Matchers.equalTo(copyBytes));
     }
 
-    @Test
     public void testPartialReadWriteThroughBuffers() throws IOException {
         int length = randomIntBetween(1, randomBytes.length / 2);
         int offset = randomIntBetween(0, randomBytes.length - length);
@@ -165,7 +163,6 @@ public class ChannelsTests extends ElasticsearchTestCase {
     }
 
 
-    @Test
     public void testWriteFromChannel() throws IOException {
         int length = randomIntBetween(1, randomBytes.length / 2);
         int offset = randomIntBetween(0, randomBytes.length - length);

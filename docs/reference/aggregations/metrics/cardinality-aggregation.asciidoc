@@ -23,9 +23,9 @@ match a query:
 
 ==== Precision control
 
-This aggregation also supports the `precision_threshold` and `rehash` options:
+This aggregation also supports the `precision_threshold` option:
 
-experimental[The `precision_threshold` and `rehash` options are specific to the current internal implementation of the `cardinality` agg, which may change in the future]
+experimental[The `precision_threshold` option is specific to the current internal implementation of the `cardinality` agg, which may change in the future]
 
 [source,js]
 --------------------------------------------------
@@ -34,8 +34,7 @@ experimental[The `precision_threshold` and `rehash` options are specific to the 
         "author_count" : {
             "cardinality" : {
                 "field" : "author_hash",
-                "precision_threshold": 100, <1>
-                "rehash": false <2>
+                "precision_threshold": 100 <1>
             }
         }
     }
@@ -49,11 +48,6 @@ supported value is 40000, thresholds above this number will have the same
 effect as a threshold of 40000.
 Default value depends on the number of parent aggregations that multiple
 create buckets (such as terms or histograms).
-<2> If you computed a hash on client-side, stored it into your documents and want
-Elasticsearch to use them to compute counts using this hash function without
-rehashing values, it is possible to specify `rehash: false`. Default value is
-`true`. Please note that the hash must be indexed as a long when `rehash` is
-false.
 
 ==== Counts are approximate
 
@@ -86,47 +80,11 @@ counting millions of items.
 
 ==== Pre-computed hashes
 
-If you don't want Elasticsearch to re-compute hashes on every run of this
-aggregation, it is possible to use pre-computed hashes, either by computing a
-hash on client-side, indexing it and specifying `rehash: false`, or by using
-the special `murmur3` field mapper, typically in the context of a `multi-field`
-in the mapping:
-
-[source,js]
---------------------------------------------------
-{
-    "author": {
-        "type": "string",
-        "fields": {
-            "hash": {
-                "type": "murmur3"
-            }
-        }
-    }
-}
---------------------------------------------------
-
-With such a mapping, Elasticsearch is going to compute hashes of the `author`
-field at indexing time and store them in the `author.hash` field. This
-way, unique counts can be computed using the cardinality aggregation by only
-loading the hashes into memory, not the values of the `author` field, and
-without computing hashes on the fly:
-
-[source,js]
---------------------------------------------------
-{
-    "aggs" : {
-        "author_count" : {
-            "cardinality" : {
-                "field" : "author.hash"
-            }
-        }
-    }
-}
---------------------------------------------------
-
-NOTE: `rehash` is automatically set to `false` when computing unique counts on
-a `murmur3` field.
+On string fields that have a high cardinality, it might be faster to store the
+hash of your field values in your index and then run the cardinality aggregation
+on this field. This can either be done by providing hash values from client-side
+or by letting elasticsearch compute hash values for you by using the 
+{plugins}/mapper-size.html[`mapper-murmur3`] plugin.
 
 NOTE: Pre-computing hashes is usually only useful on very large and/or
 high-cardinality fields as it saves CPU and memory. However, on numeric

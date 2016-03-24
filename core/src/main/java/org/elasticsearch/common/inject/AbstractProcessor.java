@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,15 +17,25 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.spi.Element;
+import org.elasticsearch.common.inject.spi.ElementVisitor;
+import org.elasticsearch.common.inject.spi.InjectionRequest;
+import org.elasticsearch.common.inject.spi.MembersInjectorLookup;
+import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.elasticsearch.common.inject.spi.ProviderLookup;
+import org.elasticsearch.common.inject.spi.ScopeBinding;
+import org.elasticsearch.common.inject.spi.StaticInjectionRequest;
+import org.elasticsearch.common.inject.spi.TypeConverterBinding;
+import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.util.Iterator;
 import java.util.List;
 
 /**
  * Abstract base class for creating an injector from module elements.
- * <p/>
- * <p>Extending classes must return {@code true} from any overridden
+ * <p>
+ * Extending classes must return {@code true} from any overridden
  * {@code visit*()} methods, in order for the element processor to remove the
  * handled element.
  *

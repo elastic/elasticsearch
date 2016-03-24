@@ -12,6 +12,10 @@
         }
       },
       "params": {
+        "format": {
+          "type" : "string",
+          "description" : "a short version of the Accept header, e.g. json, yaml"
+        },
         "bytes": {
           "type": "enum",
           "description" : "The unit in which to display byte values",
@@ -33,7 +37,7 @@
         "v": {
           "type": "boolean",
           "description": "Verbose mode. Display column headers",
-          "default": true
+          "default": false
         }
       }
     },

@@ -19,17 +19,30 @@
 
 package org.elasticsearch.rest.action.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 
@@ -84,7 +97,7 @@ public class RestActions {
         builder.endObject();
     }
 
-    public static QuerySourceBuilder parseQuerySource(RestRequest request) {
+    public static QueryBuilder<?> urlParamsToQueryBuilder(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
             return null;
@@ -97,15 +110,9 @@ public class RestActions {
         queryBuilder.lenient(request.paramAsBoolean("lenient", null));
         String defaultOperator = request.param("default_operator");
         if (defaultOperator != null) {
-            if ("OR".equals(defaultOperator)) {
-                queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.OR);
-            } else if ("AND".equals(defaultOperator)) {
-                queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
-            } else {
-                throw new IllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
-            }
+            queryBuilder.defaultOperator(Operator.fromString(defaultOperator));
         }
-        return new QuerySourceBuilder().setQuery(queryBuilder);
+        return queryBuilder;
     }
 
     /**
@@ -125,6 +132,19 @@ public class RestActions {
         }
 
         return content;
+    }
+
+    public static QueryBuilder<?> getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry, ParseFieldMatcher parseFieldMatcher) {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
+            context.reset(requestParser);
+            context.parseFieldMatcher(parseFieldMatcher);
+            return context.parseTopLevelQueryBuilder();
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to parse source", e);
+        } finally {
+            context.reset(null);
+        }
     }
 
     /**

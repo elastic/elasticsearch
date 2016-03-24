@@ -21,27 +21,35 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
+public class TransportClientNodesServiceTests extends ESTestCase {
 
     private static class TestIteration implements Closeable {
         private final ThreadPool threadPool;
@@ -54,13 +62,19 @@ public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
             threadPool = new ThreadPool("transport-client-nodes-service-tests");
             transport = new FailAndRetryMockTransport<TestResponse>(getRandom()) {
                 @Override
+                public List<String> getLocalAddresses() {
+                    return Collections.emptyList();
+                }
+
+                @Override
                 protected TestResponse newResponse() {
                     return  new TestResponse();
                 }
             };
             transportService = new TransportService(Settings.EMPTY, transport, threadPool);
             transportService.start();
-            transportClientNodesService = new TransportClientNodesService(Settings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Headers.EMPTY, Version.CURRENT);
+            transportService.acceptIncomingRequests();
+            transportClientNodesService = new TransportClientNodesService(Settings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Version.CURRENT);
 
             nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {
@@ -82,9 +96,7 @@ public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testListenerFailures() throws InterruptedException {
-
         int iters = iterations(10, 100);
         for (int i = 0; i <iters; i++) {
             try(final TestIteration iteration = new TestIteration()) {
@@ -118,7 +130,7 @@ public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
                             throw new IllegalArgumentException();
                         }
 
-                        iteration.transportService.sendRequest(node, "action", new TestRequest(), new TransportRequestOptions(), new BaseTransportResponseHandler<TestResponse>() {
+                        iteration.transportService.sendRequest(node, "action", new TestRequest(), TransportRequestOptions.EMPTY, new BaseTransportResponseHandler<TestResponse>() {
                             @Override
                             public TestResponse newInstance() {
                                 return new TestResponse();
@@ -166,7 +178,7 @@ public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
         }
     }
 
-    private static class TestRequest extends TransportRequest {
+    public static class TestRequest extends TransportRequest {
 
     }
 

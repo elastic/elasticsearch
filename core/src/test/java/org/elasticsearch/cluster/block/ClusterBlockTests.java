@@ -23,17 +23,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.EnumSet;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.not;
 
-public class ClusterBlockTests extends ElasticsearchTestCase {
-
-    @Test
+public class ClusterBlockTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(10, 100);
         for (int i = 0; i < iterations; i++) {
@@ -65,5 +64,16 @@ public class ClusterBlockTests extends ElasticsearchTestCase {
             assertThat(result.disableStatePersistence(), equalTo(clusterBlock.disableStatePersistence()));
             assertArrayEquals(result.levels().toArray(), clusterBlock.levels().toArray());
         }
+    }
+
+    public void testToStringDanglingComma() {
+        EnumSet<ClusterBlockLevel> levels = EnumSet.noneOf(ClusterBlockLevel.class);
+        int nbLevels = randomIntBetween(1, ClusterBlockLevel.values().length);
+        for (int j = 0; j < nbLevels; j++) {
+            levels.add(randomFrom(ClusterBlockLevel.values()));
+        }
+        ClusterBlock clusterBlock = new ClusterBlock(randomInt(), "cluster block #" + randomInt(), randomBoolean(),
+                randomBoolean(), randomFrom(RestStatus.values()), levels);
+        assertThat(clusterBlock.toString(), not(endsWith(",")));
     }
 }

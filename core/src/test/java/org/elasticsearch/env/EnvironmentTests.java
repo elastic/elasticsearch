@@ -18,14 +18,9 @@
  */
 package org.elasticsearch.env;
 
-import com.google.common.base.Charsets;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.net.URL;
 
@@ -37,8 +32,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 /**
  * Simple unit-tests for Environment.java
  */
-public class EnvironmentTests extends ElasticsearchTestCase {
-
+public class EnvironmentTests extends ESTestCase {
     public Environment newEnvironment() throws IOException {
         return newEnvironment(Settings.EMPTY);
     }
@@ -46,39 +40,16 @@ public class EnvironmentTests extends ElasticsearchTestCase {
     public Environment newEnvironment(Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath())
-                .putArray("path.data", tmpPaths()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
         return new Environment(build);
     }
 
-    @Test
-    public void testResolveJaredResource() throws IOException {
-        Environment environment = newEnvironment();
-        URL url = environment.resolveConfig("META-INF/MANIFEST.MF"); // this works because there is one jar having this file in the classpath
-        assertNotNull(url);
-        try (BufferedReader reader = FileSystemUtils.newBufferedReader(url, Charsets.UTF_8)) {
-            String string = Streams.copyToString(reader);
-            assertTrue(string, string.contains("Manifest-Version"));
-        }
-    }
-
-    @Test
-    public void testResolveFileResource() throws IOException {
-        Environment environment = newEnvironment();
-        URL url = environment.resolveConfig("org/elasticsearch/common/cli/tool.help");
-        assertNotNull(url);
-        try (BufferedReader reader = FileSystemUtils.newBufferedReader(url, Charsets.UTF_8)) {
-            String string = Streams.copyToString(reader);
-            assertEquals(string, "tool help");
-        }
-    }
-
-    @Test
     public void testRepositoryResolution() throws IOException {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
-        environment = newEnvironment(settingsBuilder().putArray("path.repo", "/test/repos", "/another/repos", "/test/repos/../other").build());
+        environment = newEnvironment(settingsBuilder().putArray(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());

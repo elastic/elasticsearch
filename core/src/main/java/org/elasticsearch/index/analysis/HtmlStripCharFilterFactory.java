@@ -19,35 +19,31 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.Reader;
+import java.util.Set;
 
-/**
- *
- */
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
+
 public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
+    private final Set<String> escapedTags;
 
-    private final ImmutableSet<String> escapedTags;
-
-    @Inject
-    public HtmlStripCharFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+    public HtmlStripCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+        super(indexSettings, name);
         String[] escapedTags = settings.getAsArray("escaped_tags");
         if (escapedTags.length > 0) {
-            this.escapedTags = ImmutableSet.copyOf(escapedTags);
+            this.escapedTags = unmodifiableSet(newHashSet(escapedTags));
         } else {
             this.escapedTags = null;
         }
     }
 
-    public ImmutableSet<String> escapedTags() {
+    public Set<String> escapedTags() {
         return escapedTags;
     }
 

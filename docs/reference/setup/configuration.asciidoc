@@ -35,17 +35,20 @@ Make sure to increase the number of open files descriptors on the
 machine (or for the user running elasticsearch). Setting it to 32k or
 even 64k is recommended.
 
-In order to test how many open files the process can open, start it with
-`-Des.max-open-files` set to `true`. This will print the number of open
-files the process can open on startup.
-
-Alternatively, you can retrieve the `max_file_descriptors` for each node
+You can retrieve the `max_file_descriptors` for each node
 using the <<cluster-nodes-info>> API, with:
 
 [source,js]
 --------------------------------------------------
-curl localhost:9200/_nodes/process?pretty
+curl localhost:9200/_nodes/stats/process?pretty
 --------------------------------------------------
+
+[float]
+[[max-number-of-threads]]
+==== Number of threads
+
+Make sure that the number of threads that the Elasticsearch user can
+create is at least 2048.
 
 [float]
 [[vm-max-map-count]]
@@ -133,7 +136,7 @@ request:
 curl http://localhost:9200/_nodes/process?pretty
 --------------
 
-If you see that `mlockall` is `false`, then it means that the the `mlockall`
+If you see that `mlockall` is `false`, then it means that the `mlockall`
 request has failed.  The most probable reason, on Linux/Unix systems, is that
 the user running Elasticsearch doesn't have permission to lock memory.  This can
 be granted by running `ulimit -l unlimited` as `root` before starting Elasticsearch.
@@ -256,7 +259,7 @@ command, for example:
 
 [source,sh]
 --------------------------------------------------
-$ elasticsearch -Des.network.host=10.0.0.4
+$ elasticsearch -Ees.network.host=10.0.0.4
 --------------------------------------------------
 
 Another option is to set `es.default.` prefix instead of `es.` prefix,
@@ -298,30 +301,21 @@ Enter value for [node.name]:
 NOTE: Elasticsearch will not start if `${prompt.text}` or `${prompt.secret}`
 is used in the settings and the process is run as a service or in the background.
 
-The location of the configuration file can be set externally using a
-system property:
-
-[source,sh]
---------------------------------------------------
-$ elasticsearch -Des.config=/path/to/config/file
---------------------------------------------------
-
 [float]
 [[configuration-index-settings]]
 === Index Settings
 
 Indices created within the cluster can provide their own settings. For
-example, the following creates an index with memory based storage
-instead of the default file system based one (the format can be either
+example, the following creates an index with a refresh interval of 5
+seconds instead of the default refresh interval (the format can be either
 YAML or JSON):
 
 [source,sh]
 --------------------------------------------------
 $ curl -XPUT http://localhost:9200/kimchy/ -d \
 '
-index :
-    store:
-        type: memory
+index:
+    refresh_interval: 5s
 '
 --------------------------------------------------
 
@@ -331,19 +325,18 @@ within the `elasticsearch.yml` file, the following can be set:
 [source,yaml]
 --------------------------------------------------
 index :
-    store:
-        type: memory
+    refresh_interval: 5s
 --------------------------------------------------
 
 This means that every index that gets created on the specific node
-started with the mentioned configuration will store the index in memory
-*unless the index explicitly sets it*. In other words, any index level
-settings override what is set in the node configuration. Of course, the
-above can also be set as a "collapsed" setting, for example:
+started with the mentioned configuration will use a refresh interval of
+5 seconds *unless the index explicitly sets it*. In other words, any
+index level settings override what is set in the node configuration. Of
+course, the above can also be set as a "collapsed" setting, for example:
 
 [source,sh]
 --------------------------------------------------
-$ elasticsearch -Des.index.store.type=memory
+$ elasticsearch -Ees.index.refresh_interval=5s
 --------------------------------------------------
 
 All of the index level configuration can be found within each

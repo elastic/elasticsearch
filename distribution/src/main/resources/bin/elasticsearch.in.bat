@@ -4,7 +4,7 @@ if DEFINED JAVA_HOME goto cont
 
 :err
 ECHO JAVA_HOME environment variable must be set! 1>&2
-EXIT /B 1 
+EXIT /B 1
 
 :cont
 set SCRIPT_DIR=%~dp0
@@ -14,11 +14,11 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 REM ***** JAVA options *****
 
 if "%ES_MIN_MEM%" == "" (
-set ES_MIN_MEM=${packaging.elasticsearch.heap.min}
+set ES_MIN_MEM=${heap.min}
 )
 
 if "%ES_MAX_MEM%" == "" (
-set ES_MAX_MEM=${packaging.elasticsearch.heap.max}
+set ES_MAX_MEM=${heap.max}
 )
 
 if NOT "%ES_HEAP_SIZE%" == "" (
@@ -50,14 +50,16 @@ if NOT "%ES_USE_IPV4%" == "" (
 set JAVA_OPTS=%JAVA_OPTS% -Djava.net.preferIPv4Stack=true
 )
 
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseConcMarkSweepGC
-
-set JAVA_OPTS=%JAVA_OPTS% -XX:CMSInitiatingOccupancyFraction=75
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
-
+REM Add gc options. ES_GC_OPTS is unsupported, for internal testing
+if "%ES_GC_OPTS%" == "" (
+set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseParNewGC
+set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseConcMarkSweepGC
+set ES_GC_OPTS=%ES_GC_OPTS% -XX:CMSInitiatingOccupancyFraction=75
+set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
 REM When running under Java 7
 REM JAVA_OPTS=%JAVA_OPTS% -XX:+UseCondCardMark
+)
+set JAVA_OPTS=%JAVA_OPTS%%ES_GC_OPTS%
 
 if "%ES_GC_LOG_FILE%" == "" goto nogclog
 
@@ -83,11 +85,23 @@ REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
 REM Disables explicit GC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
 
+REM Enable pre-touching of memory pages used by the JVM during hotspot
+REM initialization
+set JAVA_OPTS=%JAVA_OPTS% -XX:+AlwaysPreTouch
+
 REM Ensure UTF-8 encoding by default (e.g. filenames)
 set JAVA_OPTS=%JAVA_OPTS% -Dfile.encoding=UTF-8
 
 REM Use our provided JNA always versus the system one
 set JAVA_OPTS=%JAVA_OPTS% -Djna.nosys=true
 
-set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/${project.build.finalName}.jar;%ES_HOME%/lib/*
-set ES_PARAMS=-Delasticsearch -Des-foreground=yes -Des.path.home="%ES_HOME%"
+REM check in case a user was using this mechanism
+if "%ES_CLASSPATH%" == "" (
+set ES_CLASSPATH=!ES_HOME!/lib/elasticsearch-${project.version}.jar;!ES_HOME!/lib/*
+) else (
+ECHO Error: Don't modify the classpath with ES_CLASSPATH, Best is to add 1>&2
+ECHO additional elements via the plugin mechanism, or if code must really be 1>&2
+ECHO added to the main classpath, add jars to lib\, unsupported 1>&2
+EXIT /B 1
+)
+set ES_PARAMS=-Delasticsearch -Des.path.home="%ES_HOME%"

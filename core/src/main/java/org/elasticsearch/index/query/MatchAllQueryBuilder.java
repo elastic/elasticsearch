@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -26,26 +30,46 @@ import java.io.IOException;
 /**
  * A query that matches on all documents.
  */
-public class MatchAllQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<MatchAllQueryBuilder> {
+public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> {
 
-    private float boost = -1;
+    public static final String NAME = "match_all";
 
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
+    static final MatchAllQueryBuilder PROTOTYPE = new MatchAllQueryBuilder();
+
     @Override
-    public MatchAllQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME);
+        printBoostAndQueryName(builder);
+        builder.endObject();
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(MatchAllQueryParser.NAME);
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        builder.endObject();
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        return Queries.newMatchAllQuery();
+    }
+
+    @Override
+    protected boolean doEquals(MatchAllQueryBuilder other) {
+        return true;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return 0;
+    }
+
+    @Override
+    protected MatchAllQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        return new MatchAllQueryBuilder();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        //nothing to write really
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

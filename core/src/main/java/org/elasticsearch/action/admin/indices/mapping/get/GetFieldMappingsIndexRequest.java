@@ -29,7 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMappingsIndexRequest> {
+public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMappingsIndexRequest> {
 
     private boolean probablySingleFieldRequest;
     private boolean includeDefaults;
@@ -38,11 +38,10 @@ class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMappingsIn
 
     private OriginalIndices originalIndices;
 
-    GetFieldMappingsIndexRequest() {
+    public GetFieldMappingsIndexRequest() {
     }
 
     GetFieldMappingsIndexRequest(GetFieldMappingsRequest other, String index, boolean probablySingleFieldRequest) {
-        super(other);
         this.probablySingleFieldRequest = probablySingleFieldRequest;
         this.includeDefaults = other.includeDefaults();
         this.types = other.types();

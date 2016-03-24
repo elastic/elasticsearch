@@ -21,46 +21,35 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.analysis.HunspellService;
+import org.elasticsearch.test.IndexSettingsModule;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 
 public class AnalysisTestsHelper {
 
-    public static AnalysisService createAnalysisServiceFromClassPath(Path baseDir, String resource) {
+    public static AnalysisService createAnalysisServiceFromClassPath(Path baseDir, String resource) throws IOException {
         Settings settings = Settings.settingsBuilder()
-                .loadFromClasspath(resource)
-                .put("path.home", baseDir.toString())
+                .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource))
+                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir.toString())
                 .build();
 
         return createAnalysisServiceFromSettings(settings);
     }
 
     public static AnalysisService createAnalysisServiceFromSettings(
-            Settings settings) {
-        Index index = new Index("test");
+            Settings settings) throws IOException {
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
             settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
-                new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
-
-        AnalysisModule analysisModule = new AnalysisModule(settings,
-                parentInjector.getInstance(IndicesAnalysisService.class));
-
-        Injector injector = new ModulesBuilder().add(new IndexSettingsModule(index, settings),
-                new IndexNameModule(index), analysisModule).createChildInjector(parentInjector);
-
-        return injector.getInstance(AnalysisService.class);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        Environment environment = new Environment(settings);
+        return new AnalysisRegistry(new HunspellService(settings, environment, Collections.emptyMap()), environment).build(idxSettings);
     }
 }

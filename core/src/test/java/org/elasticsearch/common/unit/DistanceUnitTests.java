@@ -19,8 +19,11 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,9 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class DistanceUnitTests extends ElasticsearchTestCase {
-
-    @Test
+public class DistanceUnitTests extends ESTestCase {
     public void testSimpleDistanceUnit() {
         assertThat(DistanceUnit.KILOMETERS.convert(10, DistanceUnit.MILES), closeTo(16.09344, 0.001));
         assertThat(DistanceUnit.MILES.convert(10, DistanceUnit.MILES), closeTo(10, 0.001));
@@ -41,8 +42,7 @@ public class DistanceUnitTests extends ElasticsearchTestCase {
         assertThat(DistanceUnit.KILOMETERS.convert(1000,DistanceUnit.METERS), closeTo(1, 0.001));
         assertThat(DistanceUnit.METERS.convert(1, DistanceUnit.KILOMETERS), closeTo(1000, 0.001));
     }
-    
-    @Test
+
     public void testDistanceUnitParsing() {
         assertThat(DistanceUnit.Distance.parseDistance("50km").unit, equalTo(DistanceUnit.KILOMETERS));
         assertThat(DistanceUnit.Distance.parseDistance("500m").unit, equalTo(DistanceUnit.METERS));
@@ -53,7 +53,7 @@ public class DistanceUnitTests extends ElasticsearchTestCase {
         assertThat(DistanceUnit.Distance.parseDistance("12in").unit, equalTo(DistanceUnit.INCH));
         assertThat(DistanceUnit.Distance.parseDistance("23mm").unit, equalTo(DistanceUnit.MILLIMETERS));
         assertThat(DistanceUnit.Distance.parseDistance("23cm").unit, equalTo(DistanceUnit.CENTIMETERS));
-        
+
         double testValue = 12345.678;
         for (DistanceUnit unit : DistanceUnit.values()) {
             assertThat("Unit can be parsed from '" + unit.toString() + "'", DistanceUnit.fromString(unit.toString()), equalTo(unit));
@@ -62,4 +62,36 @@ public class DistanceUnitTests extends ElasticsearchTestCase {
         }
     }
 
+    /**
+     * This test ensures that we are aware of accidental reordering in the distance unit ordinals,
+     * since equality in e.g. CircleShapeBuilder, hashCode and serialization rely on them
+     */
+    public void testDistanceUnitNames() {
+        assertEquals(0, DistanceUnit.INCH.ordinal());
+        assertEquals(1, DistanceUnit.YARD.ordinal());
+        assertEquals(2, DistanceUnit.FEET.ordinal());
+        assertEquals(3, DistanceUnit.KILOMETERS.ordinal());
+        assertEquals(4, DistanceUnit.NAUTICALMILES.ordinal());
+        assertEquals(5, DistanceUnit.MILLIMETERS.ordinal());
+        assertEquals(6, DistanceUnit.CENTIMETERS.ordinal());
+        assertEquals(7, DistanceUnit.MILES.ordinal());
+        assertEquals(8, DistanceUnit.METERS.ordinal());
+    }
+
+    public void testReadWrite() throws Exception {
+        for (DistanceUnit unit : DistanceUnit.values()) {
+          try (BytesStreamOutput out = new BytesStreamOutput()) {
+              unit.writeTo(out);
+              try (StreamInput in = StreamInput.wrap(out.bytes())) {
+                  assertThat("Roundtrip serialisation failed.", DistanceUnit.readDistanceUnit(in), equalTo(unit));
+              }
+          }
+        }
+    }
+
+    public void testFromString() {
+        for (DistanceUnit unit : DistanceUnit.values()) {
+            assertThat("Roundtrip string parsing failed.", DistanceUnit.fromString(unit.toString()), equalTo(unit));
+        }
+    }
 }

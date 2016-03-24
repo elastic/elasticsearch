@@ -20,8 +20,8 @@
 package org.elasticsearch.common.recycler;
 
 import com.carrotsearch.hppc.BitMixer;
-import com.google.common.collect.Queues;
-import org.elasticsearch.ElasticsearchException;
+
+import java.util.ArrayDeque;
 
 public enum Recyclers {
     ;
@@ -44,7 +44,7 @@ public enum Recyclers {
      * Return a recycler based on a deque.
      */
     public static <T> Recycler<T> deque(Recycler.C<T> c, int limit) {
-        return new DequeRecycler<>(c, Queues.<T>newArrayDeque(), limit);
+        return new DequeRecycler<>(c, new ArrayDeque<>(), limit);
     }
 
     /**

@@ -25,19 +25,17 @@ import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 import java.util.Map;
 import java.util.Set;
 
-public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
+import static java.util.Collections.singletonMap;
 
+public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
+    private static final Map<String, Set<?>> NAMED_STOP_WORDS = singletonMap("_japanese_", JapaneseAnalyzer.getDefaultStopSet());
 
     private final CharArraySet stopWords;
 
@@ -45,15 +43,11 @@ public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
 
     private final boolean removeTrailing;
 
-    @Inject
-    public JapaneseStopTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public JapaneseStopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
-        Map<String, Set<?>> namedStopWords = MapBuilder.<String, Set<?>>newMapBuilder()
-            .put("_japanese_", JapaneseAnalyzer.getDefaultStopSet())
-            .immutableMap();
-        this.stopWords = Analysis.parseWords(env, settings, "stopwords", JapaneseAnalyzer.getDefaultStopSet(), namedStopWords, ignoreCase);
+        this.stopWords = Analysis.parseWords(env, settings, "stopwords", JapaneseAnalyzer.getDefaultStopSet(), NAMED_STOP_WORDS, ignoreCase);
     }
 
     @Override

@@ -87,6 +87,10 @@ The cluster health API accepts the following request parameters:
     A time based parameter controlling how long to wait if one of
     the wait_for_XXX are provided. Defaults to `30s`.
 
+`local`::
+    If `true` returns the local node information and does not provide
+    the state from master node. Default: `false`.
+
 
 The following is an example of getting the cluster health at the
 `shards` level:

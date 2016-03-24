@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
-import com.google.common.collect.UnmodifiableIterator;
-
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
@@ -96,7 +94,7 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
         return TYPE;
     }
 
-    public static class Iter extends UnmodifiableIterator<Percentile> {
+    public static class Iter implements Iterator<Percentile> {
 
         private final double[] percents;
         private final DoubleHistogram state;
@@ -118,6 +116,11 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
             final Percentile next = new InternalPercentile(percents[i], state.getValueAtPercentile(percents[i]));
             ++i;
             return next;
+        }
+
+        @Override
+        public final void remove() {
+            throw new UnsupportedOperationException();
         }
     }
 }

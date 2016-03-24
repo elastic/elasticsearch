@@ -19,20 +19,24 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.*;
-import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.TransportAddressSerializers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.Node;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;
@@ -42,18 +46,17 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  */
 public class DiscoveryNode implements Streamable, ToXContent {
 
-    /**
-     * Minimum version of a node to communicate with. This version corresponds to the minimum compatibility version
-     * of the current elasticsearch major version.
-     */
-    public static final Version MINIMUM_DISCOVERY_NODE_VERSION = Version.CURRENT.minimumCompatibilityVersion();
+    public static final String DATA_ATTR = "data";
+    public static final String MASTER_ATTR = "master";
+    public static final String CLIENT_ATTR = "client";
+    public static final String INGEST_ATTR = "ingest";
 
     public static boolean localNode(Settings settings) {
-        if (settings.get("node.local") != null) {
-            return settings.getAsBoolean("node.local", false);
+        if (Node.NODE_LOCAL_SETTING.exists(settings)) {
+            return Node.NODE_LOCAL_SETTING.get(settings);
         }
-        if (settings.get("node.mode") != null) {
-            String nodeMode = settings.get("node.mode");
+        if (Node.NODE_MODE_SETTING.exists(settings)) {
+            String nodeMode = Node.NODE_MODE_SETTING.get(settings);
             if ("local".equals(nodeMode)) {
                 return true;
             } else if ("network".equals(nodeMode)) {
@@ -66,38 +69,39 @@ public class DiscoveryNode implements Streamable, ToXContent {
     }
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
-        return !(settings.getAsBoolean("node.client", false) || (!settings.getAsBoolean("node.data", true) && !settings.getAsBoolean("node.master", true)));
+        return (Node.NODE_CLIENT_SETTING.get(settings) || (Node.NODE_DATA_SETTING.get(settings) == false && Node.NODE_MASTER_SETTING.get(settings) == false)) == false;
     }
 
     public static boolean clientNode(Settings settings) {
-        String client = settings.get("node.client");
-        return Booleans.isExplicitTrue(client);
+        return Node.NODE_CLIENT_SETTING.get(settings);
     }
 
     public static boolean masterNode(Settings settings) {
-        String master = settings.get("node.master");
-        if (master == null) {
-            return !clientNode(settings);
+        if (Node.NODE_MASTER_SETTING.exists(settings)) {
+            return Node.NODE_MASTER_SETTING.get(settings);
         }
-        return Booleans.isExplicitTrue(master);
+        return clientNode(settings) == false;
     }
 
     public static boolean dataNode(Settings settings) {
-        String data = settings.get("node.data");
-        if (data == null) {
-            return !clientNode(settings);
+        if (Node.NODE_DATA_SETTING.exists(settings)) {
+            return Node.NODE_DATA_SETTING.get(settings);
         }
-        return Booleans.isExplicitTrue(data);
+        return clientNode(settings) == false;
     }
 
-    public static final ImmutableList<DiscoveryNode> EMPTY_LIST = ImmutableList.of();
+    public static boolean ingestNode(Settings settings) {
+        return Node.NODE_INGEST_SETTING.get(settings);
+    }
+
+    public static final List<DiscoveryNode> EMPTY_LIST = Collections.emptyList();
 
     private String nodeName = "";
     private String nodeId;
     private String hostName;
     private String hostAddress;
     private TransportAddress address;
-    private ImmutableMap<String, String> attributes;
+    private ImmutableOpenMap<String, String> attributes;
     private Version version = Version.CURRENT;
 
     DiscoveryNode() {
@@ -106,7 +110,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
     /**
      * Creates a new {@link DiscoveryNode}
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current version.
      * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
@@ -117,13 +121,13 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * @param version the version of the node.
      */
     public DiscoveryNode(String nodeId, TransportAddress address, Version version) {
-        this("", nodeId, address, ImmutableMap.<String, String>of(), version);
+        this("", nodeId, address, Collections.emptyMap(), version);
     }
 
     /**
      * Creates a new {@link DiscoveryNode}
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current version.
      * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
@@ -136,13 +140,13 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * @param version    the version of the node.
      */
     public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes, Version version) {
-        this(nodeName, nodeId, NetworkUtils.getLocalHostName(""), NetworkUtils.getLocalHostAddress(""), address, attributes, version);
+        this(nodeName, nodeId, address.getHost(), address.getAddress(), address, attributes, version);
     }
 
     /**
-     * Creates a new {@link DiscoveryNode}
+     * Creates a new {@link DiscoveryNode}.
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current version.
      * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
@@ -160,7 +164,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
         if (nodeName != null) {
             this.nodeName = nodeName.intern();
         }
-        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
             builder.put(entry.getKey().intern(), entry.getValue().intern());
         }
@@ -173,13 +177,36 @@ public class DiscoveryNode implements Streamable, ToXContent {
     }
 
     /**
-     * Should this node form a connection to the provided node.
+     * Creates a new {@link DiscoveryNode}.
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current version.
+     * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param nodeName    the nodes name
+     * @param nodeId      the nodes unique id.
+     * @param hostName    the nodes hostname
+     * @param hostAddress the nodes host address
+     * @param address     the nodes transport address
+     * @param attributes  node attributes
+     * @param version     the version of the node.
      */
-    public boolean shouldConnectTo(DiscoveryNode otherNode) {
-        if (clientNode() && otherNode.clientNode()) {
-            return false;
+    public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address, ImmutableOpenMap<String, String> attributes, Version version) {
+        if (nodeName != null) {
+            this.nodeName = nodeName.intern();
         }
-        return true;
+        ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
+        for (ObjectObjectCursor<String, String> entry : attributes) {
+            builder.put(entry.key.intern(), entry.value.intern());
+        }
+        this.attributes = builder.build();
+        this.nodeId = nodeId.intern();
+        this.hostName = hostName.intern();
+        this.hostAddress = hostAddress.intern();
+        this.address = address;
+        this.version = version;
     }
 
     /**
@@ -227,14 +254,14 @@ public class DiscoveryNode implements Streamable, ToXContent {
     /**
      * The node attributes.
      */
-    public ImmutableMap<String, String> attributes() {
+    public ImmutableOpenMap<String, String> attributes() {
         return this.attributes;
     }
 
     /**
      * The node attributes.
      */
-    public ImmutableMap<String, String> getAttributes() {
+    public ImmutableOpenMap<String, String> getAttributes() {
         return attributes();
     }
 
@@ -242,7 +269,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Should this node hold data (shards) or not.
      */
     public boolean dataNode() {
-        String data = attributes.get("data");
+        String data = attributes.get(DATA_ATTR);
         if (data == null) {
             return !clientNode();
         }
@@ -260,7 +287,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Is the node a client node or not.
      */
     public boolean clientNode() {
-        String client = attributes.get("client");
+        String client = attributes.get(CLIENT_ATTR);
         return client != null && Booleans.parseBooleanExact(client);
     }
 
@@ -272,7 +299,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * Can this node become master or not.
      */
     public boolean masterNode() {
-        String master = attributes.get("master");
+        String master = attributes.get(MASTER_ATTR);
         if (master == null) {
             return !clientNode();
         }
@@ -284,6 +311,14 @@ public class DiscoveryNode implements Streamable, ToXContent {
      */
     public boolean isMasterNode() {
         return masterNode();
+    }
+
+    /**
+     * Returns a boolean that tells whether this an ingest node or not
+     */
+    public boolean isIngestNode() {
+        String ingest = attributes.get(INGEST_ATTR);
+        return ingest == null ? true : Booleans.parseBooleanExact(ingest);
     }
 
     public Version version() {
@@ -316,11 +351,11 @@ public class DiscoveryNode implements Streamable, ToXContent {
         hostAddress = in.readString().intern();
         address = TransportAddressSerializers.addressFromStream(in);
         int size = in.readVInt();
-        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        ImmutableOpenMap.Builder<String, String> attributes = ImmutableOpenMap.builder(size);
         for (int i = 0; i < size; i++) {
-            builder.put(in.readString().intern(), in.readString().intern());
+            attributes.put(in.readString().intern(), in.readString().intern());
         }
-        attributes = builder.build();
+        this.attributes = attributes.build();
         version = Version.readVersion(in);
     }
 
@@ -332,9 +367,9 @@ public class DiscoveryNode implements Streamable, ToXContent {
         out.writeString(hostAddress);
         addressToStream(out, address);
         out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+        for (ObjectObjectCursor<String, String> entry : attributes) {
+            out.writeString(entry.key);
+            out.writeString(entry.value);
         }
         Version.writeVersion(version, out);
     }
@@ -358,16 +393,16 @@ public class DiscoveryNode implements Streamable, ToXContent {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         if (nodeName.length() > 0) {
-            sb.append('[').append(nodeName).append(']');
+            sb.append('{').append(nodeName).append('}');
         }
         if (nodeId != null) {
-            sb.append('[').append(nodeId).append(']');
+            sb.append('{').append(nodeId).append('}');
         }
         if (Strings.hasLength(hostName)) {
-            sb.append('[').append(hostName).append(']');
+            sb.append('{').append(hostName).append('}');
         }
         if (address != null) {
-            sb.append('[').append(address).append(']');
+            sb.append('{').append(address).append('}');
         }
         if (!attributes.isEmpty()) {
             sb.append(attributes);
@@ -382,8 +417,8 @@ public class DiscoveryNode implements Streamable, ToXContent {
         builder.field("transport_address", address().toString());
 
         builder.startObject("attributes");
-        for (Map.Entry<String, String> attr : attributes().entrySet()) {
-            builder.field(attr.getKey(), attr.getValue());
+        for (ObjectObjectCursor<String, String> attr : attributes) {
+            builder.field(attr.key, attr.value);
         }
         builder.endObject();
 

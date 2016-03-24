@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -33,7 +34,12 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -50,7 +56,7 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/shards\n");
         sb.append("/_cat/shards/{index}\n");
     }
@@ -78,7 +84,7 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
                 .addCell("index", "default:true;alias:i,idx;desc:index name")
@@ -91,6 +97,8 @@ public class RestShardsAction extends AbstractCatAction {
                 .addCell("id", "default:false;desc:unique id of node where it lives")
                 .addCell("node", "default:true;alias:n;desc:name of node where it lives");
 
+        table.addCell("sync_id", "alias:sync_id;default:false;desc:sync id");
+
         table.addCell("unassigned.reason", "alias:ur;default:false;desc:reason shard is unassigned");
         table.addCell("unassigned.at", "alias:ua;default:false;desc:time shard became unassigned (UTC)");
         table.addCell("unassigned.for", "alias:uf;default:false;text-align:right;desc:time has been unassigned");
@@ -101,8 +109,8 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("fielddata.memory_size", "alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache");
         table.addCell("fielddata.evictions", "alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("query_cache.memory_size", "alias:fcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
-        table.addCell("query_cache.evictions", "alias:fce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
 
         table.addCell("flush.total", "alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
@@ -121,6 +129,7 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("indexing.index_current", "alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
         table.addCell("indexing.index_time", "alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
         table.addCell("indexing.index_total", "alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
+        table.addCell("indexing.index_failed", "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell("merges.current_docs", "alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
@@ -130,11 +139,7 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("percolate.current", "alias:pc,percolateCurrent;default:false;text-align:right;desc:number of current percolations");
-        table.addCell("percolate.memory_size", "alias:pm,percolateMemory;default:false;text-align:right;desc:memory used by percolations");
         table.addCell("percolate.queries", "alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
-        table.addCell("percolate.time", "alias:pti,percolateTime;default:false;text-align:right;desc:time spent percolating");
-        table.addCell("percolate.total", "alias:pto,percolateTotal;default:false;text-align:right;desc:total percolations");
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
@@ -169,17 +174,23 @@ public class RestShardsAction extends AbstractCatAction {
         Table table = getTableWithHeader(request);
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
-            CommonStats shardStats = stats.asMap().get(shard);
+            ShardStats shardStats = stats.asMap().get(shard);
+            CommonStats commonStats = null;
+            CommitStats commitStats = null;
+            if (shardStats != null) {
+                commonStats = shardStats.getStats();
+                commitStats = shardStats.getCommitStats();
+            }
 
             table.startRow();
 
-            table.addCell(shard.index());
+            table.addCell(shard.getIndexName());
             table.addCell(shard.id());
 
-            IndexMetaData indexMeta = state.getState().getMetaData().index(shard.index());
+            IndexMetaData indexMeta = state.getState().getMetaData().getIndexSafe(shard.index());
             boolean usesShadowReplicas = false;
             if (indexMeta != null) {
-                usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.settings());
+                usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.getSettings());
             }
             if (shard.primary()) {
                 table.addCell("p");
@@ -191,8 +202,8 @@ public class RestShardsAction extends AbstractCatAction {
                 }
             }
             table.addCell(shard.state());
-            table.addCell(shardStats == null ? null : shardStats.getDocs().getCount());
-            table.addCell(shardStats == null ? null : shardStats.getStore().getSize());
+            table.addCell(commonStats == null ? null : commonStats.getDocs().getCount());
+            table.addCell(commonStats == null ? null : commonStats.getStore().getSize());
             if (shard.assignedToNode()) {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();
@@ -218,10 +229,12 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
             }
 
+            table.addCell(commitStats == null ? null : commitStats.getUserData().get(Engine.SYNC_COMMIT_ID));
+
             if (shard.unassignedInfo() != null) {
                 table.addCell(shard.unassignedInfo().getReason());
-                table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.printer().print(shard.unassignedInfo().getTimestampInMillis()));
-                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getTimestampInMillis()));
+                table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.printer().print(shard.unassignedInfo().getUnassignedTimeInMillis()));
+                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()));
                 table.addCell(shard.unassignedInfo().getDetails());
             } else {
                 table.addCell(null);
@@ -230,70 +243,67 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
             }
 
-            table.addCell(shardStats == null ? null : shardStats.getCompletion().getSize());
+            table.addCell(commonStats == null ? null : commonStats.getCompletion().getSize());
 
-            table.addCell(shardStats == null ? null : shardStats.getFieldData().getMemorySize());
-            table.addCell(shardStats == null ? null : shardStats.getFieldData().getEvictions());
+            table.addCell(commonStats == null ? null : commonStats.getFieldData().getMemorySize());
+            table.addCell(commonStats == null ? null : commonStats.getFieldData().getEvictions());
 
-            table.addCell(shardStats == null ? null : shardStats.getQueryCache().getMemorySize());
-            table.addCell(shardStats == null ? null : shardStats.getQueryCache().getEvictions());
+            table.addCell(commonStats == null ? null : commonStats.getQueryCache().getMemorySize());
+            table.addCell(commonStats == null ? null : commonStats.getQueryCache().getEvictions());
 
-            table.addCell(shardStats == null ? null : shardStats.getFlush().getTotal());
-            table.addCell(shardStats == null ? null : shardStats.getFlush().getTotalTime());
+            table.addCell(commonStats == null ? null : commonStats.getFlush().getTotal());
+            table.addCell(commonStats == null ? null : commonStats.getFlush().getTotalTime());
 
-            table.addCell(shardStats == null ? null : shardStats.getGet().current());
-            table.addCell(shardStats == null ? null : shardStats.getGet().getTime());
-            table.addCell(shardStats == null ? null : shardStats.getGet().getCount());
-            table.addCell(shardStats == null ? null : shardStats.getGet().getExistsTime());
-            table.addCell(shardStats == null ? null : shardStats.getGet().getExistsCount());
-            table.addCell(shardStats == null ? null : shardStats.getGet().getMissingTime());
-            table.addCell(shardStats == null ? null : shardStats.getGet().getMissingCount());
+            table.addCell(commonStats == null ? null : commonStats.getGet().current());
+            table.addCell(commonStats == null ? null : commonStats.getGet().getTime());
+            table.addCell(commonStats == null ? null : commonStats.getGet().getCount());
+            table.addCell(commonStats == null ? null : commonStats.getGet().getExistsTime());
+            table.addCell(commonStats == null ? null : commonStats.getGet().getExistsCount());
+            table.addCell(commonStats == null ? null : commonStats.getGet().getMissingTime());
+            table.addCell(commonStats == null ? null : commonStats.getGet().getMissingCount());
 
-            table.addCell(shardStats == null ? null : shardStats.getIndexing().getTotal().getDeleteCurrent());
-            table.addCell(shardStats == null ? null : shardStats.getIndexing().getTotal().getDeleteTime());
-            table.addCell(shardStats == null ? null : shardStats.getIndexing().getTotal().getDeleteCount());
-            table.addCell(shardStats == null ? null : shardStats.getIndexing().getTotal().getIndexCurrent());
-            table.addCell(shardStats == null ? null : shardStats.getIndexing().getTotal().getIndexTime());
-            table.addCell(shardStats == null ? null : shardStats.getIndexing().getTotal().getIndexCount());
+            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getDeleteCurrent());
+            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getDeleteTime());
+            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getDeleteCount());
+            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getIndexCurrent());
+            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getIndexTime());
+            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getIndexCount());
+            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getIndexFailedCount());
 
-            table.addCell(shardStats == null ? null : shardStats.getMerge().getCurrent());
-            table.addCell(shardStats == null ? null : shardStats.getMerge().getCurrentNumDocs());
-            table.addCell(shardStats == null ? null : shardStats.getMerge().getCurrentSize());
-            table.addCell(shardStats == null ? null : shardStats.getMerge().getTotal());
-            table.addCell(shardStats == null ? null : shardStats.getMerge().getTotalNumDocs());
-            table.addCell(shardStats == null ? null : shardStats.getMerge().getTotalSize());
-            table.addCell(shardStats == null ? null : shardStats.getMerge().getTotalTime());
+            table.addCell(commonStats == null ? null : commonStats.getMerge().getCurrent());
+            table.addCell(commonStats == null ? null : commonStats.getMerge().getCurrentNumDocs());
+            table.addCell(commonStats == null ? null : commonStats.getMerge().getCurrentSize());
+            table.addCell(commonStats == null ? null : commonStats.getMerge().getTotal());
+            table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalNumDocs());
+            table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalSize());
+            table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalTime());
 
-            table.addCell(shardStats == null ? null : shardStats.getPercolate().getCurrent());
-            table.addCell(shardStats == null ? null : shardStats.getPercolate().getMemorySize());
-            table.addCell(shardStats == null ? null : shardStats.getPercolate().getNumQueries());
-            table.addCell(shardStats == null ? null : shardStats.getPercolate().getTime());
-            table.addCell(shardStats == null ? null : shardStats.getPercolate().getCount());
+            table.addCell(commonStats == null ? null : commonStats.getPercolatorCache().getNumQueries());
 
-            table.addCell(shardStats == null ? null : shardStats.getRefresh().getTotal());
-            table.addCell(shardStats == null ? null : shardStats.getRefresh().getTotalTime());
+            table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotal());
+            table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotalTime());
 
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getFetchCurrent());
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getFetchTime());
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getFetchCount());
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getOpenContexts());
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getQueryCurrent());
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getQueryTime());
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getQueryCount());
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getScrollCurrent());
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getScrollTime());
-            table.addCell(shardStats == null ? null : shardStats.getSearch().getTotal().getScrollCount());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchCurrent());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchTime());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchCount());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getOpenContexts());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getQueryCurrent());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getQueryTime());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getQueryCount());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getScrollCurrent());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getScrollTime());
+            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getScrollCount());
 
-            table.addCell(shardStats == null ? null : shardStats.getSegments().getCount());
-            table.addCell(shardStats == null ? null : shardStats.getSegments().getMemory());
-            table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMemory());
-            table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMaxMemory());
-            table.addCell(shardStats == null ? null : shardStats.getSegments().getVersionMapMemory());
-            table.addCell(shardStats == null ? null : shardStats.getSegments().getBitsetMemory());
+            table.addCell(commonStats == null ? null : commonStats.getSegments().getCount());
+            table.addCell(commonStats == null ? null : commonStats.getSegments().getMemory());
+            table.addCell(commonStats == null ? null : commonStats.getSegments().getIndexWriterMemory());
+            table.addCell(commonStats == null ? null : commonStats.getSegments().getIndexWriterMaxMemory());
+            table.addCell(commonStats == null ? null : commonStats.getSegments().getVersionMapMemory());
+            table.addCell(commonStats == null ? null : commonStats.getSegments().getBitsetMemory());
 
-            table.addCell(shardStats == null ? null : shardStats.getWarmer().current());
-            table.addCell(shardStats == null ? null : shardStats.getWarmer().total());
-            table.addCell(shardStats == null ? null : shardStats.getWarmer().totalTime());
+            table.addCell(commonStats == null ? null : commonStats.getWarmer().current());
+            table.addCell(commonStats == null ? null : commonStats.getWarmer().total());
+            table.addCell(commonStats == null ? null : commonStats.getWarmer().totalTime());
 
             table.endRow();
         }

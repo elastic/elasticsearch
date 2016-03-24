@@ -19,27 +19,29 @@
 
 package org.elasticsearch.rest;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class RestFilterChainTests extends ElasticsearchTestCase {
-
-    @Test
+public class RestFilterChainTests extends ESTestCase {
     public void testRestFilters() throws InterruptedException {
 
         RestController restController = new RestController(Settings.EMPTY);
@@ -57,7 +59,7 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
             restController.registerFilter(testFilter);
         }
 
-        ArrayList<RestFilter> restFiltersByOrder = Lists.newArrayList(filters);
+        ArrayList<RestFilter> restFiltersByOrder = new ArrayList<>(filters);
         Collections.sort(restFiltersByOrder, new Comparator<RestFilter>() {
             @Override
             public int compare(RestFilter o1, RestFilter o2) {
@@ -65,7 +67,7 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
             }
         });
 
-        List<RestFilter> expectedRestFilters = Lists.newArrayList();
+        List<RestFilter> expectedRestFilters = new ArrayList<>();
         for (RestFilter filter : restFiltersByOrder) {
             TestFilter testFilter = (TestFilter) filter;
             expectedRestFilters.add(testFilter);
@@ -83,11 +85,11 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, 1);
-        restController.dispatchRequest(fakeRestRequest, fakeRestChannel);
+        restController.dispatchRequest(fakeRestRequest, fakeRestChannel, new ThreadContext(Settings.EMPTY));
         assertThat(fakeRestChannel.await(), equalTo(true));
 
 
-        List<TestFilter> testFiltersByLastExecution = Lists.newArrayList();
+        List<TestFilter> testFiltersByLastExecution = new ArrayList<>();
         for (RestFilter restFilter : filters) {
             testFiltersByLastExecution.add((TestFilter)restFilter);
         }
@@ -98,7 +100,7 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
             }
         });
 
-        ArrayList<TestFilter> finalTestFilters = Lists.newArrayList();
+        ArrayList<TestFilter> finalTestFilters = new ArrayList<>();
         for (RestFilter filter : testFiltersByLastExecution) {
             TestFilter testFilter = (TestFilter) filter;
             finalTestFilters.add(testFilter);
@@ -116,7 +118,6 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testTooManyContinueProcessing() throws InterruptedException {
 
         final int additionalContinueCount = randomInt(10);
@@ -142,7 +143,7 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, additionalContinueCount + 1);
-        restController.dispatchRequest(fakeRestRequest, fakeRestChannel);
+        restController.dispatchRequest(fakeRestRequest, fakeRestChannel, new ThreadContext(Settings.EMPTY));
         fakeRestChannel.await();
 
         assertThat(testFilter.runs.get(), equalTo(1));

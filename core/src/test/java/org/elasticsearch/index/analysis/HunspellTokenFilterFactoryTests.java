@@ -19,8 +19,8 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -28,13 +28,11 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class HunspellTokenFilterFactoryTests extends ElasticsearchTestCase {
-
-    @Test
+public class HunspellTokenFilterFactoryTests extends ESTestCase {
     public void testDedup() throws IOException {
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir().toString())
-                .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.locale", "en_US")
                 .build();
@@ -46,8 +44,8 @@ public class HunspellTokenFilterFactoryTests extends ElasticsearchTestCase {
         assertThat(hunspellTokenFilter.dedup(), is(true));
 
         settings = settingsBuilder()
-                .put("path.home", createTempDir().toString())
-                .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.dedup", false)
                 .put("index.analysis.filter.en_US.locale", "en_US")
@@ -59,5 +57,4 @@ public class HunspellTokenFilterFactoryTests extends ElasticsearchTestCase {
         hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
         assertThat(hunspellTokenFilter.dedup(), is(false));
     }
-
 }

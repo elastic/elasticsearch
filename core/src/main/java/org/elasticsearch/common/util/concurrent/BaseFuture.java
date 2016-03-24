@@ -19,52 +19,17 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.annotations.Beta;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.transport.Transports;
 
-import java.util.concurrent.*;
+import java.util.Objects;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
-/**
- * An abstract implementation of the {@link com.google.common.util.concurrent.ListenableFuture} interface. This
- * class is preferable to {@link java.util.concurrent.FutureTask} for two
- * reasons: It implements {@code ListenableFuture}, and it does not implement
- * {@code Runnable}. (If you want a {@code Runnable} implementation of {@code
- * ListenableFuture}, create a {@link com.google.common.util.concurrent.ListenableFutureTask}, or submit your
- * tasks to a {@link com.google.common.util.concurrent.ListeningExecutorService}.)
- * <p/>
- * <p>This class implements all methods in {@code ListenableFuture}.
- * Subclasses should provide a way to set the result of the computation through
- * the protected methods {@link #set(Object)} and
- * {@link #setException(Throwable)}. Subclasses may also override {@link
- * #interruptTask()}, which will be invoked automatically if a call to {@link
- * #cancel(boolean) cancel(true)} succeeds in canceling the future.
- * <p/>
- * <p>{@code AbstractFuture} uses an {@link AbstractQueuedSynchronizer} to deal
- * with concurrency issues and guarantee thread safety.
- * <p/>
- * <p>The state changing methods all return a boolean indicating success or
- * failure in changing the future's state.  Valid states are running,
- * completed, failed, or cancelled.
- * <p/>
- * <p>This class uses an {@link com.google.common.util.concurrent.ExecutionList} to guarantee that all registered
- * listeners will be executed, either when the future finishes or, for listeners
- * that are added after the future completes, immediately.
- * {@code Runnable}-{@code Executor} pairs are stored in the execution list but
- * are not necessarily executed in the order in which they were added.  (If a
- * listener is added after the Future is complete, it will be executed
- * immediately, even if earlier listeners have not been executed. Additionally,
- * executors need not guarantee FIFO execution, or different listeners may run
- * in different executors.)
- *
- * @author Sven Mawson
- * @since 1.0
- */
-// Same as AbstractFuture from Guava, but without the listeners and with
-// additional assertions
 public abstract class BaseFuture<V> implements Future<V> {
 
     /**
@@ -79,8 +44,8 @@ public abstract class BaseFuture<V> implements Future<V> {
 
     /**
      * {@inheritDoc}
-     * <p/>
-     * <p>The default {@link BaseFuture} implementation throws {@code
+     * <p>
+     * The default {@link BaseFuture} implementation throws {@code
      * InterruptedException} if the current thread is interrupted before or during
      * the call, even if the value is already available.
      *
@@ -102,8 +67,8 @@ public abstract class BaseFuture<V> implements Future<V> {
 
     /**
      * {@inheritDoc}
-     * <p/>
-     * <p>The default {@link BaseFuture} implementation throws {@code
+     * <p>
+     * The default {@link BaseFuture} implementation throws {@code
      * InterruptedException} if the current thread is interrupted before or during
      * the call, even if the value is already available.
      *
@@ -143,8 +108,8 @@ public abstract class BaseFuture<V> implements Future<V> {
      * Subclasses can override this method to implement interruption of the
      * future's computation. The method is invoked automatically by a successful
      * call to {@link #cancel(boolean) cancel(true)}.
-     * <p/>
-     * <p>The default implementation does nothing.
+     * <p>
+     * The default implementation does nothing.
      *
      * @since 10.0
      */
@@ -179,7 +144,7 @@ public abstract class BaseFuture<V> implements Future<V> {
      * @throws Error if the throwable was an {@link Error}.
      */
     protected boolean setException(Throwable throwable) {
-        boolean result = sync.setException(checkNotNull(throwable));
+        boolean result = sync.setException(Objects.requireNonNull(throwable));
         if (result) {
             done();
         }
@@ -195,7 +160,6 @@ public abstract class BaseFuture<V> implements Future<V> {
         return result;
     }
 
-    @Beta
     protected void done() {
     }
 
@@ -206,19 +170,16 @@ public abstract class BaseFuture<V> implements Future<V> {
      * in a thread-safe manner.  The current state of the future is held in the
      * Sync state, and the lock is released whenever the state changes to either
      * {@link #COMPLETED} or {@link #CANCELLED}.
-     * <p/>
-     * <p>To avoid races between threads doing release and acquire, we transition
+     * <p>
+     * To avoid races between threads doing release and acquire, we transition
      * to the final state in two steps.  One thread will successfully CAS from
      * RUNNING to COMPLETING, that thread will then set the result of the
      * computation, and only then transition to COMPLETED or CANCELLED.
-     * <p/>
-     * <p>We don't use the integer argument passed between acquire methods so we
+     * <p>
+     * We don't use the integer argument passed between acquire methods so we
      * pass around a -1 everywhere.
      */
     static final class Sync<V> extends AbstractQueuedSynchronizer {
-
-        private static final long serialVersionUID = 0L;
-
         /* Valid states. */
         static final int RUNNING = 0;
         static final int COMPLETING = 1;

@@ -37,7 +37,7 @@ public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsReq
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
 
     // for serialization
-    IndicesExistsRequest() {
+    public IndicesExistsRequest() {
 
     }
 
@@ -51,7 +51,7 @@ public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsReq
     }
 
     @Override
-    public IndicesExistsRequest indices(String[] indices) {
+    public IndicesExistsRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }

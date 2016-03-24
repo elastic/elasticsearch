@@ -19,12 +19,9 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import com.google.common.base.Preconditions;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -37,7 +34,6 @@ import org.elasticsearch.common.util.IntArray;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from
@@ -50,7 +46,7 @@ import java.util.Arrays;
  * requires more space and makes hyperloglog (which is less accurate) used sooner,
  * this is also considerably faster.
  *
- * Trying to understand what this class does whithout having read the paper is
+ * Trying to understand what this class does without having read the paper is
  * considered adventurous.
  */
 public final class HyperLogLogPlusPlus implements Releasable {
@@ -62,6 +58,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     private static final boolean HYPERLOGLOG = true;
     private static final float MAX_LOAD_FACTOR = 0.75f;
     private static final int P2 = 25;
+    private static final int BIAS_K = 6;
 
     /**
      * Compute the required precision so that <code>count</code> distinct entries
@@ -69,7 +66,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
      */
     public static int precisionFromThreshold(long count) {
         final long hashTableEntries = (long) Math.ceil(count / MAX_LOAD_FACTOR);
-        int precision = PackedInts.bitsRequired(hashTableEntries * RamUsageEstimator.NUM_BYTES_INT);
+        int precision = PackedInts.bitsRequired(hashTableEntries * Integer.BYTES);
         precision = Math.max(precision, MIN_PRECISION);
         precision = Math.min(precision, MAX_PRECISION);
         return precision;
@@ -161,8 +158,12 @@ public final class HyperLogLogPlusPlus implements Releasable {
     private final double alphaMM;
 
     public HyperLogLogPlusPlus(int precision, BigArrays bigArrays, long initialBucketCount) {
-        Preconditions.checkArgument(precision >= 4, "precision must be >= 4");
-        Preconditions.checkArgument(precision <= 18, "precision must be <= 18");
+        if (precision < 4) {
+            throw new IllegalArgumentException("precision must be >= 4");
+        }
+        if (precision > 18) {
+            throw new IllegalArgumentException("precision must be <= 18");
+        }
         p = precision;
         m = 1 << p;
         this.bigArrays = bigArrays;
@@ -197,7 +198,9 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public void merge(long thisBucket, HyperLogLogPlusPlus other, long otherBucket) {
-        Preconditions.checkArgument(p == other.p);
+        if (p != other.p) {
+            throw new IllegalArgumentException();
+        }
         ensureCapacity(thisBucket + 1);
         if (other.algorithm.get(otherBucket) == LINEAR_COUNTING) {
             final IntArray values = other.hashSet.values(otherBucket);
@@ -374,23 +377,30 @@ public final class HyperLogLogPlusPlus implements Releasable {
     private double estimateBias(double e) {
         final double[] rawEstimateData = rawEstimateData();
         final double[] biasData = biasData();
-        int index = Arrays.binarySearch(rawEstimateData, e);
-        if (index >= 0) {
-            return biasData[index];
-        } else {
-            index = -1 - index;
-            if (index == 0) {
-                return biasData[0];
-            } else if (index >= biasData.length) {
-                return biasData[biasData.length - 1];
-            } else {
-                double w1 = (e - rawEstimateData[index - 1]);
-                assert w1 >= 0;
-                double w2 = (rawEstimateData[index] - e);
-                assert w2 >= 0;
-                return (biasData[index - 1] * w1 + biasData[index] * w2) / (w1 + w2);
+
+        final double[] weights = new double[BIAS_K];
+        int index = biasData.length - BIAS_K;
+        for (int i = 0; i < rawEstimateData.length; ++i) {
+            final double w = 1.0 / Math.abs(rawEstimateData[i] - e);
+            final int j = i % weights.length;
+            if (Double.isInfinite(w)) {
+                return biasData[i];
+            } else if (weights[j] >= w) {
+                index = i - BIAS_K;
+                break;
             }
+            weights[j] = w;
         }
+
+        double weightSum = 0.0;
+        double biasSum = 0.0;
+        for (int i = 0, j = index; i < BIAS_K; ++i, ++j) {
+            final double w = weights[i];
+            final double b = biasData[j];
+            biasSum += w * b;
+            weightSum += w;
+        }
+        return biasSum / weightSum;
     }
 
     private double[] biasData() {

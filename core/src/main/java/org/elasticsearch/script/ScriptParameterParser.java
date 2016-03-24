@@ -27,7 +27,12 @@ import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
 public class ScriptParameterParser {
 
@@ -176,7 +181,7 @@ public class ScriptParameterParser {
             if (value != null) {
                 String coreParameterName = parameter.getPreferredName();
                 putParameterValue(coreParameterName, value, ScriptType.INLINE);
-                
+
             }
         }
         for (ParseField parameter : fileParameters) {
@@ -184,7 +189,7 @@ public class ScriptParameterParser {
             if (value != null) {
                 String coreParameterName = parameter.getPreferredName().replace(FILE_SUFFIX, "");
                 putParameterValue(coreParameterName, value, ScriptType.FILE);
-                
+
             }
         }
         for (ParseField parameter : indexedParameters) {
@@ -192,7 +197,7 @@ public class ScriptParameterParser {
             if (value != null) {
                 String coreParameterName = parameter.getPreferredName().replace(INDEXED_SUFFIX, "");
                 putParameterValue(coreParameterName, value, ScriptType.INDEXED);
-                
+
             }
         }
     }

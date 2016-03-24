@@ -19,7 +19,12 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -218,9 +223,9 @@ public enum FieldData {
 
     /**
      * Returns a single-valued view of the {@link SortedNumericDoubleValues},
-     * if it was previously wrapped with {@link #singleton(NumericDocValues, Bits)},
+     * if it was previously wrapped with {@link DocValues#singleton(NumericDocValues, Bits)},
      * or null.
-     * @see #unwrapSingletonBits(SortedNumericDocValues)
+     * @see DocValues#unwrapSingletonBits(SortedNumericDocValues)
      */
     public static NumericDoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
         if (values instanceof SingletonSortedNumericDoubleValues) {

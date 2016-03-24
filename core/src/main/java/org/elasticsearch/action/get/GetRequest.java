@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -36,8 +35,8 @@ import java.io.IOException;
 /**
  * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
  * {@link org.elasticsearch.client.Requests#getRequest(String)}.
- * <p/>
- * <p>The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
+ * <p>
+ * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
  * to be set.
  *
  * @see org.elasticsearch.action.get.GetResponse
@@ -49,6 +48,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private String type;
     private String id;
     private String routing;
+    private String parent;
     private String preference;
 
     private String[] fields;
@@ -63,28 +63,8 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private long version = Versions.MATCH_ANY;
     private boolean ignoreErrorsOnGeneratedFields;
 
-    GetRequest() {
+    public GetRequest() {
         type = "_all";
-    }
-
-    /**
-     * Copy constructor that creates a new get request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public GetRequest(GetRequest getRequest, ActionRequest originalRequest) {
-        super(originalRequest);
-        this.index = getRequest.index;
-        this.type = getRequest.type;
-        this.id = getRequest.id;
-        this.routing = getRequest.routing;
-        this.preference = getRequest.preference;
-        this.fields = getRequest.fields;
-        this.fetchSourceContext = getRequest.fetchSourceContext;
-        this.refresh = getRequest.refresh;
-        this.realtime = getRequest.realtime;
-        this.version = getRequest.version;
-        this.versionType = getRequest.versionType;
-        this.ignoreErrorsOnGeneratedFields = getRequest.ignoreErrorsOnGeneratedFields;
     }
 
     /**
@@ -94,14 +74,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     public GetRequest(String index) {
         super(index);
         this.type = "_all";
-    }
-
-    /**
-     * Constructs a new get request starting from the provided request, meaning that it will
-     * inherit its headers and context, and against the specified index.
-     */
-    public GetRequest(ActionRequest request, String index) {
-        super(request, index);
     }
 
     /**
@@ -153,13 +125,17 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
+     * @return The parent for this request.
+     */
+    public String parent() {
+        return parent;
+    }
+
+    /**
+     * Sets the parent id of this document.
      */
     public GetRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
+        this.parent = parent;
         return this;
     }
 
@@ -291,6 +267,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
+        parent = in.readOptionalString();
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         int size = in.readInt();
@@ -320,6 +297,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
+        out.writeOptionalString(parent);
         out.writeOptionalString(preference);
 
         out.writeBoolean(refresh);

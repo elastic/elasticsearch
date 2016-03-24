@@ -186,7 +186,7 @@ Here is what it looks like when one shard group failed due to pending operations
 }
 --------------------------------------------------
 
-NOTE: The above error is shown when the synced flush failes due to concurrent indexing operations. The HTTP
+NOTE: The above error is shown when the synced flush fails due to concurrent indexing operations. The HTTP
 status code in that case will be `409 CONFLICT`.
 
 Sometimes the failures are specific to a shard copy. The copies that failed will not be eligible for

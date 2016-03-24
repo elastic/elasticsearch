@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.common.Nullable;
@@ -34,6 +33,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -100,7 +101,7 @@ public class RecoveryState implements ToXContent, Streamable {
         STORE((byte) 0),
         SNAPSHOT((byte) 1),
         REPLICA((byte) 2),
-        RELOCATION((byte) 3);
+        PRIMARY_RELOCATION((byte) 3);
 
         private static final Type[] TYPES = new Type[Type.values().length];
 
@@ -527,7 +528,7 @@ public class RecoveryState implements ToXContent, Streamable {
         /**
          * returns the total number of translog operations needed to be recovered at this moment.
          * Note that this can change as the number of operations grows during recovery.
-         * <p/>
+         * <p>
          * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
          */
         public synchronized int totalOperations() {
@@ -542,7 +543,7 @@ public class RecoveryState implements ToXContent, Streamable {
         /**
          * returns the total number of translog operations to recovered, on the start of the recovery. Unlike {@link #totalOperations}
          * this does change during recovery.
-         * <p/>
+         * <p>
          * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
          */
         public synchronized int totalOperationsOnStart() {
@@ -689,8 +690,8 @@ public class RecoveryState implements ToXContent, Streamable {
         @Override
         public int hashCode() {
             int result = name.hashCode();
-            result = 31 * result + (int) (length ^ (length >>> 32));
-            result = 31 * result + (int) (recovered ^ (recovered >>> 32));
+            result = 31 * result + Long.hashCode(length);
+            result = 31 * result + Long.hashCode(recovered);
             result = 31 * result + (reused ? 1 : 0);
             return result;
         }
@@ -712,7 +713,7 @@ public class RecoveryState implements ToXContent, Streamable {
         private long targetThrottleTimeInNanos = UNKNOWN;
 
         public synchronized List<File> fileDetails() {
-            return ImmutableList.copyOf(fileDetails.values());
+            return Collections.unmodifiableList(new ArrayList<>(fileDetails.values()));
         }
 
         public synchronized void reset() {

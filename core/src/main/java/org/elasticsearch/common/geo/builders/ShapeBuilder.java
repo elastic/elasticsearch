@@ -19,16 +19,19 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
-import org.apache.commons.lang3.tuple.Pair;
+
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Explicit;
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
@@ -36,16 +39,19 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 /**
- * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc 
+ * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder implements ToXContent {
+public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable<ShapeBuilder> {
 
     protected static final ESLogger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
@@ -59,6 +65,11 @@ public abstract class ShapeBuilder implements ToXContent {
     }
 
     public static final double DATELINE = 180;
+
+    /**
+     * coordinate at [0.0, 0.0]
+     */
+    public static final Coordinate ZERO_ZERO = new Coordinate(0.0, 0.0);
     // TODO how might we use JtsSpatialContextFactory to configure the context (esp. for non-geo)?
     public static final JtsSpatialContext SPATIAL_CONTEXT = JtsSpatialContext.GEO;
     public static final GeometryFactory FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
@@ -70,23 +81,12 @@ public abstract class ShapeBuilder implements ToXContent {
      * this normally isn't allowed.
      */
     protected final boolean multiPolygonMayOverlap = false;
-    /** @see com.spatial4j.core.shape.jts.JtsGeometry#validate() */
+    /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#validate() */
     protected final boolean autoValidateJtsGeometry = true;
-    /** @see com.spatial4j.core.shape.jts.JtsGeometry#index() */
+    /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#index() */
     protected final boolean autoIndexJtsGeometry = true;//may want to turn off once SpatialStrategy impls do it.
 
-    protected Orientation orientation = Orientation.RIGHT;
-
     protected ShapeBuilder() {
-
-    }
-
-    protected ShapeBuilder(Orientation orientation) {
-        this.orientation = orientation;
-    }
-
-    protected static Coordinate coordinate(double longitude, double latitude) {
-        return new Coordinate(longitude, latitude);
     }
 
     protected JtsGeometry jtsGeometry(Geometry geom) {
@@ -100,131 +100,9 @@ public abstract class ShapeBuilder implements ToXContent {
     }
 
     /**
-     * Create a new point
-     * 
-     * @param longitude longitude of the point
-     * @param latitude latitude of the point
-     * @return a new {@link PointBuilder}
-     */
-    public static PointBuilder newPoint(double longitude, double latitude) {
-        return newPoint(new Coordinate(longitude, latitude));
-    }
-
-    /**
-     * Create a new {@link PointBuilder} from a {@link Coordinate}
-     * @param coordinate coordinate defining the position of the point
-     * @return a new {@link PointBuilder}
-     */
-    public static PointBuilder newPoint(Coordinate coordinate) {
-        return new PointBuilder().coordinate(coordinate);
-    }
-
-    /**
-     * Create a new set of points
-     * @return new {@link MultiPointBuilder}
-     */
-    public static MultiPointBuilder newMultiPoint() {
-        return new MultiPointBuilder();
-    }
-
-    /**
-     * Create a new lineString
-     * @return a new {@link LineStringBuilder}
-     */
-    public static LineStringBuilder newLineString() {
-        return new LineStringBuilder();
-    }
-
-    /**
-     * Create a new Collection of lineStrings
-     * @return a new {@link MultiLineStringBuilder}
-     */
-    public static MultiLineStringBuilder newMultiLinestring() {
-        return new MultiLineStringBuilder();
-    }
-
-    /**
-     * Create a new Polygon
-     * @return a new {@link PointBuilder}
-     */
-    public static PolygonBuilder newPolygon() {
-        return new PolygonBuilder();
-    }
-
-    /**
-     * Create a new Polygon
-     * @return a new {@link PointBuilder}
-     */
-    public static PolygonBuilder newPolygon(Orientation orientation) {
-        return new PolygonBuilder(orientation);
-    }
-
-    /**
-     * Create a new Collection of polygons
-     * @return a new {@link MultiPolygonBuilder}
-     */
-    public static MultiPolygonBuilder newMultiPolygon() {
-        return new MultiPolygonBuilder();
-    }
-
-    /**
-     * Create a new Collection of polygons
-     * @return a new {@link MultiPolygonBuilder}
-     */
-    public static MultiPolygonBuilder newMultiPolygon(Orientation orientation) {
-        return new MultiPolygonBuilder(orientation);
-    }
-
-    /**
-     * Create a new GeometryCollection
-     * @return a new {@link GeometryCollectionBuilder}
-     */
-    public static GeometryCollectionBuilder newGeometryCollection() {
-        return new GeometryCollectionBuilder();
-    }
-
-    /**
-     * Create a new GeometryCollection
-     * @return a new {@link GeometryCollectionBuilder}
-     */
-    public static GeometryCollectionBuilder newGeometryCollection(Orientation orientation) {
-        return new GeometryCollectionBuilder(orientation);
-    }
-
-    /**
-     * create a new Circle
-     * @return a new {@link CircleBuilder}
-     */
-    public static CircleBuilder newCircleBuilder() {
-        return new CircleBuilder();
-    }
-
-    /**
-     * create a new rectangle
-     * @return a new {@link EnvelopeBuilder}
-     */
-    public static EnvelopeBuilder newEnvelope() { return new EnvelopeBuilder(); }
-
-    /**
-     * create a new rectangle
-     * @return a new {@link EnvelopeBuilder}
-     */
-    public static EnvelopeBuilder newEnvelope(Orientation orientation) { return new EnvelopeBuilder(orientation); }
-
-    @Override
-    public String toString() {
-        try {
-            XContentBuilder xcontent = JsonXContent.contentBuilder();
-            return toXContent(xcontent, EMPTY_PARAMS).prettyPrint().string();
-        } catch (IOException e) {
-            return super.toString();
-        }
-    }
-
-    /**
      * Create a new Shape from this builder. Since calling this method could change the
      * defined shape. (by inserting new coordinates or change the position of points)
-     * the builder looses its validity. So this method should only be called once on a builder  
+     * the builder looses its validity. So this method should only be called once on a builder
      * @return new {@link Shape} defined by the builder
      */
     public abstract Shape build();
@@ -232,7 +110,7 @@ public abstract class ShapeBuilder implements ToXContent {
     /**
      * Recursive method which parses the arrays of coordinates used to define
      * Shapes
-     * 
+     *
      * @param parser
      *            Parser that will be read from
      * @return CoordinateNode representing the start of the coordinate tree
@@ -244,8 +122,8 @@ public abstract class ShapeBuilder implements ToXContent {
         XContentParser.Token token = parser.nextToken();
 
         // Base cases
-        if (token != XContentParser.Token.START_ARRAY && 
-                token != XContentParser.Token.END_ARRAY && 
+        if (token != XContentParser.Token.START_ARRAY &&
+                token != XContentParser.Token.END_ARRAY &&
                 token != XContentParser.Token.VALUE_NULL) {
             double lon = parser.doubleValue();
             token = parser.nextToken();
@@ -272,7 +150,7 @@ public abstract class ShapeBuilder implements ToXContent {
      * Create a new {@link ShapeBuilder} from {@link XContent}
      * @param parser parser to read the GeoShape from
      * @return {@link ShapeBuilder} read from the parser or null
-     *          if the parsers current token has been <code><null</code>
+     *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
     public static ShapeBuilder parse(XContentParser parser) throws IOException {
@@ -286,7 +164,7 @@ public abstract class ShapeBuilder implements ToXContent {
      *                     to the shape construction process (e.g., orientation)
      *                     todo: refactor to place build specific parameters in the SpatialContext
      * @return {@link ShapeBuilder} read from the parser or null
-     *          if the parsers current token has been <code><null</code>
+     *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
     public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper geoDocMapper) throws IOException {
@@ -297,20 +175,13 @@ public abstract class ShapeBuilder implements ToXContent {
         return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
     }
 
-    public static Orientation orientationFromString(String orientation) {
-        orientation = orientation.toLowerCase(Locale.ROOT);
-        switch (orientation) {
-            case "right":
-            case "counterclockwise":
-            case "ccw":
-                return Orientation.RIGHT;
-            case "left":
-            case "clockwise":
-            case "cw":
-                return Orientation.LEFT;
-            default:
-                throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
-        }
+    protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
+        out.writeDouble(coordinate.x);
+        out.writeDouble(coordinate.y);
+    }
+
+    protected Coordinate readCoordinateFrom(StreamInput in) throws IOException {
+        return new Coordinate(in.readDouble(), in.readDouble());
     }
 
     protected static Coordinate shift(Coordinate coordinate, double dateline) {
@@ -329,7 +200,7 @@ public abstract class ShapeBuilder implements ToXContent {
 
     /**
      * Calculate the intersection of a line segment and a vertical dateline.
-     * 
+     *
      * @param p1
      *            start-point of the line segment
      * @param p2
@@ -359,7 +230,7 @@ public abstract class ShapeBuilder implements ToXContent {
      * Calculate all intersections of line segments and a vertical line. The
      * Array of edges will be ordered asc by the y-coordinate of the
      * intersections of edges.
-     * 
+     *
      * @param dateline
      *            x-coordinate of the dateline
      * @param edges
@@ -372,7 +243,7 @@ public abstract class ShapeBuilder implements ToXContent {
         for (int i = 0; i < edges.length; i++) {
             Coordinate p1 = edges[i].coordinate;
             Coordinate p2 = edges[i].next.coordinate;
-            assert !Double.isNaN(p2.x) && !Double.isNaN(p1.x);  
+            assert !Double.isNaN(p2.x) && !Double.isNaN(p1.x);
             edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1, p2, dateline);
@@ -387,7 +258,7 @@ public abstract class ShapeBuilder implements ToXContent {
 
     /**
      * Node used to represent a tree of coordinates.
-     * <p/>
+     * <p>
      * Can either be a leaf node consisting of a Coordinate, or a parent with
      * children
      */
@@ -398,7 +269,7 @@ public abstract class ShapeBuilder implements ToXContent {
 
         /**
          * Creates a new leaf CoordinateNode
-         * 
+         *
          * @param coordinate
          *            Coordinate for the Node
          */
@@ -409,7 +280,7 @@ public abstract class ShapeBuilder implements ToXContent {
 
         /**
          * Creates a new parent CoordinateNode
-         * 
+         *
          * @param children
          *            Children of the Node
          */
@@ -439,7 +310,7 @@ public abstract class ShapeBuilder implements ToXContent {
 
     /**
      * This helper class implements a linked list for {@link Coordinate}. It contains
-     * fields for a dateline intersection and component id 
+     * fields for a dateline intersection and component id
      */
     protected static final class Edge {
         Coordinate coordinate; // coordinate of the start point
@@ -473,154 +344,9 @@ public abstract class ShapeBuilder implements ToXContent {
             }
         }
 
-        private static final int top(Coordinate[] points, int offset, int length) {
-            int top = 0; // we start at 1 here since top points to 0
-            for (int i = 1; i < length; i++) {
-                if (points[offset + i].y < points[offset + top].y) {
-                    top = i;
-                } else if (points[offset + i].y == points[offset + top].y) {
-                    if (points[offset + i].x < points[offset + top].x) {
-                        top = i;
-                    }
-                }
-            }
-            return top;
-        }
-
-        private static final Pair range(Coordinate[] points, int offset, int length) {
-            double minX = points[0].x;
-            double maxX = points[0].x;
-            double minY = points[0].y;
-            double maxY = points[0].y;
-            // compute the bounding coordinates (@todo: cleanup brute force)
-            for (int i = 1; i < length; ++i) {
-                if (points[offset + i].x < minX) {
-                    minX = points[offset + i].x;
-                }
-                if (points[offset + i].x > maxX) {
-                    maxX = points[offset + i].x;
-                }
-                if (points[offset + i].y < minY) {
-                    minY = points[offset + i].y;
-                }
-                if (points[offset + i].y > maxY) {
-                    maxY = points[offset + i].y;
-                }
-            }
-            return Pair.of(Pair.of(minX, maxX), Pair.of(minY, maxY));
-        }
-
-        /**
-         * Concatenate a set of points to a polygon
-         * 
-         * @param component
-         *            component id of the polygon
-         * @param direction
-         *            direction of the ring
-         * @param points
-         *            list of points to concatenate
-         * @param pointOffset
-         *            index of the first point
-         * @param edges
-         *            Array of edges to write the result to
-         * @param edgeOffset
-         *            index of the first edge in the result
-         * @param length
-         *            number of points to use
-         * @return the edges creates
-         */
-        private static Edge[] concat(int component, boolean direction, Coordinate[] points, final int pointOffset, Edge[] edges, final int edgeOffset,
-                int length) {
-            assert edges.length >= length+edgeOffset;
-            assert points.length >= length+pointOffset;
-            edges[edgeOffset] = new Edge(points[pointOffset], null);
-            for (int i = 1; i < length; i++) {
-                if (direction) {
-                    edges[edgeOffset + i] = new Edge(points[pointOffset + i], edges[edgeOffset + i - 1]);
-                    edges[edgeOffset + i].component = component;
-                } else if(!edges[edgeOffset + i - 1].coordinate.equals(points[pointOffset + i])) {
-                    edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(points[pointOffset + i], null);
-                    edges[edgeOffset + i - 1].component = component;
-                } else {
-                    throw new InvalidShapeException("Provided shape has duplicate consecutive coordinates at: " + points[pointOffset + i]);
-                }
-            }
-
-            if (direction) {
-                edges[edgeOffset].setNext(edges[edgeOffset + length - 1]);
-                edges[edgeOffset].component = component;
-            } else {
-                edges[edgeOffset + length - 1].setNext(edges[edgeOffset]);
-                edges[edgeOffset + length - 1].component = component;
-            }
-
-            return edges;
-        }
-
-        /**
-         * Create a connected list of a list of coordinates
-         * 
-         * @param points
-         *            array of point
-         * @param offset
-         *            index of the first point
-         * @param length
-         *            number of points
-         * @return Array of edges
-         */
-        protected static Edge[] ring(int component, boolean direction, boolean handedness, BaseLineStringBuilder<?> shell,
-                                     Coordinate[] points, int offset, Edge[] edges, int toffset, int length) {
-            // calculate the direction of the points:
-            // find the point a the top of the set and check its
-            // neighbors orientation. So direction is equivalent
-            // to clockwise/counterclockwise
-            final int top = top(points, offset, length);
-            final int prev = (offset + ((top + length - 1) % length));
-            final int next = (offset + ((top + 1) % length));
-            boolean orientation = points[offset + prev].x > points[offset + next].x;
-
-            // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness) 
-            // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
-            // thus if orientation is computed as cw, the logic will translate points across dateline
-            // and convert to a right handed system
-
-            // compute the bounding box and calculate range
-            Pair<Pair, Pair> range = range(points, offset, length);
-            final double rng = (Double)range.getLeft().getRight() - (Double)range.getLeft().getLeft();
-            // translate the points if the following is true
-            //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres 
-            //       (translation would result in a collapsed poly)
-            //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
-            boolean incorrectOrientation = component == 0 && handedness != orientation;
-            if ( (incorrectOrientation && (rng > DATELINE && rng != 2*DATELINE)) || (shell.translated && component != 0)) {
-                translate(points);
-                // flip the translation bit if the shell is being translated
-                if (component == 0) {
-                    shell.translated = true;
-                }
-                // correct the orientation post translation (ccw for shell, cw for holes)
-                if (component == 0 || (component != 0 && handedness == orientation)) {
-                    orientation = !orientation;
-                }
-            }
-            return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
-        }
-
-        /**
-         * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range 
-         * @param points
-         */
-        protected static void translate(Coordinate[] points) {
-            for (Coordinate c : points) {
-                if (c.x < 0) {
-                    c.x += 2*DATELINE;
-                }
-            }
-        }
-
         /**
          * Set the intersection of this line segment to the given position
-         * 
+         *
          * @param position
          *            position of the intersection [0..1]
          * @return the {@link Coordinate} of the intersection
@@ -629,7 +355,7 @@ public abstract class ShapeBuilder implements ToXContent {
             return intersect = position(coordinate, next.coordinate, position);
         }
 
-        public static Coordinate position(Coordinate p1, Coordinate p2, double position) {
+        protected static Coordinate position(Coordinate p1, Coordinate p2, double position) {
             if (position == 0) {
                 return p1;
             } else if (position == 1) {
@@ -654,7 +380,6 @@ public abstract class ShapeBuilder implements ToXContent {
         public int compare(Edge o1, Edge o2) {
             return Double.compare(o1.intersect.y, o2.intersect.y);
         }
-
     }
 
     public static enum Orientation {
@@ -665,6 +390,30 @@ public abstract class ShapeBuilder implements ToXContent {
         public static final Orientation COUNTER_CLOCKWISE = Orientation.RIGHT;
         public static final Orientation CW = Orientation.LEFT;
         public static final Orientation CCW = Orientation.RIGHT;
+
+        public void writeTo (StreamOutput out) throws IOException {
+            out.writeBoolean(this == Orientation.RIGHT);
+        }
+
+        public static Orientation readFrom (StreamInput in) throws IOException {
+            return in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
+        }
+
+        public static Orientation fromString(String orientation) {
+            orientation = orientation.toLowerCase(Locale.ROOT);
+            switch (orientation) {
+                case "right":
+                case "counterclockwise":
+                case "ccw":
+                    return Orientation.RIGHT;
+                case "left":
+                case "clockwise":
+                case "cw":
+                    return Orientation.LEFT;
+                default:
+                    throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
+            }
+        }
     }
 
     public static final String FIELD_TYPE = "type";
@@ -690,10 +439,14 @@ public abstract class ShapeBuilder implements ToXContent {
         ENVELOPE("envelope"),
         CIRCLE("circle");
 
-        protected final String shapename;
+        private final String shapename;
 
         private GeoShapeType(String shapename) {
             this.shapename = shapename;
+        }
+
+        protected String shapeName() {
+            return shapename;
         }
 
         public static GeoShapeType forName(String geoshapename) {
@@ -716,7 +469,6 @@ public abstract class ShapeBuilder implements ToXContent {
          * @param parser - parse utility object including source document
          * @param shapeMapper - field mapper needed for index specific parameters
          * @return ShapeBuilder - a builder instance used to create the geometry
-         * @throws IOException
          */
         public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper shapeMapper) throws IOException {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
@@ -752,7 +504,7 @@ public abstract class ShapeBuilder implements ToXContent {
                         radius = Distance.parseDistance(parser.text());
                     } else if (FIELD_ORIENTATION.equals(fieldName)) {
                         parser.nextToken();
-                        requestedOrientation = orientationFromString(parser.text());
+                        requestedOrientation = Orientation.fromString(parser.text());
                     } else {
                         parser.nextToken();
                         parser.skipChildren();
@@ -778,13 +530,13 @@ public abstract class ShapeBuilder implements ToXContent {
                 case POLYGON: return parsePolygon(node, requestedOrientation, coerce);
                 case MULTIPOLYGON: return parseMultiPolygon(node, requestedOrientation, coerce);
                 case CIRCLE: return parseCircle(node, radius);
-                case ENVELOPE: return parseEnvelope(node, requestedOrientation);
+                case ENVELOPE: return parseEnvelope(node);
                 case GEOMETRYCOLLECTION: return geometryCollections;
                 default:
                     throw new ElasticsearchParseException("shape type [{}] not included", shapeType);
             }
         }
-        
+
         protected static void validatePointNode(CoordinateNode node) {
             if (node.isEmpty()) {
                 throw new ElasticsearchParseException("invalid number of points (0) provided when expecting a single coordinate ([lat, lng])");
@@ -797,14 +549,14 @@ public abstract class ShapeBuilder implements ToXContent {
 
         protected static PointBuilder parsePoint(CoordinateNode node) {
             validatePointNode(node);
-            return newPoint(node.coordinate);
+            return ShapeBuilders.newPoint(node.coordinate);
         }
 
         protected static CircleBuilder parseCircle(CoordinateNode coordinates, Distance radius) {
-            return newCircleBuilder().center(coordinates.coordinate).radius(radius);
+            return ShapeBuilders.newCircleBuilder().center(coordinates.coordinate).radius(radius);
         }
 
-        protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates, final Orientation orientation) {
+        protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates) {
             // validate the coordinate array for envelope type
             if (coordinates.children.size() != 2) {
                 throw new ElasticsearchParseException("invalid number of points [{}] provided for " +
@@ -818,7 +570,7 @@ public abstract class ShapeBuilder implements ToXContent {
                 uL = new Coordinate(Math.min(uL.x, lR.x), Math.max(uL.y, lR.y));
                 lR = new Coordinate(Math.max(uLtmp.x, lR.x), Math.min(uLtmp.y, lR.y));
             }
-            return newEnvelope(orientation).topLeft(uL).bottomRight(lR);
+            return ShapeBuilders.newEnvelope(uL, lR);
         }
 
         protected static void validateMultiPointNode(CoordinateNode coordinates) {
@@ -838,12 +590,11 @@ public abstract class ShapeBuilder implements ToXContent {
 
         protected static MultiPointBuilder parseMultiPoint(CoordinateNode coordinates) {
             validateMultiPointNode(coordinates);
-
-            MultiPointBuilder points = new MultiPointBuilder();
+            CoordinatesBuilder points = new CoordinatesBuilder();
             for (CoordinateNode node : coordinates.children) {
-                points.point(node.coordinate);
+                points.coordinate(node.coordinate);
             }
-            return points;
+            return new MultiPointBuilder(points.build());
         }
 
         protected static LineStringBuilder parseLineString(CoordinateNode coordinates) {
@@ -856,15 +607,15 @@ public abstract class ShapeBuilder implements ToXContent {
                 throw new ElasticsearchParseException("invalid number of points in LineString (found [{}] - must be >= 2)", coordinates.children.size());
             }
 
-            LineStringBuilder line = newLineString();
+            CoordinatesBuilder line = new CoordinatesBuilder();
             for (CoordinateNode node : coordinates.children) {
-                line.point(node.coordinate);
+                line.coordinate(node.coordinate);
             }
-            return line;
+            return ShapeBuilders.newLineString(line);
         }
 
         protected static MultiLineStringBuilder parseMultiLine(CoordinateNode coordinates) {
-            MultiLineStringBuilder multiline = newMultiLinestring();
+            MultiLineStringBuilder multiline = ShapeBuilders.newMultiLinestring();
             for (CoordinateNode node : coordinates.children) {
                 multiline.linestring(parseLineString(node));
             }
@@ -908,7 +659,7 @@ public abstract class ShapeBuilder implements ToXContent {
             }
 
             LineStringBuilder shell = parseLinearRing(coordinates.children.get(0), coerce);
-            PolygonBuilder polygon = new PolygonBuilder(shell.points, orientation);
+            PolygonBuilder polygon = new PolygonBuilder(shell, orientation);
             for (int i = 1; i < coordinates.children.size(); i++) {
                 polygon.hole(parseLinearRing(coordinates.children.get(i), coerce));
             }
@@ -917,13 +668,13 @@ public abstract class ShapeBuilder implements ToXContent {
 
         protected static MultiPolygonBuilder parseMultiPolygon(CoordinateNode coordinates, final Orientation orientation,
                                                                final boolean coerce) {
-            MultiPolygonBuilder polygons = newMultiPolygon(orientation);
+            MultiPolygonBuilder polygons = ShapeBuilders.newMultiPolygon(orientation);
             for (CoordinateNode node : coordinates.children) {
                 polygons.polygon(parsePolygon(node, orientation, coerce));
             }
             return polygons;
         }
-        
+
         /**
          * Parse the geometries array of a GeometryCollection
          *
@@ -936,17 +687,21 @@ public abstract class ShapeBuilder implements ToXContent {
             if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
                 throw new ElasticsearchParseException("geometries must be an array of geojson objects");
             }
-        
+
             XContentParser.Token token = parser.nextToken();
-            GeometryCollectionBuilder geometryCollection = newGeometryCollection( (mapper == null) ? Orientation.RIGHT : mapper
-                    .fieldType().orientation());
+            GeometryCollectionBuilder geometryCollection = ShapeBuilders.newGeometryCollection();
             while (token != XContentParser.Token.END_ARRAY) {
                 ShapeBuilder shapeBuilder = GeoShapeType.parse(parser);
                 geometryCollection.shape(shapeBuilder);
                 token = parser.nextToken();
             }
-        
+
             return geometryCollection;
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return type().shapeName();
     }
 }

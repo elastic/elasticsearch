@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.percolate;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.client.Requests;
@@ -29,15 +27,17 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,12 +48,13 @@ import java.util.Map;
 public class PercolateSourceBuilder extends ToXContentToBytes {
 
     private DocBuilder docBuilder;
-    private QueryBuilder queryBuilder;
+    private QueryBuilder<?> queryBuilder;
     private Integer size;
-    private List<SortBuilder> sorts;
+    private List<SortBuilder<?>> sorts;
     private Boolean trackScores;
     private HighlightBuilder highlightBuilder;
-    private List<AbstractAggregationBuilder> aggregations;
+    private List<AggregatorBuilder<?>> aggregationBuilders;
+    private List<PipelineAggregatorBuilder<?>> pipelineAggregationBuilders;
 
     /**
      * Sets the document to run the percolate queries against.
@@ -67,7 +68,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
      * Sets a query to reduce the number of percolate queries to be evaluated and score the queries that match based
      * on this query.
      */
-    public PercolateSourceBuilder setQueryBuilder(QueryBuilder queryBuilder) {
+    public PercolateSourceBuilder setQueryBuilder(QueryBuilder<?> queryBuilder) {
         this.queryBuilder = queryBuilder;
         return this;
     }
@@ -97,9 +98,9 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
      *
      * By default the matching percolator queries are returned in an undefined order.
      */
-    public PercolateSourceBuilder addSort(SortBuilder sort) {
+    public PercolateSourceBuilder addSort(SortBuilder<?> sort) {
         if (sorts == null) {
-            sorts = Lists.newArrayList();
+            sorts = new ArrayList<>();
         }
         sorts.add(sort);
         return this;
@@ -125,11 +126,22 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
     /**
      * Add an aggregation definition.
      */
-    public PercolateSourceBuilder addAggregation(AbstractAggregationBuilder aggregationBuilder) {
-        if (aggregations == null) {
-            aggregations = Lists.newArrayList();
+    public PercolateSourceBuilder addAggregation(AggregatorBuilder<?> aggregationBuilder) {
+        if (aggregationBuilders == null) {
+            aggregationBuilders = new ArrayList<>();
         }
-        aggregations.add(aggregationBuilder);
+        aggregationBuilders.add(aggregationBuilder);
+        return this;
+    }
+
+    /**
+     * Add an aggregation definition.
+     */
+    public PercolateSourceBuilder addAggregation(PipelineAggregatorBuilder<?> aggregationBuilder) {
+        if (pipelineAggregationBuilders == null) {
+            pipelineAggregationBuilders = new ArrayList<>();
+        }
+        pipelineAggregationBuilders.add(aggregationBuilder);
         return this;
     }
 
@@ -148,10 +160,8 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
         }
         if (sorts != null) {
             builder.startArray("sort");
-            for (SortBuilder sort : sorts) {
-                builder.startObject();
+            for (SortBuilder<?> sort : sorts) {
                 sort.toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
         }
@@ -159,13 +169,20 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
             builder.field("track_scores", trackScores);
         }
         if (highlightBuilder != null) {
-            highlightBuilder.toXContent(builder, params);
+            builder.field(SearchSourceBuilder.HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder);
         }
-        if (aggregations != null) {
+        if (aggregationBuilders != null || pipelineAggregationBuilders != null) {
             builder.field("aggregations");
             builder.startObject();
-            for (AbstractAggregationBuilder aggregation : aggregations) {
-                aggregation.toXContent(builder, params);
+            if (aggregationBuilders != null) {
+                for (AggregatorBuilder<?> aggregation : aggregationBuilders) {
+                    aggregation.toXContent(builder, params);
+                }
+            }
+            if (pipelineAggregationBuilders != null) {
+                for (PipelineAggregatorBuilder<?> aggregation : pipelineAggregationBuilders) {
+                    aggregation.toXContent(builder, params);
+                }
             }
             builder.endObject();
         }
@@ -239,17 +256,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            XContentType contentType = XContentFactory.xContentType(doc);
-            if (contentType == builder.contentType()) {
-                builder.rawField("doc", doc);
-            } else {
-                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(doc)) {
-                    parser.nextToken();
-                    builder.field("doc");
-                    builder.copyCurrentStructure(parser);
-                }
-            }
-            return builder;
+            return builder.rawField("doc", doc);
         }
     }
 

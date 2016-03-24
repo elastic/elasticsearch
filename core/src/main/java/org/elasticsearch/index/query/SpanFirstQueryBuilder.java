@@ -19,51 +19,101 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanFirstQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public class SpanFirstQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanFirstQueryBuilder> {
+public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder<SpanFirstQueryBuilder>{
+
+    public static final String NAME = "span_first";
 
     private final SpanQueryBuilder matchBuilder;
 
     private final int end;
 
-    private float boost = -1;
+    static final SpanFirstQueryBuilder PROTOTYPE = new SpanFirstQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 0);
 
-    private String queryName;
-
+    /**
+     * Query that matches spans queries defined in <code>matchBuilder</code>
+     * whose end position is less than or equal to <code>end</code>.
+     * @param matchBuilder inner {@link SpanQueryBuilder}
+     * @param end maximum end position of the match, needs to be positive
+     * @throws IllegalArgumentException for negative <code>end</code> positions
+     */
     public SpanFirstQueryBuilder(SpanQueryBuilder matchBuilder, int end) {
+        if (matchBuilder == null) {
+            throw new IllegalArgumentException("inner span query cannot be null");
+        }
+        if (end < 0) {
+            throw new IllegalArgumentException("parameter [end] needs to be positive.");
+        }
         this.matchBuilder = matchBuilder;
         this.end = end;
     }
 
-    @Override
-    public SpanFirstQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    /**
+     * @return the inner {@link SpanQueryBuilder} defined in this query
+     */
+    public SpanQueryBuilder innerQuery() {
+        return this.matchBuilder;
     }
 
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @return maximum end position of the matching inner span query
      */
-    public SpanFirstQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public int end() {
+        return this.end;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SpanFirstQueryParser.NAME);
-        builder.field("match");
+        builder.startObject(NAME);
+        builder.field(SpanFirstQueryParser.MATCH_FIELD.getPreferredName());
         matchBuilder.toXContent(builder, params);
-        builder.field("end", end);
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        builder.field(SpanFirstQueryParser.END_FIELD.getPreferredName(), end);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query innerSpanQuery = matchBuilder.toQuery(context);
+        assert innerSpanQuery instanceof SpanQuery;
+        return new SpanFirstQuery((SpanQuery) innerSpanQuery, end);
+    }
+
+    @Override
+    protected SpanFirstQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        SpanQueryBuilder matchBuilder = (SpanQueryBuilder)in.readQuery();
+        int end = in.readInt();
+        return new SpanFirstQueryBuilder(matchBuilder, end);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(matchBuilder);
+        out.writeInt(end);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(matchBuilder, end);
+    }
+
+    @Override
+    protected boolean doEquals(SpanFirstQueryBuilder other) {
+        return Objects.equals(matchBuilder, other.matchBuilder) &&
+               Objects.equals(end, other.end);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

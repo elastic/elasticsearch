@@ -18,11 +18,9 @@
  */
 package org.elasticsearch.search.fetch.fielddata;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -35,6 +33,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  * Query sub phase which pulls data from field data (using the cache if
  * available, building it if not).
@@ -43,16 +43,30 @@ import java.util.Map;
  */
 public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
 
+    public static final String[] NAMES = {"fielddata_fields", "fielddataFields"};
+    public static final ContextFactory<FieldDataFieldsContext> CONTEXT_FACTORY = new ContextFactory<FieldDataFieldsContext>() {
+
+        @Override
+        public String getName() {
+            return NAMES[0];
+        }
+
+        @Override
+        public FieldDataFieldsContext newContextInstance() {
+            return new FieldDataFieldsContext();
+        }
+    };
+
     @Inject
     public FieldDataFieldsFetchSubPhase() {
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("fielddata_fields", new FieldDataFieldsParseElement())
-                .put("fielddataFields", new FieldDataFieldsParseElement());
-        return parseElements.build();
+        Map<String, SearchParseElement> parseElements = new HashMap<>();
+        parseElements.put("fielddata_fields", new FieldDataFieldsParseElement());
+        parseElements.put("fielddataFields", new FieldDataFieldsParseElement());
+        return unmodifiableMap(parseElements);
     }
 
     @Override
@@ -66,12 +80,12 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public boolean hitExecutionNeeded(SearchContext context) {
-        return context.hasFieldDataFields();
+        return context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded();
     }
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
-        for (FieldDataFieldsContext.FieldDataField field : context.fieldDataFields().fields()) {
+        for (FieldDataFieldsContext.FieldDataField field : context.getFetchSubPhaseContext(CONTEXT_FACTORY).fields()) {
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<String, SearchHitField>(2));
             }
@@ -80,7 +94,7 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
                 hitField = new InternalSearchHitField(field.name(), new ArrayList<>(2));
                 hitContext.hit().fields().put(field.name(), hitField);
             }
-            MappedFieldType fieldType = context.mapperService().smartNameFieldType(field.name());
+            MappedFieldType fieldType = context.mapperService().fullName(field.name());
             if (fieldType != null) {
                 AtomicFieldData data = context.fieldData().getForField(fieldType).load(hitContext.readerContext());
                 ScriptDocValues values = data.getScriptValues();

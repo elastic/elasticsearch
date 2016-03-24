@@ -19,13 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -50,13 +50,13 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
                                      ClusterService clusterService, TransportService transportService,
                                      NodeService nodeService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                NodesStatsRequest.class, NodeStatsRequest.class, ThreadPool.Names.MANAGEMENT);
+                NodesStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.nodeService = nodeService;
     }
 
     @Override
     protected NodesStatsResponse newResponse(NodesStatsRequest nodesInfoRequest, AtomicReferenceArray responses) {
-        final List<NodeStats> nodeStats = Lists.newArrayList();
+        final List<NodeStats> nodeStats = new ArrayList<>();
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
             if (resp instanceof NodeStats) {
@@ -79,8 +79,9 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     @Override
     protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) {
         NodesStatsRequest request = nodeStatsRequest.request;
-        return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(), request.network(),
-                request.fs(), request.transport(), request.http(), request.breaker());
+        return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(),
+                request.fs(), request.transport(), request.http(), request.breaker(), request.script(), request.discovery(),
+                request.ingest());
     }
 
     @Override
@@ -88,15 +89,15 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
         return false;
     }
 
-    static class NodeStatsRequest extends BaseNodeRequest {
+    public static class NodeStatsRequest extends BaseNodeRequest {
 
         NodesStatsRequest request;
 
-        NodeStatsRequest() {
+        public NodeStatsRequest() {
         }
 
         NodeStatsRequest(String nodeId, NodesStatsRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

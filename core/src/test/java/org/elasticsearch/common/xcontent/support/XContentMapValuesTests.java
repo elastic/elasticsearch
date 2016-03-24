@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,9 +26,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,14 +36,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-public class XContentMapValuesTests extends ElasticsearchTestCase {
-
-    @Test
+public class XContentMapValuesTests extends ESTestCase {
     public void testFilter() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .field("test1", "value1")
@@ -103,7 +103,6 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     }
 
     @SuppressWarnings({"unchecked"})
-    @Test
     public void testExtractValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .field("test", "value")
@@ -193,8 +192,6 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
     }
 
-    @SuppressWarnings({"unchecked"})
-    @Test
     public void testExtractRawValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .field("test", "value")
@@ -234,8 +231,7 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         assertThat(XContentMapValues.extractRawValues("path1.xxx.path2.yyy.test", map).get(0).toString(), equalTo("value"));
     }
 
-    @Test
-    public void prefixedNamesFilteringTest() {
+    public void testPrefixedNamesFilteringTest() {
         Map<String, Object> map = new HashMap<>();
         map.put("obj", "value");
         map.put("obj_name", "value_name");
@@ -245,9 +241,8 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     }
 
 
-    @Test
     @SuppressWarnings("unchecked")
-    public void nestedFilteringTest() {
+    public void testNestedFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         map.put("array",
@@ -292,8 +287,7 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @Test
-    public void completeObjectFilteringTest() {
+    public void testCompleteObjectFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         map.put("obj",
@@ -337,8 +331,7 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @Test
-    public void filterIncludesUsingStarPrefix() {
+    public void testFilterIncludesUsingStarPrefix() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         map.put("obj",
@@ -379,8 +372,7 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
 
     }
 
-    @Test
-    public void filterWithEmptyIncludesExcludes() {
+    public void testFilterWithEmptyIncludesExcludes() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         Map<String, Object> filteredMap = XContentMapValues.filter(map, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
@@ -389,8 +381,6 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
 
     }
 
-    @SuppressWarnings({"unchecked"})
-    @Test
     public void testThatFilterIncludesEmptyObjectWhenUsingIncludes() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj")
@@ -403,7 +393,6 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         assertThat(mapTuple.v2(), equalTo(filteredSource));
     }
 
-    @Test
     public void testThatFilterIncludesEmptyObjectWhenUsingExcludes() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj")
@@ -416,7 +405,6 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
         assertThat(mapTuple.v2(), equalTo(filteredSource));
     }
 
-    @Test
     public void testNotOmittingObjectsWithExcludedProperties() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj")
@@ -433,7 +421,6 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     }
 
     @SuppressWarnings({"unchecked"})
-    @Test
     public void testNotOmittingObjectWithNestedExcludedObject() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj1")
@@ -467,7 +454,6 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     }
 
     @SuppressWarnings({"unchecked"})
-    @Test
     public void testIncludingObjectWithNestedIncludedObject() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj1")
@@ -561,9 +547,8 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
                 assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
             }
             assertEquals(
-                    Arrays.asList(ImmutableMap.of("foo", "bar"), Collections.<String, Object>emptyMap()),
+                    Arrays.asList(singletonMap("foo", "bar"), emptyMap()),
                     parser.list());
         }
     }
-
 }

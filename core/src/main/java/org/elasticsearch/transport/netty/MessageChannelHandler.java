@@ -25,15 +25,31 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportSerializationException;
+import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ExceptionEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import org.jboss.netty.channel.WriteCompletionEvent;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -49,9 +65,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     protected final TransportServiceAdapter transportServiceAdapter;
     protected final NettyTransport transport;
     protected final String profileName;
+    private final ThreadContext threadContext;
 
     public MessageChannelHandler(NettyTransport transport, ESLogger logger, String profileName) {
         this.threadPool = transport.threadPool();
+        this.threadContext = threadPool.getThreadContext();
         this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;
         this.logger = logger;
@@ -86,7 +104,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         // buffer, or in the cumlation buffer, which is cleaned each time
         StreamInput streamIn = ChannelBufferStreamInputFactory.create(buffer, size);
         boolean success = false;
-        try {
+        try (ThreadContext.StoredContext tCtx = threadContext.stashContext()) {
             long requestId = streamIn.readLong();
             byte status = streamIn.readByte();
             Version version = Version.fromId(streamIn.readInt());
@@ -98,7 +116,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 } catch (NotCompressedException ex) {
                     int maxToRead = Math.min(buffer.readableBytes(), 10);
                     int offset = buffer.readerIndex();
-                    StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead).append("] content bytes out of [").append(buffer.readableBytes()).append("] readable bytes with message size [").append(size).append("] ").append("] are [");
+                    StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
+                            .append("] content bytes out of [").append(buffer.readableBytes())
+                            .append("] readable bytes with message size [").append(size).append("] ").append("] are [");
                     for (int i = 0; i < maxToRead; i++) {
                         sb.append(buffer.getByte(offset + i)).append(",");
                     }
@@ -107,24 +127,30 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 }
                 streamIn = compressor.streamInput(streamIn);
             }
+            if (version.onOrAfter(Version.CURRENT.minimumCompatibilityVersion()) == false || version.major != Version.CURRENT.major) {
+                throw new IllegalStateException("Received message from unsupported version: [" + version
+                    + "] minimal compatible version is: [" +Version.CURRENT.minimumCompatibilityVersion() + "]");
+            }
             streamIn.setVersion(version);
-
             if (TransportStatus.isRequest(status)) {
+                threadContext.readHeaders(streamIn);
                 String action = handleRequest(ctx.getChannel(), streamIn, requestId, version);
 
                 // Chek the entire message has been read
                 final int nextByte = streamIn.read();
                 // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
                 if (nextByte != -1) {
-                    throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
-                            + action + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
+                    throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
+                            + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
                 }
                 if (buffer.readerIndex() < expectedIndexReader) {
-                    throw new IllegalStateException("Message is fully read (request), yet there are " + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
+                    throw new IllegalStateException("Message is fully read (request), yet there are "
+                            + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
                 }
                 if (buffer.readerIndex() > expectedIndexReader) {
-                    throw new IllegalStateException("Message read past expected size (request) for requestId [" + requestId + "], action ["
-                            + action + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
+                    throw new IllegalStateException(
+                            "Message read past expected size (request) for requestId [" + requestId + "], action [" + action
+                                    + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
                 }
 
             } else {
@@ -145,11 +171,12 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                                 + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
                     }
                     if (buffer.readerIndex() < expectedIndexReader) {
-                        throw new IllegalStateException("Message is fully read (response), yet there are " + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
+                        throw new IllegalStateException("Message is fully read (response), yet there are "
+                                + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
                     }
                     if (buffer.readerIndex() > expectedIndexReader) {
-                        throw new IllegalStateException("Message read past expected size (response) for requestId [" + requestId + "], handler ["
-                                + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
+                        throw new IllegalStateException("Message read past expected size (response) for requestId [" + requestId
+                                + "], handler [" + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
                     }
 
                 }
@@ -169,13 +196,15 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     }
 
     protected void handleResponse(Channel channel, StreamInput buffer, final TransportResponseHandler handler) {
+        buffer = new NamedWriteableAwareStreamInput(buffer, transport.namedWriteableRegistry);
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
         response.remoteAddress();
         try {
             response.readFrom(buffer);
         } catch (Throwable e) {
-            handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
+            handleException(handler, new TransportSerializationException(
+                    "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
         try {
@@ -226,9 +255,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     }
 
     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
+        buffer = new NamedWriteableAwareStreamInput(buffer, transport.namedWriteableRegistry);
         final String action = buffer.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
-        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, profileName);
+        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel,
+                requestId, version, profileName);
         try {
             final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
             if (reg == null) {
@@ -239,7 +270,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             request.readFrom(buffer);
             if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
                 //noinspection unchecked
-                reg.getHandler().messageReceived(request, transportChannel);
+                reg.processMessageReceived(request, transportChannel);
             } else {
                 threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
             }
@@ -247,7 +278,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             try {
                 transportChannel.sendResponse(e);
             } catch (IOException e1) {
-                logger.warn("Failed to send error message back to client for action [" + action + "]", e);
+                logger.warn("Failed to send error message back to client for action [{}]", e, action);
                 logger.warn("Actual Exception", e1);
             }
         }
@@ -294,7 +325,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         @SuppressWarnings({"unchecked"})
         @Override
         protected void doRun() throws Exception {
-            reg.getHandler().messageReceived(request, transportChannel);
+            reg.processMessageReceived(request, transportChannel);
         }
 
         @Override
@@ -309,7 +340,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 try {
                     transportChannel.sendResponse(e);
                 } catch (Throwable e1) {
-                    logger.warn("Failed to send error message back to client for action [" + reg.getAction() + "]", e1);
+                    logger.warn("Failed to send error message back to client for action [{}]", e1, reg.getAction());
                     logger.warn("Actual Exception", e);
                 }
             }

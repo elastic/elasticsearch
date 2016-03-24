@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -27,20 +26,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 
-/**
- * The transport message is also a {@link ContextAndHeaderHolder context holder} that holds <b>transient</b> context, that is,
- * the context is not serialized with message.
- */
-public abstract class TransportMessage<TM extends TransportMessage<TM>> extends ContextAndHeaderHolder implements Streamable {
+public abstract class TransportMessage implements Streamable {
 
     private TransportAddress remoteAddress;
-
-    protected TransportMessage() {
-    }
-
-    protected TransportMessage(TM message) {
-        copyContextAndHeadersFrom(message);
-    }
 
     public void remoteAddress(TransportAddress remoteAddress) {
         this.remoteAddress = remoteAddress;
@@ -52,16 +40,11 @@ public abstract class TransportMessage<TM extends TransportMessage<TM>> extends 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        headers = in.readBoolean() ? in.readMap() : null;
+
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (headers == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeMap(headers);
-        }
+
     }
 }

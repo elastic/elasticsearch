@@ -21,40 +21,27 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
-import org.junit.Test;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.containsString;
 
-public class PatternCaptureTokenFilterTests extends ElasticsearchTokenStreamTestCase {
-
-    @Test
+public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
     public void testPatternCaptureTokenFilter() throws Exception {
-        Index index = new Index("test");
+        String json = "/org/elasticsearch/index/analysis/pattern_capture.json";
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir())
-                .loadFromClasspath("org/elasticsearch/index/analysis/pattern_capture.json")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
-                .createChildInjector(parentInjector);
 
-        AnalysisService analysisService = injector.getInstance(AnalysisService.class);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("single");
 
@@ -68,11 +55,14 @@ public class PatternCaptureTokenFilterTests extends ElasticsearchTokenStreamTest
 
         assertTokenStreamContents(analyzer3.tokenStream("test", "foobarbaz"), new String[]{"foobar","foo"});
     }
-    
-    
-    @Test(expected=IllegalArgumentException.class)
+
     public void testNoPatterns() {
-        new PatternCaptureGroupTokenFilterFactory(new Index("test"), settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), "pattern_capture", settingsBuilder().put("pattern", "foobar").build());
+        try {
+            new PatternCaptureGroupTokenFilterFactory(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), null, "pattern_capture", settingsBuilder().put("pattern", "foobar").build());
+            fail ("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("required setting 'patterns' is missing"));
+        }
     }
 
 }

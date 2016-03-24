@@ -39,7 +39,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false, true);
 
-    OpenIndexRequest() {
+    public OpenIndexRequest() {
     }
 
     /**

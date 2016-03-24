@@ -19,21 +19,18 @@
 
 package org.elasticsearch.common.lucene.store;
 
-import com.google.common.base.Charsets;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ByteArrayIndexInputTests extends ElasticsearchTestCase {
-
-    @Test
+public class ByteArrayIndexInputTests extends ESTestCase {
     public void testRandomReads() throws IOException {
         for (int i = 0; i < 100; i++) {
-            byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(Charsets.UTF_8);
+            byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
             ByteArrayIndexInput indexInput = new ByteArrayIndexInput("test", input);
             assertEquals(input.length, indexInput.length());
             assertEquals(0, indexInput.getFilePointer());
@@ -42,10 +39,9 @@ public class ByteArrayIndexInputTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testRandomOverflow() throws IOException {
         for (int i = 0; i < 100; i++) {
-            byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(Charsets.UTF_8);
+            byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
             ByteArrayIndexInput indexInput = new ByteArrayIndexInput("test", input);
             int firstReadLen = randomIntBetween(0, input.length - 1);
             randomReadAndSlice(indexInput, firstReadLen);
@@ -61,10 +57,9 @@ public class ByteArrayIndexInputTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testSeekOverflow() throws IOException {
         for (int i = 0; i < 100; i++) {
-            byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(Charsets.UTF_8);
+            byte[] input = randomUnicodeOfLength(randomIntBetween(1, 1000)).getBytes(StandardCharsets.UTF_8);
             ByteArrayIndexInput indexInput = new ByteArrayIndexInput("test", input);
             int firstReadLen = randomIntBetween(0, input.length - 1);
             randomReadAndSlice(indexInput, firstReadLen);
@@ -130,7 +125,7 @@ public class ByteArrayIndexInputTests extends ElasticsearchTestCase {
                 default:
                     fail();
             }
-            assertEquals((long) readPos, indexInput.getFilePointer());
+            assertEquals(readPos, indexInput.getFilePointer());
         }
         return output;
     }

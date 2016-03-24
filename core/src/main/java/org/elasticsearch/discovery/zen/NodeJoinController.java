@@ -19,16 +19,15 @@
 package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +35,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,9 +71,9 @@ public class NodeJoinController extends AbstractComponent {
 
     /**
      * waits for enough incoming joins from master eligible nodes to complete the master election
-     * <p/>
+     * <p>
      * You must start accumulating joins before calling this method. See {@link #startAccumulatingJoins()}
-     * <p/>
+     * <p>
      * The method will return once the local node has been elected as master or some failure/timeout has happened.
      * The exact outcome is communicated via the callback parameter, which is guaranteed to be called.
      *
@@ -87,7 +90,7 @@ public class NodeJoinController extends AbstractComponent {
             @Override
             void onClose() {
                 if (electionContext.compareAndSet(this, null)) {
-                    stopAccumulatingJoins();
+                    stopAccumulatingJoins("election closed");
                 } else {
                     assert false : "failed to remove current election context";
                 }
@@ -133,7 +136,13 @@ public class NodeJoinController extends AbstractComponent {
 
     /** utility method to fail the given election context under the cluster state thread */
     private void failContext(final ElectionContext context, final String reason, final Throwable throwable) {
-        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 context.onFailure(throwable);
@@ -151,7 +160,7 @@ public class NodeJoinController extends AbstractComponent {
 
     /**
      * Accumulates any future incoming join request. Pending join requests will be processed in the final steps of becoming a
-     * master or when {@link #stopAccumulatingJoins()} is called.
+     * master or when {@link #stopAccumulatingJoins(String)} is called.
      */
     public void startAccumulatingJoins() {
         logger.trace("starting to accumulate joins");
@@ -161,21 +170,21 @@ public class NodeJoinController extends AbstractComponent {
     }
 
     /** Stopped accumulating joins. All pending joins will be processed. Future joins will be processed immediately */
-    public void stopAccumulatingJoins() {
-        logger.trace("stopping join accumulation");
+    public void stopAccumulatingJoins(String reason) {
+        logger.trace("stopping join accumulation ([{}])", reason);
         assert electionContext.get() == null : "stopAccumulatingJoins() called, but there is an ongoing election context";
         boolean b = accumulateJoins.getAndSet(false);
         assert b : "stopAccumulatingJoins() called but not accumulating";
         synchronized (pendingJoinRequests) {
             if (pendingJoinRequests.size() > 0) {
-                processJoins("stopping to accumulate joins");
+                processJoins("pending joins after accumulation stop [" + reason + "]");
             }
         }
     }
 
     /**
      * processes or queues an incoming join request.
-     * <p/>
+     * <p>
      * Note: doesn't do any validation. This should have been done before.
      */
     public void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
@@ -205,7 +214,7 @@ public class NodeJoinController extends AbstractComponent {
             return;
         }
 
-        int pendingMasterJoins=0;
+        int pendingMasterJoins = 0;
         synchronized (pendingJoinRequests) {
             for (DiscoveryNode node : pendingJoinRequests.keySet()) {
                 if (node.isMasterNode()) {
@@ -214,7 +223,9 @@ public class NodeJoinController extends AbstractComponent {
             }
         }
         if (pendingMasterJoins < context.requiredMasterJoins) {
-            logger.trace("not enough joins for election. Got [{}], required [{}]", pendingMasterJoins, context.requiredMasterJoins);
+            if (context.pendingSetAsMasterTask.get() == false) {
+                logger.trace("not enough joins for election. Got [{}], required [{}]", pendingMasterJoins, context.requiredMasterJoins);
+            }
             return;
         }
         if (context.pendingSetAsMasterTask.getAndSet(true)) {
@@ -223,7 +234,7 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         final String source = "zen-disco-join(elected_as_master, [" + pendingMasterJoins + "] joins received)";
-        clusterService.submitStateUpdateTask(source, Priority.IMMEDIATE, new ProcessJoinsTask() {
+        clusterService.submitStateUpdateTask(source, new ProcessJoinsTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // Take into account the previous known nodes, if they happen not to be available
@@ -241,7 +252,7 @@ public class NodeJoinController extends AbstractComponent {
                 currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
 
                 // reroute now to remove any dead nodes (master may have stepped down when they left and didn't update the routing table)
-                RoutingAllocation.Result result = routingService.getAllocationService().reroute(currentState);
+                RoutingAllocation.Result result = routingService.getAllocationService().reroute(currentState, "nodes joined");
                 if (result.changed()) {
                     currentState = ClusterState.builder(currentState).routingResult(result).build();
                 }
@@ -272,7 +283,7 @@ public class NodeJoinController extends AbstractComponent {
 
     /** process all pending joins */
     private void processJoins(String reason) {
-        clusterService.submitStateUpdateTask("zen-disco-join(" + reason + ")", Priority.URGENT, new ProcessJoinsTask());
+        clusterService.submitStateUpdateTask("zen-disco-join(" + reason + ")", new ProcessJoinsTask(Priority.URGENT));
     }
 
 
@@ -334,7 +345,7 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         private void assertClusterStateThread() {
-            assert clusterService instanceof InternalClusterService == false || ((InternalClusterService) clusterService).assertClusterStateThread();
+            assert clusterService instanceof ClusterService == false || ((ClusterService) clusterService).assertClusterStateThread();
         }
     }
 
@@ -343,10 +354,14 @@ public class NodeJoinController extends AbstractComponent {
      * Processes any pending joins via a ClusterState update task.
      * Note: this task automatically fails (and fails all pending joins) if the current node is not marked as master
      */
-    class ProcessJoinsTask extends ProcessedClusterStateUpdateTask {
+    class ProcessJoinsTask extends ClusterStateUpdateTask {
 
         private final List<MembershipAction.JoinCallback> joinCallbacksToRespondTo = new ArrayList<>();
         private boolean nodeAdded = false;
+
+        public ProcessJoinsTask(Priority priority) {
+            super(priority);
+        }
 
         @Override
         public ClusterState execute(ClusterState currentState) {

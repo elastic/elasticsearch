@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -32,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +47,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ClusterName clusterName, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterStateRequest.class);
+        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterStateRequest::new);
         this.clusterName = clusterName;
     }
 
@@ -89,7 +89,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         routingTableBuilder.add(currentState.routingTable().getIndicesRouting().get(filteredIndex));
                     }
                 }
-                builder.routingTable(routingTableBuilder);
+                builder.routingTable(routingTableBuilder.build());
             } else {
                 builder.routingTable(currentState.routingTable());
             }
@@ -106,7 +106,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
 
             if (request.indices().length > 0) {
-                String[] indices = indexNameExpressionResolver.concreteIndices(currentState, request);
+                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {

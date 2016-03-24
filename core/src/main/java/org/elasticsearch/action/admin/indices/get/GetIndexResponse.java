@@ -20,8 +20,6 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -29,28 +27,26 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * A response for a delete index action.
  */
 public class GetIndexResponse extends ActionResponse {
 
-    private ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliases = ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
     private String[] indices;
 
-    GetIndexResponse(String[] indices, ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers,
+    GetIndexResponse(String[] indices,
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
-            ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliases, ImmutableOpenMap<String, Settings> settings) {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases, ImmutableOpenMap<String, Settings> settings) {
         this.indices = indices;
-        if (warmers != null) {
-            this.warmers = warmers;
-        }
         if (mappings != null) {
             this.mappings = mappings;
         }
@@ -73,14 +69,6 @@ public class GetIndexResponse extends ActionResponse {
         return indices();
     }
 
-    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> warmers() {
-        return warmers;
-    }
-
-    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> getWarmers() {
-        return warmers();
-    }
-
     public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings() {
         return mappings;
     }
@@ -89,11 +77,11 @@ public class GetIndexResponse extends ActionResponse {
         return mappings();
     }
 
-    public ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliases() {
+    public ImmutableOpenMap<String, List<AliasMetaData>> aliases() {
         return aliases;
     }
 
-    public ImmutableOpenMap<String, ImmutableList<AliasMetaData>> getAliases() {
+    public ImmutableOpenMap<String, List<AliasMetaData>> getAliases() {
         return aliases();
     }
 
@@ -109,23 +97,6 @@ public class GetIndexResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         this.indices = in.readStringArray();
-        int warmersSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> warmersMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < warmersSize; i++) {
-            String key = in.readString();
-            int valueSize = in.readVInt();
-            ImmutableList.Builder<IndexWarmersMetaData.Entry> warmerEntryBuilder = ImmutableList.builder();
-            for (int j = 0; j < valueSize; j++) {
-                warmerEntryBuilder.add(new IndexWarmersMetaData.Entry(
-                        in.readString(),
-                        in.readStringArray(),
-                        in.readOptionalBoolean(),
-                        in.readBytesReference())
-                );
-            }
-            warmersMapBuilder.put(key, warmerEntryBuilder.build());
-        }
-        warmers = warmersMapBuilder.build();
         int mappingsSize = in.readVInt();
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappingsMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < mappingsSize; i++) {
@@ -139,15 +110,15 @@ public class GetIndexResponse extends ActionResponse {
         }
         mappings = mappingsMapBuilder.build();
         int aliasesSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, ImmutableList<AliasMetaData>> aliasesMapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliasesMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < aliasesSize; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
-            ImmutableList.Builder<AliasMetaData> aliasEntryBuilder = ImmutableList.builder();
+            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>();
             for (int j = 0; j < valueSize; j++) {
                 aliasEntryBuilder.add(AliasMetaData.Builder.readFrom(in));
             }
-            aliasesMapBuilder.put(key, aliasEntryBuilder.build());
+            aliasesMapBuilder.put(key, Collections.unmodifiableList(aliasEntryBuilder));
         }
         aliases = aliasesMapBuilder.build();
         int settingsSize = in.readVInt();
@@ -163,17 +134,6 @@ public class GetIndexResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        out.writeVInt(warmers.size());
-        for (ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> indexEntry : warmers) {
-            out.writeString(indexEntry.key);
-            out.writeVInt(indexEntry.value.size());
-            for (IndexWarmersMetaData.Entry warmerEntry : indexEntry.value) {
-                out.writeString(warmerEntry.name());
-                out.writeStringArray(warmerEntry.types());
-                out.writeOptionalBoolean(warmerEntry.requestCache());
-                out.writeBytesReference(warmerEntry.source());
-            }
-        }
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappings) {
             out.writeString(indexEntry.key);
@@ -184,7 +144,7 @@ public class GetIndexResponse extends ActionResponse {
             }
         }
         out.writeVInt(aliases.size());
-        for (ObjectObjectCursor<String, ImmutableList<AliasMetaData>> indexEntry : aliases) {
+        for (ObjectObjectCursor<String, List<AliasMetaData>> indexEntry : aliases) {
             out.writeString(indexEntry.key);
             out.writeVInt(indexEntry.value.size());
             for (AliasMetaData aliasEntry : indexEntry.value) {

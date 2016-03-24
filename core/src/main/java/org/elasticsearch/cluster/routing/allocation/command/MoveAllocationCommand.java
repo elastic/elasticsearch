@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -32,12 +32,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
 /**
- * A command that moves a shard from a specific node to another node.<br />
+ * A command that moves a shard from a specific node to another node.<br>
  * <b>Note:</b> The shard needs to be in the state
  * {@link ShardRoutingState#STARTED} in order to be moved.
  */
@@ -49,12 +48,13 @@ public class MoveAllocationCommand implements AllocationCommand {
 
         @Override
         public MoveAllocationCommand readFrom(StreamInput in) throws IOException {
-            return new MoveAllocationCommand(ShardId.readShardId(in), in.readString(), in.readString());
+            return new MoveAllocationCommand(in.readString(), in.readVInt(), in.readString(), in.readString());
         }
 
         @Override
         public void writeTo(MoveAllocationCommand command, StreamOutput out) throws IOException {
-            command.shardId().writeTo(out);
+            out.writeString(command.index());
+            out.writeVInt(command.shardId());
             out.writeString(command.fromNode());
             out.writeString(command.toNode());
         }
@@ -99,7 +99,7 @@ public class MoveAllocationCommand implements AllocationCommand {
             if (toNode == null) {
                 throw new ElasticsearchParseException("[{}] command missing the to_node parameter", NAME);
             }
-            return new MoveAllocationCommand(new ShardId(index, shardId), fromNode, toNode);
+            return new MoveAllocationCommand(index, shardId, fromNode, toNode);
         }
 
         @Override
@@ -109,19 +109,21 @@ public class MoveAllocationCommand implements AllocationCommand {
             } else {
                 builder.startObject(objectName);
             }
-            builder.field("index", command.shardId().index().name());
-            builder.field("shard", command.shardId().id());
+            builder.field("index", command.index());
+            builder.field("shard", command.shardId());
             builder.field("from_node", command.fromNode());
             builder.field("to_node", command.toNode());
             builder.endObject();
         }
     }
 
-    private final ShardId shardId;
+    private final String index;
+    private final int shardId;
     private final String fromNode;
     private final String toNode;
 
-    public MoveAllocationCommand(ShardId shardId, String fromNode, String toNode) {
+    public MoveAllocationCommand(String index, int shardId, String fromNode, String toNode) {
+        this.index = index;
         this.shardId = shardId;
         this.fromNode = fromNode;
         this.toNode = toNode;
@@ -132,7 +134,9 @@ public class MoveAllocationCommand implements AllocationCommand {
         return NAME;
     }
 
-    public ShardId shardId() {
+    public String index() {return index; }
+
+    public int shardId() {
         return this.shardId;
     }
 
@@ -152,7 +156,10 @@ public class MoveAllocationCommand implements AllocationCommand {
 
         boolean found = false;
         for (ShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.id())) {
-            if (!shardRouting.shardId().equals(shardId)) {
+            if (!shardRouting.shardId().getIndexName().equals(index)) {
+                continue;
+            }
+            if (shardRouting.shardId().id() != shardId) {
                 continue;
             }
             found = true;
@@ -178,7 +185,7 @@ public class MoveAllocationCommand implements AllocationCommand {
             if (decision.type() == Decision.Type.THROTTLE) {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
-            allocation.routingNodes().relocate(shardRouting, toRoutingNode.nodeId());
+            allocation.routingNodes().relocate(shardRouting, toRoutingNode.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         }
 
         if (!found) {

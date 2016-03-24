@@ -27,12 +27,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
@@ -41,8 +39,11 @@ import java.util.List;
 
 public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
+    public static final TermSuggester PROTOTYPE = new TermSuggester();
+
     @Override
-    public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
+    public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexSearcher searcher, CharsRefBuilder spare)
+            throws IOException {
         DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(suggestion.getDirectSpellCheckerSettings());
         final IndexReader indexReader = searcher.getIndexReader();
         TermSuggestion response = new TermSuggestion(
@@ -54,27 +55,16 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             SuggestWord[] suggestedWords = directSpellChecker.suggestSimilar(
                     token.term, suggestion.getShardSize(), indexReader, suggestion.getDirectSpellCheckerSettings().suggestMode()
             );
-            Text key = new BytesText(new BytesArray(token.term.bytes()));
+            Text key = new Text(new BytesArray(token.term.bytes()));
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             for (SuggestWord suggestWord : suggestedWords) {
-                Text word = new StringText(suggestWord.string);
+                Text word = new Text(suggestWord.string);
                 resultEntry.addOption(new TermSuggestion.Entry.Option(word, suggestWord.freq, suggestWord.score));
             }
             response.addTerm(resultEntry);
         }
         return response;
     }
-
-    @Override
-    public String[] names() {
-        return new String[] {"term"};
-    }
-
-    @Override
-    public SuggestContextParser getContextParser() {
-        return new TermSuggestParser(this);
-    }
-
 
     private List<Token> queryTerms(SuggestionContext suggestion, CharsRefBuilder spare) throws IOException {
         final List<Token> result = new ArrayList<>();
@@ -83,7 +73,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             @Override
             public void nextToken() {
                 Term term = new Term(field, BytesRef.deepCopyOf(fillBytesRef(new BytesRefBuilder())));
-                result.add(new Token(term, offsetAttr.startOffset(), offsetAttr.endOffset())); 
+                result.add(new Token(term, offsetAttr.startOffset(), offsetAttr.endOffset()));
             }
         }, spare);
        return result;
@@ -101,6 +91,11 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             this.endOffset = endOffset;
         }
 
+    }
+
+    @Override
+    public SuggestionBuilder<?> getBuilderPrototype() {
+        return TermSuggestionBuilder.PROTOTYPE;
     }
 
 }

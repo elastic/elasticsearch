@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.search.lookup;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -31,8 +28,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.singletonMap;
 
 /**
  *
@@ -48,7 +48,7 @@ public class LeafFieldsLookup implements Map {
 
     private int docId = -1;
 
-    private final Map<String, FieldLookup> cachedFieldData = Maps.newHashMap();
+    private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
     private final SingleFieldsVisitor fieldVisitor;
 
@@ -136,7 +136,7 @@ public class LeafFieldsLookup implements Map {
     private FieldLookup loadFieldData(String name) {
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
-            MappedFieldType fieldType = mapperService.smartNameFieldType(name, types);
+            MappedFieldType fieldType = mapperService.fullName(name);
             if (fieldType == null) {
                 throw new IllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
             }
@@ -144,12 +144,12 @@ public class LeafFieldsLookup implements Map {
             cachedFieldData.put(name, data);
         }
         if (data.fields() == null) {
-            String fieldName = data.fieldType().names().indexName();
+            String fieldName = data.fieldType().name();
             fieldVisitor.reset(fieldName);
             try {
                 reader.document(docId, fieldVisitor);
                 fieldVisitor.postProcess(data.fieldType());
-                data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.fieldType().names().indexName())));
+                data.fields(singletonMap(name, fieldVisitor.fields().get(data.fieldType().name())));
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to load field [{}]", e, name);
             }

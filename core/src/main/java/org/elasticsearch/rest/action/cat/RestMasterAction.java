@@ -27,7 +27,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
@@ -42,7 +45,7 @@ public class RestMasterAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/master\n");
     }
 
@@ -62,7 +65,7 @@ public class RestMasterAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
                 .addCell("id", "desc:node id")

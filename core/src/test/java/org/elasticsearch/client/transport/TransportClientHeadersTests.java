@@ -25,19 +25,29 @@ import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.AbstractClientHeadersTests;
+import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -48,34 +58,36 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class TransportClientHeadersTests extends AbstractClientHeadersTests {
+public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
 
     private static final LocalTransportAddress address = new LocalTransportAddress("test");
 
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
-        TransportClient client = TransportClient.builder().settings(Settings.builder()
+        TransportClient client = TransportClient.builder()
+            .settings(Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("node.name", "transport_client_" + this.getTestName())
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
                 .put(headersSettings)
-                .build()).build();
+                .build())
+            .addPlugin(InternalTransportService.TestPlugin.class).build();
 
         client.addTransportAddress(address);
         return client;
     }
 
-    @Test
     public void testWithSniffing() throws Exception {
-        TransportClient client = TransportClient.builder().settings(Settings.builder()
+        TransportClient client = TransportClient.builder()
+            .settings(Settings.builder()
                 .put("client.transport.sniff", true)
                 .put("cluster.name", "cluster1")
                 .put("node.name", "transport_client_" + this.getTestName() + "_1")
                 .put("client.transport.nodes_sampler_interval", "1s")
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
                 .put(HEADER_SETTINGS)
-                .put("path.home", createTempDir().toString())
-                .build()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build())
+            .addPlugin(InternalTransportService.TestPlugin.class)
+            .build();
+
         try {
             client.addTransportAddress(address);
 
@@ -95,6 +107,24 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
     public static class InternalTransportService extends TransportService {
 
+        public static class TestPlugin extends Plugin {
+            @Override
+            public String name() {
+                return "mock-transport-service";
+            }
+            @Override
+            public String description() {
+                return "a mock transport service";
+            }
+            public void onModule(NetworkModule transportModule) {
+                transportModule.registerTransportService("internal", InternalTransportService.class);
+            }
+            @Override
+            public Settings additionalSettings() {
+                return Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "internal").build();
+            }
+        }
+
         CountDownLatch clusterStateLatch = new CountDownLatch(1);
 
         @Inject
@@ -105,30 +135,30 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
         @Override @SuppressWarnings("unchecked")
         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
             if (TransportLivenessAction.NAME.equals(action)) {
-                assertHeaders(request);
+                assertHeaders(threadPool);
                 ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
                 return;
             }
             if (ClusterStateAction.NAME.equals(action)) {
-                assertHeaders(request);
+                assertHeaders(threadPool);
                 ClusterName cluster1 = new ClusterName("cluster1");
                 ((TransportResponseHandler<ClusterStateResponse>) handler).handleResponse(new ClusterStateResponse(cluster1, state(cluster1)));
                 clusterStateLatch.countDown();
                 return;
             }
 
-            handler.handleException(new TransportException("", new InternalException(action, request)));
+            handler.handleException(new TransportException("", new InternalException(action)));
         }
 
         @Override
         public boolean nodeConnected(DiscoveryNode node) {
-            assertThat((LocalTransportAddress) node.getAddress(), equalTo(address));
+            assertThat(node.getAddress(), equalTo(address));
             return true;
         }
 
         @Override
         public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-            assertThat((LocalTransportAddress) node.getAddress(), equalTo(address));
+            assertThat(node.getAddress(), equalTo(address));
         }
     }
 

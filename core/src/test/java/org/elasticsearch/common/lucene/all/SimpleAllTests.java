@@ -28,14 +28,23 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SmallFloat;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -44,9 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleAllTests extends ElasticsearchTestCase {
-
-    @Test
+public class SimpleAllTests extends ESTestCase {
     public void testBoostOnEagerTokenizer() throws Exception {
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", "all", 2.0f);
@@ -83,15 +90,14 @@ public class SimpleAllTests extends ElasticsearchTestCase {
             if (payload == null || payload.length == 0) {
                 assertEquals(boost, 1f, 0.001f);
             } else {
-                assertEquals(4, payload.length);
-                final float b = PayloadHelper.decodeFloat(payload.bytes, payload.offset);
+                assertEquals(1, payload.length);
+                final float b = SmallFloat.byte315ToFloat(payload.bytes[payload.offset]);
                 assertEquals(boost, b, 0.001f);
             }
         }
         assertFalse(ts.incrementToken());
     }
 
-    @Test
     public void testAllEntriesRead() throws Exception {
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", "something", 1.0f);
@@ -122,7 +128,6 @@ public class SimpleAllTests extends ElasticsearchTestCase {
         assertEquals(scoreDoc.score, expl.getValue(), 0.00001f);
     }
 
-    @Test
     public void testSimpleAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -147,7 +152,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         Query query = new AllTermQuery(new Term("_all", "else"));
@@ -169,7 +174,6 @@ public class SimpleAllTests extends ElasticsearchTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testSimpleAllWithBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -194,7 +198,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // this one is boosted. so the second doc is more relevant
@@ -217,7 +221,41 @@ public class SimpleAllTests extends ElasticsearchTestCase {
         indexWriter.close();
     }
 
-    @Test
+    public void testTermMissingFromOneSegment() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+
+        Document doc = new Document();
+        doc.add(new Field("_id", "1", StoredField.TYPE));
+        AllEntries allEntries = new AllEntries();
+        allEntries.addText("field", "something", 2.0f);
+        allEntries.reset();
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+
+        indexWriter.addDocument(doc);
+        indexWriter.commit();
+
+        doc = new Document();
+        doc.add(new Field("_id", "2", StoredField.TYPE));
+        allEntries = new AllEntries();
+        allEntries.addText("field", "else", 1.0f);
+        allEntries.reset();
+        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+
+        indexWriter.addDocument(doc);
+
+        IndexReader reader = DirectoryReader.open(indexWriter);
+        assertEquals(2, reader.leaves().size());
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        // "something" only appears in the first segment:
+        Query query = new AllTermQuery(new Term("_all", "something"));
+        TopDocs docs = searcher.search(query, 10);
+        assertEquals(1, docs.totalHits);
+
+        indexWriter.close();
+    }
+
     public void testMultipleTokensAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -242,7 +280,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -268,7 +306,6 @@ public class SimpleAllTests extends ElasticsearchTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testMultipleTokensAllWithBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -293,7 +330,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -319,7 +356,6 @@ public class SimpleAllTests extends ElasticsearchTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testNoTokensWithKeywordAnalyzer() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER));
@@ -332,7 +368,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new MatchAllDocsQuery(), 10);

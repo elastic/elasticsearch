@@ -25,8 +25,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -34,11 +33,9 @@ import java.io.StringReader;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ThreadLeakScope(Scope.NONE)
-public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
+public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
+    private static final String RESOURCE = "/org/elasticsearch/index/analysis/shingle_analysis.json";
 
-    private static final String RESOURCE = "org/elasticsearch/index/analysis/shingle_analysis.json";
-
-    @Test
     public void testDefault() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle");
@@ -49,7 +46,6 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testInverseMapping() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_inverse");
@@ -61,7 +57,6 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testInverseMappingNoShingles() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_inverse");
@@ -73,7 +68,6 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testFillerToken() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_filler");

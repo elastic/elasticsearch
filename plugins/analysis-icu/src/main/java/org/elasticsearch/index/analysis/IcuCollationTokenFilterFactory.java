@@ -19,30 +19,25 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.ibm.icu.text.Collator;
-import com.ibm.icu.text.RuleBasedCollator;
-import com.ibm.icu.util.ULocale;
-import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.FailedToResolveConfigException;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
-
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+
+import com.ibm.icu.text.Collator;
+import com.ibm.icu.text.RuleBasedCollator;
+import com.ibm.icu.util.ULocale;
+
 /**
  * An ICU based collation token filter. There are two ways to configure collation:
- * <p/>
  * <p>The first is simply specifying the locale (defaults to the default locale). The <tt>language</tt>
  * parameter is the lowercase two-letter ISO-639 code. An additional <tt>country</tt> and <tt>variant</tt>
  * can be provided.
- * <p/>
  * <p>The second option is to specify collation rules as defined in the <a href="http://www.icu-project.org/userguide/Collate_Customization.html">
  * Collation customization</a> chapter in icu docs. The <tt>rules</tt> parameter can either embed the rules definition
  * in the settings or refer to an external location (preferable located under the <tt>config</tt> location, relative to it).
@@ -51,9 +46,9 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Collator collator;
 
-    @Inject
-    public IcuCollationTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment environment, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    @SuppressWarnings("deprecation") // Intentionally sets deprecated options for backwards compatibility
+    public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
 
         Collator collator;
         String rules = settings.get("rules");
@@ -61,7 +56,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             Exception failureToResolve = null;
             try {
                 rules = Streams.copyToString(Files.newBufferedReader(environment.configFile().resolve(rules), Charset.forName("UTF-8")));
-            } catch (FailedToResolveConfigException | IOException | SecurityException e) {
+            } catch (IOException | SecurityException e) {
                 failureToResolve = e;
             }
             try {
@@ -172,6 +167,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
+    @SuppressWarnings("deprecation") // Constructs a deprecated filter for backwards compatibility
     public TokenStream create(TokenStream tokenStream) {
         return new ICUCollationKeyFilter(tokenStream, collator);
     }

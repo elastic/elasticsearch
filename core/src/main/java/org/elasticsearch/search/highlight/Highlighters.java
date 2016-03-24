@@ -18,31 +18,52 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ExtensionPoint;
 
-import java.util.Set;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 
 /**
- *
+ * An extensions point and registry for all the highlighters a node supports.
  */
-public class Highlighters {
-    private final ImmutableMap<String, Highlighter> parsers;
+public class Highlighters extends ExtensionPoint.ClassMap<Highlighter> {
+
+    private static final String FVH = "fvh";
+    private static final String PLAIN = "plain";
+    private static final String POSTINGS = "postings";
+
+    private final Map<String, Highlighter> parsers;
+
+    public Highlighters(){
+        this(Collections.emptyMap());
+    }
+
+    private Highlighters(Map<String, Highlighter> parsers) {
+        super("highlighter", Highlighter.class, new HashSet<>(Arrays.asList(FVH, PLAIN, POSTINGS)),
+                Highlighters.class);
+        this.parsers = Collections.unmodifiableMap(parsers);
+    }
 
     @Inject
-    public Highlighters(Set<Highlighter> parsers) {
-        MapBuilder<String, Highlighter> builder = MapBuilder.newMapBuilder();
-        for (Highlighter parser : parsers) {
-            for (String type : parser.names()) {
-                builder.put(type, parser);
-            }
-        }
-        this.parsers = builder.immutableMap();
+    public Highlighters(Settings settings, Map<String, Highlighter> parsers) {
+        this(addBuiltIns(settings, parsers));
+    }
+
+    private static Map<String, Highlighter> addBuiltIns(Settings settings, Map<String, Highlighter> parsers) {
+        Map<String, Highlighter> map = new HashMap<>();
+        map.put(FVH,  new FastVectorHighlighter(settings));
+        map.put(PLAIN, new PlainHighlighter());
+        map.put(POSTINGS, new PostingsHighlighter());
+        map.putAll(parsers);
+        return map;
     }
 
     public Highlighter get(String type) {
         return parsers.get(type);
     }
-
 }

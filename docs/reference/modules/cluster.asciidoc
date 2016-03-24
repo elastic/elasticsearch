@@ -17,7 +17,7 @@ There are a number of settings available to control the shard allocation process
     be distributed across different racks or availability zones.
 
 *   <<allocation-filtering>> allows certain nodes or groups of nodes excluded
-    from allocation so that they can be decommisioned.
+    from allocation so that they can be decommissioned.
 
 Besides these, there are a few other <<misc-cluster,miscellaneous cluster-level settings>>.
 

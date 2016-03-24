@@ -24,20 +24,16 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class JacksonLocationTests extends ElasticsearchTestCase {
-
-    @Test
+public class JacksonLocationTests extends ESTestCase {
     public void testLocationExtraction() throws IOException {
         // {
         //    "index" : "test",

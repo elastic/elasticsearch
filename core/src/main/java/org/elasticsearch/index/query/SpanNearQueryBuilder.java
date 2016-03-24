@@ -19,86 +19,147 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
-public class SpanNearQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanNearQueryBuilder> {
+/**
+ * Matches spans which are near one another. One can specify slop, the maximum number
+ * of intervening unmatched positions, as well as whether matches are required to be in-order.
+ * The span near query maps to Lucene {@link SpanNearQuery}.
+ */
+public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder<SpanNearQueryBuilder> {
 
-    private ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
+    public static final String NAME = "span_near";
 
-    private Integer slop = null;
+    /** Default for flag controlling whether matches are required to be in-order */
+    public static boolean DEFAULT_IN_ORDER = true;
 
-    private Boolean inOrder;
+    private final List<SpanQueryBuilder<?>> clauses = new ArrayList<>();
 
-    private Boolean collectPayloads;
+    private final int slop;
 
-    private float boost = -1;
+    private boolean inOrder = DEFAULT_IN_ORDER;
 
-    private String queryName;
+    static final SpanNearQueryBuilder PROTOTYPE = new SpanNearQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 0);
 
-    public SpanNearQueryBuilder clause(SpanQueryBuilder clause) {
+    /**
+     * @param initialClause an initial span query clause
+     * @param slop controls the maximum number of intervening unmatched positions permitted
+     */
+    public SpanNearQueryBuilder(SpanQueryBuilder<?> initialClause, int slop) {
+        if (initialClause == null) {
+            throw new IllegalArgumentException("query must include at least one clause");
+        }
+        this.clauses.add(initialClause);
+        this.slop = slop;
+    }
+
+    /**
+     * @return the maximum number of intervening unmatched positions permitted
+     */
+    public int slop() {
+        return this.slop;
+    }
+
+    public SpanNearQueryBuilder clause(SpanQueryBuilder<?> clause) {
+        if (clause == null) {
+            throw new IllegalArgumentException("query clauses cannot be null");
+        }
         clauses.add(clause);
         return this;
     }
 
-    public SpanNearQueryBuilder slop(int slop) {
-        this.slop = slop;
-        return this;
+    /**
+     * @return the {@link SpanQueryBuilder} clauses that were set for this query
+     */
+    public List<SpanQueryBuilder<?>> clauses() {
+        return this.clauses;
     }
 
+    /**
+     * When <code>inOrder</code> is true, the spans from each clause
+     * must be in the same order as in <code>clauses</code> and must be non-overlapping.
+     * Defaults to <code>true</code>
+     */
     public SpanNearQueryBuilder inOrder(boolean inOrder) {
         this.inOrder = inOrder;
         return this;
     }
 
-    public SpanNearQueryBuilder collectPayloads(boolean collectPayloads) {
-        this.collectPayloads = collectPayloads;
-        return this;
-    }
-
-    @Override
-    public SpanNearQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @see SpanNearQueryBuilder#inOrder(boolean)
      */
-    public SpanNearQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public boolean inOrder() {
+        return this.inOrder;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (clauses.isEmpty()) {
-            throw new IllegalArgumentException("Must have at least one clause when building a spanNear query");
-        }
-        if (slop == null) {
-            throw new IllegalArgumentException("Must set the slop when building a spanNear query");
-        }
-        builder.startObject(SpanNearQueryParser.NAME);
-        builder.startArray("clauses");
-        for (SpanQueryBuilder clause : clauses) {
+        builder.startObject(NAME);
+        builder.startArray(SpanNearQueryParser.CLAUSES_FIELD.getPreferredName());
+        for (SpanQueryBuilder<?> clause : clauses) {
             clause.toXContent(builder, params);
         }
         builder.endArray();
-        builder.field("slop", slop.intValue());
-        if (inOrder != null) {
-            builder.field("in_order", inOrder);
-        }
-        if (collectPayloads != null) {
-            builder.field("collect_payloads", collectPayloads);
-        }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        builder.field(SpanNearQueryParser.SLOP_FIELD.getPreferredName(), slop);
+        builder.field(SpanNearQueryParser.IN_ORDER_FIELD.getPreferredName(), inOrder);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
+        for (int i = 0; i < clauses.size(); i++) {
+            Query query = clauses.get(i).toQuery(context);
+            assert query instanceof SpanQuery;
+            spanQueries[i] = (SpanQuery) query;
+        }
+        return new SpanNearQuery(spanQueries, slop, inOrder);
+    }
+
+    @Override
+    protected SpanNearQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        List<QueryBuilder<?>> clauses = readQueries(in);
+        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder((SpanQueryBuilder<?>)clauses.get(0), in.readVInt());
+        for (int i = 1; i < clauses.size(); i++) {
+            queryBuilder.clauses.add((SpanQueryBuilder<?>)clauses.get(i));
+        }
+        queryBuilder.inOrder = in.readBoolean();
+        return queryBuilder;
+
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        writeQueries(out, clauses);
+        out.writeVInt(slop);
+        out.writeBoolean(inOrder);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(clauses, slop, inOrder);
+    }
+
+    @Override
+    protected boolean doEquals(SpanNearQueryBuilder other) {
+        return Objects.equals(clauses, other.clauses) &&
+               Objects.equals(slop, other.slop) &&
+               Objects.equals(inOrder, other.inOrder);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

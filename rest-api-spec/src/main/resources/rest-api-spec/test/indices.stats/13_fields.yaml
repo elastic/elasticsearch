@@ -9,12 +9,12 @@ setup:
                   bar:
                       properties:
                           bar:
-                              type: string
+                              type: text
                               fields:
                                   completion:
                                       type: completion
                           baz:
-                              type: string
+                              type: text
                               fields:
                                   completion:
                                       type: completion
@@ -31,6 +31,27 @@ setup:
           type:  baz
           id:    1
           body:  { "bar": "bar", "baz": "baz" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      suggest:
+        index: test1
+        body:
+          result:
+            text: "b"
+            completion:
+              field: bar.completion
+
+  - do:
+      suggest:
+        index: test1
+        body:
+          result:
+            text: "b"
+            completion:
+              field: baz.completion
 
   - do:
       indices.refresh: {}

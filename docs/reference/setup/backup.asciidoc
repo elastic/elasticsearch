@@ -50,7 +50,7 @@ while the backup is in process:
 PUT /_cluster/settings
 {
   "transient": {
-    "cluster.routing.allocation.disable_allocation": "true"
+    "cluster.routing.allocation.enable": "none"
   }
 }
 -----------------------------------
@@ -79,7 +79,7 @@ PUT /_all/_settings
 PUT /_cluster/settings
 {
   "transient": {
-    "cluster.routing.allocation.disable_allocation": "false"
+    "cluster.routing.allocation.enable": "all"
   }
 }
 -----------------------------------

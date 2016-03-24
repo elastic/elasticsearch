@@ -19,21 +19,16 @@
 
 package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -42,6 +37,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -49,13 +46,10 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
     public final static Type TYPE = new Type("cumulative_sum");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public CumulativeSumPipelineAggregator readResult(StreamInput in) throws IOException {
-            CumulativeSumPipelineAggregator result = new CumulativeSumPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
+    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
+        CumulativeSumPipelineAggregator result = new CumulativeSumPipelineAggregator();
+        result.readFrom(in);
+        return result;
     };
 
     public static void registerStreams() {
@@ -89,8 +83,9 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
             sum += thisBucketValue;
-            List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(),
-                    AGGREGATION_TRANFORM_FUNCTION));
+            List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
+                return (InternalAggregation) p;
+            }).collect(Collectors.toList());
             aggs.add(new InternalSimpleValue(name(), sum, formatter, new ArrayList<PipelineAggregator>(), metaData()));
             InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(),
                     new InternalAggregations(aggs), bucket.getKeyed(), bucket.getFormatter());
@@ -107,39 +102,5 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(formatter, out);
-    }
-
-    public static class Factory extends PipelineAggregatorFactory {
-
-        private final ValueFormatter formatter;
-
-        public Factory(String name, String[] bucketsPaths, ValueFormatter formatter) {
-            super(name, TYPE.name(), bucketsPaths);
-            this.formatter = formatter;
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter, metaData);
-        }
-
-        @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
-            if (bucketsPaths.length != 1) {
-                throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                        + " must contain a single entry for aggregation [" + name + "]");
-            }
-            if (!(parent instanceof HistogramAggregator.Factory)) {
-                throw new IllegalStateException("cumulative sum aggregation [" + name
-                        + "] must have a histogram or date_histogram as parent");
-            } else {
-                HistogramAggregator.Factory histoParent = (HistogramAggregator.Factory) parent;
-                if (histoParent.minDocCount() != 0) {
-                    throw new IllegalStateException("parent histogram of cumulative sum aggregation [" + name
-                            + "] must have min_doc_count of 0");
-                }
-            }
-        }
-
     }
 }

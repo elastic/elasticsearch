@@ -37,12 +37,12 @@ public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVe
     IntArrayList locations;
     List<TermVectorsRequest> requests;
 
-    MultiTermVectorsShardRequest() {
+    public MultiTermVectorsShardRequest() {
 
     }
 
-    MultiTermVectorsShardRequest(MultiTermVectorsRequest request, String index, int shardId) {
-        super(request, index);
+    MultiTermVectorsShardRequest(String index, int shardId) {
+        super(index);
         this.shardId = shardId;
         locations = new IntArrayList();
         requests = new ArrayList<>();

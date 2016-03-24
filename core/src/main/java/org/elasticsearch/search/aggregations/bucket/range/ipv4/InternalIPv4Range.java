@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -36,8 +37,7 @@ import java.util.Map;
  *
  */
 public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, InternalIPv4Range> {
-
-    public static final long MAX_IP = 4294967296l;
+    public static final long MAX_IP = 1L << 32;
 
     public final static Type TYPE = new Type("ip_range", "iprange");
 
@@ -112,8 +112,13 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
     public static class Factory extends InternalRange.Factory<InternalIPv4Range.Bucket, InternalIPv4Range> {
 
         @Override
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
+        }
+
+        @Override
+        public ValueType getValueType() {
+            return ValueType.IP;
         }
 
         @Override

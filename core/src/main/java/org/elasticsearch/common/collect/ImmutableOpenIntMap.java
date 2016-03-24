@@ -19,21 +19,26 @@
 
 package org.elasticsearch.common.collect;
 
-import com.carrotsearch.hppc.*;
+import com.carrotsearch.hppc.IntCollection;
+import com.carrotsearch.hppc.IntContainer;
+import com.carrotsearch.hppc.IntLookupContainer;
+import com.carrotsearch.hppc.IntObjectAssociativeContainer;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
+import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.IntObjectPredicate;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import com.carrotsearch.hppc.procedures.IntObjectProcedure;
-import com.google.common.collect.UnmodifiableIterator;
 
 import java.util.Iterator;
 import java.util.Map;
 
 /**
  * An immutable map implementation based on open hash map.
- * <p/>
+ * <p>
  * Can be constructed using a {@link #builder()}, or using {@link #builder(org.elasticsearch.common.collect.ImmutableOpenIntMap)} (which is an optimized
  * option to copy over existing content and modify it).
  */
@@ -48,7 +53,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     /**
      * @return Returns the value associated with the given key or the default value
      * for the key type, if the key is not associated with any value.
-     * <p/>
+     * <p>
      * <b>Important note:</b> For primitive type values, the value returned for a non-existing
      * key may not be the default value of the primitive type (it may be any value previously
      * assigned to that slot).
@@ -92,8 +97,8 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
      *       + &quot; value=&quot; + c.value);
      * }
      * </pre>
-     * <p/>
-     * <p>The <code>index</code> field inside the cursor gives the internal index inside
+     * <p>
+     * The <code>index</code> field inside the cursor gives the internal index inside
      * the container's implementation. The interpretation of this index depends on
      * to the container.
      */
@@ -113,9 +118,9 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     /**
      * Returns a direct iterator over the keys.
      */
-    public UnmodifiableIterator<Integer> keysIt() {
+    public Iterator<Integer> keysIt() {
         final Iterator<IntCursor> iterator = map.keys().iterator();
-        return new UnmodifiableIterator<Integer>() {
+        return new Iterator<Integer>() {
             @Override
             public boolean hasNext() {
                 return iterator.hasNext();
@@ -124,6 +129,11 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             @Override
             public Integer next() {
                 return iterator.next().value;
+            }
+
+            @Override
+            public final void remove() {
+                throw new UnsupportedOperationException();
             }
         };
     }
@@ -138,9 +148,9 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     /**
      * Returns a direct iterator over the keys.
      */
-    public UnmodifiableIterator<VType> valuesIt() {
+    public Iterator<VType> valuesIt() {
         final Iterator<ObjectCursor<VType>> iterator = map.values().iterator();
-        return new UnmodifiableIterator<VType>() {
+        return new Iterator<VType>() {
             @Override
             public boolean hasNext() {
                 return iterator.hasNext();
@@ -149,6 +159,11 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             @Override
             public VType next() {
                 return iterator.next().value;
+            }
+
+            @Override
+            public final void remove() {
+                throw new UnsupportedOperationException();
             }
         };
     }

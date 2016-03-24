@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,9 +16,9 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.spi.Dependency;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -29,7 +29,7 @@ import java.util.Map;
  */
 public final class InternalContext {
 
-    private Map<Object, ConstructionContext<?>> constructionContexts = Maps.newHashMap();
+    private Map<Object, ConstructionContext<?>> constructionContexts = new HashMap<>();
     private Dependency dependency;
 
     @SuppressWarnings("unchecked")

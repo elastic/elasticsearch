@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,7 +76,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             builder.field("ip", nodeInfo.getNode().getHostAddress(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.field("version", nodeInfo.getVersion());
-            builder.field("build", nodeInfo.getBuild().hashShort());
+            builder.field("build_hash", nodeInfo.getBuild().shortHash());
 
             if (nodeInfo.getServiceAttributes() != null) {
                 for (Map.Entry<String, String> nodeAttribute : nodeInfo.getServiceAttributes().entrySet()) {
@@ -85,8 +86,8 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
             if (!nodeInfo.getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : nodeInfo.getNode().attributes().entrySet()) {
-                    builder.field(attr.getKey(), attr.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                for (ObjectObjectCursor<String, String> attr : nodeInfo.getNode().attributes()) {
+                    builder.field(attr.key, attr.value, XContentBuilder.FieldCaseConversion.NONE);
                 }
                 builder.endObject();
             }
@@ -119,6 +120,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
             if (nodeInfo.getPlugins() != null) {
                 nodeInfo.getPlugins().toXContent(builder, params);
+            }
+            if (nodeInfo.getIngest() != null) {
+                nodeInfo.getIngest().toXContent(builder, params);
             }
 
             builder.endObject();

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
-import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * Get repository request builder
@@ -60,7 +60,7 @@ public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationReques
      * @return builder
      */
     public GetRepositoriesRequestBuilder addRepositories(String... repositories) {
-        request.repositories(ObjectArrays.concat(request.repositories(), repositories, String.class));
+        request.repositories(ArrayUtils.concat(request.repositories(), repositories));
         return this;
     }
 }

@@ -19,13 +19,14 @@
 
 package org.elasticsearch.common.collect;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class CopyOnWriteHashMapTests extends ElasticsearchTestCase {
+import static java.util.Collections.emptyMap;
+
+public class CopyOnWriteHashMapTests extends ESTestCase {
 
     private static class O {
 
@@ -94,7 +95,7 @@ public class CopyOnWriteHashMapTests extends ElasticsearchTestCase {
                 map = newMap;
             }
             assertEquals(ref, CopyOnWriteHashMap.copyOf(ref));
-            assertEquals(ImmutableMap.of(), CopyOnWriteHashMap.copyOf(ref).copyAndRemoveAll(ref.keySet()));
+            assertEquals(emptyMap(), CopyOnWriteHashMap.copyOf(ref).copyAndRemoveAll(ref.keySet()));
         }
     }
 
@@ -140,7 +141,7 @@ public class CopyOnWriteHashMapTests extends ElasticsearchTestCase {
         } catch (IllegalArgumentException e) {
             // expected
         }
-        
+
         try {
             new CopyOnWriteHashMap<>().copyAndPut(null, "b");
             fail();

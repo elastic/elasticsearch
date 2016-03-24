@@ -19,49 +19,44 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.shape.Rectangle;
+import org.locationtech.spatial4j.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class EnvelopeBuilder extends ShapeBuilder {
 
-    public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE; 
+    public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
 
-    protected Coordinate topLeft;
-    protected Coordinate bottomRight;
+    public static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder(new Coordinate(-1.0, 1.0), new Coordinate(1.0, -1.0));
 
-    public EnvelopeBuilder() {
-        this(Orientation.RIGHT);
-    }
+    private Coordinate topLeft;
+    private Coordinate bottomRight;
 
-    public EnvelopeBuilder(Orientation orientation) {
-        super(orientation);
-    }
-
-    public EnvelopeBuilder topLeft(Coordinate topLeft) {
+    public EnvelopeBuilder(Coordinate topLeft, Coordinate bottomRight) {
+        Objects.requireNonNull(topLeft, "topLeft of envelope cannot be null");
+        Objects.requireNonNull(bottomRight, "bottomRight of envelope cannot be null");
         this.topLeft = topLeft;
-        return this;
-    }
-
-    public EnvelopeBuilder topLeft(double longitude, double latitude) {
-        return topLeft(coordinate(longitude, latitude));
-    }
-
-    public EnvelopeBuilder bottomRight(Coordinate bottomRight) {
         this.bottomRight = bottomRight;
-        return this;
     }
 
-    public EnvelopeBuilder bottomRight(double longitude, double latitude) {
-        return bottomRight(coordinate(longitude, latitude));
+    public Coordinate topLeft() {
+        return this.topLeft;
+    }
+
+    public Coordinate bottomRight() {
+        return this.bottomRight;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapename);
+        builder.field(FIELD_TYPE, TYPE.shapeName());
         builder.startArray(FIELD_COORDINATES);
         toXContent(builder, topLeft);
         toXContent(builder, bottomRight);
@@ -77,5 +72,34 @@ public class EnvelopeBuilder extends ShapeBuilder {
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(topLeft, bottomRight);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        EnvelopeBuilder other = (EnvelopeBuilder) obj;
+        return Objects.equals(topLeft, other.topLeft) &&
+                Objects.equals(bottomRight, other.bottomRight);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeCoordinateTo(topLeft, out);
+        writeCoordinateTo(bottomRight, out);
+    }
+
+    @Override
+    public EnvelopeBuilder readFrom(StreamInput in) throws IOException {
+        return new EnvelopeBuilder(readCoordinateFrom(in), readCoordinateFrom(in));
     }
 }

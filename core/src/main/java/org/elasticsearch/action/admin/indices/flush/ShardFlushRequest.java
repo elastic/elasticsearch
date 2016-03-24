@@ -19,27 +19,28 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- *
- */
-class ShardFlushRequest extends BroadcastShardRequest {
+public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
+
     private FlushRequest request = new FlushRequest();
 
-    ShardFlushRequest() {
-    }
-
-    ShardFlushRequest(ShardId shardId, FlushRequest request) {
-        super(shardId, request);
+    public ShardFlushRequest(FlushRequest request, ShardId shardId) {
+        super(shardId);
         this.request = request;
     }
 
+    public ShardFlushRequest() {
+    }
+
+    FlushRequest getRequest() {
+        return request;
+    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
@@ -53,7 +54,8 @@ class ShardFlushRequest extends BroadcastShardRequest {
         request.writeTo(out);
     }
 
-    FlushRequest getRequest() {
-        return request;
+    @Override
+    public String toString() {
+        return "flush {" + super.toString() + "}";
     }
 }

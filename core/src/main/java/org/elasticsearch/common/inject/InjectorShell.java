@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,16 +16,28 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.internal.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.InternalContext;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.PrivateElementsImpl;
+import org.elasticsearch.common.inject.internal.ProviderInstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.Scoping;
+import org.elasticsearch.common.inject.internal.SourceProvider;
+import org.elasticsearch.common.inject.internal.Stopwatch;
+import org.elasticsearch.common.inject.spi.Dependency;
+import org.elasticsearch.common.inject.spi.Element;
+import org.elasticsearch.common.inject.spi.Elements;
+import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Logger;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.inject.Scopes.SINGLETON;
 
 /**
@@ -59,8 +71,8 @@ class InjectorShell {
     }
 
     static class Builder {
-        private final List<Element> elements = Lists.newArrayList();
-        private final List<Module> modules = Lists.newArrayList();
+        private final List<Element> elements = new ArrayList<>();
+        private final List<Module> modules = new ArrayList<>();
 
         /**
          * lazily constructed
@@ -112,9 +124,15 @@ class InjectorShell {
          */
         List<InjectorShell> build(Initializer initializer, BindingProcessor bindingProcessor,
                                   Stopwatch stopwatch, Errors errors) {
-            checkState(stage != null, "Stage not initialized");
-            checkState(privateElements == null || parent != null, "PrivateElements with no parent");
-            checkState(state != null, "no state. Did you remember to lock() ?");
+            if (stage == null) {
+                throw new IllegalStateException("Stage not initialized");
+            }
+            if (privateElements != null && parent == null) {
+                throw new IllegalStateException("PrivateElements with no parent");
+            }
+            if (state == null) {
+                throw new IllegalStateException("no state. Did you remember to lock() ?");
+            }
 
             InjectorImpl injector = new InjectorImpl(parent, state, initializer);
             if (privateElements != null) {
@@ -148,7 +166,7 @@ class InjectorShell {
             bindingProcessor.process(injector, elements);
             stopwatch.resetAndLog("Binding creation");
 
-            List<InjectorShell> injectorShells = Lists.newArrayList();
+            List<InjectorShell> injectorShells = new ArrayList<>();
             injectorShells.add(new InjectorShell(this, elements, injector));
 
             // recursively build child shells
@@ -180,7 +198,7 @@ class InjectorShell {
         injector.state.putBinding(key,
                 new ProviderInstanceBindingImpl<>(injector, key, SourceProvider.UNKNOWN_SOURCE,
                         injectorFactory, Scoping.UNSCOPED, injectorFactory,
-                        ImmutableSet.<InjectionPoint>of()));
+                        emptySet()));
     }
 
     private static class InjectorFactory implements InternalFactory<Injector>, Provider<Injector> {
@@ -217,7 +235,7 @@ class InjectorShell {
         injector.state.putBinding(key,
                 new ProviderInstanceBindingImpl<>(injector, key,
                         SourceProvider.UNKNOWN_SOURCE, loggerFactory, Scoping.UNSCOPED,
-                        loggerFactory, ImmutableSet.<InjectionPoint>of()));
+                        loggerFactory, emptySet()));
     }
 
     private static class LoggerFactory implements InternalFactory<Logger>, Provider<Logger> {
@@ -244,7 +262,7 @@ class InjectorShell {
         final Stage stage;
 
         private RootModule(Stage stage) {
-            this.stage = checkNotNull(stage, "stage");
+            this.stage = Objects.requireNonNull(stage, "stage");
         }
 
         @Override

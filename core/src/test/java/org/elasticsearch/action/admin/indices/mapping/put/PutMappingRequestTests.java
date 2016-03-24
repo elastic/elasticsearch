@@ -20,9 +20,10 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.test.ESTestCase;
 
-public class PutMappingRequestTests extends ElasticsearchTestCase {
+public class PutMappingRequestTests extends ESTestCase {
 
     public void testValidation() {
         PutMappingRequest r = new PutMappingRequest("myindex");
@@ -48,5 +49,12 @@ public class PutMappingRequestTests extends ElasticsearchTestCase {
         r.source("somevalidmapping");
         ex = r.validate();
         assertNull("validation should succeed", ex);
+
+        r.setConcreteIndex(new Index("foo", "bar"));
+        ex = r.validate();
+        assertNotNull("source validation should fail", ex);
+        assertEquals(ex.getMessage(),
+            "Validation Failed: 1: either concrete index or unresolved indices can be set," +
+                " concrete index: [[foo/bar]] and indices: [myindex];");
     }
 }

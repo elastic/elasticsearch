@@ -1,0 +1,17 @@
+
+[[breaking_50_rest_api_changes]]
+=== REST API changes
+
+==== id values longer than 512 bytes are rejected
+
+When specifying an `_id` value longer than 512 bytes, the request will be
+rejected.
+
+==== `/_optimize` endpoint removed
+
+The deprecated `/_optimize` endpoint has been removed. The `/_forcemerge`
+endpoint should be used in lieu of optimize.
+
+The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
+`POST` HTTP verb.
+

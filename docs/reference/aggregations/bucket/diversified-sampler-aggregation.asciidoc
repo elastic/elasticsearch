@@ -1,0 +1,154 @@
+[[search-aggregations-bucket-diversified-sampler-aggregation]]
+=== Sampler Aggregation
+
+experimental[]
+
+A filtering aggregation used to limit any sub aggregations' processing to a sample of the top-scoring documents. Diversity settings are 
+used to limit the number of matches that share a common value such as an "author".
+
+.Example use cases:
+* Tightening the focus of analytics to high-relevance matches rather than the potentially very long tail of low-quality matches
+* Removing bias from analytics by ensuring fair representation of content from different sources
+* Reducing the running cost of aggregations that can produce useful results using only samples e.g. `significant_terms`
+ 
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "match": {
+            "text": "iphone"
+        }
+    },
+    "aggs": {
+        "sample": {
+            "sampler": {
+                "shard_size": 200,
+                "field" : "user.id"   
+            },
+            "aggs": {
+                "keywords": {
+                    "significant_terms": {
+                        "field": "text"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+        "aggregations": {
+        "sample": {
+            "doc_count": 1000,<1>
+            "keywords": {<2>
+                "doc_count": 1000,
+                "buckets": [
+                    ...
+                    {
+                        "key": "bend",
+                        "doc_count": 58,
+                        "score": 37.982536582524276,
+                        "bg_count": 103
+                    },
+                    ....
+}
+--------------------------------------------------
+
+<1> 1000 documents were sampled in total becase we asked for a maximum of 200 from an index with 5 shards. The cost of performing the nested significant_terms aggregation was therefore limited rather than unbounded.
+<2> The results of the significant_terms aggregation are not skewed by any single over-active Twitter user because we asked for a maximum of one tweet from any one user in our sample.
+
+
+==== shard_size
+
+The `shard_size` parameter limits how many top-scoring documents are collected in the sample processed on each shard.
+The default value is 100.
+
+==== Controlling diversity
+=`field` or `script` and `max_docs_per_value` settings are used to control the maximum number of documents collected on any one shard which share a common value.
+The choice of value (e.g. `author`) is loaded from a regular `field` or derived dynamically by a `script`.
+
+The aggregation will throw an error if the choice of field or script produces multiple values for a document.
+It is currently not possible to offer this form of de-duplication using many values, primarily due to concerns over efficiency.
+
+NOTE: Any good market researcher will tell you that when working with samples of data it is important
+that the sample represents a healthy variety of opinions rather than being skewed by any single voice.
+The same is true with aggregations and sampling with these diversify settings can offer a way to remove the bias in your content (an over-populated geography, a large spike in a timeline or an over-active forum spammer).  
+
+==== Field
+
+Controlling diversity using a field:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "sample" : {
+            "diverisfied_sampler" : {
+                "field" : "author",
+                "max_docs_per_value" : 3
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Note that the `max_docs_per_value` setting applies on a per-shard basis only for the purposes of shard-local sampling.
+It is not intended as a way of providing a global de-duplication feature on search results.
+
+
+
+==== Script
+
+Controlling diversity using a script:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "sample" : {
+            "diverisfied_sampler" : {
+                "script" : "doc['author'].value + '/' + doc['genre'].value"
+            }
+        }
+    }
+}
+--------------------------------------------------
+Note in the above example we chose to use the default `max_docs_per_value` setting of 1 and combine author and genre fields to ensure 
+each shard sample has, at most, one match for an author/genre pair.
+
+
+==== execution_hint
+
+When using the settings to control diversity, the optional `execution_hint` setting can influence the management of the values used for de-duplication.
+Each option will hold up to `shard_size` values in memory while performing de-duplication but the type of value held can be controlled as follows:
+ 
+ - hold field values directly (`map`)
+ - hold ordinals of the field as determined by the Lucene index (`global_ordinals`)
+ - hold hashes of the field values - with potential for hash collisions (`bytes_hash`)
+ 
+The default setting is to use `global_ordinals` if this information is available from the Lucene index and reverting to `map` if not.
+The `bytes_hash` setting may prove faster in some cases but introduces the possibility of false positives in de-duplication logic due to the possibility of hash collisions.
+Please note that Elasticsearch will ignore the choice of execution hint if it is not applicable and that there is no backward compatibility guarantee on these hints.
+
+==== Limitations
+
+===== Cannot be nested under `breadth_first` aggregations
+Being a quality-based filter the sampler aggregation needs access to the relevance score produced for each document.
+It therefore cannot be nested under a `terms` aggregation which has the `collect_mode` switched from the default `depth_first` mode to `breadth_first` as this discards scores.
+In this situation an error will be thrown.
+
+===== Limited de-dup logic.
+The de-duplication logic in the diversify settings applies only at a shard level so will not apply across shards.
+
+===== No specialized syntax for geo/date fields
+Currently the syntax for defining the diversifying values is defined by a choice of `field` or `script` - there is no added syntactical sugar for expressing geo or date units such as "1w" (1 week).
+This support may be added in a later release and users will currently have to create these sorts of values using a script.

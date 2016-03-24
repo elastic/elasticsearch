@@ -17,7 +17,7 @@ The second command selectively retrieves nodes information of only
 
 By default, it just returns all attributes and core settings for a node.
 It also allows to get only information on `settings`, `os`, `process`, `jvm`,
-`thread_pool`, `transport`, `http` and `plugins`:
+`thread_pool`, `transport`, `http`, `plugins` and `ingest`:
 
 [source,js]
 --------------------------------------------------
@@ -53,6 +53,11 @@ the operating system:
 
 `os.available_processors`::
 	Number of processors available to the Java virtual machine
+
+`os.allocated_processors`::
+    The number of processors actually used to calculate thread pool size. This number can be set
+    with the `processors` setting of a node and defaults to the number of processors reported by the OS.
+    In both cases this number will never be larger than 32.
 
 [float]
 [[process-info]]
@@ -118,18 +123,70 @@ The result will look similar to:
 }
 --------------------------------------------------
 
-if your `plugin` data is subject to change use
-`plugins.info_refresh_interval` to change or disable the caching
-interval:
+[float]
+[[ingest-info]]
+==== Ingest information
+
+`ingest` - if set, the result will contain details about the available
+processors per node:
+
+* `type`: the processor type
+
+The result will look similar to:
 
 [source,js]
 --------------------------------------------------
-# Change cache to 20 seconds
-plugins.info_refresh_interval: 20s
-
-# Infinite cache
-plugins.info_refresh_interval: -1
-
-# Disable cache
-plugins.info_refresh_interval: 0
+{
+  "cluster_name": "elasticsearch",
+  "nodes": {
+    "O70_wBv6S9aPPcAKdSUBtw": {
+      "ingest": {
+        "processors": [
+          {
+            "type": "date"
+          },
+          {
+            "type": "uppercase"
+          },
+          {
+            "type": "set"
+          },
+          {
+            "type": "lowercase"
+          },
+          {
+            "type": "gsub"
+          },
+          {
+            "type": "convert"
+          },
+          {
+            "type": "remove"
+          },
+          {
+            "type": "fail"
+          },
+          {
+            "type": "foreach"
+          },
+          {
+            "type": "split"
+          },
+          {
+            "type": "trim"
+          },
+          {
+            "type": "rename"
+          },
+          {
+            "type": "join"
+          },
+          {
+            "type": "append"
+          }
+        ]
+      }
+    }
+  }
+}
 --------------------------------------------------

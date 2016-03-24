@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.rescore;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -33,10 +31,13 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
 /**
  */
 public class RescorePhase extends AbstractComponent implements SearchPhase {
-    
+    private static final Map<String, SearchParseElement> PARSE_ELEMENTS = singletonMap("rescore", new RescoreParseElement());
+
     @Inject
     public RescorePhase(Settings settings) {
         super(settings);
@@ -44,9 +45,7 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("rescore", new RescoreParseElement());
-        return parseElements.build();
+        return PARSE_ELEMENTS;
     }
 
     @Override

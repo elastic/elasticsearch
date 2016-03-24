@@ -68,7 +68,7 @@ function migratePlugin() {
 	mkdir -p plugins/$1
 	git mv -k * plugins/$1 > /dev/null 2>/dev/null       
 	git rm .gitignore > /dev/null 2>/dev/null
-	# echo "### change $1 groupId to org.elasticsearch.plugins"
+	# echo "### change $1 groupId to org.elasticsearch.plugin"
 	# Change the groupId to avoid conflicts with existing 2.0.0 versions.
 	replaceLine "    <groupId>org.elasticsearch<\/groupId>" "    <groupId>org.elasticsearch.plugin<\/groupId>" "plugins/$1/pom.xml"
 
@@ -77,9 +77,9 @@ function migratePlugin() {
 	removeLines "<repositories>" "<\/repositories>" "plugins/$1/pom.xml"
 	removeLines "<url>" "<\/scm>" "plugins/$1/pom.xml"
 
-	# echo "### remove version 3.0.0-SNAPSHOT from $1 pom.xml"
-	# All plugins for ES 2.0.0 uses 3.0.0-SNAPSHOT version number
-	replaceLine "    <version>3.0.0-SNAPSHOT<\/version>" "" "plugins/$1/pom.xml"
+        # echo "### remove version 5.0.0-SNAPSHOT from $1 pom.xml"
+        # All plugins for ES 5.0.0 uses 5.0.0-SNAPSHOT version number
+        replaceLine "    <version>5.0.0-SNAPSHOT<\/version>" "" "plugins/$1/pom.xml"
 
 	# echo "### remove unused dev-tools and .git dirs and LICENSE.txt and CONTRIBUTING.md files"
 	rm -r plugins/$1/dev-tools

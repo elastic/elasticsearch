@@ -19,63 +19,130 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.base.Charsets;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 /**
  * A Query builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
  * to use the Java Builder API but still have JSON query strings at hand that you want to combine with other
  * query builders.
- * <p/>
+ * <p>
  * Example usage in a boolean query :
  * <pre>
- * {@code
+ * <code>
  *      BoolQueryBuilder bool = new BoolQueryBuilder();
  *      bool.must(new WrapperQueryBuilder("{\"term\": {\"field\":\"value\"}}");
  *      bool.must(new TermQueryBuilder("field2","value2");
- * }
+ * </code>
  * </pre>
  */
-public class WrapperQueryBuilder extends QueryBuilder {
+public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilder> {
 
+    public static final String NAME = "wrapper";
     private final byte[] source;
-    private final int offset;
-    private final int length;
+    static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder((byte[]) new byte[]{0});
+
+    /**
+     * Creates a query builder given a query provided as a bytes array
+     */
+    public WrapperQueryBuilder(byte[] source) {
+        if (source == null || source.length == 0) {
+            throw new IllegalArgumentException("query source text cannot be null or empty");
+        }
+        this.source = source;
+    }
 
     /**
      * Creates a query builder given a query provided as a string
      */
     public WrapperQueryBuilder(String source) {
-        this.source = source.getBytes(Charsets.UTF_8);
-        this.offset = 0;
-        this.length = this.source.length;
-    }
-
-    /**
-     * Creates a query builder given a query provided as a bytes array
-     */
-    public WrapperQueryBuilder(byte[] source, int offset, int length) {
-        this.source = source;
-        this.offset = offset;
-        this.length = length;
+        if (Strings.isEmpty(source)) {
+            throw new IllegalArgumentException("query source string cannot be null or empty");
+        }
+        this.source = source.getBytes(StandardCharsets.UTF_8);
     }
 
     /**
      * Creates a query builder given a query provided as a {@link BytesReference}
      */
     public WrapperQueryBuilder(BytesReference source) {
+        if (source == null || source.length() == 0) {
+            throw new IllegalArgumentException("query source text cannot be null or empty");
+        }
         this.source = source.array();
-        this.offset = source.arrayOffset();
-        this.length = source.length();
+    }
+
+    public byte[] source() {
+        return this.source;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(WrapperQueryParser.NAME);
-        builder.field("query", source, offset, length);
+        builder.startObject(NAME);
+        builder.field(WrapperQueryParser.QUERY_FIELD.getPreferredName(), source);
         builder.endObject();
     }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        throw new UnsupportedOperationException("this query must be rewritten first");
+    }
+
+    @Override
+    protected WrapperQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        return new WrapperQueryBuilder(in.readByteArray());
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeByteArray(this.source);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Arrays.hashCode(source);
+    }
+
+    @Override
+    protected boolean doEquals(WrapperQueryBuilder other) {
+        return Arrays.equals(source, other.source);   // otherwise we compare pointers
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext context) throws IOException {
+        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
+            QueryParseContext parseContext = context.newParseContext();
+            parseContext.reset(qSourceParser);
+
+            final QueryBuilder<?> queryBuilder = parseContext.parseInnerQueryBuilder();
+            if (boost() != DEFAULT_BOOST || queryName() != null) {
+                final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+                boolQueryBuilder.must(queryBuilder);
+                return boolQueryBuilder;
+            }
+            return queryBuilder;
+        }
+    }
+
+
 }

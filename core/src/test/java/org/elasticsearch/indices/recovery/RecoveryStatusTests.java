@@ -18,15 +18,18 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.Sets;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Set;
@@ -34,14 +37,14 @@ import java.util.regex.Pattern;
 
 /**
  */
-public class RecoveryStatusTests extends ElasticsearchSingleNodeTest {
-    
+public class RecoveryStatusTests extends ESSingleNodeTestCase {
+
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");
 
-        IndexShard indexShard = service.shard(0);
+        IndexShard indexShard = service.getShardOrNull(0);
         DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
-        RecoveryStatus status = new RecoveryStatus(indexShard, node, new RecoveryTarget.RecoveryListener() {
+        RecoveryTarget status = new RecoveryTarget(indexShard, node, new RecoveryTargetService.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
             }
@@ -50,11 +53,20 @@ public class RecoveryStatusTests extends ElasticsearchSingleNodeTest {
             public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
             }
         });
-        try (IndexOutput indexOutput = status.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8), status.store())) {
+        try (IndexOutput indexOutput = status.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw"), status.store())) {
             indexOutput.writeInt(1);
             IndexOutput openIndexOutput = status.getOpenIndexOutput("foo.bar");
             assertSame(openIndexOutput, indexOutput);
             openIndexOutput.writeInt(1);
+            CodecUtil.writeFooter(indexOutput);
+        }
+
+        try {
+            status.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw"), status.store());
+            fail("file foo.bar is already opened and registered");
+        } catch (IllegalStateException ex) {
+            assertEquals("output for file [foo.bar] has already been created", ex.getMessage());
+            // all well = it's already registered
         }
         status.removeOpenIndexOutputs("foo.bar");
         Set<String> strings = Sets.newHashSet(status.store().directory().listAll());

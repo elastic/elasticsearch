@@ -18,20 +18,17 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /**
  */
-public class SnapshotUtilsTests extends ElasticsearchTestCase {
-    @Test
+public class SnapshotUtilsTests extends ESTestCase {
     public void testIndexNameFiltering() {
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{}, new String[]{"foo", "bar", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"*"}, new String[]{"foo", "bar", "baz"});
@@ -52,7 +49,7 @@ public class SnapshotUtilsTests extends ElasticsearchTestCase {
     }
 
     private void assertIndexNameFiltering(String[] indices, String[] filter, IndicesOptions indicesOptions, String[] expected) {
-        List<String> indicesList = ImmutableList.copyOf(indices);
+        List<String> indicesList = Arrays.asList(indices);
         List<String> actual = SnapshotUtils.filterIndices(indicesList, filter, indicesOptions);
         assertThat(actual, containsInAnyOrder(expected));
     }

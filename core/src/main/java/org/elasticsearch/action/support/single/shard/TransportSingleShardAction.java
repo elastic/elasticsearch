@@ -25,7 +25,6 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -34,12 +33,19 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 
@@ -48,7 +54,7 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
  * the read operation can be performed on other shard copies. Concrete implementations can provide their own list
  * of candidate shards to try the read operation on.
  */
-public abstract class TransportSingleShardAction<Request extends SingleShardRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
+public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
 
@@ -59,8 +65,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Class<Request> request, String executor) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver);
+                                         Supplier<Request> request, String executor) {
+        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
         this.clusterService = clusterService;
         this.transportService = transportService;
 
@@ -135,7 +141,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
             String concreteSingleIndex;
             if (resolveIndex(request)) {
-                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request);
+                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName();
             } else {
                 concreteSingleIndex = request.index();
             }
@@ -171,7 +177,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
                     @Override
                     public void handleException(TransportException exp) {
-                        perform(exp);
+                        listener.onFailure(exp);
                     }
                 });
             } else {
@@ -210,6 +216,14 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));
             } else {
                 internalRequest.request().internalShardId = shardRouting.shardId();
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                            "sending request [{}] to shard [{}] on node [{}]",
+                            internalRequest.request(),
+                            internalRequest.request().internalShardId,
+                            node
+                    );
+                }
                 transportService.sendRequest(node, transportShardAction, internalRequest.request(), new BaseTransportResponseHandler<Response>() {
 
                     @Override

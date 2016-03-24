@@ -19,40 +19,30 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import com.google.common.collect.ImmutableMap;
+import java.util.Map;
 
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentLocation;
 
-import java.util.Set;
+import static java.util.Collections.unmodifiableMap;
 
 public class ScoreFunctionParserMapper {
 
-    protected ImmutableMap<String, ScoreFunctionParser> functionParsers;
+    protected Map<String, ScoreFunctionParser<?>> functionParsers;
 
-    @Inject
-    public ScoreFunctionParserMapper(Set<ScoreFunctionParser> parsers) {
-        MapBuilder<String, ScoreFunctionParser> builder = MapBuilder.newMapBuilder();
-        for (ScoreFunctionParser scoreFunctionParser : parsers) {
-            for (String name : scoreFunctionParser.getNames()) {
-                builder.put(name, scoreFunctionParser);
-            }
-        }
-        this.functionParsers = builder.immutableMap();
+    public ScoreFunctionParserMapper(Map<String, ScoreFunctionParser<?>> functionParsers) {
+        this.functionParsers = unmodifiableMap(functionParsers);
     }
 
-    public ScoreFunctionParser get(QueryParseContext parseContext, String parserName) {
-        ScoreFunctionParser functionParser = get(parserName);
+    public ScoreFunctionParser<?> get(XContentLocation contentLocation, String parserName) {
+        ScoreFunctionParser<?> functionParser = get(parserName);
         if (functionParser == null) {
-            throw new QueryParsingException(parseContext, "No function with the name [" + parserName + "] is registered.", null);
+            throw new ParsingException(contentLocation, "No function with the name [" + parserName + "] is registered.");
         }
         return functionParser;
     }
 
-    private ScoreFunctionParser get(String parserName) {
+    private ScoreFunctionParser<?> get(String parserName) {
         return functionParsers.get(parserName);
     }
-
 }

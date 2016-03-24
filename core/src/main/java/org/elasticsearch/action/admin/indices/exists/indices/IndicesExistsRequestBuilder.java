@@ -39,7 +39,7 @@ public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestB
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p/>
+     * <p>
      * For example indices that don't exist.
      */
     public IndicesExistsRequestBuilder setIndicesOptions(IndicesOptions options) {

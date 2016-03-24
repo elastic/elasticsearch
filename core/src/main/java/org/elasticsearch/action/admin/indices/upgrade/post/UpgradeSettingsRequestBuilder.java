@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.Map;
 
@@ -36,7 +38,7 @@ public class UpgradeSettingsRequestBuilder extends AcknowledgedRequestBuilder<Up
     /**
      * Sets the index versions to be updated
      */
-    public UpgradeSettingsRequestBuilder setVersions(Map<String, String> versions) {
+    public UpgradeSettingsRequestBuilder setVersions(Map<String, Tuple<Version, String>> versions) {
         request.versions(versions);
         return this;
     }

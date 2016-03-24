@@ -1,5 +1,7 @@
 package org.elasticsearch.index.mapper.null_value;
 
+import org.elasticsearch.common.compress.CompressedXContent;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -22,21 +24,18 @@ package org.elasticsearch.index.mapper.null_value;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.Test;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class NullValueTests extends ElasticsearchSingleNodeTest {
-
-    @Test
-    public void testNullNull_Value() throws Exception {
+public class NullValueTests extends ESSingleNodeTestCase {
+    public void testNullNullValue() throws Exception {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
-        String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "string", "boolean", "byte"};
+        String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte"};
 
         for (String type : typesToTest) {
             String mapping = XContentFactory.jsonBuilder()
@@ -52,14 +51,11 @@ public class NullValueTests extends ElasticsearchSingleNodeTest {
                     .endObject().string();
 
             try {
-                indexService.mapperService().documentMapperParser().parse(mapping);
+                indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
                 fail("Test should have failed because [null_value] was null.");
             } catch (MapperParsingException e) {
                 assertThat(e.getMessage(), equalTo("Property [null_value] cannot be null."));
             }
-
         }
-
-
     }
 }

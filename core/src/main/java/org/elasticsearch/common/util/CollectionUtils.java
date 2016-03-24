@@ -23,19 +23,25 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.ObjectArrayList;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import org.apache.lucene.util.*;
-import org.elasticsearch.common.inject.Module;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.IntroSorter;
 
-import java.util.*;
+import java.util.AbstractList;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
+import java.util.RandomAccess;
 
 /** Collections-related utility methods. */
-public enum CollectionUtils {
-    CollectionUtils;
-
+public class CollectionUtils {
     public static void sort(LongArrayList list) {
         sort(list.buffer, list.size());
     }
@@ -281,14 +287,23 @@ public enum CollectionUtils {
         }.sort(0, array.size());
     }
 
+    public static int[] toArray(Collection<Integer> ints) {
+        Objects.requireNonNull(ints);
+        return ints.stream().mapToInt(s -> s).toArray();
+    }
+
     private static class RotatedList<T> extends AbstractList<T> implements RandomAccess {
 
         private final List<T> in;
         private final int distance;
 
         public RotatedList(List<T> list, int distance) {
-            Preconditions.checkArgument(distance >= 0 && distance < list.size());
-            Preconditions.checkArgument(list instanceof RandomAccess);
+            if (distance < 0 || distance >= list.size()) {
+                throw new IllegalArgumentException();
+            }
+            if (!(list instanceof RandomAccess)) {
+                throw new IllegalArgumentException();
+            }
             this.in = list;
             this.distance = distance;
         }
@@ -318,7 +333,7 @@ public enum CollectionUtils {
         assert indices.length >= numValues;
         if (numValues > 1) {
             new InPlaceMergeSorter() {
-                final Comparator<BytesRef> comparator = BytesRef.getUTF8SortedAsUnicodeComparator();
+                final Comparator<BytesRef> comparator = Comparator.naturalOrder();
                 @Override
                 protected int compare(int i, int j) {
                     return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));
@@ -361,15 +376,88 @@ public enum CollectionUtils {
 
     }
 
-    /**
-     * Combines multiple iterators into a single iterator.
-     */
-    public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
-        return Iterators.<T>concat(iterators);
+    public static <E> ArrayList<E> iterableAsArrayList(Iterable<? extends E> elements) {
+        if (elements == null) {
+            throw new NullPointerException("elements");
+        }
+        if (elements instanceof Collection) {
+            return new ArrayList<>((Collection)elements);
+        } else {
+            ArrayList<E> list = new ArrayList<>();
+            for (E element : elements) {
+                list.add(element);
+            }
+            return list;
+        }
     }
 
-    public static <E> ArrayList<E> newArrayList(E... elements) {
-        return Lists.newArrayList(elements);
+    public static <E> ArrayList<E> arrayAsArrayList(E... elements) {
+        if (elements == null) {
+            throw new NullPointerException("elements");
+        }
+        return new ArrayList<>(Arrays.asList(elements));
     }
 
+    public static <E> ArrayList<E> asArrayList(E first, E... other) {
+        if (other == null) {
+            throw new NullPointerException("other");
+        }
+        ArrayList<E> list = new ArrayList<>(1 + other.length);
+        list.add(first);
+        list.addAll(Arrays.asList(other));
+        return list;
+    }
+
+    public static<E> ArrayList<E> asArrayList(E first, E second, E... other) {
+        if (other == null) {
+            throw new NullPointerException("other");
+        }
+        ArrayList<E> list = new ArrayList<>(1 + 1 + other.length);
+        list.add(first);
+        list.add(second);
+        list.addAll(Arrays.asList(other));
+        return list;
+    }
+
+    public static <E> ArrayList<E> newSingletonArrayList(E element) {
+        return new ArrayList<>(Collections.singletonList(element));
+    }
+
+    public static <E> LinkedList<E> newLinkedList(Iterable<E> elements) {
+        if (elements == null) {
+            throw new NullPointerException("elements");
+        }
+        LinkedList<E> linkedList = new LinkedList<>();
+        for (E element : elements) {
+            linkedList.add(element);
+        }
+        return linkedList;
+    }
+
+    public static <E> List<List<E>> eagerPartition(List<E> list, int size) {
+        if (list == null) {
+            throw new NullPointerException("list");
+        }
+        if (size <= 0) {
+            throw new IllegalArgumentException("size <= 0");
+        }
+        List<List<E>> result = new ArrayList<>((int) Math.ceil(list.size() / size));
+
+        List<E> accumulator = new ArrayList<>(size);
+        int count = 0;
+        for (E element : list) {
+            if (count == size) {
+                result.add(accumulator);
+                accumulator = new ArrayList<>(size);
+                count = 0;
+            }
+            accumulator.add(element);
+            count++;
+        }
+        if (count > 0) {
+            result.add(accumulator);
+        }
+
+        return result;
+    }
 }

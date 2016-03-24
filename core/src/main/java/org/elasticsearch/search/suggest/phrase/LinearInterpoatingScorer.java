@@ -41,7 +41,19 @@ public final class LinearInterpoatingScorer extends WordScorer {
         this.bigramLambda = bigramLambda / sum;
         this.trigramLambda = trigramLambda / sum;
     }
-    
+
+    double trigramLambda() {
+        return this.trigramLambda;
+    }
+
+    double bigramLambda() {
+        return this.bigramLambda;
+    }
+
+    double unigramLambda() {
+        return this.unigramLambda;
+    }
+
     @Override
     protected double scoreBigram(Candidate word, Candidate w_1) throws IOException {
         SuggestUtils.join(separator, spare, w_1.term, word.term);

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -32,10 +32,10 @@ import java.util.List;
  */
 class RecoveryResponse extends TransportResponse {
 
-    List<String> phase1FileNames = Lists.newArrayList();
-    List<Long> phase1FileSizes = Lists.newArrayList();
-    List<String> phase1ExistingFileNames = Lists.newArrayList();
-    List<Long> phase1ExistingFileSizes = Lists.newArrayList();
+    List<String> phase1FileNames = new ArrayList<>();
+    List<Long> phase1FileSizes = new ArrayList<>();
+    List<String> phase1ExistingFileNames = new ArrayList<>();
+    List<Long> phase1ExistingFileSizes = new ArrayList<>();
     long phase1TotalSize;
     long phase1ExistingTotalSize;
     long phase1Time;
@@ -53,23 +53,23 @@ class RecoveryResponse extends TransportResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        phase1FileNames = Lists.newArrayListWithCapacity(size);
+        phase1FileNames = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             phase1FileNames.add(in.readString());
         }
         size = in.readVInt();
-        phase1FileSizes = Lists.newArrayListWithCapacity(size);
+        phase1FileSizes = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             phase1FileSizes.add(in.readVLong());
         }
 
         size = in.readVInt();
-        phase1ExistingFileNames = Lists.newArrayListWithCapacity(size);
+        phase1ExistingFileNames = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             phase1ExistingFileNames.add(in.readString());
         }
         size = in.readVInt();
-        phase1ExistingFileSizes = Lists.newArrayListWithCapacity(size);
+        phase1ExistingFileSizes = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             phase1ExistingFileSizes.add(in.readVLong());
         }

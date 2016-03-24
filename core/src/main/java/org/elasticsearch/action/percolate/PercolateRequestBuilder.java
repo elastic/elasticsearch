@@ -18,15 +18,17 @@
  */
 package org.elasticsearch.action.percolate;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -35,12 +37,22 @@ import java.util.Map;
 /**
  * A builder the easy to use of defining a percolate request.
  */
-public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
+public class PercolateRequestBuilder extends ActionRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
 
     private PercolateSourceBuilder sourceBuilder;
 
     public PercolateRequestBuilder(ElasticsearchClient client, PercolateAction action) {
         super(client, action, new PercolateRequest());
+    }
+
+    public PercolateRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
+        return this;
+    }
+
+    public PercolateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
+        return this;
     }
 
     /**
@@ -114,7 +126,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     /**
      * Delegates to {@link PercolateSourceBuilder#addSort(SortBuilder)}
      */
-    public PercolateRequestBuilder addSort(SortBuilder sort) {
+    public PercolateRequestBuilder addSort(SortBuilder<?> sort) {
         sourceBuilder().addSort(sort);
         return this;
     }
@@ -152,16 +164,26 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Delegates to {@link PercolateSourceBuilder#addAggregation(AbstractAggregationBuilder)}
+     * Delegates to
+     * {@link PercolateSourceBuilder#addAggregation(AggregatorBuilder)}
      */
-    public PercolateRequestBuilder addAggregation(AbstractAggregationBuilder aggregationBuilder) {
+    public PercolateRequestBuilder addAggregation(AggregatorBuilder<?> aggregationBuilder) {
         sourceBuilder().addAggregation(aggregationBuilder);
         return this;
     }
 
     /**
-     * Sets the percolate request definition directly on the request.
-     * This will overwrite any definitions set by any of the delegate methods.
+     * Delegates to
+     * {@link PercolateSourceBuilder#addAggregation(PipelineAggregatorBuilder)}
+     */
+    public PercolateRequestBuilder addAggregation(PipelineAggregatorBuilder aggregationBuilder) {
+        sourceBuilder().addAggregation(aggregationBuilder);
+        return this;
+    }
+
+    /**
+     * Sets the percolate request definition directly on the request. This will
+     * overwrite any definitions set by any of the delegate methods.
      */
     public PercolateRequestBuilder setSource(PercolateSourceBuilder source) {
         sourceBuilder = source;

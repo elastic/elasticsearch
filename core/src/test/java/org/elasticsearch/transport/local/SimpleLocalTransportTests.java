@@ -20,15 +20,16 @@
 package org.elasticsearch.transport.local;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.AbstractSimpleTransportTests;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 
-public class SimpleLocalTransportTests extends AbstractSimpleTransportTests {
+public class SimpleLocalTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected MockTransportService build(Settings settings, Version version) {
-        MockTransportService transportService = new MockTransportService(Settings.EMPTY, new LocalTransport(settings, threadPool, version), threadPool);
+    protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
+        MockTransportService transportService = MockTransportService.local(settings, version, threadPool);
         transportService.start();
         return transportService;
     }

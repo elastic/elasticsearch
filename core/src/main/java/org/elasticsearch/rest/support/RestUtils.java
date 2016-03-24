@@ -19,12 +19,13 @@
 
 package org.elasticsearch.rest.support;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.common.settings.Settings;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -39,7 +40,6 @@ public class RestUtils {
             return RestUtils.decodeComponent(value);
         }
     };
-    public static final String HTTP_CORS_ALLOW_ORIGIN_SETTING = "http.cors.allow-origin";
 
     public static boolean isBrowser(@Nullable String userAgent) {
         if (userAgent == null) {
@@ -60,11 +60,13 @@ public class RestUtils {
             return;
         }
 
+        int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
+
         String name = null;
         int pos = fromIndex; // Beginning of the unprocessed region
         int i;       // End of the unprocessed region
         char c = 0;  // Current character
-        for (i = fromIndex; i < s.length(); i++) {
+        for (i = fromIndex; i < queryStringLength; i++) {
             c = s.charAt(i);
             if (c == '=' && name == null) {
                 if (pos != i) {
@@ -102,7 +104,7 @@ public class RestUtils {
 
     /**
      * Decodes a bit of an URL encoded by a browser.
-     * <p/>
+     * <p>
      * This is equivalent to calling {@link #decodeComponent(String, Charset)}
      * with the UTF-8 charset (recommended to comply with RFC 3986, Section 2).
      *
@@ -113,18 +115,18 @@ public class RestUtils {
      *                                  escape sequence.
      */
     public static String decodeComponent(final String s) {
-        return decodeComponent(s, Charsets.UTF_8);
+        return decodeComponent(s, StandardCharsets.UTF_8);
     }
 
     /**
      * Decodes a bit of an URL encoded by a browser.
-     * <p/>
+     * <p>
      * The string is expected to be encoded as per RFC 3986, Section 2.
      * This is the encoding used by JavaScript functions {@code encodeURI}
      * and {@code encodeURIComponent}, but not {@code escape}.  For example
      * in this encoding, &eacute; (in Unicode {@code U+00E9} or in UTF-8
      * {@code 0xC3 0xA9}) is encoded as {@code %C3%A9} or {@code %c3%a9}.
-     * <p/>
+     * <p>
      * This is essentially equivalent to calling
      * <code>{@link java.net.URLDecoder URLDecoder}.{@link
      * java.net.URLDecoder#decode(String, String)}</code>
@@ -134,19 +136,28 @@ public class RestUtils {
      *
      * @param s       The string to decode (can be empty).
      * @param charset The charset to use to decode the string (should really
-     *                be {@link Charsets#UTF_8}.
+     *                be {@link StandardCharsets#UTF_8}.
      * @return The decoded string, or {@code s} if there's nothing to decode.
      *         If the string to decode is {@code null}, returns an empty string.
      * @throws IllegalArgumentException if the string contains a malformed
      *                                  escape sequence.
      */
-    @SuppressWarnings("fallthrough")
     public static String decodeComponent(final String s, final Charset charset) {
         if (s == null) {
             return "";
         }
         final int size = s.length();
-        boolean modified = false;
+        if (!decodingNeeded(s, size)) {
+            return s;
+        }
+        final byte[] buf = new byte[size];
+        int pos = decode(s, size, buf);
+        return new String(buf, 0, pos, charset);
+    }
+
+    @SuppressWarnings("fallthrough")
+    private static boolean decodingNeeded(String s, int size) {
+        boolean decodingNeeded = false;
         for (int i = 0; i < size; i++) {
             final char c = s.charAt(i);
             switch (c) {
@@ -154,14 +165,15 @@ public class RestUtils {
                     i++;  // We can skip at least one char, e.g. `%%'.
                     // Fall through.
                 case '+':
-                    modified = true;
+                    decodingNeeded = true;
                     break;
             }
         }
-        if (!modified) {
-            return s;
-        }
-        final byte[] buf = new byte[size];
+        return decodingNeeded;
+    }
+
+    @SuppressWarnings("fallthrough")
+    private static int decode(String s, int size, byte[] buf) {
         int pos = 0;  // position in `buf'.
         for (int i = 0; i < size; i++) {
             char c = s.charAt(i);
@@ -171,24 +183,22 @@ public class RestUtils {
                     break;
                 case '%':
                     if (i == size - 1) {
-                        throw new IllegalArgumentException("unterminated escape"
-                                + " sequence at end of string: " + s);
+                        throw new IllegalArgumentException("unterminated escape sequence at end of string: " + s);
                     }
                     c = s.charAt(++i);
                     if (c == '%') {
                         buf[pos++] = '%';  // "%%" -> "%"
                         break;
                     } else if (i == size - 1) {
-                        throw new IllegalArgumentException("partial escape"
-                                + " sequence at end of string: " + s);
+                        throw new IllegalArgumentException("partial escape sequence at end of string: " + s);
                     }
                     c = decodeHexNibble(c);
                     final char c2 = decodeHexNibble(s.charAt(++i));
                     if (c == Character.MAX_VALUE || c2 == Character.MAX_VALUE) {
                         throw new IllegalArgumentException(
-                                "invalid escape sequence `%" + s.charAt(i - 1)
-                                        + s.charAt(i) + "' at index " + (i - 2)
-                                        + " of: " + s);
+                            "invalid escape sequence `%" + s.charAt(i - 1)
+                                + s.charAt(i) + "' at index " + (i - 2)
+                                + " of: " + s);
                     }
                     c = (char) (c * 16 + c2);
                     // Fall through.
@@ -197,7 +207,7 @@ public class RestUtils {
                     break;
             }
         }
-        return new String(buf, 0, pos, charset);
+        return pos;
     }
 
     /**
@@ -222,9 +232,13 @@ public class RestUtils {
 
     /**
      * Determine if CORS setting is a regex
+     *
+     * @return a corresponding {@link Pattern} if so and o.w. null.
      */
-    public static Pattern getCorsSettingRegex(Settings settings) {
-        String corsSetting = settings.get(HTTP_CORS_ALLOW_ORIGIN_SETTING, "*");
+    public static Pattern checkCorsSettingForRegex(String corsSetting) {
+        if (corsSetting == null) {
+            return null;
+        }
         int len = corsSetting.length();
         boolean isRegex = len > 2 &&  corsSetting.startsWith("/") && corsSetting.endsWith("/");
 
@@ -233,5 +247,22 @@ public class RestUtils {
         }
 
         return null;
+    }
+
+    /**
+     * Return the CORS setting as an array of origins.
+     *
+     * @param corsSetting the CORS allow origin setting as configured by the user;
+     *                    should never pass null, but we check for it anyway.
+     * @return an array of origins if set, otherwise {@code null}.
+     */
+    public static String[] corsSettingAsArray(String corsSetting) {
+        if (Strings.isNullOrEmpty(corsSetting)) {
+            return new String[0];
+        }
+        return Arrays.asList(corsSetting.split(","))
+                     .stream()
+                     .map(String::trim)
+                     .toArray(size -> new String[size]);
     }
 }

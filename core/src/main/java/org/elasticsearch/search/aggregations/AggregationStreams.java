@@ -18,20 +18,22 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * A registry for all the dedicated streams in the aggregation module. This is to support dynamic addAggregation that
  * know how to stream themselves.
  */
 public class AggregationStreams {
-
-    private static ImmutableMap<BytesReference, Stream> streams = ImmutableMap.of();
+    private static Map<BytesReference, Stream> streams = emptyMap();
 
     /**
      * A stream that knows how to read an aggregation from the input.
@@ -47,11 +49,11 @@ public class AggregationStreams {
      * @param types     The types associated with the streams
      */
     public static synchronized void registerStream(Stream stream, BytesReference... types) {
-        MapBuilder<BytesReference, Stream> uStreams = MapBuilder.newMapBuilder(streams);
+        Map<BytesReference, Stream> newStreams = new HashMap<>(streams);
         for (BytesReference type : types) {
-            uStreams.put(type, stream);
+            newStreams.put(type, stream);
         }
-        streams = uStreams.immutableMap();
+        streams = unmodifiableMap(newStreams);
     }
 
     /**

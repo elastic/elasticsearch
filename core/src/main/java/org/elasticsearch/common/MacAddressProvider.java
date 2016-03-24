@@ -65,8 +65,8 @@ public class MacAddressProvider {
         byte[] address = null;
         try {
             address = getMacAddress();
-        } catch( SocketException se ) {
-            logger.warn("Unable to get mac address, will use a dummy address", se);
+        } catch (Throwable t) {
+            logger.warn("Unable to get mac address, will use a dummy address", t);
             // address will be set below
         }
 

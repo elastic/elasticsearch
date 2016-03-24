@@ -20,10 +20,8 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -34,6 +32,7 @@ import java.util.Map;
  */
 public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestionsContext> {
 
+    public static CustomSuggester PROTOTYPE = new CustomSuggester();
 
     // This is a pretty dumb implementation which returns the original text + fieldName + custom config option + 12 or 123
     @Override
@@ -45,41 +44,28 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
         Suggest.Suggestion<Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option>> response = new Suggest.Suggestion<>(name, suggestion.getSize());
 
         String firstSuggestion = String.format(Locale.ROOT, "%s-%s-%s-%s", text, suggestion.getField(), suggestion.options.get("suffix"), "12");
-        Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> resultEntry12 = new Suggest.Suggestion.Entry<>(new StringText(firstSuggestion), 0, text.length() + 2);
+        Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> resultEntry12 = new Suggest.Suggestion.Entry<>(new Text(firstSuggestion), 0, text.length() + 2);
         response.addTerm(resultEntry12);
 
         String secondSuggestion = String.format(Locale.ROOT, "%s-%s-%s-%s", text, suggestion.getField(), suggestion.options.get("suffix"), "123");
-        Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> resultEntry123 = new Suggest.Suggestion.Entry<>(new StringText(secondSuggestion), 0, text.length() + 3);
+        Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> resultEntry123 = new Suggest.Suggestion.Entry<>(new Text(secondSuggestion), 0, text.length() + 3);
         response.addTerm(resultEntry123);
 
         return response;
-    }
-
-    @Override
-    public String[] names() {
-        return new String[] {"custom"};
-    }
-
-    @Override
-    public SuggestContextParser getContextParser() {
-        return new SuggestContextParser() {
-            @Override
-            public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService) throws IOException {
-                Map<String, Object> options = parser.map();
-                CustomSuggestionsContext suggestionContext = new CustomSuggestionsContext(CustomSuggester.this, options);
-                suggestionContext.setField((String) options.get("field"));
-                return suggestionContext;
-            }
-        };
     }
 
     public static class CustomSuggestionsContext extends SuggestionSearchContext.SuggestionContext {
 
         public Map<String, Object> options;
 
-        public CustomSuggestionsContext(Suggester suggester, Map<String, Object> options) {
-            super(suggester);
+        public CustomSuggestionsContext(QueryShardContext context, Map<String, Object> options) {
+            super(new CustomSuggester(), context);
             this.options = options;
         }
+    }
+
+    @Override
+    public SuggestionBuilder<?> getBuilderPrototype() {
+        return CustomSuggesterSearchIT.CustomSuggestionBuilder.PROTOTYPE;
     }
 }

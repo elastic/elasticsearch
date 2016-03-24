@@ -28,32 +28,33 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.search.TransportSearchModule;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -62,8 +63,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
- * <p/>
- * <p>The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
+ * <p>
+ * The transport client important modules used is the {@link org.elasticsearch.common.network.NetworkModule} which is
  * started in client mode (only connects, no bind).
  */
 public class TransportClient extends AbstractClient {
@@ -80,8 +81,8 @@ public class TransportClient extends AbstractClient {
      */
     public static class Builder {
 
-        private Settings settings = Settings.EMPTY;
-        private boolean loadConfigSettings = true;
+        private Settings providedSettings = Settings.EMPTY;
+        private List<Class<? extends Plugin>> pluginClasses = new ArrayList<>();
 
         /**
          * The settings to configure the transport client with.
@@ -94,58 +95,69 @@ public class TransportClient extends AbstractClient {
          * The settings to configure the transport client with.
          */
         public Builder settings(Settings settings) {
-            this.settings = settings;
+            this.providedSettings = settings;
             return this;
         }
 
         /**
-         * Should the transport client load file based configuration automatically or not (and rely
-         * only on the provided settings), defaults to true.
+         * Add the given plugin to the client when it is created.
          */
-        public Builder loadConfigSettings(boolean loadConfigSettings) {
-            this.loadConfigSettings = loadConfigSettings;
+        public Builder addPlugin(Class<? extends Plugin> pluginClass) {
+            pluginClasses.add(pluginClass);
             return this;
+        }
+
+        private PluginsService newPluginService(final Settings settings) {
+            final Settings.Builder settingsBuilder = settingsBuilder()
+                    .put(NettyTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
+                    .put(InternalSettingsPreparer.prepareSettings(settings))
+                    .put(NetworkService.NETWORK_SERVER.getKey(), false)
+                    .put(Node.NODE_CLIENT_SETTING.getKey(), true)
+                    .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
+            return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
         }
 
         /**
          * Builds a new instance of the transport client.
          */
         public TransportClient build() {
-            Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, loadConfigSettings);
-            Settings settings = settingsBuilder()
-                    .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
-                    .put(tuple.v1())
-                    .put("network.server", false)
-                    .put("node.client", true)
-                    .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
-                    .build();
-            Environment environment = tuple.v2();
-
-            PluginsService pluginsService = new PluginsService(settings, tuple.v2());
-            this.settings = pluginsService.updatedSettings();
+            final PluginsService pluginsService = newPluginService(providedSettings);
+            final Settings settings = pluginsService.updatedSettings();
 
             Version version = Version.CURRENT;
 
             final ThreadPool threadPool = new ThreadPool(settings);
-
+            final NetworkService networkService = new NetworkService(settings);
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             boolean success = false;
             try {
                 ModulesBuilder modules = new ModulesBuilder();
                 modules.add(new Version.Module(version));
-                modules.add(new PluginsModule(this.settings, pluginsService));
-                modules.add(new EnvironmentModule(environment));
-                modules.add(new SettingsModule(this.settings));
-                modules.add(new NetworkModule());
-                modules.add(new ClusterNameModule(this.settings));
+                // plugin modules must be added here, before others or we can get crazy injection errors...
+                for (Module pluginModule : pluginsService.nodeModules()) {
+                    modules.add(pluginModule);
+                }
+                modules.add(new PluginsModule(pluginsService));
+                modules.add(new SettingsModule(settings));
+                modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
+                modules.add(new ClusterNameModule(settings));
                 modules.add(new ThreadPoolModule(threadPool));
-                modules.add(new TransportSearchModule());
-                modules.add(new TransportModule(this.settings));
-                modules.add(new ActionModule(true));
-                modules.add(new ClientTransportModule());
-                modules.add(new CircuitBreakerModule(this.settings));
+                modules.add(new SearchModule(settings, namedWriteableRegistry) {
+                    @Override
+                    protected void configure() {
+                        // noop
+                    }
+                });
+                modules.add(new ActionModule(false, true));
+                modules.add(new CircuitBreakerModule(settings));
+
+                pluginsService.processModules(modules);
 
                 Injector injector = modules.createInjector();
-                injector.getInstance(TransportService.class).start();
+                final TransportService transportService = injector.getInstance(TransportService.class);
+                transportService.start();
+                transportService.acceptIncomingRequests();
+
                 TransportClient transportClient = new TransportClient(injector);
                 success = true;
                 return transportClient;
@@ -165,7 +177,7 @@ public class TransportClient extends AbstractClient {
     private final TransportProxyClient proxy;
 
     private TransportClient(Injector injector) {
-        super(injector.getInstance(Settings.class), injector.getInstance(ThreadPool.class), injector.getInstance(Headers.class));
+        super(injector.getInstance(Settings.class), injector.getInstance(ThreadPool.class));
         this.injector = injector;
         nodesService = injector.getInstance(TransportClientNodesService.class);
         proxy = injector.getInstance(TransportProxyClient.class);
@@ -185,8 +197,8 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Returns the current connected transport nodes that this client will use.
-     * <p/>
-     * <p>The nodes include all the nodes that are currently alive based on the transport
+     * <p>
+     * The nodes include all the nodes that are currently alive based on the transport
      * addresses provided.
      */
     public List<DiscoveryNode> connectedNodes() {
@@ -210,11 +222,11 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Adds a transport address that will be used to connect to.
-     * <p/>
-     * <p>The Node this transport address represents will be used if its possible to connect to it.
+     * <p>
+     * The Node this transport address represents will be used if its possible to connect to it.
      * If it is unavailable, it will be automatically connected to once it is up.
-     * <p/>
-     * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
+     * <p>
+     * In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
      */
     public TransportClient addTransportAddress(TransportAddress transportAddress) {
         nodesService.addTransportAddresses(transportAddress);
@@ -223,11 +235,11 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Adds a list of transport addresses that will be used to connect to.
-     * <p/>
-     * <p>The Node this transport address represents will be used if its possible to connect to it.
+     * <p>
+     * The Node this transport address represents will be used if its possible to connect to it.
      * If it is unavailable, it will be automatically connected to once it is up.
-     * <p/>
-     * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
+     * <p>
+     * In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
      */
     public TransportClient addTransportAddresses(TransportAddress... transportAddress) {
         nodesService.addTransportAddresses(transportAddress);
@@ -255,7 +267,7 @@ public class TransportClient extends AbstractClient {
             // ignore, might not be bounded
         }
 
-        for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).services()) {
+        for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).nodeServices()) {
             injector.getInstance(plugin).close();
         }
         try {
@@ -268,7 +280,7 @@ public class TransportClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
     }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2009 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.FailableCache;
@@ -25,6 +23,8 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -35,7 +35,7 @@ import java.util.Set;
  */
 class MembersInjectorStore {
     private final InjectorImpl injector;
-    private final ImmutableList<TypeListenerBinding> typeListenerBindings;
+    private final List<TypeListenerBinding> typeListenerBindings;
 
     private final FailableCache<TypeLiteral<?>, MembersInjectorImpl<?>> cache
             = new FailableCache<TypeLiteral<?>, MembersInjectorImpl<?>>() {
@@ -49,7 +49,7 @@ class MembersInjectorStore {
     MembersInjectorStore(InjectorImpl injector,
                          List<TypeListenerBinding> typeListenerBindings) {
         this.injector = injector;
-        this.typeListenerBindings = ImmutableList.copyOf(typeListenerBindings);
+        this.typeListenerBindings = Collections.unmodifiableList(typeListenerBindings);
     }
 
     /**
@@ -82,7 +82,7 @@ class MembersInjectorStore {
             errors.merge(e.getErrorMessages());
             injectionPoints = e.getPartialValue();
         }
-        ImmutableList<SingleMemberInjector> injectors = getInjectors(injectionPoints, errors);
+        List<SingleMemberInjector> injectors = getInjectors(injectionPoints, errors);
         errors.throwIfNewErrors(numErrorsBefore);
 
         EncounterImpl<T> encounter = new EncounterImpl<>(errors, injector.lookups);
@@ -104,9 +104,9 @@ class MembersInjectorStore {
     /**
      * Returns the injectors for the specified injection points.
      */
-    ImmutableList<SingleMemberInjector> getInjectors(
+    List<SingleMemberInjector> getInjectors(
             Set<InjectionPoint> injectionPoints, Errors errors) {
-        List<SingleMemberInjector> injectors = Lists.newArrayList();
+        List<SingleMemberInjector> injectors = new ArrayList<>();
         for (InjectionPoint injectionPoint : injectionPoints) {
             try {
                 Errors errorsForMember = injectionPoint.isOptional()
@@ -120,6 +120,6 @@ class MembersInjectorStore {
                 // ignored for now
             }
         }
-        return ImmutableList.copyOf(injectors);
+        return Collections.unmodifiableList(injectors);
     }
 }

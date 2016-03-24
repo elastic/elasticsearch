@@ -19,30 +19,24 @@
 
 package org.elasticsearch.index.mapper.typelevels;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.Test;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
 // TODO: move this test...it doesn't need to be by itself
-public class ParseMappingTypeLevelTests extends ElasticsearchSingleNodeTest {
-
-    @Test
+public class ParseMappingTypeLevelTests extends ESSingleNodeTestCase {
     public void testTypeLevel() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_size").field("enabled", true).endObject()
+                .startObject("_timestamp").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper mapper = parser.parse("type", mapping);
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.sizeFieldMapper().enabled(), equalTo(true));
-
-        mapper = parser.parse(mapping);
-        assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.sizeFieldMapper().enabled(), equalTo(true));
+        assertThat(mapper.timestampFieldMapper().enabled(), equalTo(true));
     }
 }

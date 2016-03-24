@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
@@ -29,7 +28,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
@@ -46,7 +51,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
     @Inject
     public RestGetFieldMappingAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_mapping/field/{fields}", this);
         controller.registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
         controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
@@ -64,11 +69,9 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
-
-            @SuppressWarnings("unchecked")
             @Override
             public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
-                ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
+                Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
 
                 boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
                 if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
@@ -91,13 +94,13 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
      * Helper method to find out if the only included fieldmapping metadata is typed NULL, which means
      * that type and index exist, but the field did not
      */
-    private boolean isFieldMappingMissingField(ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappingsByIndex) throws IOException {
+    private boolean isFieldMappingMissingField(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex) throws IOException {
         if (mappingsByIndex.size() != 1) {
             return false;
         }
 
-        for (ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>> value : mappingsByIndex.values()) {
-            for (ImmutableMap<String, FieldMappingMetaData> fieldValue : value.values()) {
+        for (Map<String, Map<String, FieldMappingMetaData>> value : mappingsByIndex.values()) {
+            for (Map<String, FieldMappingMetaData> fieldValue : value.values()) {
                 for (Map.Entry<String, FieldMappingMetaData> fieldMappingMetaDataEntry : fieldValue.entrySet()) {
                     if (fieldMappingMetaDataEntry.getValue().isNull()) {
                         return true;

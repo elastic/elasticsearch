@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-sum-bucket-aggregation]]
 === Sum Bucket Aggregation
 
-coming[2.0.0]
-
 experimental[]
 
 A sibling pipeline aggregation which calculates the sum across all bucket of a specified metric in a sibling aggregation. 
@@ -24,7 +22,7 @@ A `sum_bucket` aggregation looks like this in isolation:
 .`sum_bucket` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`buckets_path` |The path to the buckets we wish to find the sum for (see <<bucket-path-syntax>> for more
+|`buckets_path` |The path to the buckets we wish to find the sum for (see <<buckets-path-syntax>> for more
  details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional, defaults to `skip` ||
@@ -52,13 +50,13 @@ The following snippet calculates the sum of all the total monthly `sales` bucket
         },
         "sum_monthly_sales": {
             "sum_bucket": {
-                "buckets_paths": "sales_per_month>sales" <1>
+                "buckets_path": "sales_per_month>sales" <1>
             }
         }
     }
 }
 --------------------------------------------------
-<1> `bucket_paths` instructs this sum_bucket aggregation that we want the sum of the `sales` aggregation in the 
+<1> `buckets_path` instructs this sum_bucket aggregation that we want the sum of the `sales` aggregation in the 
 `sales_per_month` date histogram.
 
 And the following may be the response:

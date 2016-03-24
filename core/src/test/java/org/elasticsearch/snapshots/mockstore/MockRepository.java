@@ -19,29 +19,31 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -54,9 +56,33 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
-/**
- */
 public class MockRepository extends FsRepository {
+
+    public static class Plugin extends org.elasticsearch.plugins.Plugin {
+
+        public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", Property.NodeScope);
+        public static final Setting<String> PASSWORD_SETTING =
+            Setting.simpleString("secret.mock.password", Property.NodeScope, Property.Filtered);
+
+        @Override
+        public String name() {
+            return "mock-repository";
+        }
+
+        @Override
+        public String description() {
+            return "Mock Repository";
+        }
+
+        public void onModule(RepositoriesModule repositoriesModule) {
+            repositoriesModule.registerRepository("mock", MockRepository.class, BlobStoreIndexShardRepository.class);
+        }
+
+        public void onModule(SettingsModule module) {
+            module.registerSetting(USERNAME_SETTING);
+            module.registerSetting(PASSWORD_SETTING);
+        }
+    }
 
     private final AtomicLong failureCounter = new AtomicLong();
 
@@ -67,6 +93,8 @@ public class MockRepository extends FsRepository {
     private final double randomControlIOExceptionRate;
 
     private final double randomDataFileIOExceptionRate;
+
+    private final long maximumNumberOfFailures;
 
     private final long waitAfterUnblock;
 
@@ -87,12 +115,13 @@ public class MockRepository extends FsRepository {
         super(name, overrideSettings(repositorySettings, clusterService), indexShardRepository, environment);
         randomControlIOExceptionRate = repositorySettings.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = repositorySettings.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
+        maximumNumberOfFailures = repositorySettings.settings().getAsLong("max_failure_number", 100L);
         blockOnControlFiles = repositorySettings.settings().getAsBoolean("block_on_control", false);
         blockOnDataFiles = repositorySettings.settings().getAsBoolean("block_on_data", false);
         blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
         randomPrefix = repositorySettings.settings().get("random", "default");
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
-        logger.info("starting mock repository with random prefix " + randomPrefix);
+        logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
 
@@ -120,8 +149,8 @@ public class MockRepository extends FsRepository {
         return settingsBuilder().put(settings).put("location", location.toAbsolutePath()).build();
     }
 
-    private void addFailure() {
-        failureCounter.incrementAndGet();
+    private long incrementAndGetFailureCount() {
+        return failureCounter.incrementAndGet();
     }
 
     @Override
@@ -148,14 +177,12 @@ public class MockRepository extends FsRepository {
     }
 
     public synchronized void unblockExecution() {
-        if (blocked) {
-            blocked = false;
-            // Clean blocking flags, so we wouldn't try to block again
-            blockOnDataFiles = false;
-            blockOnControlFiles = false;
-            blockOnInitialization = false;
-            this.notifyAll();
-        }
+        blocked = false;
+        // Clean blocking flags, so we wouldn't try to block again
+        blockOnDataFiles = false;
+        blockOnControlFiles = false;
+        blockOnInitialization = false;
+        this.notifyAll();
     }
 
     public boolean blocked() {
@@ -229,9 +256,8 @@ public class MockRepository extends FsRepository {
 
             private void maybeIOExceptionOrBlock(String blobName) throws IOException {
                 if (blobName.startsWith("__")) {
-                    if (shouldFail(blobName, randomDataFileIOExceptionRate)) {
+                    if (shouldFail(blobName, randomDataFileIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
-                        addFailure();
                         throw new IOException("Random IOException");
                     } else if (blockOnDataFiles) {
                         logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
@@ -246,9 +272,8 @@ public class MockRepository extends FsRepository {
                         }
                     }
                 } else {
-                    if (shouldFail(blobName, randomControlIOExceptionRate)) {
+                    if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
-                        addFailure();
                         throw new IOException("Random IOException");
                     } else if (blockOnControlFiles) {
                         logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
@@ -276,9 +301,9 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public InputStream openInput(String name) throws IOException {
+            public InputStream readBlob(String name) throws IOException {
                 maybeIOExceptionOrBlock(name);
-                return super.openInput(name);
+                return super.readBlob(name);
             }
 
             @Override
@@ -312,9 +337,15 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public OutputStream createOutput(String blobName) throws IOException {
+            public void writeBlob(String blobName, BytesReference bytes) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                return super.createOutput(blobName);
+                super.writeBlob(blobName, bytes);
+            }
+
+            @Override
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                super.writeBlob(blobName, inputStream, blobSize);
             }
         }
     }

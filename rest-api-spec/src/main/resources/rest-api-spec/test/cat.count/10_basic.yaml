@@ -14,13 +14,12 @@
 "Test cat count output":
 
   - do:
-      cat.count:
-        v: false
+      cat.count: {}
 
   - match:
       $body: |
                /# epoch     timestamp              count
-               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  0     \s+  \n  $/
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  0  \n$/
 
   - do:
       index:
@@ -31,13 +30,12 @@
         refresh: true
 
   - do:
-      cat.count:
-        v: false
+      cat.count: {}
 
   - match:
       $body: |
                /# epoch     timestamp              count
-               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1     \s+  \n  $/
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1  \n  $/
 
   - do:
       index:
@@ -50,23 +48,21 @@
   - do:
       cat.count:
         h: count
-        v: false
 
   - match:
       $body: |
                /# count
-               ^  2     \s+  \n  $/
+               ^  2     \n  $/
 
 
   - do:
       cat.count:
         index: index1
-        v: false
 
   - match:
       $body: |
                /# epoch     timestamp              count
-               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1  \s+  \n  $/
+               ^  \d+   \s  \d{2}:\d{2}:\d{2}  \s  1  \n  $/
 
   - do:
       cat.count:
@@ -75,6 +71,5 @@
 
   - match:
       $body: |
-               /^  epoch  \s+  timestamp          \s+  count  \s+  \n
-                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+    \s+  \n  $/
-
+               /^  epoch  \s+  timestamp          \s+  count  \n
+                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+ \n  $/

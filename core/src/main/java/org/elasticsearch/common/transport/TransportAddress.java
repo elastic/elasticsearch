@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.transport;
 
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 
 
@@ -28,7 +27,24 @@ import org.elasticsearch.common.io.stream.Writeable;
  */
 public interface TransportAddress extends Writeable<TransportAddress> {
 
+    /**
+     * Returns the host string for this transport address
+     */
+    String getHost();
+
+    /**
+     * Returns the address string for this transport address
+     */
+    String getAddress();
+
+    /**
+     * Returns the port of this transport address if applicable
+     */
+    int getPort();
+
     short uniqueAddressTypeId();
 
     boolean sameHost(TransportAddress other);
+
+    public String toString();
 }

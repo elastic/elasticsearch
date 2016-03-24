@@ -19,27 +19,19 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.search.Scroll.readScroll;
@@ -49,22 +41,22 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * and is not part of elasticsearch core. In contrast to the previous, in-core, implementation delete-by-query now
  * uses scan/scroll and the returned IDs do delete all documents matching the query. This can have performance
  * as well as visibility implications. Delete-by-query now has the following semantics:
- * <li>
- *     <ul>it's <tt>non-actomic</tt>, a delete-by-query may fail at any time while some documents matching the query have already been deleted</ul>
- *     <ul>it's <tt>try-once</tt>, a delete-by-query may fail at any time and will not retry it's execution. All retry logic is left to the user</ul>
- *     <ul>it's <tt>syntactic sugar</tt>, a delete-by-query is equivalent to a scan/scroll search and corresponding bulk-deletes by ID</ul>
- *     <ul>it's executed on a <tt>point-in-time</tt> snapshot, a delete-by-query will only delete the documents that are visible at the point in time the delete-by-query was started, equivalent to the scan/scroll API</ul>
- *     <ul>it's <tt>consistent</tt>, a delete-by-query will yield consistent results across all replicas of a shard</ul>
- *     <ul>it's <tt>forward-compativle</tt>, a delete-by-query will only send IDs to the shards as deletes such that no queries are stored in the transaction logs that might not be supported in the future.</ul>
- *     <ul>it's results won't be visible until the user refreshes the index.</ul>
- * </li>
+ * <ul>
+ *     <li>it's <tt>non-actomic</tt>, a delete-by-query may fail at any time while some documents matching the query have already been deleted</li>
+ *     <li>it's <tt>try-once</tt>, a delete-by-query may fail at any time and will not retry it's execution. All retry logic is left to the user</li>
+ *     <li>it's <tt>syntactic sugar</tt>, a delete-by-query is equivalent to a scan/scroll search and corresponding bulk-deletes by ID</li>
+ *     <li>it's executed on a <tt>point-in-time</tt> snapshot, a delete-by-query will only delete the documents that are visible at the point in time the delete-by-query was started, equivalent to the scan/scroll API</li>
+ *     <li>it's <tt>consistent</tt>, a delete-by-query will yield consistent results across all replicas of a shard</li>
+ *     <li>it's <tt>forward-compativle</tt>, a delete-by-query will only send IDs to the shards as deletes such that no queries are stored in the transaction logs that might not be supported in the future.</li>
+ *     <li>it's results won't be visible until the user refreshes the index.</li>
+ * </ul>
  *
  * The main reason why delete-by-query is now extracted as a plugin are:
- *  <li>
- *     <ul><tt>forward-compatibility</tt>, the previous implementation was prone to store unsupported queries in the transaction logs which is equvalent to data-loss</ul>
- *     <ul><tt>consistency & correctness</tt>, the previous implementation was prone to produce different results on a shards replica which can essentially result in a corrupted index</ul>
- *     <ul><tt>resiliency</tt>, the previous implementation could cause OOM errors, merge-storms and dramatic slowdowns if used incorrectly</ul>
- * </li>
+ * <ul>
+ *     <li><tt>forward-compatibility</tt>, the previous implementation was prone to store unsupported queries in the transaction logs which is equvalent to data-loss</li>
+ *     <li><tt>consistency &amp; correctness</tt>, the previous implementation was prone to produce different results on a shards replica which can essentially result in a corrupted index</li>
+ *     <li><tt>resiliency</tt>, the previous implementation could cause OOM errors, merge-storms and dramatic slowdowns if used incorrectly</li>
+ * </ul>
  *
  * While delete-by-query is a very useful feature, it's implementation is very tricky in system that is based on per-document modifications. The move towards
  * a plugin based solution was mainly done to minimize the risk of cluster failures or corrupted indices which where easily possible wiht the previous implementation.
@@ -77,7 +69,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private BytesReference source;
+    private QueryBuilder<?> query;
 
     private String routing;
 
@@ -101,7 +93,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (source == null) {
+        if (query == null) {
             validationException = addValidationError("source is missing", validationException);
         }
         return validationException;
@@ -140,45 +132,12 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
         return this;
     }
 
-    public BytesReference source() {
-        return source;
+    public QueryBuilder<?> query() {
+        return query;
     }
 
-    public DeleteByQueryRequest source(QuerySourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        return this;
-    }
-
-    public DeleteByQueryRequest source(Map querySource) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(querySource);
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + querySource + "]", e);
-        }
-    }
-
-    public DeleteByQueryRequest source(XContentBuilder builder) {
-        this.source = builder.bytes();
-        return this;
-    }
-
-    public DeleteByQueryRequest source(String querySource) {
-        this.source = new BytesArray(querySource);
-        return this;
-    }
-
-    public DeleteByQueryRequest source(byte[] querySource) {
-        return source(querySource, 0, querySource.length);
-    }
-
-    public DeleteByQueryRequest source(byte[] querySource, int offset, int length) {
-        return source(new BytesArray(querySource, offset, length));
-    }
-
-    public DeleteByQueryRequest source(BytesReference querySource) {
-        this.source = querySource;
+    public DeleteByQueryRequest query(QueryBuilder<?> queryBuilder) {
+        this.query = queryBuilder;
         return this;
     }
 
@@ -249,7 +208,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         types = in.readStringArray();
-        source = in.readBytesReference();
+        query = in.readQuery();
         routing = in.readOptionalString();
         size = in.readVInt();
         if (in.readBoolean()) {
@@ -266,7 +225,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(types);
-        out.writeBytesReference(source);
+        out.writeQuery(query);
         out.writeOptionalString(routing);
         out.writeVInt(size);
         out.writeOptionalStreamable(scroll);
@@ -275,12 +234,11 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
 
     @Override
     public String toString() {
-        String sSource = "_na_";
-        try {
-            sSource = XContentHelper.convertToJson(source, false);
-        } catch (Exception e) {
-            // ignore
-        }
-        return "delete-by-query [" + Arrays.toString(indices) + "][" + Arrays.toString(types) + "], source[" + sSource + "]";
+        return "delete-by-query indices:" + Arrays.toString(indices) +
+                ", types:" + Arrays.toString(types) +
+                ", size:" + size +
+                ", timeout:" + timeout +
+                ", routing:" + routing +
+                ", query:" + query;
     }
 }

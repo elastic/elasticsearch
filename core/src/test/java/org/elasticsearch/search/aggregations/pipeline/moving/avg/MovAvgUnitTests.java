@@ -19,27 +19,33 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
-import com.google.common.collect.EvictingQueue;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.*;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.common.collect.EvictingQueue;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MovAvgUnitTests extends ElasticsearchTestCase {
-
-    @Test
+public class MovAvgUnitTests extends ESTestCase {
     public void testSimpleMovAvgModel() {
         MovAvgModel model = new SimpleModel();
 
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < numValues; i++) {
 
             double randValue = randomDouble();
@@ -61,14 +67,13 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testSimplePredictionModel() {
         MovAvgModel model = new SimpleModel();
 
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -87,14 +92,13 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testLinearMovAvgModel() {
         MovAvgModel model = new LinearModel();
 
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < numValues; i++) {
             double randValue = randomDouble();
 
@@ -119,14 +123,13 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testLinearPredictionModel() {
         MovAvgModel model = new LinearModel();
 
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1,50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -150,7 +153,6 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testEWMAMovAvgModel() {
         double alpha = randomDouble();
         MovAvgModel model = new EwmaModel(alpha);
@@ -158,7 +160,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < numValues; i++) {
             double randValue = randomDouble();
 
@@ -185,7 +187,6 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testEWMAPredictionModel() {
         double alpha = randomDouble();
         MovAvgModel model = new EwmaModel(alpha);
@@ -193,7 +194,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1,50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -218,7 +219,6 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testHoltLinearMovAvgModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -227,7 +227,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         int numValues = randomIntBetween(1, 100);
         int windowSize = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < numValues; i++) {
             double randValue = randomDouble();
 
@@ -267,7 +267,6 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testHoltLinearPredictionModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -276,7 +275,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         int windowSize = randomIntBetween(1, 50);
         int numPredictions = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -313,7 +312,6 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
     public void testHoltWintersMultiplicativePadModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -323,7 +321,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
 
         int windowSize = randomIntBetween(period * 2, 50); // HW requires at least two periods of data
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -353,8 +351,8 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -381,7 +379,6 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         assertThat(Double.compare(expected, actual), equalTo(0));
     }
 
-    @Test
     public void testHoltWintersMultiplicativePadPredictionModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -392,7 +389,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         int windowSize = randomIntBetween(period * 2, 50); // HW requires at least two periods of data
         int numPredictions = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -424,8 +421,8 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -455,7 +452,6 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
 
     }
 
-    @Test
     public void testHoltWintersAdditiveModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -465,7 +461,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
 
         int windowSize = randomIntBetween(period * 2, 50); // HW requires at least two periods of data
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -494,8 +490,8 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -522,7 +518,6 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         assertThat(Double.compare(expected, actual), equalTo(0));
     }
 
-    @Test
     public void testHoltWintersAdditivePredictionModel() {
         double alpha = randomDouble();
         double beta = randomDouble();
@@ -533,7 +528,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
         int windowSize = randomIntBetween(period * 2, 50); // HW requires at least two periods of data
         int numPredictions = randomIntBetween(1, 50);
 
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {
             window.offer(randomDouble());
         }
@@ -564,8 +559,8 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -594,9 +589,7 @@ public class MovAvgUnitTests extends ElasticsearchTestCase {
 
     }
 
-    @Test
     public void testNumericValidation() {
-
         List<MovAvgModel.AbstractModelParser> parsers = new ArrayList<>(5);
 
         // Simple and Linear don't have any settings to test

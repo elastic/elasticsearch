@@ -21,15 +21,13 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class LocalTransportAddress implements TransportAddress {
+public final class LocalTransportAddress implements TransportAddress {
 
     public static final LocalTransportAddress PROTO = new LocalTransportAddress("_na");
 
@@ -55,6 +53,21 @@ public class LocalTransportAddress implements TransportAddress {
     @Override
     public boolean sameHost(TransportAddress other) {
         return other instanceof LocalTransportAddress && id.equals(((LocalTransportAddress) other).id);
+    }
+
+    @Override
+    public String getHost() {
+        return "local";
+    }
+
+    @Override
+    public String getAddress() {
+        return "0.0.0.0"; // see https://en.wikipedia.org/wiki/0.0.0.0
+    }
+
+    @Override
+    public int getPort() {
+        return 0;
     }
 
     @Override

@@ -19,84 +19,73 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableSortedSet;
-
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
-import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
  * ParentChildIndexFieldData is responsible for loading the id cache mapping
  * needed for has_child and has_parent queries into memory.
  */
-public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicParentChildFieldData> implements IndexParentChildFieldData, DocumentTypeListener {
+public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicParentChildFieldData> implements IndexParentChildFieldData {
 
-    private final NavigableSet<String> parentTypes;
+    private final Set<String> parentTypes;
     private final CircuitBreakerService breakerService;
 
-    // If child type (a type with _parent field) is added or removed, we want to make sure modifications don't happen
-    // while loading.
-    private final Object lock = new Object();
-
-    public ParentChildIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
-                                     FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
+    public ParentChildIndexFieldData(IndexSettings indexSettings, String fieldName,
+                                     IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
-        super(index, indexSettings, fieldNames, fieldDataType, cache);
+        super(indexSettings, fieldName, cache);
         this.breakerService = breakerService;
-        if (Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1)) {
-            parentTypes = new TreeSet<>();
-            for (DocumentMapper documentMapper : mapperService.docMappers(false)) {
-                beforeCreate(documentMapper);
+        Set<String> parentTypes = new HashSet<>();
+        for (DocumentMapper mapper : mapperService.docMappers(false)) {
+            ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
+            if (parentFieldMapper.active()) {
+                parentTypes.add(parentFieldMapper.type());
             }
-            mapperService.addTypeListener(this);
-        } else {
-            ImmutableSortedSet.Builder<String> builder = ImmutableSortedSet.naturalOrder();
-            for (DocumentMapper mapper : mapperService.docMappers(false)) {
-                ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
-                if (parentFieldMapper.active()) {
-                    builder.add(parentFieldMapper.type());
-                }
-            }
-            parentTypes = builder.build();
         }
+        this.parentTypes = parentTypes;
     }
 
     @Override
@@ -106,222 +95,63 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
     @Override
     public AtomicParentChildFieldData load(LeafReaderContext context) {
-        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1)) {
-            final LeafReader reader = context.reader();
-            return new AbstractAtomicParentChildFieldData() {
+        final LeafReader reader = context.reader();
+        return new AbstractAtomicParentChildFieldData() {
 
-                public Set<String> types() {
-                    return parentTypes;
-                }
+            public Set<String> types() {
+                return parentTypes;
+            }
 
-                @Override
-                public SortedDocValues getOrdinalsValues(String type) {
-                    try {
-                        return DocValues.getSorted(reader, ParentFieldMapper.joinField(type));
-                    } catch (IOException e) {
-                        throw new IllegalStateException("cannot load join doc values field for type [" + type + "]", e);
-                    }
-                }
-
-                @Override
-                public long ramBytesUsed() {
-                    // unknown
-                    return 0;
-                }
-
-                @Override
-                public Collection<Accountable> getChildResources() {
-                    return Collections.emptyList();
-                }
-
-                @Override
-                public void close() throws ElasticsearchException {
-                }
-            };
-        } else {
-            try {
-                return cache.load(context, this);
-            } catch (Throwable e) {
-                if (e instanceof ElasticsearchException) {
-                    throw (ElasticsearchException) e;
-                } else {
-                    throw new ElasticsearchException(e.getMessage(), e);
+            @Override
+            public SortedDocValues getOrdinalsValues(String type) {
+                try {
+                    return DocValues.getSorted(reader, ParentFieldMapper.joinField(type));
+                } catch (IOException e) {
+                    throw new IllegalStateException("cannot load join doc values field for type [" + type + "]", e);
                 }
             }
-        }
+
+            @Override
+            public long ramBytesUsed() {
+                // unknown
+                return 0;
+            }
+
+            @Override
+            public Collection<Accountable> getChildResources() {
+                return Collections.emptyList();
+            }
+
+            @Override
+            public void close() throws ElasticsearchException {
+            }
+        };
     }
 
     @Override
     public AbstractAtomicParentChildFieldData loadDirect(LeafReaderContext context) throws Exception {
-        // Make this method throw an UnsupportedOperationException in 3.0, only
-        // needed for indices created BEFORE 2.0
-        LeafReader reader = context.reader();
-        final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat(
-                "acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO
-        );
-
-        final NavigableSet<BytesRef> parentTypes = new TreeSet<>();
-        synchronized (lock) {
-            for (String parentType : this.parentTypes) {
-                parentTypes.add(new BytesRef(parentType));
-            }
-        }
-        boolean success = false;
-        ParentChildAtomicFieldData data = null;
-        ParentChildFilteredTermsEnum termsEnum = new ParentChildFilteredTermsEnum(
-                new ParentChildIntersectTermsEnum(reader, UidFieldMapper.NAME, ParentFieldMapper.NAME),
-                parentTypes
-        );
-        ParentChildEstimator estimator = new ParentChildEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA), termsEnum);
-        TermsEnum estimatedTermsEnum = estimator.beforeLoad(null);
-        ObjectObjectHashMap<String, TypeBuilder> typeBuilders = new ObjectObjectHashMap<>();
-        try {
-            try {
-                PostingsEnum docsEnum = null;
-                for (BytesRef term = estimatedTermsEnum.next(); term != null; term = estimatedTermsEnum.next()) {
-                    // Usually this would be estimatedTermsEnum, but the
-                    // abstract TermsEnum class does not support the .type()
-                    // and .id() methods, so we skip using the wrapped
-                    // TermsEnum and delegate directly to the
-                    // ParentChildFilteredTermsEnum that was originally wrapped
-                    String type = termsEnum.type();
-                    TypeBuilder typeBuilder = typeBuilders.get(type);
-                    if (typeBuilder == null) {
-                        typeBuilders.put(type, typeBuilder = new TypeBuilder(acceptableTransientOverheadRatio, reader));
-                    }
-
-                    BytesRef id = termsEnum.id();
-                    final long termOrd = typeBuilder.builder.nextOrdinal();
-                    assert termOrd == typeBuilder.termOrdToBytesOffset.size();
-                    typeBuilder.termOrdToBytesOffset.add(typeBuilder.bytes.copyUsingLengthPrefix(id));
-                    docsEnum = estimatedTermsEnum.postings(null, docsEnum, PostingsEnum.NONE);
-                    for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                        typeBuilder.builder.addDoc(docId);
-                    }
-                }
-
-                ImmutableOpenMap.Builder<String, AtomicOrdinalsFieldData> typeToAtomicFieldData = ImmutableOpenMap.builder(typeBuilders.size());
-                for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
-                    PagedBytes.Reader bytesReader = cursor.value.bytes.freeze(true);
-                    final Ordinals ordinals = cursor.value.builder.build(fieldDataType.getSettings());
-
-                    typeToAtomicFieldData.put(
-                            cursor.key,
-                            new PagedBytesAtomicFieldData(bytesReader, cursor.value.termOrdToBytesOffset.build(), ordinals)
-                    );
-                }
-                data = new ParentChildAtomicFieldData(typeToAtomicFieldData.build());
-            } finally {
-                for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
-                    cursor.value.builder.close();
-                }
-            }
-            success = true;
-            return data;
-        } finally {
-            if (success) {
-                estimator.afterLoad(estimatedTermsEnum, data.ramBytesUsed());
-            } else {
-                estimator.afterLoad(estimatedTermsEnum, 0);
-            }
-        }
-    }
-
-    @Override
-    public void beforeCreate(DocumentMapper mapper) {
-        // Remove in 3.0
-        synchronized (lock) {
-            ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                // A _parent field can never be added to an existing mapping, so a _parent field either exists on
-                // a new created or doesn't exists. This is why we can update the known parent types via DocumentTypeListener
-                if (parentTypes.add(parentFieldMapper.type())) {
-                    clear();
-                }
-            }
-        }
+        throw new UnsupportedOperationException();
     }
 
     @Override
     protected AtomicParentChildFieldData empty(int maxDoc) {
-        return new ParentChildAtomicFieldData(ImmutableOpenMap.<String, AtomicOrdinalsFieldData>of());
-    }
-
-    class TypeBuilder {
-
-        final PagedBytes bytes;
-        final PackedLongValues.Builder termOrdToBytesOffset;
-        final OrdinalsBuilder builder;
-
-        TypeBuilder(float acceptableTransientOverheadRatio, LeafReader reader) throws IOException {
-            bytes = new PagedBytes(15);
-            termOrdToBytesOffset = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-            builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio);
-        }
+        return AbstractAtomicParentChildFieldData.empty();
     }
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType,
+        public IndexFieldData<?> build(IndexSettings indexSettings,
+                                       MappedFieldType fieldType,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService) {
-            return new ParentChildIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache,
-                mapperService, breakerService);
-        }
-    }
-
-    /**
-     * Estimator that wraps parent/child id field data by wrapping the data
-     * in a RamAccountingTermsEnum.
-     */
-    public class ParentChildEstimator implements PerValueEstimator {
-
-        private final CircuitBreaker breaker;
-        private final TermsEnum filteredEnum;
-
-        // The TermsEnum is passed in here instead of being generated in the
-        // beforeLoad() function since it's filtered inside the previous
-        // TermsEnum wrappers
-        public ParentChildEstimator(CircuitBreaker breaker, TermsEnum filteredEnum) {
-            this.breaker = breaker;
-            this.filteredEnum = filteredEnum;
-        }
-
-        /**
-         * General overhead for ids is 2 times the length of the ID
-         */
-        @Override
-        public long bytesPerValue(BytesRef term) {
-            if (term == null) {
-                return 0;
-            }
-            return 2 * term.length;
-        }
-
-        /**
-         * Wraps the already filtered {@link TermsEnum} in a
-         * {@link RamAccountingTermsEnum} and returns it
-         */
-        @Override
-        public TermsEnum beforeLoad(Terms terms) throws IOException {
-            return new RamAccountingTermsEnum(filteredEnum, breaker, this, "parent/child id cache");
-        }
-
-        /**
-         * Adjusts the breaker based on the difference between the actual usage
-         * and the aggregated estimations.
-         */
-        @Override
-        public void afterLoad(TermsEnum termsEnum, long actualUsed) {
-            assert termsEnum instanceof RamAccountingTermsEnum;
-            long estimatedBytes = ((RamAccountingTermsEnum) termsEnum).getTotalBytes();
-            breaker.addWithoutBreaking(-(estimatedBytes - actualUsed));
+            return new ParentChildIndexFieldData(indexSettings, fieldType.name(), cache,
+                    mapperService, breakerService);
         }
     }
 
     @Override
-    public IndexParentChildFieldData loadGlobal(IndexReader indexReader) {
+    public IndexParentChildFieldData loadGlobal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;
@@ -332,7 +162,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }
@@ -356,16 +186,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     }
 
     @Override
-    public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexParentChildFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         final long startTime = System.nanoTime();
-        final Set<String> parentTypes;
-        if (Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1)) {
-            synchronized (lock) {
-                parentTypes = ImmutableSet.copyOf(this.parentTypes);
-            }
-        } else {
-            parentTypes = this.parentTypes;
-        }
 
         long ramBytesUsed = 0;
         final Map<String, OrdinalMapAndAtomicFieldData> perType = new HashMap<>();
@@ -482,31 +304,28 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
     public class GlobalFieldData implements IndexParentChildFieldData, Accountable {
 
+        private final Object coreCacheKey;
+        private final List<LeafReaderContext> leaves;
         private final AtomicParentChildFieldData[] fielddata;
-        private final IndexReader reader;
         private final long ramBytesUsed;
         private final Map<String, OrdinalMapAndAtomicFieldData> ordinalMapPerType;
 
         GlobalFieldData(IndexReader reader, AtomicParentChildFieldData[] fielddata, long ramBytesUsed, Map<String, OrdinalMapAndAtomicFieldData> ordinalMapPerType) {
-            this.reader = reader;
+            this.coreCacheKey = reader.getCoreCacheKey();
+            this.leaves = reader.leaves();
             this.ramBytesUsed = ramBytesUsed;
             this.fielddata = fielddata;
             this.ordinalMapPerType = ordinalMapPerType;
         }
 
         @Override
-        public Names getFieldNames() {
-            return ParentChildIndexFieldData.this.getFieldNames();
-        }
-
-        @Override
-        public FieldDataType getFieldDataType() {
-            return ParentChildIndexFieldData.this.getFieldDataType();
+        public String getFieldName() {
+            return ParentChildIndexFieldData.this.getFieldName();
         }
 
         @Override
         public AtomicParentChildFieldData load(LeafReaderContext context) {
-            assert context.reader().getCoreCacheKey() == reader.leaves().get(context.ord).reader().getCoreCacheKey();
+            assert context.reader().getCoreCacheKey() == leaves.get(context.ord).reader().getCoreCacheKey();
             return fielddata[context.ord];
         }
 
@@ -526,11 +345,6 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public void clear(IndexReader reader) {
-            ParentChildIndexFieldData.this.clear(reader);
-        }
-
-        @Override
         public Index index() {
             return ParentChildIndexFieldData.this.index();
         }
@@ -546,15 +360,15 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public IndexParentChildFieldData loadGlobal(IndexReader indexReader) {
-            if (indexReader.getCoreCacheKey() == reader.getCoreCacheKey()) {
+        public IndexParentChildFieldData loadGlobal(DirectoryReader indexReader) {
+            if (indexReader.getCoreCacheKey() == coreCacheKey) {
                 return this;
             }
             throw new IllegalStateException();
         }
 
         @Override
-        public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+        public IndexParentChildFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
             return loadGlobal(indexReader);
         }
 

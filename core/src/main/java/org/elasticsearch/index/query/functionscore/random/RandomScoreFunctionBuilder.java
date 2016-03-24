@@ -18,17 +18,27 @@
  */
 package org.elasticsearch.index.query.functionscore.random;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A function that computes a random score for the matched documents
  */
-public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
+public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
 
-    private Object seed = null;
+    private Integer seed;
 
     public RandomScoreFunctionBuilder() {
     }
@@ -51,31 +61,76 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
 
     /**
      * seed variant taking a long value.
-     * @see {@link #seed(int)}
+     * @see #seed(int)
      */
     public RandomScoreFunctionBuilder seed(long seed) {
-        this.seed = seed;
+        this.seed = hash(seed);
         return this;
     }
 
     /**
      * seed variant taking a String value.
-     * @see {@link #seed(int)}
+     * @see #seed(int)
      */
     public RandomScoreFunctionBuilder seed(String seed) {
-        this.seed = seed;
+        if (seed == null) {
+            throw new IllegalArgumentException("random_score function: seed must not be null");
+        }
+        this.seed = seed.hashCode();
         return this;
+    }
+
+    public Integer getSeed() {
+        return seed;
     }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        if (seed instanceof Number) {
-            builder.field("seed", ((Number)seed).longValue());
-        } else if (seed != null) {
-            builder.field("seed", seed.toString());
+        if (seed != null) {
+            builder.field("seed", seed);
         }
         builder.endObject();
     }
 
+    @Override
+    protected RandomScoreFunctionBuilder doReadFrom(StreamInput in) throws IOException {
+        RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilder();
+        randomScoreFunctionBuilder.seed = in.readInt();
+        return randomScoreFunctionBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeInt(seed);
+    }
+
+    @Override
+    protected boolean doEquals(RandomScoreFunctionBuilder functionBuilder) {
+        return Objects.equals(this.seed, functionBuilder.seed);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(this.seed);
+    }
+
+    @Override
+    protected ScoreFunction doToFunction(QueryShardContext context) {
+        final MappedFieldType fieldType = context.getMapperService().fullName("_uid");
+        if (fieldType == null) {
+            // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
+            return new RandomScoreFunction();
+        }
+        //TODO find a way to not get the shard_id from the current search context? make it available in QueryShardContext?
+        //this currently causes NPE in FunctionScoreQueryBuilderTests#testToQuery
+        final ShardId shardId = SearchContext.current().indexShard().shardId();
+        final int salt = (context.index().getName().hashCode() << 10) | shardId.id();
+        final IndexFieldData<?> uidFieldData = context.getForField(fieldType);
+        return new RandomScoreFunction(this.seed == null ? hash(context.nowInMillis()) : seed, salt, uidFieldData);
+    }
+
+    private static int hash(long value) {
+        return Long.hashCode(value);
+    }
 }

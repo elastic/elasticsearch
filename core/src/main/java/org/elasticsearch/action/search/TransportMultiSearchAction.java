@@ -22,10 +22,10 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -45,7 +45,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                       ClusterService clusterService, TransportSearchAction searchAction,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiSearchRequest.class);
+        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiSearchRequest::new);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
     }
@@ -59,8 +59,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicInteger counter = new AtomicInteger(responses.length());
         for (int i = 0; i < responses.length(); i++) {
             final int index = i;
-            SearchRequest searchRequest = new SearchRequest(request.requests().get(i), request);
-            searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
+            searchAction.execute(request.requests().get(i), new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     responses.set(index, new MultiSearchResponse.Item(searchResponse, null));

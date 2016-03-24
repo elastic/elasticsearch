@@ -19,27 +19,29 @@
 
 package org.elasticsearch.common.io;
 
-import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.io.Streams.*;
+import static org.elasticsearch.common.io.Streams.copy;
+import static org.elasticsearch.common.io.Streams.copyToString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for {@link org.elasticsearch.common.io.Streams}.
  */
-public class StreamsTests extends ElasticsearchTestCase {
-
-    @Test
+public class StreamsTests extends ESTestCase {
     public void testCopyFromInputStream() throws IOException {
-        byte[] content = "content".getBytes(Charsets.UTF_8);
+        byte[] content = "content".getBytes(StandardCharsets.UTF_8);
         ByteArrayInputStream in = new ByteArrayInputStream(content);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
         long count = copy(in, out);
@@ -48,15 +50,13 @@ public class StreamsTests extends ElasticsearchTestCase {
         assertThat(Arrays.equals(content, out.toByteArray()), equalTo(true));
     }
 
-    @Test
     public void testCopyFromByteArray() throws IOException {
-        byte[] content = "content".getBytes(Charsets.UTF_8);
+        byte[] content = "content".getBytes(StandardCharsets.UTF_8);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
         copy(content, out);
         assertThat(Arrays.equals(content, out.toByteArray()), equalTo(true));
     }
 
-    @Test
     public void testCopyFromReader() throws IOException {
         String content = "content";
         StringReader in = new StringReader(content);
@@ -66,7 +66,6 @@ public class StreamsTests extends ElasticsearchTestCase {
         assertThat(out.toString(), equalTo(content));
     }
 
-    @Test
     public void testCopyFromString() throws IOException {
         String content = "content";
         StringWriter out = new StringWriter();
@@ -74,15 +73,13 @@ public class StreamsTests extends ElasticsearchTestCase {
         assertThat(out.toString(), equalTo(content));
     }
 
-    @Test
     public void testCopyToString() throws IOException {
         String content = "content";
         StringReader in = new StringReader(content);
         String result = copyToString(in);
         assertThat(result, equalTo(content));
     }
-    
-    @Test
+
     public void testBytesStreamInput() throws IOException {
         byte stuff[] = new byte[] { 0, 1, 2, 3 };
         BytesRef stuffRef = new BytesRef(stuff, 2, 2);
@@ -93,5 +90,4 @@ public class StreamsTests extends ElasticsearchTestCase {
         assertEquals(-1, input.read());
         input.close();
     }
-
 }

@@ -22,21 +22,20 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
-
-    @Test
+public class ToAndFromJsonMetaDataTests extends ESTestCase {
     public void testSimpleJsonFromAndTo() throws IOException {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1")
@@ -56,7 +55,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .creationDate(2l))
+                        .creationDate(2L))
                 .put(IndexMetaData.builder("test5")
                         .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
@@ -67,12 +66,12 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .creationDate(2l))
+                        .creationDate(2L))
                 .put(IndexMetaData.builder("test7")
                         .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .creationDate(2l)
+                        .creationDate(2L)
                         .putMapping("mapping1", MAPPING_SOURCE1)
                         .putMapping("mapping2", MAPPING_SOURCE2))
                 .put(IndexMetaData.builder("test8")
@@ -85,7 +84,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias2")))
                 .put(IndexMetaData.builder("test9")
                         .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
-                        .creationDate(2l)
+                        .creationDate(2L)
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .putMapping("mapping1", MAPPING_SOURCE1)
@@ -126,7 +125,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")
                                 .put("setting2", "value2"))
-                        .creationDate(2l)
+                        .creationDate(2L)
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .putMapping("mapping1", MAPPING_SOURCE1)
@@ -151,142 +150,142 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         MetaData parsedMetaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(metaDataSource));
 
         IndexMetaData indexMetaData = parsedMetaData.index("test1");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(3));
-        assertThat(indexMetaData.mappings().size(), equalTo(0));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(-1L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(3));
+        assertThat(indexMetaData.getMappings().size(), equalTo(0));
 
         indexMetaData = parsedMetaData.index("test2");
-        assertThat(indexMetaData.numberOfShards(), equalTo(2));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(3));
-        assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
-        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
-        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mappings().size(), equalTo(0));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(2));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(3));
+        assertThat(indexMetaData.getCreationDate(), equalTo(-1L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(5));
+        assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.getMappings().size(), equalTo(0));
 
         indexMetaData = parsedMetaData.index("test3");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(3));
-        assertThat(indexMetaData.mappings().size(), equalTo(1));
-        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(-1L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(3));
+        assertThat(indexMetaData.getMappings().size(), equalTo(1));
+        assertThat(indexMetaData.getMappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
 
         indexMetaData = parsedMetaData.index("test4");
-        assertThat(indexMetaData.creationDate(), equalTo(2l));
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
-        assertThat(indexMetaData.mappings().size(), equalTo(0));
+        assertThat(indexMetaData.getCreationDate(), equalTo(2L));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.getMappings().size(), equalTo(0));
 
         indexMetaData = parsedMetaData.index("test5");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
-        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
-        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mappings().size(), equalTo(2));
-        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
-        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(-1L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(5));
+        assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.getMappings().size(), equalTo(2));
+        assertThat(indexMetaData.getMappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.getMappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
 
         indexMetaData = parsedMetaData.index("test6");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(2l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(6));
-        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
-        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mappings().size(), equalTo(0));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(2L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(6));
+        assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.getMappings().size(), equalTo(0));
 
         indexMetaData = parsedMetaData.index("test7");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(2l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
-        assertThat(indexMetaData.mappings().size(), equalTo(2));
-        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
-        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(2L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.getMappings().size(), equalTo(2));
+        assertThat(indexMetaData.getMappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.getMappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
 
         indexMetaData = parsedMetaData.index("test8");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
-        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
-        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mappings().size(), equalTo(2));
-        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
-        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
-        assertThat(indexMetaData.aliases().size(), equalTo(2));
-        assertThat(indexMetaData.aliases().get("alias1").alias(), equalTo("alias1"));
-        assertThat(indexMetaData.aliases().get("alias2").alias(), equalTo("alias2"));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(-1L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(5));
+        assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.getMappings().size(), equalTo(2));
+        assertThat(indexMetaData.getMappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.getMappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.getAliases().size(), equalTo(2));
+        assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
+        assertThat(indexMetaData.getAliases().get("alias2").alias(), equalTo("alias2"));
 
         indexMetaData = parsedMetaData.index("test9");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(2l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(6));
-        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
-        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mappings().size(), equalTo(2));
-        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
-        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
-        assertThat(indexMetaData.aliases().size(), equalTo(2));
-        assertThat(indexMetaData.aliases().get("alias1").alias(), equalTo("alias1"));
-        assertThat(indexMetaData.aliases().get("alias2").alias(), equalTo("alias2"));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(2L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(6));
+        assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.getMappings().size(), equalTo(2));
+        assertThat(indexMetaData.getMappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.getMappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.getAliases().size(), equalTo(2));
+        assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
+        assertThat(indexMetaData.getAliases().get("alias2").alias(), equalTo("alias2"));
 
         indexMetaData = parsedMetaData.index("test10");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
-        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
-        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mappings().size(), equalTo(2));
-        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
-        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
-        assertThat(indexMetaData.aliases().size(), equalTo(2));
-        assertThat(indexMetaData.aliases().get("alias1").alias(), equalTo("alias1"));
-        assertThat(indexMetaData.aliases().get("alias2").alias(), equalTo("alias2"));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(-1L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(5));
+        assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.getMappings().size(), equalTo(2));
+        assertThat(indexMetaData.getMappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.getMappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.getAliases().size(), equalTo(2));
+        assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
+        assertThat(indexMetaData.getAliases().get("alias2").alias(), equalTo("alias2"));
 
         indexMetaData = parsedMetaData.index("test11");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
-        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
-        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mappings().size(), equalTo(2));
-        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
-        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
-        assertThat(indexMetaData.aliases().size(), equalTo(3));
-        assertThat(indexMetaData.aliases().get("alias1").alias(), equalTo("alias1"));
-        assertThat(indexMetaData.aliases().get("alias1").filter().string(), equalTo(ALIAS_FILTER1));
-        assertThat(indexMetaData.aliases().get("alias2").alias(), equalTo("alias2"));
-        assertThat(indexMetaData.aliases().get("alias2").filter(), nullValue());
-        assertThat(indexMetaData.aliases().get("alias4").alias(), equalTo("alias4"));
-        assertThat(indexMetaData.aliases().get("alias4").filter().string(), equalTo(ALIAS_FILTER2));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(-1L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(5));
+        assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.getMappings().size(), equalTo(2));
+        assertThat(indexMetaData.getMappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.getMappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.getAliases().size(), equalTo(3));
+        assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
+        assertThat(indexMetaData.getAliases().get("alias1").filter().string(), equalTo(ALIAS_FILTER1));
+        assertThat(indexMetaData.getAliases().get("alias2").alias(), equalTo("alias2"));
+        assertThat(indexMetaData.getAliases().get("alias2").filter(), nullValue());
+        assertThat(indexMetaData.getAliases().get("alias4").alias(), equalTo("alias4"));
+        assertThat(indexMetaData.getAliases().get("alias4").filter().string(), equalTo(ALIAS_FILTER2));
 
         indexMetaData = parsedMetaData.index("test12");
-        assertThat(indexMetaData.numberOfShards(), equalTo(1));
-        assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.creationDate(), equalTo(2l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(6));
-        assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
-        assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
-        assertThat(indexMetaData.mappings().size(), equalTo(2));
-        assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
-        assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
-        assertThat(indexMetaData.aliases().size(), equalTo(3));
-        assertThat(indexMetaData.aliases().get("alias1").alias(), equalTo("alias1"));
-        assertThat(indexMetaData.aliases().get("alias1").filter().string(), equalTo(ALIAS_FILTER1));
-        assertThat(indexMetaData.aliases().get("alias2").alias(), equalTo("alias2"));
-        assertThat(indexMetaData.aliases().get("alias2").filter(), nullValue());
-        assertThat(indexMetaData.aliases().get("alias4").alias(), equalTo("alias4"));
-        assertThat(indexMetaData.aliases().get("alias4").filter().string(), equalTo(ALIAS_FILTER2));
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getCreationDate(), equalTo(2L));
+        assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(6));
+        assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));
+        assertThat(indexMetaData.getSettings().get("setting2"), equalTo("value2"));
+        assertThat(indexMetaData.getMappings().size(), equalTo(2));
+        assertThat(indexMetaData.getMappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.getMappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.getAliases().size(), equalTo(3));
+        assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
+        assertThat(indexMetaData.getAliases().get("alias1").filter().string(), equalTo(ALIAS_FILTER1));
+        assertThat(indexMetaData.getAliases().get("alias2").alias(), equalTo("alias2"));
+        assertThat(indexMetaData.getAliases().get("alias2").filter(), nullValue());
+        assertThat(indexMetaData.getAliases().get("alias4").alias(), equalTo("alias4"));
+        assertThat(indexMetaData.getAliases().get("alias4").filter().string(), equalTo(ALIAS_FILTER2));
 
         // templates
         assertThat(parsedMetaData.templates().get("foo").name(), is("foo"));

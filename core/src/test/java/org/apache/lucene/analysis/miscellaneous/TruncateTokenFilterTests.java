@@ -24,8 +24,7 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -33,10 +32,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 
-public class TruncateTokenFilterTests extends ElasticsearchTestCase {
-
-    @Test
-    public void simpleTest() throws IOException {
+public class TruncateTokenFilterTests extends ESTestCase {
+    public void testSimple() throws IOException {
         Analyzer analyzer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {

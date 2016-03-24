@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -151,7 +149,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     @Override
     public SignificantTerms.Bucket getBucketByKey(String term) {
         if (bucketMap == null) {
-            bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
+            bucketMap = new HashMap<>(buckets.size());
             for (Bucket bucket : buckets) {
                 bucketMap.put(bucket.getKeyAsString(), bucket);
             }
@@ -175,7 +173,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         for (InternalAggregation aggregation : aggregations) {
             InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
             for (Bucket bucket : terms.buckets) {
-                List<Bucket> existingBuckets = buckets.get(bucket.getKey());
+                List<Bucket> existingBuckets = buckets.get(bucket.getKeyAsString());
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<>(aggregations.size());
                     buckets.put(bucket.getKeyAsString(), existingBuckets);

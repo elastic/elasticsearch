@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,17 +16,16 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-
-import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Manages and injects instances at injector-creation time. This is made more complicated by
@@ -49,7 +48,7 @@ class Initializer {
     /**
      * Maps instances that need injection to a source that registered them
      */
-    private final Map<Object, InjectableReference<?>> pendingInjection = Maps.newIdentityHashMap();
+    private final Map<Object, InjectableReference<?>> pendingInjection = new IdentityHashMap<>();
 
     /**
      * Registers an instance for member injection when that step is performed.
@@ -60,7 +59,7 @@ class Initializer {
      */
     public <T> Initializable<T> requestInjection(InjectorImpl injector, T instance, Object source,
                                                  Set<InjectionPoint> injectionPoints) {
-        checkNotNull(source);
+        Objects.requireNonNull(source);
 
         // short circuit if the object has no injections
         if (instance == null
@@ -95,7 +94,7 @@ class Initializer {
     void injectAll(final Errors errors) {
         // loop over a defensive copy since ensureInjected() mutates the set. Unfortunately, that copy
         // is made complicated by a bug in IBM's JDK, wherein entrySet().toArray(Object[]) doesn't work
-        for (InjectableReference<?> reference : Lists.newArrayList(pendingInjection.values())) {
+        for (InjectableReference<?> reference : new ArrayList<>(pendingInjection.values())) {
             try {
                 reference.get(errors);
             } catch (ErrorsException e) {
@@ -118,8 +117,8 @@ class Initializer {
 
         public InjectableReference(InjectorImpl injector, T instance, Object source) {
             this.injector = injector;
-            this.instance = checkNotNull(instance, "instance");
-            this.source = checkNotNull(source, "source");
+            this.instance = Objects.requireNonNull(instance, "instance");
+            this.source = Objects.requireNonNull(source, "source");
         }
 
         public void validate(Errors errors) throws ErrorsException {

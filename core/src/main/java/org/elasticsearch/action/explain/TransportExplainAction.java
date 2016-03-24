@@ -27,10 +27,10 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
@@ -68,17 +69,20 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     private final BigArrays bigArrays;
 
+    private final FetchPhase fetchPhase;
+
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                  TransportService transportService, IndicesService indicesService,
-                                  ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                                  BigArrays bigArrays, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+            TransportService transportService, IndicesService indicesService, ScriptService scriptService,
+            PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver, FetchPhase fetchPhase) {
         super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ExplainRequest.class, ThreadPool.Names.GET);
+                ExplainRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
+        this.fetchPhase = fetchPhase;
     }
 
     @Override
@@ -104,24 +108,21 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        IndexShard indexShard = indexService.getShard(shardId.id());
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));
         if (!result.exists()) {
-            return new ExplainResponse(shardId.getIndex(), request.type(), request.id(), false);
+            return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
         }
 
-        SearchContext context = new DefaultSearchContext(
-                0, new ShardSearchLocalRequest(new String[]{request.type()}, request.nowInMillis, request.filteringAlias()),
-                null, result.searcher(), indexService, indexShard,
-                scriptService, pageCacheRecycler,
-                bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
-                SearchService.NO_TIMEOUT
-        );
+        SearchContext context = new DefaultSearchContext(0,
+                new ShardSearchLocalRequest(new String[] { request.type() }, request.nowInMillis, request.filteringAlias()), null,
+                result.searcher(), indexService, indexShard, scriptService, pageCacheRecycler, bigArrays,
+                threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, SearchService.NO_TIMEOUT, fetchPhase);
         SearchContext.setCurrent(context);
 
         try {
-            context.parsedQuery(indexService.queryParserService().parseQuery(request.source()));
+            context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
             context.preProcess();
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().context.docBase;
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
@@ -134,9 +135,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
                 GetResult getResult = indexShard.getService().get(result, request.id(), request.type(), request.fields(), request.fetchSourceContext(), false);
-                return new ExplainResponse(shardId.getIndex(), request.type(), request.id(), true, explanation, getResult);
+                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation, getResult);
             } else {
-                return new ExplainResponse(shardId.getIndex(), request.type(), request.id(), true, explanation);
+                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation);
             }
         } catch (IOException e) {
             throw new ElasticsearchException("Could not explain", e);

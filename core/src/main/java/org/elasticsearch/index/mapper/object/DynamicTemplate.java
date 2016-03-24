@@ -19,13 +19,17 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MapperParsingException;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -33,30 +37,52 @@ import java.util.TreeMap;
 /**
  *
  */
-public class DynamicTemplate {
+public class DynamicTemplate implements ToXContent {
 
     public static enum MatchType {
-        SIMPLE,
-        REGEX;
+        SIMPLE {
+            @Override
+            public boolean matches(String pattern, String value) {
+                return Regex.simpleMatch(pattern, value);
+            }
+            @Override
+            public String toString() {
+                return "simple";
+            }
+        },
+        REGEX {
+            @Override
+            public boolean matches(String pattern, String value) {
+                return value.matches(pattern);
+            }
+            @Override
+            public String toString() {
+                return "regex";
+            }
+        };
 
         public static MatchType fromString(String value) {
-            if ("simple".equals(value)) {
-                return SIMPLE;
-            } else if ("regex".equals(value)) {
-                return REGEX;
+            for (MatchType v : values()) {
+                if (v.toString().equals(value)) {
+                    return v;
+                }
             }
             throw new IllegalArgumentException("No matching pattern matched on [" + value + "]");
         }
+
+        /** Whether {@code value} matches {@code regex}. */
+        public abstract boolean matches(String regex, String value);
     }
 
-    public static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
+    public static DynamicTemplate parse(String name, Map<String, Object> conf,
+            Version indexVersionCreated) throws MapperParsingException {
         String match = null;
         String pathMatch = null;
         String unmatch = null;
         String pathUnmatch = null;
         Map<String, Object> mapping = null;
         String matchMappingType = null;
-        String matchPattern = "simple";
+        String matchPattern = MatchType.SIMPLE.toString();
 
         for (Map.Entry<String, Object> entry : conf.entrySet()) {
             String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -74,21 +100,17 @@ public class DynamicTemplate {
                 matchPattern = entry.getValue().toString();
             } else if ("mapping".equals(propName)) {
                 mapping = (Map<String, Object>) entry.getValue();
+            } else if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
+                // unknown parameters were ignored before but still carried through serialization
+                // so we need to ignore them at parsing time for old indices
+                throw new IllegalArgumentException("Illegal dynamic template parameter: [" + propName + "]");
             }
         }
 
-        if (match == null && pathMatch == null && matchMappingType == null) {
-            throw new MapperParsingException("template must have match, path_match or match_mapping_type set");
-        }
-        if (mapping == null) {
-            throw new MapperParsingException("template must have mapping set");
-        }
-        return new DynamicTemplate(name, conf, pathMatch, pathUnmatch, match, unmatch, matchMappingType, MatchType.fromString(matchPattern), mapping);
+        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, matchMappingType, MatchType.fromString(matchPattern), mapping);
     }
 
     private final String name;
-
-    private final Map<String, Object> conf;
 
     private final String pathMatch;
 
@@ -104,9 +126,14 @@ public class DynamicTemplate {
 
     private final Map<String, Object> mapping;
 
-    public DynamicTemplate(String name, Map<String, Object> conf, String pathMatch, String pathUnmatch, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
+    public DynamicTemplate(String name, String pathMatch, String pathUnmatch, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
+        if (match == null && pathMatch == null && matchMappingType == null) {
+            throw new MapperParsingException("template must have match, path_match or match_mapping_type set");
+        }
+        if (mapping == null) {
+            throw new MapperParsingException("template must have mapping set");
+        }
         this.name = name;
-        this.conf = new TreeMap<>(conf);
         this.pathMatch = pathMatch;
         this.pathUnmatch = pathUnmatch;
         this.match = match;
@@ -120,55 +147,62 @@ public class DynamicTemplate {
         return this.name;
     }
 
-    public Map<String, Object> conf() {
-        return this.conf;
-    }
-
     public boolean match(ContentPath path, String name, String dynamicType) {
-        if (pathMatch != null && !patternMatch(pathMatch, path.fullPathAsText(name))) {
+        if (pathMatch != null && !matchType.matches(pathMatch, path.pathAsText(name))) {
             return false;
         }
-        if (match != null && !patternMatch(match, name)) {
+        if (match != null && !matchType.matches(match, name)) {
             return false;
         }
-        if (pathUnmatch != null && patternMatch(pathUnmatch, path.fullPathAsText(name))) {
+        if (pathUnmatch != null && matchType.matches(pathUnmatch, path.pathAsText(name))) {
             return false;
         }
-        if (unmatch != null && patternMatch(unmatch, name)) {
+        if (unmatch != null && matchType.matches(unmatch, name)) {
             return false;
         }
         if (matchMappingType != null) {
             if (dynamicType == null) {
                 return false;
             }
-            if (!patternMatch(matchMappingType, dynamicType)) {
+            if (!matchType.matches(matchMappingType, dynamicType)) {
                 return false;
             }
         }
         return true;
     }
 
-    public boolean hasType() {
-        return mapping.containsKey("type");
-    }
-
     public String mappingType(String dynamicType) {
-        return mapping.containsKey("type") ? mapping.get("type").toString().replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType) : dynamicType;
-    }
-
-    private boolean patternMatch(String pattern, String str) {
-        if (matchType == MatchType.SIMPLE) {
-            return Regex.simpleMatch(pattern, str);
+        String type;
+        if (mapping.containsKey("type")) {
+            type = mapping.get("type").toString();
+            type = type.replace("{dynamic_type}", dynamicType);
+            type = type.replace("{dynamicType}", dynamicType);
+        } else {
+            type = dynamicType;
         }
-        return str.matches(pattern);
-    }
+        if (type.equals(mapping.get("type")) == false // either the type was not set, or we updated it through replacements
+                && "text".equals(type)) { // and the result is "text"
+            // now that string has been splitted into text and keyword, we use text for
+            // dynamic mappings. However before it used to be possible to index as a keyword
+            // by setting index=not_analyzed, so for now we will use a keyword field rather
+            // than a text field if index=not_analyzed and the field type was not specified
+            // explicitly
+            // TODO: remove this in 6.0
+            // TODO: how to do it in the future?
+            final Object index = mapping.get("index");
+            if ("not_analyzed".equals(index) || "no".equals(index)) {
+                type = "keyword";
+            }
+        }
+        return type;
+     }
 
     public Map<String, Object> mappingForName(String name, String dynamicType) {
         return processMap(mapping, name, dynamicType);
     }
 
     private Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType) {
-        Map<String, Object> processedMap = Maps.newHashMap();
+        Map<String, Object> processedMap = new HashMap<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String key = entry.getKey().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
             Object value = entry.getValue();
@@ -200,40 +234,29 @@ public class DynamicTemplate {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (match != null) {
+            builder.field("match", match);
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
+        if (pathMatch != null) {
+            builder.field("path_match", pathMatch);
         }
-
-        DynamicTemplate that = (DynamicTemplate) o;
-
-        // check if same matching, if so, replace the mapping
-        if (match != null ? !match.equals(that.match) : that.match != null) {
-            return false;
+        if (unmatch != null) {
+            builder.field("unmatch", unmatch);
         }
-        if (matchMappingType != null ? !matchMappingType.equals(that.matchMappingType) : that.matchMappingType != null) {
-            return false;
+        if (pathUnmatch != null) {
+            builder.field("path_unmatch", pathUnmatch);
         }
-        if (matchType != that.matchType) {
-            return false;
+        if (matchMappingType != null) {
+            builder.field("match_mapping_type", matchMappingType);
         }
-        if (unmatch != null ? !unmatch.equals(that.unmatch) : that.unmatch != null) {
-            return false;
+        if (matchType != MatchType.SIMPLE) {
+            builder.field("match_pattern", matchType);
         }
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        // check if same matching, if so, replace the mapping
-        int result = match != null ? match.hashCode() : 0;
-        result = 31 * result + (unmatch != null ? unmatch.hashCode() : 0);
-        result = 31 * result + (matchType != null ? matchType.hashCode() : 0);
-        result = 31 * result + (matchMappingType != null ? matchMappingType.hashCode() : 0);
-        return result;
+        // use a sorted map for consistent serialization
+        builder.field("mapping", new TreeMap<>(mapping));
+        builder.endObject();
+        return builder;
     }
 }

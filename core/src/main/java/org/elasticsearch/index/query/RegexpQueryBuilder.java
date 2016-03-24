@@ -19,48 +19,79 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A Query that does fuzzy matching for a specific value.
  */
-public class RegexpQueryBuilder extends MultiTermQueryBuilder implements BoostableQueryBuilder<RegexpQueryBuilder> {
+public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder<RegexpQueryBuilder> {
 
-    private final String name;
-    private final String regexp;
+    public static final String NAME = "regexp";
 
-    private int flags = RegexpQueryParser.DEFAULT_FLAGS_VALUE;
-    private float boost = -1;
+    public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
+
+    public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+
+    private final String fieldName;
+
+    private final String value;
+
+    private int flagsValue = DEFAULT_FLAGS_VALUE;
+
+    private int maxDeterminizedStates = DEFAULT_MAX_DETERMINIZED_STATES;
+
     private String rewrite;
-    private String queryName;
-    private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
-    private boolean maxDetermizedStatesSet;
+
+    static final RegexpQueryBuilder PROTOTYPE = new RegexpQueryBuilder("field", "value");
 
     /**
-     * Constructs a new term query.
+     * Constructs a new regex query.
      *
-     * @param name  The name of the field
-     * @param regexp The regular expression
+     * @param fieldName  The name of the field
+     * @param value The regular expression
      */
-    public RegexpQueryBuilder(String name, String regexp) {
-        this.name = name;
-        this.regexp = regexp;
+    public RegexpQueryBuilder(String fieldName, String value) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("value cannot be null.");
+        }
+        this.fieldName = fieldName;
+        this.value = value;
+    }
+
+    /** Returns the field name used in this query. */
+    public String fieldName() {
+        return this.fieldName;
     }
 
     /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
+     *  Returns the value used in this query.
      */
-    @Override
-    public RegexpQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    public String value() {
+        return this.value;
     }
 
     public RegexpQueryBuilder flags(RegexpFlag... flags) {
+        if (flags == null) {
+            this.flagsValue = DEFAULT_FLAGS_VALUE;
+            return this;
+        }
         int value = 0;
         if (flags.length == 0) {
             value = RegexpFlag.ALL.value;
@@ -69,8 +100,17 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
                 value |= flag.value;
             }
         }
-        this.flags = value;
+        this.flagsValue = value;
         return this;
+    }
+
+    public RegexpQueryBuilder flags(int flags) {
+        this.flagsValue = flags;
+        return this;
+    }
+
+    public int flags() {
+        return this.flagsValue;
     }
 
     /**
@@ -78,8 +118,11 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
      */
     public RegexpQueryBuilder maxDeterminizedStates(int value) {
         this.maxDeterminizedStates = value;
-        this.maxDetermizedStatesSet = true;
         return this;
+    }
+
+    public int maxDeterminizedStates() {
+        return this.maxDeterminizedStates;
     }
 
     public RegexpQueryBuilder rewrite(String rewrite) {
@@ -87,35 +130,78 @@ public class RegexpQueryBuilder extends MultiTermQueryBuilder implements Boostab
         return this;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public RegexpQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public String rewrite() {
+        return this.rewrite;
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(RegexpQueryParser.NAME);
-        builder.startObject(name);
-        builder.field("value", regexp);
-        if (flags != -1) {
-            builder.field("flags_value", flags);
-        }
-        if (maxDetermizedStatesSet) {
-            builder.field("max_determinized_states", maxDeterminizedStates);
-        }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME);
+        builder.startObject(fieldName);
+        builder.field(RegexpQueryParser.VALUE_FIELD.getPreferredName(), this.value);
+        builder.field(RegexpQueryParser.FLAGS_VALUE_FIELD.getPreferredName(), flagsValue);
+        builder.field(RegexpQueryParser.MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), maxDeterminizedStates);
         if (rewrite != null) {
-            builder.field("rewrite", rewrite);
+            builder.field(RegexpQueryParser.REWRITE_FIELD.getPreferredName(), rewrite);
         }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
+
+        Query query = null;
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType != null) {
+            query = fieldType.regexpQuery(value, flagsValue, maxDeterminizedStates, method, context);
+        }
+        if (query == null) {
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates);
+            if (method != null) {
+                regexpQuery.setRewriteMethod(method);
+            }
+            query = regexpQuery;
+        }
+        return query;
+    }
+
+    @Override
+    protected RegexpQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        RegexpQueryBuilder regexpQueryBuilder = new RegexpQueryBuilder(in.readString(), in.readString());
+        regexpQueryBuilder.flagsValue = in.readVInt();
+        regexpQueryBuilder.maxDeterminizedStates = in.readVInt();
+        regexpQueryBuilder.rewrite = in.readOptionalString();
+        return regexpQueryBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeString(value);
+        out.writeVInt(flagsValue);
+        out.writeVInt(maxDeterminizedStates);
+        out.writeOptionalString(rewrite);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(fieldName, value, flagsValue, maxDeterminizedStates, rewrite);
+    }
+
+    @Override
+    protected boolean doEquals(RegexpQueryBuilder other) {
+        return Objects.equals(fieldName, other.fieldName) &&
+                Objects.equals(value, other.value) &&
+                Objects.equals(flagsValue, other.flagsValue) &&
+                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
+                Objects.equals(rewrite, other.rewrite);
     }
 }

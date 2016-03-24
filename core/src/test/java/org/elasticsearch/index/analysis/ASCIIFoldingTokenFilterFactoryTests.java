@@ -21,19 +21,18 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
-import org.junit.Test;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
-public class ASCIIFoldingTokenFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
-    @Test
+public class ASCIIFoldingTokenFilterFactoryTests extends ESTokenStreamTestCase {
     public void testDefault() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
                 .build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_ascii_folding");
@@ -44,10 +43,9 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ElasticsearchTokenStrea
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testPreserveOriginal() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
                 .put("index.analysis.filter.my_ascii_folding.preserve_original", true)
                 .build());
@@ -58,5 +56,4 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ElasticsearchTokenStrea
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
-
 }

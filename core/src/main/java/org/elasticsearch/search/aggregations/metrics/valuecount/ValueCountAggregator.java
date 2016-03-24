@@ -31,8 +31,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -100,34 +98,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0l, formatter, pipelineAggregators(), metaData());
+        return new InternalValueCount(name, 0L, formatter, pipelineAggregators(), metaData());
     }
 
     @Override
     public void doClose() {
         Releasables.close(counts);
-    }
-
-    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
-
-        public Factory(String name, ValuesSourceConfig<VS> config) {
-            super(name, InternalValueCount.TYPE.name(), config);
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new ValueCountAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new ValueCountAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators,
-                    metaData);
-        }
-
     }
 
 }

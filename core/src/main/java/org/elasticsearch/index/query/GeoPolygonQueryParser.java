@@ -19,21 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
-
-import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -48,31 +42,30 @@ import java.util.List;
  * }
  * </pre>
  */
-public class GeoPolygonQueryParser implements QueryParser {
+public class GeoPolygonQueryParser implements QueryParser<GeoPolygonQueryBuilder> {
 
-    public static final String NAME = "geo_polygon";
-    public static final String POINTS = "points";
-
-    @Inject
-    public GeoPolygonQueryParser() {
-    }
+    public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
+    public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
+    public static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
+    public static final ParseField POINTS_FIELD = new ParseField("points");
 
     @Override
     public String[] names() {
-        return new String[]{NAME, "geoPolygon"};
+        return new String[]{GeoPolygonQueryBuilder.NAME, "geoPolygon"};
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
 
-        List<GeoPoint> shell = Lists.newArrayList();
+        List<GeoPoint> shell = null;
 
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
-
+        Float boost = null;
+        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        GeoValidationMethod validationMethod = null;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -89,70 +82,60 @@ public class GeoPolygonQueryParser implements QueryParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
-                        if (POINTS.equals(currentFieldName)) {
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, POINTS_FIELD)) {
+                            shell = new ArrayList<GeoPoint>();
                             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                 shell.add(GeoUtils.parseGeoPoint(parser));
                             }
-                            if (!shell.get(shell.size()-1).equals(shell.get(0))) {
-                                shell.add(shell.get(0));
-                            }
                         } else {
-                            throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName
+                            throw new ParsingException(parser.getTokenLocation(), "[geo_polygon] query does not support [" + currentFieldName
                                     + "]");
                         }
                     } else {
-                        throw new QueryParsingException(parseContext, "[geo_polygon] query does not support token type [" + token.name()
+                        throw new ParsingException(parser.getTokenLocation(), "[geo_polygon] query does not support token type [" + token.name()
                                 + "] under [" + currentFieldName + "]");
                     }
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if ("normalize".equals(currentFieldName)) {
-                    normalizeLat = parser.booleanValue();
-                    normalizeLon = parser.booleanValue();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, COERCE_FIELD)) {
+                    coerce = parser.booleanValue();
+                    if (coerce == true) {
+                        ignoreMalformed = true;
+                    }
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
+                    ignoreMalformed = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD)) {
+                    validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[geo_polygon] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new QueryParsingException(parseContext, "[geo_polygon] unexpected token type [" + token.name() + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[geo_polygon] unexpected token type [" + token.name() + "]");
             }
         }
-
-        if (shell.isEmpty()) {
-            throw new QueryParsingException(parseContext, "no points defined for geo_polygon query");
+        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, shell);
+        if (validationMethod != null) {
+            // if GeoValidationMethod was explicitly set ignore deprecated coerce and ignoreMalformed settings
+            builder.setValidationMethod(validationMethod);
         } else {
-            if (shell.size() < 3) {
-                throw new QueryParsingException(parseContext, "too few points defined for geo_polygon query");
-            }
-            GeoPoint start = shell.get(0);
-            if (!start.equals(shell.get(shell.size() - 1))) {
-                shell.add(start);
-            }
-            if (shell.size() < 4) {
-                throw new QueryParsingException(parseContext, "too few points defined for geo_polygon query");
-            }
+            builder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
 
-        if (normalizeLat || normalizeLon) {
-            for (GeoPoint point : shell) {
-                GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-            }
-        }
-
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
-        }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
-        }
-
-        IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
-        Query query = new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            builder.queryName(queryName);
         }
-        return query;
+        if (boost != null) {
+            builder.boost(boost);
+        }
+        return builder;
+    }
+
+    @Override
+    public GeoPolygonQueryBuilder getBuilderPrototype() {
+        return GeoPolygonQueryBuilder.PROTOTYPE;
     }
 }

@@ -20,13 +20,11 @@
 package org.elasticsearch.index.cache;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -38,12 +36,14 @@ public class IndexCache extends AbstractIndexComponent implements Closeable {
 
     private final QueryCache queryCache;
     private final BitsetFilterCache bitsetFilterCache;
+    private final PercolatorQueryCache percolatorQueryCache;
 
-    @Inject
-    public IndexCache(Index index, @IndexSettings Settings indexSettings, QueryCache queryCache, BitsetFilterCache bitsetFilterCache) {
-        super(index, indexSettings);
+    public IndexCache(IndexSettings indexSettings, QueryCache queryCache, BitsetFilterCache bitsetFilterCache,
+                      PercolatorQueryCache percolatorQueryCache) {
+        super(indexSettings);
         this.queryCache = queryCache;
         this.bitsetFilterCache = bitsetFilterCache;
+        this.percolatorQueryCache = percolatorQueryCache;
     }
 
     public QueryCache query() {
@@ -57,9 +57,13 @@ public class IndexCache extends AbstractIndexComponent implements Closeable {
         return bitsetFilterCache;
     }
 
+    public PercolatorQueryCache getPercolatorQueryCache() {
+        return percolatorQueryCache;
+    }
+
     @Override
     public void close() throws IOException {
-        IOUtils.close(queryCache, bitsetFilterCache);
+        IOUtils.close(queryCache, bitsetFilterCache, percolatorQueryCache);
     }
 
     public void clear(String reason) {

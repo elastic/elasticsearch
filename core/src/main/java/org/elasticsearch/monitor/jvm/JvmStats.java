@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -30,8 +29,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.lang.management.*;
+import java.lang.management.BufferPoolMXBean;
+import java.lang.management.ClassLoadingMXBean;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryUsage;
+import java.lang.management.RuntimeMXBean;
+import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -44,11 +52,13 @@ public class JvmStats implements Streamable, ToXContent {
     private final static RuntimeMXBean runtimeMXBean;
     private final static MemoryMXBean memoryMXBean;
     private final static ThreadMXBean threadMXBean;
+    private final static ClassLoadingMXBean classLoadingMXBean;
 
     static {
         runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         memoryMXBean = ManagementFactory.getMemoryMXBean();
         threadMXBean = ManagementFactory.getThreadMXBean();
+        classLoadingMXBean = ManagementFactory.getClassLoadingMXBean();
     }
 
     public static JvmStats jvmStats() {
@@ -114,6 +124,11 @@ public class JvmStats implements Streamable, ToXContent {
             // buffer pools are not available
         }
 
+        stats.classes = new Classes();
+        stats.classes.loadedClassCount = classLoadingMXBean.getLoadedClassCount();
+        stats.classes.totalLoadedClassCount = classLoadingMXBean.getTotalLoadedClassCount();
+        stats.classes.unloadedClassCount = classLoadingMXBean.getUnloadedClassCount();
+
         return stats;
     }
 
@@ -123,6 +138,7 @@ public class JvmStats implements Streamable, ToXContent {
     Threads threads;
     GarbageCollectors gc;
     List<BufferPool> bufferPools;
+    Classes classes;
 
     private JvmStats() {
     }
@@ -150,6 +166,14 @@ public class JvmStats implements Streamable, ToXContent {
 
     public GarbageCollectors getGc() {
         return gc;
+    }
+
+    public List<BufferPool> getBufferPools() {
+        return bufferPools;
+    }
+
+    public Classes getClasses() {
+        return classes;
     }
 
     @Override
@@ -217,6 +241,14 @@ public class JvmStats implements Streamable, ToXContent {
             builder.endObject();
         }
 
+        if (classes != null) {
+            builder.startObject(Fields.CLASSES);
+            builder.field(Fields.CURRENT_LOADED_COUNT, classes.getLoadedClassCount());
+            builder.field(Fields.TOTAL_LOADED_COUNT, classes.getTotalLoadedClassCount());
+            builder.field(Fields.TOTAL_UNLOADED_COUNT, classes.getUnloadedClassCount());
+            builder.endObject();
+        }
+
         builder.endObject();
         return builder;
     }
@@ -265,6 +297,11 @@ public class JvmStats implements Streamable, ToXContent {
         static final XContentBuilderString NAME = new XContentBuilderString("name");
         static final XContentBuilderString TOTAL_CAPACITY = new XContentBuilderString("total_capacity");
         static final XContentBuilderString TOTAL_CAPACITY_IN_BYTES = new XContentBuilderString("total_capacity_in_bytes");
+
+        static final XContentBuilderString CLASSES = new XContentBuilderString("classes");
+        static final XContentBuilderString CURRENT_LOADED_COUNT = new XContentBuilderString("current_loaded_count");
+        static final XContentBuilderString TOTAL_LOADED_COUNT = new XContentBuilderString("total_loaded_count");
+        static final XContentBuilderString TOTAL_UNLOADED_COUNT = new XContentBuilderString("total_unloaded_count");
     }
 
 
@@ -349,7 +386,7 @@ public class JvmStats implements Streamable, ToXContent {
 
         @Override
         public Iterator<GarbageCollector> iterator() {
-            return Iterators.forArray(collectors);
+            return Arrays.stream(collectors).iterator();
         }
     }
 
@@ -517,7 +554,7 @@ public class JvmStats implements Streamable, ToXContent {
 
         @Override
         public Iterator<MemoryPool> iterator() {
-            return Iterators.forArray(pools);
+            return Arrays.stream(pools).iterator();
         }
 
         @Override
@@ -627,6 +664,48 @@ public class JvmStats implements Streamable, ToXContent {
             out.writeLong(count);
             out.writeLong(totalCapacity);
             out.writeLong(used);
+        }
+    }
+
+    public static class Classes implements Streamable {
+
+        long loadedClassCount;
+        long totalLoadedClassCount;
+        long unloadedClassCount;
+
+        Classes() {
+        }
+
+        public Classes(long loadedClassCount, long totalLoadedClassCount, long unloadedClassCount) {
+            this.loadedClassCount = loadedClassCount;
+            this.totalLoadedClassCount = totalLoadedClassCount;
+            this.unloadedClassCount = unloadedClassCount;
+        }
+
+        public long getLoadedClassCount() {
+            return loadedClassCount;
+        }
+
+        public long getTotalLoadedClassCount() {
+            return totalLoadedClassCount;
+        }
+
+        public long getUnloadedClassCount() {
+            return unloadedClassCount;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            loadedClassCount = in.readLong();
+            totalLoadedClassCount = in.readLong();
+            unloadedClassCount = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(loadedClassCount);
+            out.writeLong(totalLoadedClassCount);
+            out.writeLong(unloadedClassCount);
         }
     }
 }

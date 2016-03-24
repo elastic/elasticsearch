@@ -24,11 +24,12 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
@@ -39,17 +40,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeLongValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.longField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
@@ -84,8 +88,7 @@ public class LongFieldMapper extends NumberFieldMapper {
             setupFieldType(context);
             LongFieldMapper fieldMapper = new LongFieldMapper(name, fieldType, defaultFieldType,
                     ignoreMalformed(context), coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
+            return (LongFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override
@@ -102,7 +105,7 @@ public class LongFieldMapper extends NumberFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            LongFieldMapper.Builder builder = longField(name);
+            LongFieldMapper.Builder builder = new LongFieldMapper.Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -123,7 +126,7 @@ public class LongFieldMapper extends NumberFieldMapper {
     public static class LongFieldType extends NumberFieldType {
 
         public LongFieldType() {
-            super(NumericType.LONG);
+            super(LegacyNumericType.LONG);
         }
 
         protected LongFieldType(LongFieldType ref) {
@@ -162,13 +165,13 @@ public class LongFieldMapper extends NumberFieldMapper {
         @Override
         public BytesRef indexedValueForSearch(Object value) {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
-            NumericUtils.longToPrefixCoded(parseLongValue(value), 0, bytesRef);  // 0 because of exact match
+            LegacyNumericUtils.longToPrefixCoded(parseLongValue(value), 0, bytesRef);  // 0 because of exact match
             return bytesRef.get();
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseLongValue(lowerTerm),
                 upperTerm == null ? null : parseLongValue(upperTerm),
                 includeLower, includeUpper);
@@ -178,7 +181,7 @@ public class LongFieldMapper extends NumberFieldMapper {
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             long iValue = parseLongValue(value);
             final long iSim = fuzziness.asLong();
-            return NumericRangeQuery.newLongRange(names().indexName(), numericPrecisionStep(),
+            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -186,11 +189,17 @@ public class LongFieldMapper extends NumberFieldMapper {
 
         @Override
         public FieldStats stats(Terms terms, int maxDoc) throws IOException {
-            long minValue = NumericUtils.getMinLong(terms);
-            long maxValue = NumericUtils.getMaxLong(terms);
+            long minValue = LegacyNumericUtils.getMinLong(terms);
+            long maxValue = LegacyNumericUtils.getMaxLong(terms);
             return new FieldStats.Long(
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
             );
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
         }
     }
 
@@ -235,7 +244,7 @@ public class LongFieldMapper extends NumberFieldMapper {
                 value = ((Number) externalValue).longValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().names().fullName(), Long.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Long.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -246,9 +255,10 @@ public class LongFieldMapper extends NumberFieldMapper {
                 }
                 value = fieldType().nullValue();
                 if (fieldType().nullValueAsString() != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(fieldType().names().fullName(), fieldType().nullValueAsString(), boost);
+                    context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Long objValue = fieldType().nullValue();
@@ -275,13 +285,15 @@ public class LongFieldMapper extends NumberFieldMapper {
             } else {
                 value = parser.longValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(fieldType().names().fullName(), parser.text(), boost);
+                    context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
             }
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             CustomLongNumericField field = new CustomLongNumericField(value, fieldType());
-            field.setBoost(boost);
+            if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
+                field.setBoost(boost);
+            }
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
@@ -321,7 +333,7 @@ public class LongFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
             if (fieldType().indexOptions() != IndexOptions.NONE) {
                 return getCachedStream().setLongValue(number);
             }

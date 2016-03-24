@@ -68,6 +68,13 @@ corruption is detected, it will prevent the shard from being opened. Accepts:
 Checking shards may take a lot of time on large indices.
 --
 
+[[index-codec]] `index.codec`::
+
+    The +default+ value compresses stored data with LZ4
+    compression, but this can be set to +best_compression+
+    which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
+    compression ratio, at the expense of slower stored fields performance.
+
 [float]
 [[dynamic-index-settings]]
 === Dynamic index settings
@@ -92,11 +99,13 @@ specific index module:
     index visible to search.  Defaults to `1s`.  Can be set to `-1` to disable
     refresh.
 
-[[index-codec]] `index.codec`::
+`index.max_result_window`::
 
-    experimental[] The `default` value compresses stored data with LZ4
-    compression, but this can be set to `best_compression` for a higher
-    compression ratio, at the expense of slower stored fields performance.
+    The maximum value of `from + size` for searches to this index. Defaults to
+    `10000`. Search requests take heap memory and time proportional to
+    `from + size` and this limits that memory. See
+    <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>> for a more efficient alternative
+    to raising this.
 
 `index.blocks.read_only`::
 
@@ -119,19 +128,6 @@ specific index module:
 
     experimental[] Disables the purge of <<mapping-ttl-field,expired docs>> on
     the current index.
-
-[[index.recovery.initial_shards]]`index.recovery.initial_shards`::
-+
---
-A primary shard is only recovered only if there are enough nodes available to
-allocate sufficient replicas to form a quorum. It can be set to:
-
-    * `quorum` (default)
-    * `quorum-1` (or `half`)
-    * `full`
-    * `full-1`.
-    * Number values are also supported, e.g. `1`.
---
 
 
 [float]
@@ -190,5 +186,3 @@ include::index-modules/slowlog.asciidoc[]
 include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
-
-

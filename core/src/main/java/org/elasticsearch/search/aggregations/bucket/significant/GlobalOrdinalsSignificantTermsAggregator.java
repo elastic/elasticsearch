@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -47,15 +48,17 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
     protected long numCollectedDocs;
     protected final SignificantTermsAggregatorFactory termsAggFactory;
+    private final SignificanceHeuristic significanceHeuristic;
 
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories,
             ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds,
             IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
-            SignificantTermsAggregatorFactory termsAggFactory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+            SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent,
                 SubAggCollectionMode.DEPTH_FIRST, false, pipelineAggregators, metaData);
+        this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }
 
@@ -117,7 +120,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             // that are for this shard only
             // Back at the central reducer these properties will be updated with
             // global stats
-            spare.updateScore(termsAggFactory.getSignificanceHeuristic());
+            spare.updateScore(significanceHeuristic);
             spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 
@@ -131,7 +134,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         }
 
         return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), pipelineAggregators(),
+                bucketCountThresholds.getMinDocCount(), significanceHeuristic, Arrays.asList(list), pipelineAggregators(),
                 metaData());
     }
 
@@ -142,7 +145,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(),
+                bucketCountThresholds.getMinDocCount(), significanceHeuristic,
                 Collections.<InternalSignificantTerms.Bucket> emptyList(), pipelineAggregators(), metaData());
     }
 
@@ -157,10 +160,11 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
                 BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude,
-                AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            super(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory,
-                    pipelineAggregators, metaData);
+                AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
+                SignificantTermsAggregatorFactory termsAggFactory, List<PipelineAggregator> pipelineAggregators,
+                Map<String, Object> metaData) throws IOException {
+            super(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, significanceHeuristic,
+                    termsAggFactory, pipelineAggregators, metaData);
             bucketOrds = new LongHash(1, aggregationContext.bigArrays());
         }
 

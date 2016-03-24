@@ -40,7 +40,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
     }
 
     /**
-     * Sets to reutrn all the data.
+     * Sets to return all the data.
      */
     public NodesInfoRequestBuilder all() {
         request.all();
@@ -88,14 +88,6 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
     }
 
     /**
-     * Should the node Network info be returned.
-     */
-    public NodesInfoRequestBuilder setNetwork(boolean network) {
-        request.network(network);
-        return this;
-    }
-
-    /**
      * Should the node Transport info be returned.
      */
     public NodesInfoRequestBuilder setTransport(boolean transport) {
@@ -116,6 +108,14 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      */
     public NodesInfoRequestBuilder setPlugins(boolean plugins) {
         request().plugins(plugins);
+        return this;
+    }
+
+    /**
+     * Should the node ingest info be returned.
+     */
+    public NodesInfoRequestBuilder setIngest(boolean ingest) {
+        request().ingest(ingest);
         return this;
     }
 }

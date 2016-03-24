@@ -19,24 +19,24 @@
 
 package org.elasticsearch.index.query.plugin;
 
+import java.io.IOException;
+
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchModule;
 
-import java.io.IOException;
-
-public class DummyQueryParserPlugin extends AbstractPlugin {
+public class DummyQueryParserPlugin extends Plugin {
 
     @Override
     public String name() {
@@ -48,36 +48,65 @@ public class DummyQueryParserPlugin extends AbstractPlugin {
         return "dummy query";
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof IndicesQueriesModule) {
-            IndicesQueriesModule indicesQueriesModule = (IndicesQueriesModule) module;
-            indicesQueriesModule.addQuery(DummyQueryParser.class);
-        }
+    public void onModule(SearchModule module) {
+        module.registerQueryParser(DummyQueryParser::new);
     }
 
-    public Settings settings() {
-        return Settings.EMPTY;
-    }
+    public static class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
+        private static final String NAME = "dummy";
 
-    public static class DummyQueryBuilder extends QueryBuilder {
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject("dummy").endObject();
+            builder.startObject(NAME).endObject();
+        }
+
+        @Override
+        protected Query doToQuery(QueryShardContext context) throws IOException {
+            return new DummyQuery(context.isFilter());
+        }
+
+        @Override
+        protected DummyQueryBuilder doReadFrom(StreamInput in) throws IOException {
+            return new DummyQueryBuilder();
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            // Do Nothing
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        protected boolean doEquals(DummyQueryBuilder other) {
+            return true;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
     }
 
-    public static class DummyQueryParser implements QueryParser {
+    public static class DummyQueryParser implements QueryParser<DummyQueryBuilder> {
         @Override
         public String[] names() {
-            return new String[]{"dummy"};
+            return new String[]{DummyQueryBuilder.NAME};
         }
 
         @Override
-        public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        public DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser.Token token = parseContext.parser().nextToken();
             assert token == XContentParser.Token.END_OBJECT;
-            return new DummyQuery(parseContext.isFilter());
+            return new DummyQueryBuilder();
+        }
+
+        @Override
+        public DummyQueryBuilder getBuilderPrototype() {
+            return new DummyQueryBuilder();
         }
     }
 

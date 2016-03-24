@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -33,14 +34,14 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public final class GeoBoundsAggregator extends MetricsAggregator {
+
+    static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");
 
     private final ValuesSource.GeoPoint valuesSource;
     private final boolean wrapLongitude;
@@ -160,33 +161,9 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
                 Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, pipelineAggregators(), metaData());
     }
-    
+
     @Override
     public void doClose() {
         Releasables.close(tops, bottoms, posLefts, posRights, negLefts, negRights);
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
-
-        private final boolean wrapLongitude;
-
-        protected Factory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, boolean wrapLongitude) {
-            super(name, InternalGeoBounds.TYPE.name(), config);
-            this.wrapLongitude = wrapLongitude;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new GeoBoundsAggregator(name, aggregationContext, parent, null, wrapLongitude, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new GeoBoundsAggregator(name, aggregationContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metaData);
-        }
-
     }
 }

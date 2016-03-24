@@ -2,8 +2,7 @@
 "Test cat indices output":
 
   - do:
-      cat.indices:
-        v: false
+      cat.indices: {}
 
   - match:
       $body: |
@@ -20,8 +19,7 @@
        cluster.health:
          wait_for_status: yellow
   - do:
-      cat.indices:
-        v: false
+      cat.indices: {}
 
   - match:
       $body: |
@@ -34,5 +32,20 @@
                   0      \s+
                   (\d+|\d+[.]\d+)(kb|b) \s+
                   (\d+|\d+[.]\d+)(kb|b) \s*
+                )
+                $/
+
+  - do:
+      cat.indices:
+        v: false
+        h: i,cd,cds,creation.date,creation.date.string
+  - match:
+      $body: |
+               /^(
+                  index1                                                    \s+
+                  (\d+)                                                     \s+
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s+
+                  (\d+)                                                     \s+
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s*
                 )
                 $/

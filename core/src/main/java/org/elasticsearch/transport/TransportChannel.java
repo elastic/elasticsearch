@@ -30,6 +30,10 @@ public interface TransportChannel {
 
     String getProfileName();
 
+    long getRequestId();
+
+    String getChannelType();
+
     void sendResponse(TransportResponse response) throws IOException;
 
     void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException;

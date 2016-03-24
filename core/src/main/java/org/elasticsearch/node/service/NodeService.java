@@ -19,31 +19,40 @@
 
 package org.elasticsearch.node.service;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  */
-public class NodeService extends AbstractComponent {
+public class NodeService extends AbstractComponent implements Closeable {
 
     private final ThreadPool threadPool;
     private final MonitorService monitorService;
@@ -51,29 +60,44 @@ public class NodeService extends AbstractComponent {
     private final IndicesService indicesService;
     private final PluginsService pluginService;
     private final CircuitBreakerService circuitBreakerService;
+    private final IngestService ingestService;
+    private final SettingsFilter settingsFilter;
+    private ScriptService scriptService;
+
     @Nullable
     private HttpServer httpServer;
 
-    private volatile ImmutableMap<String, String> serviceAttributes = ImmutableMap.of();
+    private volatile Map<String, String> serviceAttributes = emptyMap();
 
     private final Version version;
 
     private final Discovery discovery;
 
     @Inject
-    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
-                       TransportService transportService, IndicesService indicesService,
-                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, Version version) {
+    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
+                       Discovery discovery, TransportService transportService, IndicesService indicesService,
+                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, Version version,
+                       ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.discovery = discovery;
-        discovery.setNodeService(this);
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
+        this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
+        this.settingsFilter = settingsFilter;
+        clusterService.add(ingestService.getPipelineStore());
+        clusterService.add(ingestService.getPipelineExecutionService());
+    }
+
+    // can not use constructor injection or there will be a circular dependency
+    @Inject(optional = true)
+    public void setScriptService(ScriptService scriptService) {
+        this.scriptService = scriptService;
+        this.ingestService.setScriptService(scriptService);
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {
@@ -81,17 +105,21 @@ public class NodeService extends AbstractComponent {
     }
 
     public synchronized void putAttribute(String key, String value) {
-        serviceAttributes = new MapBuilder<>(serviceAttributes).put(key, value).immutableMap();
+        Map<String, String> newServiceAttributes = new HashMap<>(serviceAttributes);
+        newServiceAttributes.put(key, value);
+        serviceAttributes = unmodifiableMap(newServiceAttributes);
     }
 
     public synchronized void removeAttribute(String key) {
-        serviceAttributes = new MapBuilder<>(serviceAttributes).remove(key).immutableMap();
+        Map<String, String> newServiceAttributes = new HashMap<>(serviceAttributes);
+        newServiceAttributes.remove(key);
+        serviceAttributes = unmodifiableMap(newServiceAttributes);
     }
 
     /**
      * Attributes different services in the node can add to be reported as part of the node info (for example).
      */
-    public ImmutableMap<String, String> attributes() {
+    public Map<String, String> attributes() {
         return this.serviceAttributes;
     }
 
@@ -104,21 +132,23 @@ public class NodeService extends AbstractComponent {
                 threadPool.info(),
                 transportService.info(),
                 httpServer == null ? null : httpServer.info(),
-                pluginService == null ? null : pluginService.info()
+                pluginService == null ? null : pluginService.info(),
+                ingestService == null ? null : ingestService.info()
         );
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
-                         boolean network, boolean transport, boolean http, boolean plugin) {
+                         boolean transport, boolean http, boolean plugin, boolean ingest) {
         return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
-                settings ? this.settings : null,
+                settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,
                 jvm ? monitorService.jvmService().info() : null,
                 threadPool ? this.threadPool.info() : null,
                 transport ? transportService.info() : null,
                 http ? (httpServer == null ? null : httpServer.info()) : null,
-                plugin ? (pluginService == null ? null : pluginService.info()) : null
+                plugin ? (pluginService == null ? null : pluginService.info()) : null,
+                ingest ? (ingestService == null ? null : ingestService.info()) : null
         );
     }
 
@@ -134,12 +164,16 @@ public class NodeService extends AbstractComponent {
                 monitorService.fsService().stats(),
                 transportService.stats(),
                 httpServer == null ? null : httpServer.stats(),
-                circuitBreakerService.stats()
+                circuitBreakerService.stats(),
+                scriptService.stats(),
+                discovery.stats(),
+                ingestService.getPipelineExecutionService().stats()
         );
     }
 
-    public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network,
-                           boolean fs, boolean transport, boolean http, boolean circuitBreaker) {
+    public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
+                           boolean fs, boolean transport, boolean http, boolean circuitBreaker,
+                           boolean script, boolean discoveryStats, boolean ingest) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(discovery.localNode(), System.currentTimeMillis(),
@@ -151,7 +185,19 @@ public class NodeService extends AbstractComponent {
                 fs ? monitorService.fsService().stats() : null,
                 transport ? transportService.stats() : null,
                 http ? (httpServer == null ? null : httpServer.stats()) : null,
-                circuitBreaker ? circuitBreakerService.stats() : null
+                circuitBreaker ? circuitBreakerService.stats() : null,
+                script ? scriptService.stats() : null,
+                discoveryStats ? discovery.stats() : null,
+                ingest ? ingestService.getPipelineExecutionService().stats() : null
         );
+    }
+
+    public IngestService getIngestService() {
+        return ingestService;
+    }
+
+    @Override
+    public void close() throws IOException {
+        indicesService.close();
     }
 }

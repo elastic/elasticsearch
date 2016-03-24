@@ -59,12 +59,14 @@ And here is a sample response:
 
 `size`::
 
-    The number of hits to return. Defaults to `10`.
+    The number of hits to return. Defaults to `10`. If you do not care about
+    getting some hits back but only about the number of matches and/or
+    aggregations, setting the value to `0` will help performance.
 
 `search_type`::
 
     The type of the search operation to perform. Can be
-    `dfs_query_then_fetch`, `query_then_fetch`, or 'scan'.
+    `dfs_query_then_fetch` or `query_then_fetch`.
     Defaults to `query_then_fetch`.
     See <<search-request-search-type,_Search Type_>> for more.
 
@@ -77,7 +79,6 @@ And here is a sample response:
 
 `terminate_after`::
 
-    experimental[The API for this feature may change in the future]
     The maximum number of documents to collect for each shard,
     upon reaching which the query execution will terminate early. If set, the
     response will have a boolean field `terminated_early` to indicate whether
@@ -92,6 +93,46 @@ parameter named `source`.
 
 Both HTTP GET and HTTP POST can be used to execute search with body. Since not
 all clients support GET with body, POST is allowed as well.
+
+[float]
+=== Fast check for any matching docs
+
+In case we only want to know if there are any documents matching a
+specific query, we can set the `size` to `0` to indicate that we are not
+interested in the search results. Also we can set `terminate_after` to `1`
+to indicate that the query execution can be terminated whenever the first
+matching document was found (per shard).
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_search?q=tag:wow&size=0&terminate_after=1'
+--------------------------------------------------
+
+The response will not contain any hits as the `size` was set to `0`. The
+`hits.total` will be either equal to `0`, indicating that there were no
+matching documents, or greater than `0` meaning that there were at least
+as many documents matching the query when it was early terminated.
+Also if the query was terminated early, the `terminated_early` flag will
+be set to `true` in the response.
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 3,
+  "timed_out": false,
+  "terminated_early": true,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 0,
+    "hits": []
+  }
+}
+--------------------------------------------------
 
 
 include::request/query.asciidoc[]
@@ -131,3 +172,5 @@ include::request/min-score.asciidoc[]
 include::request/named-queries-and-filters.asciidoc[]
 
 include::request/inner-hits.asciidoc[]
+
+include::request/search-after.asciidoc[]

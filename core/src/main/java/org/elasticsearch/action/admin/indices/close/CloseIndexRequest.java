@@ -39,7 +39,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
-    CloseIndexRequest() {
+    public CloseIndexRequest() {
     }
 
     /**

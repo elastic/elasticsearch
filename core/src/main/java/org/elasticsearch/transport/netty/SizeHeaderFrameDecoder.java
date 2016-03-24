@@ -80,8 +80,8 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
         }
         // safety against too large frames being sent
         if (dataLen > NINETY_PER_HEAP_SIZE) {
-            throw new TooLongFrameException(
-                    "transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded [" + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
+            throw new TooLongFrameException("transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded ["
+                    + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
         }
 
         if (buffer.readableBytes() < dataLen + 6) {

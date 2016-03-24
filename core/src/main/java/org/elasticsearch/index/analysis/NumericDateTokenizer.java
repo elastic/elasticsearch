@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
@@ -30,11 +30,11 @@ import java.io.IOException;
 public class NumericDateTokenizer extends NumericTokenizer {
 
     public NumericDateTokenizer(int precisionStep, char[] buffer, DateTimeFormatter dateTimeFormatter) throws IOException {
-        super(new NumericTokenStream(precisionStep), buffer, dateTimeFormatter);
+        super(new LegacyNumericTokenStream(precisionStep), buffer, dateTimeFormatter);
     }
 
     @Override
-    protected void setValue(NumericTokenStream tokenStream, String value) {
+    protected void setValue(LegacyNumericTokenStream tokenStream, String value) {
         tokenStream.setLongValue(((DateTimeFormatter) extra).parseMillis(value));
     }
 }

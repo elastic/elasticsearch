@@ -31,9 +31,8 @@ import java.lang.annotation.Annotation;
  * used to create an {@link Injector}. Guice provides this object to your
  * application's {@link Module} implementors so they may each contribute
  * their own bindings and other registrations.
- * <p/>
  * <h3>The Guice Binding EDSL</h3>
- * <p/>
+ * <p>
  * Guice uses an <i>embedded domain-specific language</i>, or EDSL, to help you
  * create bindings simply and readably.  This approach is great for overall
  * usability, but it does come with a small cost: <b>it is difficult to
@@ -42,7 +41,6 @@ import java.lang.annotation.Annotation;
  * examples below.  To save space, these examples omit the opening
  * {@code binder}, just as you will if your module extends
  * {@link AbstractModule}.
- * <p/>
  * <pre>
  *     bind(ServiceImpl.class);</pre>
  *
@@ -112,7 +110,7 @@ import java.lang.annotation.Annotation;
  * contribute their own custom scopes for use here as well.
  *
  * <pre>
- *     bind(new TypeLiteral&lt;PaymentService&lt;CreditCard>>() {})
+ *     bind(new TypeLiteral&lt;PaymentService&lt;CreditCard&gt;&gt;() {})
  *         .to(CreditCardPaymentService.class);</pre>
  *
  * This admittedly odd construct is the way to bind a parameterized type. It
@@ -141,7 +139,7 @@ import java.lang.annotation.Annotation;
  *
  * Sets up a constant binding. Constant injections must always be annotated.
  * When a constant binding's value is a string, it is eligile for conversion to
- * all primitive types, to {@link Enum#valueOf(Class, String) all enums}, and to
+ * all primitive types, to {@link Enum#valueOf all enums}, and to
  * {@link Class#forName class literals}. Conversions for other types can be
  * configured using {@link #convertToTypes(Matcher, TypeConverter)
  * convertToTypes()}.
@@ -178,7 +176,7 @@ import java.lang.annotation.Annotation;
  * the problems at runtime, as soon as you try to create your Injector.
  *
  * <p>The other methods of Binder such as {@link #bindScope},
- * {@link #bindInterceptor}, {@link #install}, {@link #requestStaticInjection},
+ * {@link #install}, {@link #requestStaticInjection},
  * {@link #addError} and {@link #currentStage} are not part of the Binding EDSL;
  * you can learn how to use these in the usual way, from the method
  * documentation.

@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.mapper.date;
 
-import org.apache.lucene.analysis.NumericTokenStream.NumericTermAttribute;
+import org.apache.lucene.analysis.LegacyNumericTokenStream.LegacyNumericTermAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -39,35 +39,48 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.mapper.string.SimpleStringMappingTests.docValuesType;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
-public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
+public class SimpleDateMappingTests extends ESSingleNodeTestCase {
 
     public void testAutomaticDateParser() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = mapper("test", "type", mapping);
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -81,17 +94,21 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
+        defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
+        DateFieldMapper dateFieldMapper = (DateFieldMapper)fieldMapper;
+        assertEquals("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", dateFieldMapper.fieldType().dateTimeFormatter().format());
+        assertEquals(1265587200000L, dateFieldMapper.fieldType().dateTimeFormatter().parser().parseMillis("1265587200000"));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field2");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
 
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date1");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date2");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date3");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
     }
 
     public void testParseLocal() {
@@ -137,7 +154,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject()
                   .field("date_field_en", "Wed, 06 Dec 2000 02:55:00 -0800")
                   .field("date_field_de", "Mi, 06 Dez 2000 02:55:00 -0800")
-                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - no exception is a successs!
+                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - no exception is a success!
                 .endObject()
                 .bytes());
         assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_de");
@@ -172,7 +189,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
 
         TokenStream tokenStream = doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.mappers().indexAnalyzer(), null);
         tokenStream.reset();
-        NumericTermAttribute nta = tokenStream.addAttribute(NumericTermAttribute.class);
+        LegacyNumericTermAttribute nta = tokenStream.addAttribute(LegacyNumericTermAttribute.class);
         List<Long> values = new ArrayList<>();
         while(tokenStream.incrementToken()) {
             values.add(nta.getRawValue());
@@ -180,7 +197,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
 
         tokenStream = doc.rootDoc().getField(fieldB).tokenStream(defaultMapper.mappers().indexAnalyzer(), null);
         tokenStream.reset();
-        nta = tokenStream.addAttribute(NumericTermAttribute.class);
+        nta = tokenStream.addAttribute(LegacyNumericTermAttribute.class);
         int pos = 0;
         while(tokenStream.incrementToken()) {
             assertThat(values.get(pos++), equalTo(nta.getRawValue()));
@@ -239,10 +256,10 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
             .bytes());
         assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis())));
 
-        NumericRangeQuery<Long> rangeQuery;
+        LegacyNumericRangeQuery<Long> rangeQuery;
         try {
-            SearchContext.setCurrent(new TestSearchContext());
-            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("10:00:00", "11:00:00", true, true).rewrite(null);
+            SearchContext.setCurrent(new TestSearchContext(null));
+            rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("10:00:00", "11:00:00", true, true).rewrite(null);
         } finally {
             SearchContext.removeCurrent();
         }
@@ -265,10 +282,10 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .bytes());
         assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis())));
 
-        NumericRangeQuery<Long> rangeQuery;
+        LegacyNumericRangeQuery<Long> rangeQuery;
         try {
-            SearchContext.setCurrent(new TestSearchContext());
-            rangeQuery = (NumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true).rewrite(null);
+            SearchContext.setCurrent(new TestSearchContext(null));
+            rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType().rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true).rewrite(null);
         } finally {
             SearchContext.removeCurrent();
         }
@@ -321,7 +338,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
 
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
-        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field3", "a")
@@ -368,9 +385,8 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         Map<String, String> config = getConfigurationViaXContent(initialDateFieldMapper);
         assertThat(config.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy"));
 
-        MergeResult mergeResult = defaultMapper.merge(mergeMapper.mapping(), false, false);
+        defaultMapper = defaultMapper.merge(mergeMapper.mapping(), false);
 
-        assertThat("Merging resulting in conflicts: " + Arrays.asList(mergeResult.buildConflicts()), mergeResult.hasConflicts(), is(false));
         assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(DateFieldMapper.class)));
 
         DateFieldMapper mergedFieldMapper = (DateFieldMapper) defaultMapper.mappers().getMapper("field");
@@ -415,51 +431,6 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         throw new AssertionError("missing");
     }
 
-    public void testNumericResolutionBackwardsCompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("date_field").field("type", "date").field("format", "date_time").field("numeric_resolution", "seconds").endObject().endObject()
-            .endObject().endObject().string();
-
-        DocumentMapper defaultMapper = mapper("test1", "type", mapping, Version.V_0_90_0);
-
-        // provided as an int
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_field", 42)
-            .endObject()
-            .bytes());
-        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(42000L));
-
-        // provided as a string
-        doc = defaultMapper.parse("test", "type", "2", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_field", "43")
-            .endObject()
-            .bytes());
-        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(43000L));
-
-        // but formatted dates still parse as milliseconds
-        doc = defaultMapper.parse("test", "type", "2", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("date_field", "1970-01-01T00:00:44.000Z")
-            .endObject()
-            .bytes());
-        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(44000L));
-
-        // expected to fail due to field epoch date formatters not being set
-        DocumentMapper currentMapper = mapper("test2", "type", mapping);
-        try {
-            currentMapper.parse("test", "type", "2", XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("date_field", randomBoolean() ? "43" : 43)
-                    .endObject()
-                    .bytes());
-            fail("expected parse failure");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("failed to parse [date_field]"));
-        }
-    }
-
     public void testThatEpochCanBeIgnoredWithCustomFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "yyyyMMddHH").endObject().endObject()
@@ -485,31 +456,6 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(1433239200000L));
         indexResponse = client().prepareIndex("test", "test").setSource(document).get();
         assertThat(indexResponse.isCreated(), is(true));
-    }
-
-    public void testThatOlderIndicesAllowNonStrictDates() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
-                .endObject().endObject().string();
-
-        Version randomVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_0_90_0, Version.V_1_6_1);
-        IndexService index = createIndex("test", settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build());
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
-        assertDateFormat("epoch_millis||date_optional_time");
-        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
-
-        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("date_field", "1-1-1T00:00:44.000Z")
-                .endObject()
-                .bytes());
-
-        // also test normal date
-        defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("date_field", "2015-06-06T00:00:44.000Z")
-                .endObject()
-                .bytes());
     }
 
     public void testThatNewIndicesOnlyAllowStrictDates() throws Exception {
@@ -539,34 +485,6 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         } catch (MapperParsingException e) {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         }
-    }
-
-    public void testThatUpgradingAnOlderIndexToStrictDateWorks() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("date_field").field("type", "date").field("format", "date_optional_time").endObject().endObject()
-                .endObject().endObject().string();
-
-        Version randomVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_0_90_0, Version.V_1_6_1);
-        createIndex("test", settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build());
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
-        assertDateFormat("epoch_millis||date_optional_time");
-
-        // index doc
-        client().prepareIndex("test", "type", "1").setSource(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("date_field", "2015-06-06T00:00:44.000Z")
-                .endObject()).get();
-
-        // update mapping
-        String newMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("date_field")
-                .field("type", "date")
-                .field("format", "strict_date_optional_time||epoch_millis")
-                .endObject().endObject().endObject().endObject().string();
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(newMapping).get();
-        assertThat(putMappingResponse.isAcknowledged(), is(true));
-
-        assertDateFormat("strict_date_optional_time||epoch_millis");
     }
 
     private void assertDateFormat(String expectedFormat) throws IOException {

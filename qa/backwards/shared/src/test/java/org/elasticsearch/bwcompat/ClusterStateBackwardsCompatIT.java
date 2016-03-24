@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -41,6 +42,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WR
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@TestLogging("level:DEBUG") // hack to enable root level debug logic. TODO fix to be "_root:DEBUG"
 public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
     public void testClusterState() throws Exception {
         createIndex("test");

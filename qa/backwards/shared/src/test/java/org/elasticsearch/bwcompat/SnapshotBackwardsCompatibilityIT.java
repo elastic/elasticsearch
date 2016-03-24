@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.snapshots.SnapshotSharedTest;
 import org.elasticsearch.snapshots.SnapshotSharedTest.AfterSnapshotAction;
 import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 
@@ -30,6 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
+@TestLogging("level:DEBUG") // hack to enable root level debug logic. TODO fix to be "_root:DEBUG"
 public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
     /**
      * Tests that we can restore a snapshot made by a mixed version cluster when

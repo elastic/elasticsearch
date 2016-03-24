@@ -79,7 +79,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 Collections.emptyMap(), Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new), Collections.emptyMap(), Collections.emptyMap());
     }
 
-    private Settings loadFromClasspath(String path) {
+    private Settings loadFromClasspath(String path) throws IOException {
         return settingsBuilder().loadFromStream(path, getClass().getResourceAsStream(path))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

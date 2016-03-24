@@ -210,7 +210,7 @@ public class HunspellService extends AbstractComponent {
      * @param defaults The default settings for this dictionary
      * @return The resolved settings.
      */
-    private static Settings loadDictionarySettings(Path dir, Settings defaults) {
+    private static Settings loadDictionarySettings(Path dir, Settings defaults) throws IOException {
         Path file = dir.resolve("settings.yml");
         if (Files.exists(file)) {
             return Settings.settingsBuilder().loadFromPath(file).put(defaults).build();

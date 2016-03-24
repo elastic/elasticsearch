@@ -167,7 +167,7 @@ public class LogConfigurator {
     static void loadConfig(Path file, Settings.Builder settingsBuilder) {
         try {
             settingsBuilder.loadFromPath(file);
-        } catch (SettingsException | NoClassDefFoundError e) {
+        } catch (IOException | SettingsException | NoClassDefFoundError e) {
             // ignore
         }
     }

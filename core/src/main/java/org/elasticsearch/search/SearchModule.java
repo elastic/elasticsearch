@@ -287,6 +287,7 @@ public class SearchModule extends AbstractModule {
         registerBuiltinFunctionScoreParsers();
         registerBuiltinQueryParsers();
         registerBuiltinRescorers();
+        registerBuiltinSorts();
     }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
@@ -351,7 +352,6 @@ public class SearchModule extends AbstractModule {
         configureSuggesters();
         configureFetchSubPhase();
         configureShapes();
-        configureSorts();
     }
 
     protected void configureFetchSubPhase() {
@@ -495,11 +495,11 @@ public class SearchModule extends AbstractModule {
         namedWriteableRegistry.register(RescoreBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new);
     }
 
-    private void configureSorts() {
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScriptSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, FieldSortBuilder.PROTOTYPE);
+    private void registerBuiltinSorts() {
+        namedWriteableRegistry.register(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new);
+        namedWriteableRegistry.register(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new);
+        namedWriteableRegistry.register(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new);
+        namedWriteableRegistry.register(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new);
     }
 
     private void registerBuiltinFunctionScoreParsers() {

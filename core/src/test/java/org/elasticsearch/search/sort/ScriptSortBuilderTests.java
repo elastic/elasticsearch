@@ -180,7 +180,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
 
         context.reset(parser);
-        ScriptSortBuilder builder = ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+        ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
         assertEquals("doc['field_name'].value * factor", builder.script().getScript());
         assertNull(builder.script().getLang());
         assertEquals(1.1, builder.script().getParams().get("factor"));
@@ -211,7 +211,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
 
         context.reset(parser);
-        ScriptSortBuilder builder = ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+        ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
         assertEquals("doc['field_name'].value * factor", builder.script().getScript());
         assertNull(builder.script().getLang());
         assertEquals(1.1, builder.script().getParams().get("factor"));
@@ -235,7 +235,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         context.reset(parser);
         exceptionRule.expect(ParsingException.class);
         exceptionRule.expectMessage("failed to parse field [bad_field]");
-        ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+        ScriptSortBuilder.fromXContent(context, null);
     }
 
     public void testParseBadFieldNameExceptionsOnStartObject() throws IOException {
@@ -251,7 +251,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         context.reset(parser);
         exceptionRule.expect(ParsingException.class);
         exceptionRule.expectMessage("failed to parse field [bad_field]");
-        ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+        ScriptSortBuilder.fromXContent(context, null);
     }
 
     public void testParseUnexpectedToken() throws IOException {
@@ -267,7 +267,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         context.reset(parser);
         exceptionRule.expect(ParsingException.class);
         exceptionRule.expectMessage("unexpected token [START_ARRAY]");
-        ScriptSortBuilder.PROTOTYPE.fromXContent(context, null);
+        ScriptSortBuilder.fromXContent(context, null);
     }
 
     /**
@@ -278,5 +278,10 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         exceptionRule.expect(IllegalArgumentException.class);
         exceptionRule.expectMessage("script sort of type [string] doesn't support mode");
         builder.sortMode(SortMode.fromString(randomFrom(new String[]{"avg", "median", "sum"})));
+    }
+
+    @Override
+    protected ScriptSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
+        return ScriptSortBuilder.fromXContent(context, fieldName);
     }
 }

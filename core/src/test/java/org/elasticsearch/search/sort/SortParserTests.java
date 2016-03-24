@@ -140,6 +140,6 @@ public class SortParserTests extends ESSingleNodeTestCase {
         parser.setParseFieldMatcher(ParseFieldMatcher.STRICT);
         parseContext.reset(parser);
         parser.nextToken();
-        GeoDistanceSortBuilder.PROTOTYPE.fromXContent(parseContext, null);
+        GeoDistanceSortBuilder.fromXContent(parseContext, null);
     }
 }

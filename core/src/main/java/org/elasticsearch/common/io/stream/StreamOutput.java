@@ -690,6 +690,18 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write an optional {@link QueryBuilder} to the stream.
+     */
+    public void writeOptionalQuery(@Nullable QueryBuilder<?> queryBuilder) throws IOException {
+        if (queryBuilder == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeQuery(queryBuilder);
+        }
+    }
+
+    /**
      * Writes a {@link ShapeBuilder} to the current stream
      */
     public void writeShape(ShapeBuilder shapeBuilder) throws IOException {

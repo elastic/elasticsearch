@@ -342,7 +342,7 @@ class InstallPluginCommand extends Command {
         }
 
         // check for jar hell before any copying
-        jarHellCheck(pluginRoot, env.pluginsFile(), info.isIsolated());
+        jarHellCheck(pluginRoot, env.pluginsFile());
 
         // read optional security policy (extra permissions)
         // if it exists, confirm or warn the user
@@ -355,19 +355,13 @@ class InstallPluginCommand extends Command {
     }
 
     /** check a candidate plugin for jar hell before installing it */
-    void jarHellCheck(Path candidate, Path pluginsDir, boolean isolated) throws Exception {
+    void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
         // create list of current jars in classpath
         final List<URL> jars = new ArrayList<>();
         jars.addAll(Arrays.asList(JarHell.parseClassPath()));
 
         // read existing bundles. this does some checks on the installation too.
-        List<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(pluginsDir);
-
-        // if we aren't isolated, we need to jarhellcheck against any other non-isolated plugins
-        // that's always the first bundle
-        if (isolated == false) {
-            jars.addAll(bundles.get(0).urls);
-        }
+        PluginsService.getPluginBundles(pluginsDir);
 
         // add plugin jars to the list
         Path pluginJars[] = FileSystemUtils.files(candidate, "*.jar");

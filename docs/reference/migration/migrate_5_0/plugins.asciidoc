@@ -6,6 +6,10 @@ structure of the plugin ZIP archive has changed. All the plugin files must be
 contained in a top-level directory called `elasticsearch`. If you use the
 gradle build, this structure is automatically generated.
 
+==== Plugins isolation
+
+`isolated` option has been removed. Each plugin will have its own classloader.
+
 ==== Site plugins removed
 
 Site plugins have been removed. Site plugins should be reimplemented as Kibana

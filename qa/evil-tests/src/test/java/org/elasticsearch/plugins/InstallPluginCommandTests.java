@@ -193,9 +193,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         new InstallPluginCommand(env) {
             @Override
-            void jarHellCheck(Path candidate, Path pluginsDir, boolean isolated) throws Exception {
+            void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
                 if (jarHellCheck) {
-                    super.jarHellCheck(candidate, pluginsDir, isolated);
+                    super.jarHellCheck(candidate, pluginsDir);
                 }
             }
         }.execute(terminal, pluginUrl, true);
@@ -367,40 +367,6 @@ public class InstallPluginCommandTests extends ESTestCase {
         installPlugin(pluginZip2, env);
         assertPlugin("fake1", pluginDir1, env);
         assertPlugin("fake2", pluginDir2, env);
-    }
-
-    public void testPurgatoryJarHell() throws Exception {
-        assumeTrue("real filesystem", isReal);
-        Environment environment = createEnv(fs, temp);
-        Path pluginDir1 = createPluginDir(temp);
-        PluginTestUtil.writeProperties(pluginDir1,
-            "description", "fake desc",
-            "name", "fake1",
-            "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "FakePlugin",
-            "isolated", "false");
-        writeJar(pluginDir1.resolve("plugin.jar"), "FakePlugin");
-        String pluginZip1 = writeZip(pluginDir1, "elasticsearch");
-        installPlugin(pluginZip1, environment);
-
-        Path pluginDir2 = createPluginDir(temp);
-        PluginTestUtil.writeProperties(pluginDir2,
-            "description", "fake desc",
-            "name", "fake2",
-            "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "FakePlugin",
-            "isolated", "false");
-        writeJar(pluginDir2.resolve("plugin.jar"), "FakePlugin");
-        String pluginZip2 = writeZip(pluginDir2, "elasticsearch");
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            installPlugin(pluginZip2, environment, true);
-        });
-        assertTrue(e.getMessage(), e.getMessage().contains("jar hell"));
-        assertInstallCleaned(environment);
     }
 
     public void testExistingPlugin() throws Exception {

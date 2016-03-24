@@ -20,6 +20,7 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.EncryptionMaterials;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -51,8 +52,8 @@ public class TestAwsS3Service extends InternalAwsS3Service {
 
 
     @Override
-    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries) {
-        return cachedWrapper(super.client(endpoint, protocol, region, account, key, maxRetries));
+    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries, EncryptionMaterials clientSideEncryptionMaterials) {
+        return cachedWrapper(super.client(endpoint, protocol, region, account, key, maxRetries, clientSideEncryptionMaterials));
     }
 
     private AmazonS3 cachedWrapper(AmazonS3 client) {

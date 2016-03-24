@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3EncryptionClient;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.CreateBucketRequest;
@@ -70,6 +71,12 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         this.region = region;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
+
+        if (client instanceof AmazonS3EncryptionClient && this.bufferSize.getBytes() % 16 > 0) {
+            throw new BlobStoreException("Detected client-side encryption " +
+                "and a buffer_size for the S3 storage not a multiple of the cipher block size (16)");
+        }
+
         this.cannedACL = initCannedACL(cannedACL);
         this.numberOfRetries = maxRetries;
         this.storageClass = initStorageClass(storageClass);

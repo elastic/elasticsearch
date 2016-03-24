@@ -31,6 +31,11 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3EncryptionClient;
+import com.amazonaws.services.s3.model.CryptoConfiguration;
+import com.amazonaws.services.s3.model.EncryptionMaterials;
+import com.amazonaws.services.s3.model.EncryptionMaterialsProvider;
+import com.amazonaws.services.s3.model.StaticEncryptionMaterialsProvider;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -49,7 +54,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     /**
      * (acceskey, endpoint) -&gt; client
      */
-    private Map<Tuple<String, String>, AmazonS3Client> clients = new HashMap<>();
+    private Map<Tuple<String, Tuple<String, EncryptionMaterials>>, AmazonS3Client> clients = new HashMap<>();
 
     @Inject
     public InternalAwsS3Service(Settings settings) {
@@ -57,7 +62,9 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     }
 
     @Override
-    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries) {
+    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+                                        EncryptionMaterials clientSideEncryptionMaterials) {
+
         if (Strings.isNullOrEmpty(endpoint)) {
             // We need to set the endpoint based on the region
             if (region != null) {
@@ -69,11 +76,14 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             }
         }
 
-        return getClient(endpoint, protocol, account, key, maxRetries);
+        return getClient(endpoint, protocol, account, key, maxRetries, clientSideEncryptionMaterials);
     }
 
-    private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries) {
-        Tuple<String, String> clientDescriptor = new Tuple<>(endpoint, account);
+    private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries,
+                                            EncryptionMaterials clientSideEncryptionMaterials) {
+
+        Tuple<String, EncryptionMaterials> tempTuple = new Tuple<>(account, clientSideEncryptionMaterials);
+        Tuple<String, Tuple<String, EncryptionMaterials>> clientDescriptor = new Tuple<>(endpoint, tempTuple);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
             return client;
@@ -123,7 +133,18 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
                     new StaticCredentialsProvider(new BasicAWSCredentials(account, key))
             );
         }
-        client = new AmazonS3Client(credentials, clientConfiguration);
+
+        if (clientSideEncryptionMaterials != null) {
+            EncryptionMaterialsProvider encryptionMaterialsProvider = new StaticEncryptionMaterialsProvider(clientSideEncryptionMaterials);
+            CryptoConfiguration cryptoConfiguration = new CryptoConfiguration();
+            client = new AmazonS3EncryptionClient(
+                    credentials,
+                    encryptionMaterialsProvider,
+                    clientConfiguration,
+                    cryptoConfiguration);
+        } else {
+            client = new AmazonS3Client(credentials, clientConfiguration);
+        }
 
         if (endpoint != null) {
             client.setEndpoint(endpoint);

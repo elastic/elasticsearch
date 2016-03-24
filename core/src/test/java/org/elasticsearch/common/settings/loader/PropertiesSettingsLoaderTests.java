@@ -49,4 +49,9 @@ public class PropertiesSettingsLoaderTests extends ESTestCase {
         assertEquals(e.getMessage(), "duplicate settings key [foo] found, previous value [bar], current value [baz]");
     }
 
+    public void testThatNoDuplicatesPropertiesDoesNotAcceptNullValues() {
+        PropertiesSettingsLoader.NoDuplicatesProperties properties = loader.new NoDuplicatesProperties();
+        expectThrows(NullPointerException.class, () -> properties.put("key", null));
+    }
+
 }

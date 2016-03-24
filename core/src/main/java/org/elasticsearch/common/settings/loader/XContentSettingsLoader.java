@@ -38,10 +38,10 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
 
     public abstract XContentType contentType();
 
-    private final boolean guardAgainstNullValuedSettings;
+    private final boolean allowNullValues;
 
-    XContentSettingsLoader(boolean guardAgainstNullValuedSettings) {
-        this.guardAgainstNullValuedSettings = guardAgainstNullValuedSettings;
+    XContentSettingsLoader(boolean allowNullValues) {
+        this.allowNullValues = allowNullValues;
     }
 
     @Override
@@ -160,7 +160,7 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
             );
         }
 
-        if (guardAgainstNullValuedSettings && currentValue == null) {
+        if (currentValue == null && !allowNullValues) {
             throw new ElasticsearchParseException(
                     "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
                     key,

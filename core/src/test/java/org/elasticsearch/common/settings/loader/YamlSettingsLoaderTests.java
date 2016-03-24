@@ -89,7 +89,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
 
     public void testNullValuedSettingThrowsException() {
         final String yaml = "foo:";
-        final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> new YamlSettingsLoader(true).load(yaml));
+        final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> new YamlSettingsLoader(false).load(yaml));
         assertThat(e.toString(), containsString("null-valued setting found for key [foo] found at line number [1], column number [5]"));
     }
 }

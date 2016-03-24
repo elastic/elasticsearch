@@ -201,8 +201,8 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
 
         settings = settingsBuilder()
-                .put(new YamlSettingsLoader(true).load("value: 1"))
-                .put(new YamlSettingsLoader(true).load("value: [ 2, 3 ]"))
+                .put(new YamlSettingsLoader(false).load("value: 1"))
+                .put(new YamlSettingsLoader(false).load("value: [ 2, 3 ]"))
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
 

@@ -36,14 +36,14 @@ public final class SettingsLoaderFactory {
      */
     public static SettingsLoader loaderFromResource(String resourceName) {
         if (resourceName.endsWith(".json")) {
-            return new JsonSettingsLoader(true);
+            return new JsonSettingsLoader(false);
         } else if (resourceName.endsWith(".yml") || resourceName.endsWith(".yaml")) {
-            return new YamlSettingsLoader(true);
+            return new YamlSettingsLoader(false);
         } else if (resourceName.endsWith(".properties")) {
             return new PropertiesSettingsLoader();
         } else {
             // lets default to the json one
-            return new JsonSettingsLoader(true);
+            return new JsonSettingsLoader(false);
         }
     }
 
@@ -52,10 +52,10 @@ public final class SettingsLoaderFactory {
      */
     public static SettingsLoader loaderFromSource(String source) {
         if (source.indexOf('{') != -1 && source.indexOf('}') != -1) {
-            return new JsonSettingsLoader(false);
+            return new JsonSettingsLoader(true);
         }
         if (source.indexOf(':') != -1) {
-            return new YamlSettingsLoader(false);
+            return new YamlSettingsLoader(true);
         }
         return new PropertiesSettingsLoader();
     }

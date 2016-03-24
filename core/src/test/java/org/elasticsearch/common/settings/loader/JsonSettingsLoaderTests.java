@@ -65,7 +65,7 @@ public class JsonSettingsLoaderTests extends ESTestCase {
 
     public void testNullValuedSettingThrowsException() {
         final String json = "{\"foo\":null}";
-        final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> new JsonSettingsLoader(true).load(json));
+        final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> new JsonSettingsLoader(false).load(json));
         assertThat(e.toString(), containsString("null-valued setting found for key [foo] found at line number [1], column number [8]"));
     }
 }

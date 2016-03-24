@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -371,6 +372,27 @@ public class BytesStreamsTests extends ESTestCase {
         } catch (UnsupportedOperationException e) {
             assertThat(e.getMessage(), is("can't read named writeable from StreamInput"));
         }
+    }
+
+    public void testNamedWriteableReaderReturnsNull() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null);
+        TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        out.writeNamedWriteable(namedWriteableIn);
+        byte[] bytes = out.bytes().toBytes();
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry);
+        assertEquals(in.available(), bytes.length);
+        IOException e = expectThrows(IOException.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
+        assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+    }
+
+    public void testOptionalWriteableReaderReturnsNull() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeOptionalWriteable(new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+        StreamInput in = StreamInput.wrap(out.bytes().toBytes());
+        IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
+        assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
     }
 
     private static abstract class BaseNamedWriteable<T> implements NamedWriteable<T> {

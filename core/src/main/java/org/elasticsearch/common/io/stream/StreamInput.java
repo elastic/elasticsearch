@@ -566,9 +566,14 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
-    public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> provider) throws IOException {
+    public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
-            return provider.read(this);
+            T t = reader.read(this);
+            if (t == null) {
+                throw new IOException("Writeable.Reader [" + reader
+                        + "] returned null which is not allowed and probably means it screwed up the stream.");
+            }
+            return t;
         } else {
             return null;
         }

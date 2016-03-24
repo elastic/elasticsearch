@@ -73,7 +73,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
     class NoDuplicatesProperties extends Properties {
         @Override
         public synchronized Object put(Object key, Object value) {
-            Object previousValue = super.put(key, value);
+            final Object previousValue = super.put(key, value);
             if (previousValue != null) {
                 throw new ElasticsearchParseException(
                         "duplicate settings key [{}] found, previous value [{}], current value [{}]",

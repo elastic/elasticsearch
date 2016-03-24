@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class YamlSettingsLoaderTests extends ESTestCase {
 
     public void testSimpleYamlSettings() throws Exception {
-        String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
-        Settings settings = settingsBuilder()
+        final String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
+        final Settings settings = settingsBuilder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .build();
 

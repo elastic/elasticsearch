@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class JsonSettingsLoaderTests extends ESTestCase {
 
     public void testSimpleJsonSettings() throws Exception {
-        String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
-        Settings settings = settingsBuilder()
+        final String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
+        final Settings settings = settingsBuilder()
                 .loadFromStream(json, getClass().getResourceAsStream(json))
                 .build();
 

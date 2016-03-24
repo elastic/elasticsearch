@@ -75,7 +75,12 @@ public class PropertiesSettingsLoader implements SettingsLoader {
         public synchronized Object put(Object key, Object value) {
             Object previousValue = super.put(key, value);
             if (previousValue != null) {
-                throw new ElasticsearchParseException("duplicate settings key [{}] found, previous value [{}], current value [{}]", key, previousValue, value);
+                throw new ElasticsearchParseException(
+                        "duplicate settings key [{}] found, previous value [{}], current value [{}]",
+                        key,
+                        previousValue,
+                        value
+                );
             }
             return previousValue;
         }

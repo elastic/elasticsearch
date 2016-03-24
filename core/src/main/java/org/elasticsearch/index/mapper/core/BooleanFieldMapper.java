@@ -110,8 +110,6 @@ public class BooleanFieldMapper extends FieldMapper {
                     }
                     builder.nullValue(lenientNodeBooleanValue(propNode));
                     iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
-                    iterator.remove();
                 }
             }
             return builder;

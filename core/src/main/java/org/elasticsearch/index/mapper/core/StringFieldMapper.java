@@ -334,8 +334,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     builder.fielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
                     DocumentMapperParser.checkNoRemainingFields(propName, frequencyFilter, parserContext.indexVersionCreated());
                     iterator.remove();
-                } else if (parseMultiField(builder, fieldName, parserContext, propName, propNode)) {
-                    iterator.remove();
                 }
             }
             return builder;

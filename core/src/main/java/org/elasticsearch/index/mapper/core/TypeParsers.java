@@ -268,6 +268,8 @@ public class TypeParsers {
                     && parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
                 // ignore for bw compat
                 iterator.remove();
+            } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+                iterator.remove();
             } else if (propName.equals("copy_to")) {
                 if (parserContext.isWithinMultiField()) {
                     if (indexVersionCreated.after(Version.V_2_1_0) ||

@@ -496,6 +496,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
             // create a copy of the keys in the cache since we will be modifying this list
             final Set<String> existingRoles = new HashSet<>(roleCache.keySet());
             try {
+                client.admin().indices().prepareRefresh(ShieldTemplateService.SECURITY_INDEX_NAME);
                 SearchRequest request = client.prepareSearch(ShieldTemplateService.SECURITY_INDEX_NAME)
                         .setScroll(scrollKeepAlive)
                         .setQuery(QueryBuilders.typeQuery(ROLE_DOC_TYPE))
@@ -513,12 +514,23 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                     for (SearchHit hit : response.getHits().getHits()) {
                         final String roleName = hit.getId();
                         final long version = hit.version();
-                        existingRoles.remove(roleName);
+                        final boolean existed = existingRoles.remove(roleName);
                         // we use the locking mechanisms provided by the map/cache to help protect against concurrent operations
                         // that will leave the cache in a bad state
-                        roleCache.computeIfPresent(roleName, new BiFunction<String, RoleAndVersion, RoleAndVersion>() {
+                        roleCache.compute(roleName, new BiFunction<String, RoleAndVersion, RoleAndVersion>() {
                             @Override
                             public RoleAndVersion apply(String roleName, RoleAndVersion existing) {
+                                if (existing == null) {
+                                    if (existed) {
+                                        // the cache doesn't have this role anymore, it got cleared by something else, do nothing.
+                                        return null;
+                                    } else {
+                                        // it is new, we can cache it
+                                        RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef());
+                                        return new RoleAndVersion(rd, version);
+                                    }
+                                }
+
                                 if (version > existing.getVersion()) {
                                     RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef());
                                     if (rd != null) {
@@ -538,7 +550,8 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                 // check to see if we had roles that do not exist in the index
                 if (existingRoles.isEmpty() == false) {
                     for (String roleName : existingRoles) {
-                        invalidate(roleName);
+                        logger.trace("role [{}] does not exist anymore, removing from cache", roleName);
+                        roleCache.remove(roleName);
                     }
                 }
             } catch (IndexNotFoundException e) {

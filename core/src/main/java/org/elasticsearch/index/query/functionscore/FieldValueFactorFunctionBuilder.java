@@ -17,18 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore.fieldvaluefactor;
+package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -39,7 +42,8 @@ import java.util.Objects;
  * score query.
  */
 public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldValueFactorFunctionBuilder> {
-
+    public static final String NAME = "field_value_factor";
+    public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
     public static final FieldValueFactorFunction.Modifier DEFAULT_MODIFIER = FieldValueFactorFunction.Modifier.NONE;
     public static final float DEFAULT_FACTOR = 1;
 
@@ -55,9 +59,28 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
         this.field = fieldName;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public FieldValueFactorFunctionBuilder(StreamInput in) throws IOException {
+        super(in);
+        field = in.readString();
+        factor = in.readFloat();
+        missing = in.readOptionalDouble();
+        modifier = FieldValueFactorFunction.Modifier.readFromStream(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(field);
+        out.writeFloat(factor);
+        out.writeOptionalDouble(missing);
+        modifier.writeTo(out);
+    }
+
     @Override
     public String getName() {
-        return FieldValueFactorFunctionParser.NAMES[0];
+        return NAME;
     }
 
     public String fieldName() {
@@ -110,30 +133,6 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(field);
-        out.writeFloat(factor);
-        if (missing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeDouble(missing);
-        }
-        modifier.writeTo(out);
-    }
-
-    @Override
-    protected FieldValueFactorFunctionBuilder doReadFrom(StreamInput in) throws IOException {
-        FieldValueFactorFunctionBuilder functionBuilder = new FieldValueFactorFunctionBuilder(in.readString());
-        functionBuilder.factor = in.readFloat();
-        if (in.readBoolean()) {
-            functionBuilder.missing = in.readDouble();
-        }
-        functionBuilder.modifier = FieldValueFactorFunction.Modifier.readModifierFrom(in);
-        return functionBuilder;
-    }
-
-    @Override
     protected boolean doEquals(FieldValueFactorFunctionBuilder functionBuilder) {
         return Objects.equals(this.field, functionBuilder.field) &&
                 Objects.equals(this.factor, functionBuilder.factor) &&
@@ -158,5 +157,47 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
             fieldData = context.getForField(fieldType);
         }
         return new FieldValueFactorFunction(field, factor, modifier, missing, fieldData);
+    }
+
+    public static FieldValueFactorFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser)
+            throws IOException, ParsingException {
+        String currentFieldName = null;
+        String field = null;
+        float boostFactor = FieldValueFactorFunctionBuilder.DEFAULT_FACTOR;
+        FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
+        Double missing = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("field".equals(currentFieldName)) {
+                    field = parser.text();
+                } else if ("factor".equals(currentFieldName)) {
+                    boostFactor = parser.floatValue();
+                } else if ("modifier".equals(currentFieldName)) {
+                    modifier = FieldValueFactorFunction.Modifier.fromString(parser.text());
+                } else if ("missing".equals(currentFieldName)) {
+                    missing = parser.doubleValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
+                }
+            } else if ("factor".equals(currentFieldName)
+                    && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "[" + NAME + "] field 'factor' does not support lists or objects");
+            }
+        }
+
+        if (field == null) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] required field 'field' missing");
+        }
+
+        FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = new FieldValueFactorFunctionBuilder(field).factor(boostFactor)
+                .modifier(modifier);
+        if (missing != null) {
+            fieldValueFactorFunctionBuilder.missing(missing);
+        }
+        return fieldValueFactorFunctionBuilder;
     }
 }

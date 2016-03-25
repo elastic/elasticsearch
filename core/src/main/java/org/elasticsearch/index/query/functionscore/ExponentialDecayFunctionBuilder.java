@@ -17,61 +17,69 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore.lin;
+package org.elasticsearch.index.query.functionscore;
+
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.query.functionscore.DecayFunction;
-import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecayFunctionBuilder> {
+import java.io.IOException;
 
-    public static final DecayFunction LINEAR_DECAY_FUNCTION = new LinearDecayScoreFunction();
+public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<ExponentialDecayFunctionBuilder> {
+    public static final String NAME = "exp";
+    public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
+    public static final ScoreFunctionParser<ExponentialDecayFunctionBuilder> PARSER = new DecayFunctionParser<>(
+            ExponentialDecayFunctionBuilder::new);
+    public static final DecayFunction EXP_DECAY_FUNCTION = new ExponentialDecayScoreFunction();
 
-    public LinearDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset) {
+    public ExponentialDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset) {
         super(fieldName, origin, scale, offset);
     }
 
-    public LinearDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
+    public ExponentialDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
         super(fieldName, origin, scale, offset, decay);
     }
 
-    private LinearDecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
+    ExponentialDecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
         super(fieldName, functionBytes);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ExponentialDecayFunctionBuilder(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
     public String getName() {
-        return LinearDecayFunctionParser.NAMES[0];
-    }
-
-    @Override
-    protected LinearDecayFunctionBuilder createFunctionBuilder(String fieldName, BytesReference functionBytes) {
-        return new LinearDecayFunctionBuilder(fieldName, functionBytes);
+        return NAME;
     }
 
     @Override
     public DecayFunction getDecayFunction() {
-        return LINEAR_DECAY_FUNCTION;
+        return EXP_DECAY_FUNCTION;
     }
 
-    private static final class LinearDecayScoreFunction implements DecayFunction {
+    private static final class ExponentialDecayScoreFunction implements DecayFunction {
 
         @Override
         public double evaluate(double value, double scale) {
-            return Math.max(0.0, (scale - value) / scale);
+            return Math.exp(scale * value);
         }
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
             return Explanation.match(
                     (float) evaluate(value, scale),
-                    "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
+                    "exp(- " + valueExpl + " * " + -1 * scale + ")");
         }
 
         @Override
         public double processScale(double scale, double decay) {
-            return scale / (1.0 - decay);
+            return Math.log(decay) / scale;
         }
 
         @Override

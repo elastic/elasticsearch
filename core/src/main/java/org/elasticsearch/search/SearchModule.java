@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.percolator.PercolatorHighlightSubFetchPhase;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -83,16 +84,17 @@ import org.elasticsearch.index.query.TermsQueryParser;
 import org.elasticsearch.index.query.TypeQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryParser;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
+import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionsRegistry;
+import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.AggregationBinaryParseElement;
@@ -245,10 +247,10 @@ public class SearchModule extends AbstractModule {
     private final Highlighters highlighters = new Highlighters();
     private final Suggesters suggesters;
     /**
-     * Function score parsers constructed on registration. This is ok because
-     * they don't have any dependencies.
+     * Map from name to score parser and its ParseField.
      */
-    private final Map<String, ScoreFunctionParser<?>> functionScoreParsers = new HashMap<>();
+    private final Map<String, Tuple<ParseField, ScoreFunctionParser<?>>> scoreFunctionParsers = new HashMap<>();
+    private final ScoreFunctionsRegistry scoreFunctionsRegistry = new ScoreFunctionsRegistry(scoreFunctionParsers);
     /**
      * Query parsers constructed at configure time. These have to be constructed
      * at configure time because they depend on things that are registered by
@@ -270,7 +272,7 @@ public class SearchModule extends AbstractModule {
         this.namedWriteableRegistry = namedWriteableRegistry;
         suggesters = new Suggesters(namedWriteableRegistry);
 
-        registerBuiltinFunctionScoreParsers();
+        registerBuiltinScoreFunctionParsers();
         registerBuiltinQueryParsers();
         registerBuiltinRescorers();
         registerBuiltinSorts();
@@ -285,17 +287,31 @@ public class SearchModule extends AbstractModule {
     }
 
     /**
-     * Register a new ScoreFunctionParser.
+     * Register a new ScoreFunctionBuilder. Registration does two things:
+     * <ul>
+     * <li>Register the {@link ScoreFunctionParser} which parses XContent into a {@link ScoreFunctionBuilder} using its {@link ParseField}
+     * </li>
+     * <li>Register the {@link Writeable.Reader} which reads a stream representation of the builder under the
+     * {@linkplain ParseField#getPreferredName()}.</li>
+     * </ul>
      */
-    public void registerFunctionScoreParser(ScoreFunctionParser<? extends ScoreFunctionBuilder> parser) {
-        for (String name: parser.getNames()) {
-            Object oldValue = functionScoreParsers.putIfAbsent(name, parser);
+    public <T extends ScoreFunctionBuilder<T>> void registerScoreFunction(ScoreFunctionParser<T> parser,
+            Writeable.Reader<T> reader, ParseField functionName) {
+        for (String name: functionName.getAllNamesIncludedDeprecated()) {
+            Tuple<ParseField, ScoreFunctionParser<?>> oldValue = scoreFunctionParsers.putIfAbsent(name, new Tuple<>(functionName, parser));
             if (oldValue != null) {
-                throw new IllegalArgumentException("Function score parser [" + oldValue + "] already registered for name [" + name + "]");
+                throw new IllegalArgumentException(
+                        "Function score parser [" + oldValue.v2() + "] already registered for name [" + name + "]");
             }
         }
-        @SuppressWarnings("unchecked") NamedWriteable<? extends ScoreFunctionBuilder> sfb = parser.getBuilderPrototype();
-        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, sfb);
+        namedWriteableRegistry.register(ScoreFunctionBuilder.class, functionName.getPreferredName(), reader);
+    }
+
+    /**
+     * Fetch the registry of {@linkplain ScoreFunction}s. This is public so extensions can access the score functions.
+     */
+    public ScoreFunctionsRegistry getScoreFunctionsRegistry() {
+        return scoreFunctionsRegistry;
     }
 
     /**
@@ -493,16 +509,23 @@ public class SearchModule extends AbstractModule {
         namedWriteableRegistry.register(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new);
     }
 
-    private void registerBuiltinFunctionScoreParsers() {
-        registerFunctionScoreParser(new ScriptScoreFunctionParser());
-        registerFunctionScoreParser(new GaussDecayFunctionParser());
-        registerFunctionScoreParser(new LinearDecayFunctionParser());
-        registerFunctionScoreParser(new ExponentialDecayFunctionParser());
-        registerFunctionScoreParser(new RandomScoreFunctionParser());
-        registerFunctionScoreParser(new FieldValueFactorFunctionParser());
+    private void registerBuiltinScoreFunctionParsers() {
+        registerScoreFunction(ScriptScoreFunctionBuilder::fromXContent, ScriptScoreFunctionBuilder::new,
+                ScriptScoreFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(GaussDecayFunctionBuilder.PARSER, GaussDecayFunctionBuilder::new,
+                GaussDecayFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(LinearDecayFunctionBuilder.PARSER, LinearDecayFunctionBuilder::new,
+                LinearDecayFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(ExponentialDecayFunctionBuilder.PARSER, ExponentialDecayFunctionBuilder::new,
+                ExponentialDecayFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(RandomScoreFunctionBuilder::fromXContent, RandomScoreFunctionBuilder::new,
+                RandomScoreFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(FieldValueFactorFunctionBuilder::fromXContent, FieldValueFactorFunctionBuilder::new,
+                FieldValueFactorFunctionBuilder.FUNCTION_NAME_FIELD);
+
         //weight doesn't have its own parser, so every function supports it out of the box.
         //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
-        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, new WeightBuilder());
+        namedWriteableRegistry.register(ScoreFunctionBuilder.class, WeightBuilder.NAME, WeightBuilder::new);
     }
 
     private void registerBuiltinQueryParsers() {
@@ -548,9 +571,8 @@ public class SearchModule extends AbstractModule {
                 CommonTermsQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(SpanMultiTermQueryBuilder.PROTOTYPE::readFrom, SpanMultiTermQueryBuilder::fromXContent,
                 SpanMultiTermQueryBuilder.QUERY_NAME_FIELD);
-        QueryParser<FunctionScoreQueryBuilder> functionScoreParser = (QueryParseContext c) -> FunctionScoreQueryBuilder
-                .fromXContent((String name) -> functionScoreParsers.get(name), c);
-        registerQuery(FunctionScoreQueryBuilder.PROTOTYPE::readFrom, functionScoreParser, FunctionScoreQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(FunctionScoreQueryBuilder.PROTOTYPE::readFrom, c -> FunctionScoreQueryBuilder.fromXContent(scoreFunctionsRegistry, c),
+                FunctionScoreQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(SimpleQueryStringBuilder.PROTOTYPE::readFrom, SimpleQueryStringBuilder::fromXContent,
                 SimpleQueryStringBuilder.QUERY_NAME_FIELD);
         registerQuery(TemplateQueryBuilder.PROTOTYPE::readFrom, TemplateQueryBuilder::fromXContent, TemplateQueryBuilder.QUERY_NAME_FIELD);

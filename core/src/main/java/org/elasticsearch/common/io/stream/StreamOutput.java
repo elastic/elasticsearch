@@ -313,6 +313,14 @@ public abstract class StreamOutput extends OutputStream {
         writeLong(Double.doubleToLongBits(v));
     }
 
+    public void writeOptionalDouble(Double v) throws IOException {
+        if (v == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeDouble(v);
+        }
+    }
 
     private static byte ZERO = 0;
     private static byte ONE = 1;

@@ -19,6 +19,7 @@
 package org.elasticsearch.percolator;
 
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -42,7 +43,7 @@ import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;

@@ -17,62 +17,70 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore.exp;
+package org.elasticsearch.index.query.functionscore;
 
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.query.functionscore.DecayFunction;
-import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<ExponentialDecayFunctionBuilder> {
+import java.io.IOException;
 
-    public static final DecayFunction EXP_DECAY_FUNCTION = new ExponentialDecayScoreFunction();
+public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFunctionBuilder> {
+    public static final String NAME = "gauss";
+    public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
+    public static final ScoreFunctionParser<GaussDecayFunctionBuilder> PARSER = new DecayFunctionParser<>(GaussDecayFunctionBuilder::new);
+    public static final DecayFunction GAUSS_DECAY_FUNCTION = new GaussScoreFunction();
 
-    public ExponentialDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset) {
+    public GaussDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset) {
         super(fieldName, origin, scale, offset);
     }
 
-    public ExponentialDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
+    public GaussDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
         super(fieldName, origin, scale, offset, decay);
     }
 
-    private ExponentialDecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
+    GaussDecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
         super(fieldName, functionBytes);
     }
 
-    @Override
-    protected ExponentialDecayFunctionBuilder createFunctionBuilder(String fieldName, BytesReference functionBytes) {
-        return new ExponentialDecayFunctionBuilder(fieldName, functionBytes);
+    /**
+     * Read from a stream.
+     */
+    public GaussDecayFunctionBuilder(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
     public String getName() {
-        return ExponentialDecayFunctionParser.NAMES[0];
+        return NAME;
     }
 
     @Override
     public DecayFunction getDecayFunction() {
-        return EXP_DECAY_FUNCTION;
+        return GAUSS_DECAY_FUNCTION;
     }
 
-    private static final class ExponentialDecayScoreFunction implements DecayFunction {
+    private static final class GaussScoreFunction implements DecayFunction {
 
         @Override
         public double evaluate(double value, double scale) {
-            return Math.exp(scale * value);
+            // note that we already computed scale^2 in processScale() so we do
+            // not need to square it here.
+            return Math.exp(0.5 * Math.pow(value, 2.0) / scale);
         }
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
             return Explanation.match(
                     (float) evaluate(value, scale),
-                    "exp(- " + valueExpl + " * " + -1 * scale + ")");
+                    "exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
         }
 
         @Override
         public double processScale(double scale, double decay) {
-            return Math.log(decay) / scale;
+            return 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
         }
 
         @Override

@@ -16,18 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query.functionscore.random;
+package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -37,15 +39,29 @@ import java.util.Objects;
  * A function that computes a random score for the matched documents
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
-
+    public static final String NAME = "random_score";
+    public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
     private Integer seed;
 
     public RandomScoreFunctionBuilder() {
     }
 
+    /**
+     * Read from a stream.
+     */
+    public RandomScoreFunctionBuilder(StreamInput in) throws IOException {
+        super(in);
+        seed = in.readInt();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeInt(seed);
+    }
+
     @Override
     public String getName() {
-        return RandomScoreFunctionParser.NAMES[0];
+        return NAME;
     }
 
     /**
@@ -94,18 +110,6 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     }
 
     @Override
-    protected RandomScoreFunctionBuilder doReadFrom(StreamInput in) throws IOException {
-        RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilder();
-        randomScoreFunctionBuilder.seed = in.readInt();
-        return randomScoreFunctionBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeInt(seed);
-    }
-
-    @Override
     protected boolean doEquals(RandomScoreFunctionBuilder functionBuilder) {
         return Objects.equals(this.seed, functionBuilder.seed);
     }
@@ -122,15 +126,54 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
             return new RandomScoreFunction();
         }
-        //TODO find a way to not get the shard_id from the current search context? make it available in QueryShardContext?
-        //this currently causes NPE in FunctionScoreQueryBuilderTests#testToQuery
-        final ShardId shardId = SearchContext.current().indexShard().shardId();
-        final int salt = (context.index().getName().hashCode() << 10) | shardId.id();
+        final int salt = (context.index().getName().hashCode() << 10) | getCurrentShardId();
         final IndexFieldData<?> uidFieldData = context.getForField(fieldType);
         return new RandomScoreFunction(this.seed == null ? hash(context.nowInMillis()) : seed, salt, uidFieldData);
+    }
+
+    /**
+     * Get the current shard's id for the seed. Protected because this method doesn't work during certain unit tests and needs to be
+     * replaced.
+     */
+    int getCurrentShardId() {
+        return SearchContext.current().indexShard().shardId().id();
     }
 
     private static int hash(long value) {
         return Long.hashCode(value);
     }
+
+    public static RandomScoreFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser)
+            throws IOException, ParsingException {
+        RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilder();
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("seed".equals(currentFieldName)) {
+                    if (token == XContentParser.Token.VALUE_NUMBER) {
+                        if (parser.numberType() == XContentParser.NumberType.INT) {
+                            randomScoreFunctionBuilder.seed(parser.intValue());
+                        } else if (parser.numberType() == XContentParser.NumberType.LONG) {
+                            randomScoreFunctionBuilder.seed(parser.longValue());
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int, long or string, not '"
+                                    + token.toString() + "'");
+                        }
+                    } else if (token == XContentParser.Token.VALUE_STRING) {
+                        randomScoreFunctionBuilder.seed(parser.text());
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int/long or string, not '"
+                                + token.toString() + "'");
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        return randomScoreFunctionBuilder;
+    }
+
 }

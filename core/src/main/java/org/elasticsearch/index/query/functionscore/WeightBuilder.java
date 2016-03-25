@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore.weight;
+package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
 import java.io.IOException;
 
@@ -32,24 +31,32 @@ import java.io.IOException;
  * A query that multiplies the weight to the score.
  */
 public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
+    public static final String NAME = "weight";
 
-    @Override
-    public String getName() {
-        return "weight";
+    /**
+     * Standard constructor.
+     */
+    public WeightBuilder() {
     }
 
-    @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+    /**
+     * Read from a stream.
+     */
+    public WeightBuilder(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-
     }
 
     @Override
-    protected WeightBuilder doReadFrom(StreamInput in) throws IOException {
-        return new WeightBuilder();
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
     }
 
     @Override

@@ -154,6 +154,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static QueryShardContext queryShardContext;
     private static IndexFieldDataService indexFieldDataService;
     private static int queryNameId = 0;
+    private static SearchModule searchModule;
 
 
     protected static QueryShardContext queryShardContext() {
@@ -174,6 +175,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     protected static String[] getCurrentTypes() {
         return currentTypes;
+    }
+
+    protected static SearchModule getSearchModule() {
+        return searchModule;
     }
 
     private static NamedWriteableRegistry namedWriteableRegistry;
@@ -238,6 +243,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
         };
         scriptModule.prepareSettings(settingsModule);
+        searchModule = new SearchModule(settings, namedWriteableRegistry) {
+            @Override
+            protected void configureSearch() {
+                // Skip me
+            }
+        };
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 settingsModule,
@@ -251,12 +262,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 },
                 scriptModule,
                 new IndexSettingsModule(index, indexSettings),
-                new SearchModule(settings, namedWriteableRegistry) {
-                    @Override
-                    protected void configureSearch() {
-                        // Skip me
-                    }
-                },
+                searchModule,
                 new AbstractModule() {
                     @Override
                     protected void configure() {
@@ -325,6 +331,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         randomTypes = null;
         indicesQueriesRegistry = null;
         indexFieldDataService = null;
+        searchModule = null;
     }
 
     @Before

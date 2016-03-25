@@ -50,12 +50,12 @@ import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-import static java.util.Collections.*;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -962,9 +962,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         logger.info("--> adding one master node, one data node");
         DiscoveryNode discoveryNode1 = new DiscoveryNode("", "node1", new LocalTransportAddress("1"), emptyMap(),
-                Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
+                singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
         DiscoveryNode discoveryNode2 = new DiscoveryNode("", "node2", new LocalTransportAddress("2"), emptyMap(),
-                Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
+                singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(discoveryNode1).put(discoveryNode2).build();
         ClusterState baseClusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
@@ -1030,7 +1030,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Add another datanode, it should relocate.
         logger.info("--> adding node3");
         DiscoveryNode discoveryNode3 = new DiscoveryNode("", "node3", new LocalTransportAddress("3"), emptyMap(),
-                Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
+                singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
         ClusterState updateClusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(discoveryNode3)).build();
 

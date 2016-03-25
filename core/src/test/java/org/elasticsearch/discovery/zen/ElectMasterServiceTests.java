@@ -49,7 +49,8 @@ public class ElectMasterServiceTests extends ESTestCase {
             if (randomBoolean()) {
                 roles.add(DiscoveryNode.Role.MASTER);
             }
-            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, DummyTransportAddress.INSTANCE, Collections.emptyMap(), roles, Version.CURRENT);
+            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+                    roles, Version.CURRENT);
             nodes.add(node);
         }
 
@@ -96,6 +97,7 @@ public class ElectMasterServiceTests extends ESTestCase {
         } else if (min_master_nodes > 0 && master_nodes < min_master_nodes) {
             assertNull(master);
         } else {
+            assertNotNull(master);
             for (DiscoveryNode node : nodes) {
                 if (node.masterNode()) {
                     assertTrue(master.id().compareTo(node.id()) <= 0);

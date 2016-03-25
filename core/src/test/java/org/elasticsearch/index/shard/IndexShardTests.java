@@ -345,12 +345,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
         Releasable operation1 = indexShard.acquirePrimaryOperationLock();
         assertEquals(1, indexShard.getActiveOperationsCount());
-        Releasable operation2;
-        if (randomBoolean()) {
-            operation2 = indexShard.acquirePrimaryOperationLock();
-        } else {
-            operation2 = indexShard.acquireReplicaOperationLock(primaryTerm);
-        }
+        Releasable operation2 = indexShard.acquirePrimaryOperationLock();
         assertEquals(2, indexShard.getActiveOperationsCount());
 
         Releasables.close(operation1, operation2);

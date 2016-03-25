@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.resolver.cluster;
 
-import org.apache.lucene.util.LuceneTestCase.BadApple;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.marvel.MonitoredSystem.ES;
 import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver.Fields.SOURCE_NODE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.core.Is.is;
 
 //test is just too slow, please fix it to not be sleep-based
-@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
+@LuceneTestCase.BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @ClusterScope(scope = Scope.TEST)
 public class ClusterStateTests extends MarvelIntegTestCase {
 
@@ -105,11 +106,17 @@ public class ClusterStateTests extends MarvelIntegTestCase {
     public void testClusterStateNodes() throws Exception {
         final long nbNodes = internalCluster().size();
 
+        MonitoringIndexNameResolver.Timestamped timestampedResolver = new MockTimestampedIndexNameResolver(ES, TEMPLATE_VERSION);
+        assertNotNull(timestampedResolver);
+
+        String timestampedIndex = timestampedResolver.indexPattern();
+        awaitIndexExists(timestampedIndex);
+
         logger.debug("--> waiting for documents to be collected");
         awaitMarvelDocsCount(greaterThanOrEqualTo(nbNodes), ClusterStateNodeResolver.TYPE);
 
         logger.debug("--> searching for monitoring documents of type [{}]", ClusterStateNodeResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(ClusterStateNodeResolver.TYPE).get();
+        SearchResponse response = client().prepareSearch(timestampedIndex).setTypes(ClusterStateNodeResolver.TYPE).get();
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -133,10 +140,10 @@ public class ClusterStateTests extends MarvelIntegTestCase {
 
         logger.debug("--> check that node attributes are indexed");
         assertThat(client().prepareSearch().setSize(0)
-                .setIndices(MONITORING_INDICES_PREFIX + TEMPLATE_VERSION + "-*")
+                .setIndices(timestampedIndex)
                 .setTypes(ClusterStateNodeResolver.TYPE)
-                .setQuery(QueryBuilders.matchQuery(SOURCE_NODE.underscore().toString() + ".attributes.custom", randomInt)
-                ).get().getHits().getTotalHits(), greaterThan(0L));
+                .setQuery(QueryBuilders.matchQuery(SOURCE_NODE.underscore().toString() + ".attributes.custom", randomInt))
+                .get().getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> cluster state nodes successfully collected");
     }
@@ -144,7 +151,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
     public void testDiscoveryNodes() throws Exception {
         final long nbNodes = internalCluster().size();
 
-        MonitoringIndexNameResolver.Data dataResolver = internalCluster().getInstance(MonitoringIndexNameResolver.Data.class);
+        MonitoringIndexNameResolver.Data dataResolver = new MockDataIndexNameResolver(TEMPLATE_VERSION);
         assertNotNull(dataResolver);
 
         String dataIndex = dataResolver.indexPattern();
@@ -154,7 +161,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         awaitMarvelDocsCount(greaterThanOrEqualTo(nbNodes), DiscoveryNodeResolver.TYPE);
 
         logger.debug("--> searching for monitoring documents of type [{}]", DiscoveryNodeResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(DiscoveryNodeResolver.TYPE).get();
+        SearchResponse response = client().prepareSearch(dataIndex).setTypes(DiscoveryNodeResolver.TYPE).get();
         assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
 
         logger.debug("--> checking that every document contains the expected fields");
@@ -188,7 +195,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
             assertThat(client().prepareGet(dataIndex, DiscoveryNodeResolver.TYPE, nodeId).get().isExists(), is(true));
 
             // checks that document is not indexed
-            assertHitCount(client().prepareSearch().setSize(0)
+            assertHitCount(client().prepareSearch(dataIndex).setSize(0)
                     .setTypes(DiscoveryNodeResolver.TYPE)
                     .setQuery(QueryBuilders.boolQuery()
                             .should(matchQuery("node.id", nodeId))

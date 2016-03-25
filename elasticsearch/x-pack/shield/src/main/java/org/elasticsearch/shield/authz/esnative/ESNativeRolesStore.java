@@ -514,23 +514,12 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                     for (SearchHit hit : response.getHits().getHits()) {
                         final String roleName = hit.getId();
                         final long version = hit.version();
-                        final boolean existed = existingRoles.remove(roleName);
+                        existingRoles.remove(roleName);
                         // we use the locking mechanisms provided by the map/cache to help protect against concurrent operations
                         // that will leave the cache in a bad state
-                        roleCache.compute(roleName, new BiFunction<String, RoleAndVersion, RoleAndVersion>() {
+                        roleCache.computeIfPresent(roleName, new BiFunction<String, RoleAndVersion, RoleAndVersion>() {
                             @Override
                             public RoleAndVersion apply(String roleName, RoleAndVersion existing) {
-                                if (existing == null) {
-                                    if (existed) {
-                                        // the cache doesn't have this role anymore, it got cleared by something else, do nothing.
-                                        return null;
-                                    } else {
-                                        // it is new, we can cache it
-                                        RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef());
-                                        return new RoleAndVersion(rd, version);
-                                    }
-                                }
-
                                 if (version > existing.getVersion()) {
                                     RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef());
                                     if (rd != null) {

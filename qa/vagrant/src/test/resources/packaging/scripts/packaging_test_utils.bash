@@ -209,6 +209,17 @@ assert_output() {
     echo "$output" | grep -E "$1"
 }
 
+assert_recursive_ownership() {
+    local directory=$1
+    local user=$2
+    local group=$3
+
+    realuser=$(find $directory -printf "%u\n" | sort | uniq)
+    [ "$realuser" = "$user" ]
+    realgroup=$(find $directory -printf "%g\n" | sort | uniq)
+    [ "$realgroup" = "$group" ]
+}
+
 # Deletes everything before running a test file
 clean_before_test() {
 
@@ -235,6 +246,22 @@ clean_before_test() {
     # Kills all running Elasticsearch processes
     ps aux | grep -i "org.elasticsearch.bootstrap.Elasticsearch" | awk {'print $2'} | xargs kill -9 > /dev/null 2>&1 || true
 
+    purge_elasticsearch
+
+    # Removes user & group
+    userdel elasticsearch > /dev/null 2>&1 || true
+    groupdel elasticsearch > /dev/null 2>&1 || true
+
+
+    # Removes all files
+    for d in "${ELASTICSEARCH_TEST_FILES[@]}"; do
+        if [ -e "$d" ]; then
+            rm -rf "$d"
+        fi
+    done
+}
+
+purge_elasticsearch() {
     # Removes RPM package
     if is_rpm; then
         rpm --quiet -e elasticsearch > /dev/null 2>&1 || true
@@ -252,18 +279,6 @@ clean_before_test() {
     if [ -x "`which apt-get 2>/dev/null`" ]; then
         apt-get --quiet --yes purge elasticsearch > /dev/null 2>&1 || true
     fi
-
-    # Removes user & group
-    userdel elasticsearch > /dev/null 2>&1 || true
-    groupdel elasticsearch > /dev/null 2>&1 || true
-
-
-    # Removes all files
-    for d in "${ELASTICSEARCH_TEST_FILES[@]}"; do
-        if [ -e "$d" ]; then
-            rm -rf "$d"
-        fi
-    done
 }
 
 # Start elasticsearch and wait for it to come up with a status.

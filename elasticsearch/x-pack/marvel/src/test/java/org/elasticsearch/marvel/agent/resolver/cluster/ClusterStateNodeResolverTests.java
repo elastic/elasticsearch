@@ -15,6 +15,8 @@ import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCa
 
 import java.util.UUID;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -26,7 +28,7 @@ public class ClusterStateNodeResolverTests extends
         ClusterStateNodeMonitoringDoc doc = new ClusterStateNodeMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         doc.setNodeId(UUID.randomUUID().toString());
         doc.setStateUUID(UUID.randomUUID().toString());
         return doc;

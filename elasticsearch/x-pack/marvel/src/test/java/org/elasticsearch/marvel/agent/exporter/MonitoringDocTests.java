@@ -14,6 +14,11 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
@@ -120,14 +125,15 @@ public class MonitoringDocTests extends ESTestCase {
     }
 
     private DiscoveryNode newRandomDiscoveryNode() {
-        ImmutableOpenMap.Builder<String, String> attributes = ImmutableOpenMap.builder();
+        Map<String, String> attributes = new HashMap<>();
         if (rarely()) {
             int nbAttributes = randomIntBetween(0, 5);
             for (int i = 0; i < nbAttributes; i++) {
                 attributes.put("key#" + i, String.valueOf(i));
             }
         }
+        Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
         return new DiscoveryNode(randomAsciiOfLength(5), randomAsciiOfLength(3), randomAsciiOfLength(3), randomAsciiOfLength(3),
-                DummyTransportAddress.INSTANCE, attributes.build(), randomVersion(random()));
+                DummyTransportAddress.INSTANCE, attributes, roles, randomVersion(random()));
     }
 }

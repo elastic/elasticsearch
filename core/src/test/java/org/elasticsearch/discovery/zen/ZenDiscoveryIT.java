@@ -303,7 +303,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.V_5_0_0_alpha1);
 
         DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(),
-                emptySet(), Version.V_5_0_0_alpha1);
+                Collections.singleton(DiscoveryNode.Role.MASTER), Version.V_5_0_0_alpha1);
         assertThat(electMasterService.electMaster(Collections.singletonList(node)), sameInstance(node));
         node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(), emptySet(), Version.V_2_0_0);
         assertThat("Can't join master because version 2.0.0 is lower than the minimum compatable version 5.0.0 can support", electMasterService.electMaster(Collections.singletonList(node)), nullValue());

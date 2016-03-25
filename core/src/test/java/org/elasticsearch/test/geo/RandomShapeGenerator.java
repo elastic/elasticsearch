@@ -292,8 +292,9 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 xDivisible(yRange.getMax()*10e3)/10e3);
     }
 
+    /** creates a small random rectangle by default to keep shape test performance at bay */
     public static Rectangle xRandomRectangle(Random r, Point nearP) {
-        return xRandomRectangle(r, nearP, ctx.getWorldBounds(), false);
+        return xRandomRectangle(r, nearP, ctx.getWorldBounds(), true);
     }
 
     public static Rectangle xRandomRectangle(Random r, Point nearP, boolean small) {

@@ -69,6 +69,13 @@ public final class Pipeline {
     }
 
     /**
+     * Get the underlying {@link CompoundProcessor} containing the Pipeline's processors
+     */
+    public CompoundProcessor getCompoundProcessor() {
+        return compoundProcessor;
+    }
+
+    /**
      * Unmodifiable list containing each processor that operates on the data.
      */
     public List<Processor> getProcessors() {

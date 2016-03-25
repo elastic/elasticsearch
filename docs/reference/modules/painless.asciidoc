@@ -1,19 +1,21 @@
 [[modules-scripting-painless]]
 == Painless Scripting Language
 
-_Painless_ is a simple, secure scripting language built in to Elasticsearch as a module. 
+experimental[The Painless scripting language is new and is still marked as experimental. The syntax or API may be changed in the future in non-backwards compatible ways if required.]
+
+_Painless_ is a simple, secure scripting language built in to Elasticsearch as a module.
 It is designed specifically for use with Elasticsearch and can safely be used dynamically.
 
-A Painless script is essentially a single function. Painless does not provide support 
-for defining multiple functions within a script. The Painless syntax is similar to 
-http://groovy-lang.org/index.html[Groovy]. 
+A Painless script is essentially a single function. Painless does not provide support
+for defining multiple functions within a script. The Painless syntax is similar to
+http://groovy-lang.org/index.html[Groovy].
 
-You can use Painless anywhere a script can be used in Elasticsearch--simply set the `lang` parameter 
+You can use Painless anywhere a script can be used in Elasticsearch--simply set the `lang` parameter
 to `painless`.
 
 [[painless-features]]
 [float]
-=== Painless Features
+== Painless Features
 
 * Control flow: `for` loops, `while` loops, `do/while` loops, `if/else`
 
@@ -32,196 +34,229 @@ to `painless`.
 
 [[painless-examples]]
 [float]
-=== Painless Examples
+== Painless Examples
 
 To illustrate how Painless works, let's load some hockey stats into an Elasticsearch index:
 
 [source,sh]
 ----------------------------------------------------------------
-curl -XDELETE http://localhost:9200/hockey-stats
-curl -XPUT http://localhost:9200/hockey-stats
-curl -XPUT http://localhost:9200/hockey-stats/player/1 -d '{"first":"johnny", "last":"gaudreau", "goals":[9, 27, 1], "assists":[17, 46, 0], "gp":[26, 82, 1]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/2 -d '{"first":"sean", "last":"monohan", "goals":[7, 54, 26], "assists":[11, 26, 13], "gp":[26, 82, 82]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/3 -d '{"first":"jiri", "last":"hudler", "goals":[5, 34, 36], "assists":[11, 62, 42], "gp":[24, 80, 79]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/4 -d '{"first":"micheal", "last":"frolik", "goals":[4, 6, 15], "assists":[8, 23, 15], "gp":[26, 82, 82]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/5 -d '{"first":"sam", "last":"bennett", "goals":[5, 0, 0], "assists":[8, 1, 0], "gp":[26, 1, 0]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/6 -d '{"first":"dennis", "last":"wideman", "goals":[0, 26, 15], "assists":[11, 30, 24], "gp":[26, 81, 82]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/7 -d '{"first":"david", "last":"jones", "goals":[7, 19, 5], "assists":[3, 17, 4], "gp":[26, 45, 34]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/8 -d '{"first":"tj", "last":"brodie", "goals":[2, 14, 7], "assists":[8, 42, 30], "gp":[26, 82, 82]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/9 -d '{"first":"mark", "last":"giordano", "goals":[6, 30, 15], "assists":[3, 30, 24], "gp":[26, 60, 63]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/10 -d '{"first":"mikael", "last":"backlund", "goals":[3, 15, 13], "assists":[6, 24, 18], "gp":[26, 82, 82]}'
-curl -XPUT http://localhost:9200/hockey-stats/player/11 -d '{"first":"joe", "last":"colborne", "goals":[3, 18, 13], "assists":[6, 20, 24], "gp":[26, 67, 82]}'
+DELETE /hockey-stats
+
+PUT /hockey-stats/player/_bulk
+{"index":{"_id":1}}
+{"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1]}
+{"index":{"_id":2}}
+{"first":"sean","last":"monohan","goals":[7,54,26],"assists":[11,26,13],"gp":[26,82,82]}
+{"index":{"_id":3}}
+{"first":"jiri","last":"hudler","goals":[5,34,36],"assists":[11,62,42],"gp":[24,80,79]}
+{"index":{"_id":4}}
+{"first":"micheal","last":"frolik","goals":[4,6,15],"assists":[8,23,15],"gp":[26,82,82]}
+{"index":{"_id":5}}
+{"first":"sam","last":"bennett","goals":[5,0,0],"assists":[8,1,0],"gp":[26,1,0]}
+{"index":{"_id":6}}
+{"first":"dennis","last":"wideman","goals":[0,26,15],"assists":[11,30,24],"gp":[26,81,82]}
+{"index":{"_id":7}}
+{"first":"david","last":"jones","goals":[7,19,5],"assists":[3,17,4],"gp":[26,45,34]}
+{"index":{"_id":8}}
+{"first":"tj","last":"brodie","goals":[2,14,7],"assists":[8,42,30],"gp":[26,82,82]}
+{"index":{"_id":39}}
+{"first":"mark","last":"giordano","goals":[6,30,15],"assists":[3,30,24],"gp":[26,60,63]}
+{"index":{"_id":10}}
+{"first":"mikael","last":"backlund","goals":[3,15,13],"assists":[6,24,18],"gp":[26,82,82]}
+{"index":{"_id":11}}
+{"first":"joe","last":"colborne","goals":[3,18,13],"assists":[6,20,24],"gp":[26,67,82]}
 ----------------------------------------------------------------
+// AUTOSENSE
 
 [float]
-==== Accessing Doc Values from Painless
+=== Accessing Doc Values from Painless
 
-All Painless scripts take in a `Map<String,def>` of values called `input`.  Document values can be accessed through another `Map<String,def>` within the `input` variable.  
+All Painless scripts take in a `Map<String,def>` of values called `input`.  Document values can be accessed through another `Map<String,def>` within the `input` variable.
 
-For example, the following script calculates a player's total goals. This example uses a strongly typed `int` and a `for` loop.  
+For example, the following script calculates a player's total goals. This example uses a strongly typed `int` and a `for` loop.
 
 [source,sh]
 ----------------------------------------------------------------
-curl -XGET http://localhost:9200/hockey-stats/_search -d '{
-   "query": {
-      "function_score": {
-         "script_score" : {
-            "script" : {
-               "inline": 
-                  "int total = 0; for (int i = 0; i < input.doc.goals.size(); ++i) { total += input.doc.goals[i]; } return total;", 
-               "lang": "painless"
-            }
+GET /hockey-stats/_search
+{
+  "query": {
+    "function_score": {
+      "script_score": {
+        "script": {
+          "lang": "painless",
+          "inline": "int total = 0; for (int i = 0; i < input.doc.goals.size(); ++i) { total += input.doc.goals[i]; } return total;"
         }
+      }
     }
-   }
-}'
+  }
+}
 ----------------------------------------------------------------
+// AUTOSENSE
 
 Alternatively, you could do the same thing using a script field instead of a function score:
 
 [source,sh]
 ----------------------------------------------------------------
-curl -XGET http://localhost:9200/hockey-stats/_search -d '{
-   "query": {
-      "match_all": {}}, 
-      "script_fields": {
-         "total_goals": {
-            "script": {
-               "inline": "int total = 0; for (int i = 0; i < input.doc.goals.size(); ++i) { total += input.doc.goals[i]; } return total;", 
-               "lang": "painless"
-            }
-        }
+GET /hockey-stats/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "total_goals": {
+      "script": {
+        "lang": "painless",
+        "inline": "int total = 0; for (int i = 0; i < input.doc.goals.size(); ++i) { total += input.doc.goals[i]; } return total;"
+      }
     }
-}'
+  }
+}
 ----------------------------------------------------------------
+// AUTOSENSE
 
-You must always specify the index of the field value you want, even if there's only a single item in the field. 
+You must always specify the index of the field value you want, even if there's only a single item in the field.
 All fields in Elasticsearch are multi-valued and Painless does not provide a `.value` shortcut. The following example uses a Painless script to sort the players by their combined first and last names. The names are accessed using
-`input.doc.first.0` and `input.doc.last.0`.  
+`input.doc.first.0` and `input.doc.last.0`.
 
 [source,sh]
 ----------------------------------------------------------------
-curl -XGET http://localhost:9200/hockey-stats/_search -d '{
-   "query" : {
-      "match_all": {}}, 
-      "sort" : {
-         "_script" : {
-            "type" : "string", 
-            "script" : {"inline": "input.doc.first.0 + \" \" + input.doc.last.0", 
-            "lang": "painless"}, 
-            "order" : "asc"
-        }
+GET /hockey-stats/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "sort": {
+    "_script": {
+      "type": "string",
+      "order": "asc",
+      "script": {
+        "lang": "painless",
+        "inline": "input.doc.first.0 + \" \" + input.doc.last.0"
+      }
     }
-}'
+  }
+}
 ----------------------------------------------------------------
+// AUTOSENSE
 
 [float]
-==== Updating Fields with Painless 
+=== Updating Fields with Painless
 
-You can also easily update fields. You access the original source for a field as `input.ctx._source.<field-name>`. 
+You can also easily update fields. You access the original source for a field as `input.ctx._source.<field-name>`.
 
 First, let's look at the source data for a player by submitting the following request:
 
 [source,sh]
 ----------------------------------------------------------------
-curl -XGET http://localhost:9200/hockey-stats/_search -d '{
-   "fields" : ["_id", "_source"], "query" : {
-      "term" : { "_id" : 1 }
+GET /hockey-stats/_search
+{
+  "fields": [
+    "_id",
+    "_source"
+  ],
+  "query": {
+    "term": {
+      "_id": 1
     }
-}'
+  }
+}
 ----------------------------------------------------------------
+// AUTOSENSE
 
-To change player 1's last name to _hockey_, simply set `input.ctx._source.last` to the new value:
+To change player 1's last name to `hockey`, simply set `input.ctx._source.last` to the new value:
 
 [source,sh]
 ----------------------------------------------------------------
-curl -XPOST http://localhost:9200/hockey-stats/player/1/_update -d '{
-   "script": {
-      "inline": "input.ctx._source.last = input.last", 
-      "params": {"last": "hockey"}, 
-      "lang": "painless"
-   }
-}'
+POST /hockey-stats/player/1/_update
+{
+  "script": {
+    "lang": "painless",
+    "inline": "input.ctx._source.last = input.last",
+    "params": {
+      "last": "hockey"
+    }
+  }
+}
 ----------------------------------------------------------------
+// AUTOSENSE
 
-You can also add fields to a document. For example, this script adds a new field that contains 
+You can also add fields to a document. For example, this script adds a new field that contains
 the player's nickname,  _hockey_.
 
 [source,sh]
 ----------------------------------------------------------------
-curl -XPOST http://localhost:9200/hockey-stats/player/1/_update -d '{
-   "script": {
-      "inline": "input.ctx._source.last = input.last input.ctx._source.nick = input.nick", 
-      "params": {"last": "gaudreau", "nick": "hockey"}, 
-      "lang": "painless"
-   }
-}'
+POST /hockey-stats/player/1/_update
+{
+  "script": {
+    "lang": "painless",
+    "inline": "input.ctx._source.last = input.last input.ctx._source.nick = input.nick",
+    "params": {
+      "last": "gaudreau",
+      "nick": "hockey"
+    }
+  }
+}
 ----------------------------------------------------------------
+// AUTOSENSE
 
 [float]
-==== Writing Type-Safe Scripts to Improve Performance
+=== Writing Type-Safe Scripts to Improve Performance
 
-If you explicitly specify types, the compiler doesn't have to perform type lookups at runtime, which can significantly 
-improve performance. For example, the following script performs the same first name, last name sort we showed before, 
+If you explicitly specify types, the compiler doesn't have to perform type lookups at runtime, which can significantly
+improve performance. For example, the following script performs the same first name, last name sort we showed before,
 but it's fully type-safe.
 
 [source,sh]
 ----------------------------------------------------------------
-curl -XGET http://localhost:9200/hockey-stats/_search -d '{
-   "query": {
-      "match_all": {}
-   }, 
-   "script_fields": {
-      "full_name_dynamic": {
-         "script": {
-            "inline": "def first = input.doc.first.0; def last = input.doc.last.0; return first + \" \" + last;", 
-            "lang": "painless"
-         }
-      }, 
-      "full_name_static": {
-         "script": {
-            "inline": 
-               "String first = (String)((List)((Map)input.get(\"doc\")).get(\"first\")).get(0); String last = (String)((List)((Map)input.get(\"doc\")).get(\"last\")).get(0); return first + \" \" + last;", 
-           "lang": "painless"
-         }
-       }
+GET /hockey-stats/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "full_name_dynamic": {
+      "script": {
+        "lang": "painless",
+        "inline": "def first = input.doc.first.0; def last = input.doc.last.0; return first + \" \" + last;"
+      }
+    },
+    "full_name_static": {
+      "script": {
+        "lang": "painless",
+        "inline": "String first = (String)((List)((Map)input.get(\"doc\")).get(\"first\")).get(0); String last = (String)((List)((Map)input.get(\"doc\")).get(\"last\")).get(0); return first + \" \" + last;"
+      }
     }
-}'
+  }
+}
 ----------------------------------------------------------------
+// AUTOSENSE
 
 [[painless-api]]
 [float]
-=== Painless API
+== Painless API
 
 The following types are available for use in the Painless language. Most types and methods map directly to their Java equivalents--for more information, see the corresponding https://docs.oracle.com/javase/8/docs/api/java/lang/package-summary.html[Javadoc].
 
 
 [float]
-==== Dynamic Types
+=== Dynamic Types
 
-`def` (This type can be used to represent any other type.)
-
-[float]
-==== Basic Types
-
-`void`
-
-`boolean`
-
-`short`
-
-`char`
-
-`int`
-
-`long`
-
-`float`
-
-`double`
+* `def` (This type can be used to represent any other type.)
 
 [float]
-==== Complex Types
+=== Basic Types
+
+* `void`
+* `boolean`
+* `short`
+* `char`
+* `int`
+* `long`
+* `float`
+* `double`
+
+[float]
+=== Complex Types
 
 Non-static methods/members in superclasses are available to subclasses.
 Generic types with unspecified generic parameters are parameters of type `def`.
@@ -242,7 +277,7 @@ ArrayList<Object> extends List<Object>
 -----
 
 -----
-ArrayList<String> extends List<String>    
+ArrayList<String> extends List<String>
     <init>()
 -----
 
@@ -254,13 +289,13 @@ Boolean extends Object
 -----
 
 -----
-Character extends Object    
+Character extends Object
     <init>(char)
     static Character valueOf(char)
     char charValue()
     static char MIN_VALUE
     static char MAX_VALUE
------    
+-----
 
 -----
 CharSequence extends Object
@@ -311,7 +346,7 @@ Double extends Number
 
 -----
 Exception extends Object
-    String getMessage()    
+    String getMessage()
 -----
 
 -----
@@ -324,7 +359,7 @@ Float extends Number
 
 -----
 HashMap extends Map
-    <init>()    
+    <init>()
 -----
 
 -----
@@ -334,14 +369,14 @@ HashMap<Object,Object> extends Map<Object,Object>
 
 -----
 HashMap<String,def> extends Map<String,def>
-    <init>()    
+    <init>()
 -----
 
 -----
 HashMap<String,Object> extends Map<String,Object>
     <init>()
 -----
-    
+
 -----
 IllegalArgument extends Exception
     <init>()
@@ -349,7 +384,7 @@ IllegalArgument extends Exception
 
 -----
 IllegalState extends Exception
-    <init>()    
+    <init>()
 -----
 
 -----
@@ -413,7 +448,7 @@ Map extends Object
     boolean containsKey(def)
     boolean containsValue(def)
     Set keySet()
-    Collection values()    
+    Collection values()
 -----
 
 -----
@@ -549,7 +584,7 @@ Math
    static double min(double, double)
    static float fmin(float, float)
    static long lmin(long, long)
-   static int imin(int, int)   
+   static int imin(int, int)
    static double pow(double, double)
    static double random()
    static double rint(double)

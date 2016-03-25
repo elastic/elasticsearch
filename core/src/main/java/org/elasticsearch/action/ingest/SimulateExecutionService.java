@@ -23,12 +23,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.ingest.processor.TrackingResultProcessor.decorate;
 
 class SimulateExecutionService {
 
@@ -40,40 +41,16 @@ class SimulateExecutionService {
         this.threadPool = threadPool;
     }
 
-    void executeVerboseDocument(Processor processor, IngestDocument ingestDocument, List<SimulateProcessorResult> processorResultList) throws Exception {
-        if (processor instanceof CompoundProcessor) {
-            CompoundProcessor cp = (CompoundProcessor) processor;
-            try {
-                for (Processor p : cp.getProcessors()) {
-                    executeVerboseDocument(p, ingestDocument, processorResultList);
-                }
-            } catch (Exception e) {
-                for (Processor p : cp.getOnFailureProcessors()) {
-                    executeVerboseDocument(p, ingestDocument, processorResultList);
-                }
-            }
-        } else {
-            try {
-                processor.execute(ingestDocument);
-                processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument)));
-            } catch (Exception e) {
-                processorResultList.add(new SimulateProcessorResult(processor.getTag(), e));
-                throw e;
-            }
-        }
-    }
-
     SimulateDocumentResult executeDocument(Pipeline pipeline, IngestDocument ingestDocument, boolean verbose) {
         if (verbose) {
             List<SimulateProcessorResult> processorResultList = new ArrayList<>();
-            IngestDocument currentIngestDocument = new IngestDocument(ingestDocument);
-            CompoundProcessor pipelineProcessor = new CompoundProcessor(pipeline.getProcessors(), pipeline.getOnFailureProcessors());
+            CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), processorResultList);
             try {
-                executeVerboseDocument(pipelineProcessor, currentIngestDocument, processorResultList);
+                verbosePipelineProcessor.execute(ingestDocument);
+                return new SimulateDocumentVerboseResult(processorResultList);
             } catch (Exception e) {
-                return new SimulateDocumentBaseResult(e);
+                return new SimulateDocumentVerboseResult(processorResultList);
             }
-            return new SimulateDocumentVerboseResult(processorResultList);
         } else {
             try {
                 pipeline.execute(ingestDocument);

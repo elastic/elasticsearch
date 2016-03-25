@@ -96,4 +96,8 @@ elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
     echo " OK"
 fi
 
+chown -R $ES_USER:$ES_GROUP /var/lib/elasticsearch
+chown -R $ES_USER:$ES_GROUP /var/log/elasticsearch
+chown -R root:$ES_GROUP /etc/elasticsearch
+
 ${scripts.footer}

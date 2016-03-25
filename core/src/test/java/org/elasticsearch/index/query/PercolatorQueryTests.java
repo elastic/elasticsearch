@@ -32,6 +32,8 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Explanation;
@@ -179,34 +181,28 @@ public class PercolatorQueryTests extends ESTestCase {
             MemoryIndex memoryIndex = new MemoryIndex();
             String id = Integer.toString(i);
             memoryIndex.addField("field", id, new WhitespaceAnalyzer());
-            IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-
-            PercolatorQuery.Builder builder1 = new PercolatorQuery.Builder(
-                    "docType",
-                    queryRegistry,
-                    new BytesArray("{}"),
-                    percolateSearcher,
-                    new MatchAllDocsQuery()
-            );
-            // enables the optimization that prevents queries from being evaluated that don't match
-            builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
-            TopDocs topDocs1 = shardSearcher.search(builder1.build(), 10);
-
-            PercolatorQuery.Builder builder2 = new PercolatorQuery.Builder(
-                    "docType",
-                    queryRegistry,
-                    new BytesArray("{}"),
-                    percolateSearcher,
-                    new MatchAllDocsQuery()
-            );
-            TopDocs topDocs2 = shardSearcher.search(builder2.build(), 10);
-
-            assertThat(topDocs1.totalHits, equalTo(topDocs2.totalHits));
-            assertThat(topDocs1.scoreDocs.length, equalTo(topDocs2.scoreDocs.length));
-            for (int j = 0; j < topDocs1.scoreDocs.length; j++) {
-                assertThat(topDocs1.scoreDocs[j].doc, equalTo(topDocs2.scoreDocs[j].doc));
-            }
+            duelRun(memoryIndex, shardSearcher);
         }
+    }
+
+    public void testDuel_specificQueries() throws Exception {
+        CommonTermsQuery commonTermsQuery = new CommonTermsQuery(BooleanClause.Occur.SHOULD, BooleanClause.Occur.SHOULD, 128);
+        commonTermsQuery.add(new Term("field", "quick"));
+        commonTermsQuery.add(new Term("field", "brown"));
+        commonTermsQuery.add(new Term("field", "fox"));
+        addPercolatorQuery("_id1", commonTermsQuery);
+
+        BlendedTermQuery blendedTermQuery = BlendedTermQuery.booleanBlendedQuery(new Term[]{new Term("field", "quick"),
+                new Term("field", "brown"), new Term("field", "fox")}, false);
+        addPercolatorQuery("_id2", blendedTermQuery);
+
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
+        duelRun(memoryIndex, shardSearcher);
     }
 
     void addPercolatorQuery(String id, Query query, String... extraFields) throws IOException {
@@ -220,6 +216,35 @@ public class PercolatorQueryTests extends ESTestCase {
             document.add(new StringField(extraFields[i], extraFields[++i], Field.Store.NO));
         }
         indexWriter.addDocument(document);
+    }
+
+    private void duelRun(MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        PercolatorQuery.Builder builder1 = new PercolatorQuery.Builder(
+                "docType",
+                queryRegistry,
+                new BytesArray("{}"),
+                percolateSearcher,
+                new MatchAllDocsQuery()
+        );
+        // enables the optimization that prevents queries from being evaluated that don't match
+        builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
+        TopDocs topDocs1 = shardSearcher.search(builder1.build(), 10);
+
+        PercolatorQuery.Builder builder2 = new PercolatorQuery.Builder(
+                "docType",
+                queryRegistry,
+                new BytesArray("{}"),
+                percolateSearcher,
+                new MatchAllDocsQuery()
+        );
+        TopDocs topDocs2 = shardSearcher.search(builder2.build(), 10);
+
+        assertThat(topDocs1.totalHits, equalTo(topDocs2.totalHits));
+        assertThat(topDocs1.scoreDocs.length, equalTo(topDocs2.scoreDocs.length));
+        for (int j = 0; j < topDocs1.scoreDocs.length; j++) {
+            assertThat(topDocs1.scoreDocs[j].doc, equalTo(topDocs2.scoreDocs[j].doc));
+        }
     }
 
     private final static class CustomQuery extends Query {

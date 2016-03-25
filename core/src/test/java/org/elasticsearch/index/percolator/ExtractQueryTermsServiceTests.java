@@ -24,6 +24,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -216,6 +218,31 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
+    }
+
+    public void testExtractQueryMetadata_commonTermsQuery() {
+        CommonTermsQuery commonTermsQuery = new CommonTermsQuery(BooleanClause.Occur.SHOULD, BooleanClause.Occur.SHOULD, 100);
+        commonTermsQuery.add(new Term("_field", "_term1"));
+        commonTermsQuery.add(new Term("_field", "_term2"));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(commonTermsQuery));
+        Collections.sort(terms);
+        assertThat(terms.size(), equalTo(2));
+        assertThat(terms.get(0).field(), equalTo("_field"));
+        assertThat(terms.get(0).text(), equalTo("_term1"));
+        assertThat(terms.get(1).field(), equalTo("_field"));
+        assertThat(terms.get(1).text(), equalTo("_term2"));
+    }
+
+    public void testExtractQueryMetadata_blendedTermQuery() {
+        Term[] terms = new Term[]{new Term("_field", "_term1"), new Term("_field", "_term2")};
+        BlendedTermQuery commonTermsQuery = BlendedTermQuery.booleanBlendedQuery(terms, false);
+        List<Term> result = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(commonTermsQuery));
+        Collections.sort(result);
+        assertThat(result.size(), equalTo(2));
+        assertThat(result.get(0).field(), equalTo("_field"));
+        assertThat(result.get(0).text(), equalTo("_term1"));
+        assertThat(result.get(1).field(), equalTo("_field"));
+        assertThat(result.get(1).text(), equalTo("_term2"));
     }
 
     public void testExtractQueryMetadata_unsupportedQuery() {

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -313,9 +314,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         }
 
-        Set<Index> hasAllocations = new HashSet<>();
-        for (ShardRouting routing : event.state().getRoutingNodes().node(event.state().nodes().localNodeId())) {
-            hasAllocations.add(routing.index());
+        final Set<Index> hasAllocations = new HashSet<>();
+        final RoutingNode node = event.state().getRoutingNodes().node(event.state().nodes().localNodeId());
+        // if no shards are allocated ie. if this node is a master-only node it can return nul
+        if (node != null) {
+            for (ShardRouting routing : node) {
+                hasAllocations.add(routing.index());
+            }
         }
         for (IndexService indexService : indicesService) {
             Index index = indexService.index();

@@ -105,9 +105,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ArrayList<DiscoveryNode> allNodes = new ArrayList<>();
         for (int i = randomIntBetween(10, 20); i >= 0; i--) {
             Map<String, String> attrs = new HashMap<>();
-            for (String attr : randomSubsetOf(
-                    Arrays.asList(DiscoveryNode.INGEST_ATTR, DiscoveryNode.DATA_ATTR, DiscoveryNode.MASTER_ATTR))) {
-                attrs.put(attr, randomBoolean() + "");
+            for (DiscoveryNode.Role role : randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))) {
+                attrs.put(role.getRoleName(), Boolean.toString(randomBoolean()));
             }
 
             DiscoveryNode node = new DiscoveryNode("node_" + i, "id_" + i, DummyTransportAddress.INSTANCE, attrs, Version.CURRENT);

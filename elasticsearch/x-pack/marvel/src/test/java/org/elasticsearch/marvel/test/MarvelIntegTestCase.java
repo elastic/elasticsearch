@@ -68,14 +68,29 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     public static final String MONITORING_INDICES_PREFIX = MonitoringIndexNameResolver.PREFIX + MonitoringIndexNameResolver.DELIMITER;
 
-    protected static Boolean shieldEnabled;
+    /**
+     * Enables individual tests to control the behavior.
+     * <p>
+     * Control this by overriding {@link #enableShield()}, which defaults to enabling it randomly.
+     */
+    protected Boolean shieldEnabled;
+    /**
+     * Enables individual tests to control the behavior.
+     * <p>
+     * Control this by overriding {@link #enableWatcher()}, which defaults to enabling it randomly.
+     */
+    protected Boolean watcherEnabled;
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (shieldEnabled == null) {
             shieldEnabled = enableShield();
         }
+        if (watcherEnabled == null) {
+            watcherEnabled = enableWatcher();
+        }
         logger.info("--> shield {}", shieldEnabled ? "enabled" : "disabled");
+        logger.debug("--> watcher {}", watcherEnabled ? "enabled" : "disabled");
         return super.buildTestCluster(scope, seed);
     }
 
@@ -83,9 +98,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-
-                //TODO: for now lets isolate monitoring tests from watcher (randomize this later)
-                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), watcherEnabled)
                 // we do this by default in core, but for monitoring this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 
@@ -151,9 +164,16 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Override and returns {@code false} to force running without shield
+     * Override and return {@code false} to force running without Security.
      */
     protected boolean enableShield() {
+        return randomBoolean();
+    }
+
+    /**
+     * Override and return {@code false} to force running without Watcher.
+     */
+    protected boolean enableWatcher() {
         return randomBoolean();
     }
 
@@ -340,6 +360,15 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
      * it recurses to check if 'bar' exists in the sub-map.
      */
     protected void assertContains(String field, Map<String, Object> values) {
+        assertContains(field, values, null);
+    }
+
+    /**
+     * Checks if a field exist in a map of values. If the field contains a dot like 'foo.bar'
+     * it checks that 'foo' exists in the map of values and that it points to a sub-map. Then
+     * it recurses to check if 'bar' exists in the sub-map.
+     */
+    protected void assertContains(String field, Map<String, Object> values, String parent) {
         assertNotNull("field name should not be null", field);
         assertNotNull("values map should not be null", values);
 
@@ -351,19 +380,27 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             assertTrue(Strings.hasText(segment));
 
             boolean fieldExists = values.containsKey(segment);
-            assertTrue("expecting field [" + segment + "] to be present in monitoring document", fieldExists);
+            assertTrue("expecting field [" + rebuildName(parent, segment) + "] to be present in monitoring document", fieldExists);
 
             Object value = values.get(segment);
             String next = field.substring(point + 1);
             if (next.length() > 0) {
                 assertTrue(value instanceof Map);
-                assertContains(next, (Map<String, Object>) value);
+                assertContains(next, (Map<String, Object>) value, rebuildName(parent, segment));
             } else {
                 assertFalse(value instanceof Map);
             }
         } else {
-            assertTrue("expecting field [" + field + "] to be present in monitoring document", values.containsKey(field));
+            assertTrue("expecting field [" + rebuildName(parent, field) + "] to be present in monitoring document", values.containsKey(field));
         }
+    }
+
+    private String rebuildName(String parent, String field) {
+        if (Strings.isEmpty(parent)) {
+            return field;
+        }
+
+        return parent + "." + field;
     }
 
     protected void updateMarvelInterval(long value, TimeUnit timeUnit) {

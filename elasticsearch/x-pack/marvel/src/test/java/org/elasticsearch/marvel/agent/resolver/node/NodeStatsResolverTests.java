@@ -37,6 +37,7 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.watcher.execution.InternalWatchExecutor;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -122,9 +123,14 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
         };
         Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
         statsByShard.put(index, Collections.singletonList(new IndexShardStats(shardId, new ShardStats[]{shardStats})));
-        List<ThreadPoolStats.Stats> threadPoolStats = Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.INDEX, 0, 0, 0, 0, 0, 0),
+        List<ThreadPoolStats.Stats> threadPoolStats = Arrays.asList(
                 new ThreadPoolStats.Stats(ThreadPool.Names.BULK, 0, 0, 0, 0, 0, 0),
-                new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, 0, 0, 0, 0, 0, 0)
+                new ThreadPoolStats.Stats(ThreadPool.Names.GENERIC, 0, 0, 0, 0, 0, 0),
+                new ThreadPoolStats.Stats(ThreadPool.Names.GET, 0, 0, 0, 0, 0, 0),
+                new ThreadPoolStats.Stats(ThreadPool.Names.INDEX, 0, 0, 0, 0, 0, 0),
+                new ThreadPoolStats.Stats(ThreadPool.Names.MANAGEMENT, 0, 0, 0, 0, 0, 0),
+                new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, 0, 0, 0, 0, 0, 0),
+                new ThreadPoolStats.Stats(InternalWatchExecutor.THREAD_POOL_NAME, 0, 0, 0, 0, 0, 0)
         );
         return new NodeStats(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
                 new NodeIndicesStats(new CommonStats(), statsByShard), OsProbe.getInstance().osStats(),

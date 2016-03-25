@@ -38,7 +38,7 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
         this(in.readOptionalString(), in.readOptionalString());
         clusterUUID = in.readOptionalString();
         timestamp = in.readVLong();
-        sourceNode = in.readOptionalWritable(Node::new);
+        sourceNode = in.readOptionalWriteable(Node::new);
     }
 
     public String getClusterUUID() {

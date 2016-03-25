@@ -125,14 +125,14 @@ public abstract class TransportTasksAction<
 
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
         if (request.getTaskId().isSet()) {
-            return clusterState.nodes().resolveNodesIds(request.getNodesIds());
-        } else {
             return new String[]{request.getTaskId().getNodeId()};
+        } else {
+            return clusterState.nodes().resolveNodesIds(request.getNodesIds());
         }
     }
 
     protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
-        if (request.getTaskId().isSet() == false) {
+        if (request.getTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             Task task = taskManager.getTask(request.getTaskId().getId());
             if (task != null) {

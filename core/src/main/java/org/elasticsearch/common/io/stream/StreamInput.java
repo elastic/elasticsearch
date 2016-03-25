@@ -37,14 +37,13 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.context.QueryContext;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.tasks.Task;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -68,7 +67,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -157,7 +155,7 @@ public abstract class StreamInput extends InputStream {
      */
     public int readInt() throws IOException {
         return ((readByte() & 0xFF) << 24) | ((readByte() & 0xFF) << 16)
-            | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
+                | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
     }
 
     /**
@@ -375,6 +373,9 @@ public abstract class StreamInput extends InputStream {
     @Override
     public abstract void close() throws IOException;
 
+    @Override
+    public abstract int available() throws IOException;
+
     public String[] readStringArray() throws IOException {
         int size = readVInt();
         if (size == 0) {
@@ -565,9 +566,14 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
-    public <T extends Writeable> T readOptionalWritable(Writeable.IOFunction<StreamInput, T> provider) throws IOException {
+    public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
-            return provider.apply(this);
+            T t = reader.read(this);
+            if (t == null) {
+                throw new IOException("Writeable.Reader [" + reader
+                        + "] returned null which is not allowed and probably means it screwed up the stream.");
+            }
+            return t;
         } else {
             return null;
         }
@@ -687,21 +693,21 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a {@link AggregatorBuilder} from the current stream
      */
-    public AggregatorBuilder readAggregatorFactory() throws IOException {
+    public AggregatorBuilder<?> readAggregatorFactory() throws IOException {
         return readNamedWriteable(AggregatorBuilder.class);
     }
 
     /**
      * Reads a {@link PipelineAggregatorBuilder} from the current stream
      */
-    public PipelineAggregatorBuilder readPipelineAggregatorFactory() throws IOException {
+    public PipelineAggregatorBuilder<?> readPipelineAggregatorFactory() throws IOException {
         return readNamedWriteable(PipelineAggregatorBuilder.class);
     }
 
     /**
      * Reads a {@link QueryBuilder} from the current stream
      */
-    public QueryBuilder readQuery() throws IOException {
+    public QueryBuilder<?> readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
     }
 
@@ -724,6 +730,13 @@ public abstract class StreamInput extends InputStream {
      */
     public SuggestionBuilder<?> readSuggestion() throws IOException {
         return readNamedWriteable(SuggestionBuilder.class);
+    }
+
+    /**
+     * Reads a {@link SortBuilder} from the current stream
+     */
+    public SortBuilder<?> readSortBuilder() throws IOException {
+        return readNamedWriteable(SortBuilder.class);
     }
 
     /**

@@ -68,7 +68,6 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
 
-
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
      * This setting is <b>not</b> realtime updateable.
@@ -109,7 +108,7 @@ public final class EngineConfig {
         final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
-        this.warmer = warmer == null ? (a,b) -> {} : warmer;
+        this.warmer = warmer == null ? (a) -> {} : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
@@ -169,7 +168,7 @@ public final class EngineConfig {
     /**
      * Returns the {@link Codec} used in the engines {@link org.apache.lucene.index.IndexWriter}
      * <p>
-     * Note: this settings is only read on startup.
+     *     Note: this settings is only read on startup.
      * </p>
      */
     public Codec getCodec() {
@@ -237,9 +236,7 @@ public final class EngineConfig {
     /**
      * Returns the engines shard ID
      */
-    public ShardId getShardId() {
-        return shardId;
-    }
+    public ShardId getShardId() { return shardId; }
 
     /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
@@ -306,7 +303,6 @@ public final class EngineConfig {
      * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
      * are written after the engine became inactive from an indexing perspective.
      */
-    public TimeValue getFlushMergesAfter() {
-        return flushMergesAfter;
-    }
+    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
+
 }

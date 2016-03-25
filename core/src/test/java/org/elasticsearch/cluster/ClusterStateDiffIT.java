@@ -230,14 +230,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < shardCount; i++) {
             IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", i));
             int replicaCount = randomIntBetween(1, 10);
-            int term = randomInt(200);
             for (int j = 0; j < replicaCount; j++) {
                 UnassignedInfo unassignedInfo = null;
                 if (randomInt(5) == 1) {
                     unassignedInfo = new UnassignedInfo(randomReason(), randomAsciiOfLength(10));
                 }
                 indexShard.addShard(
-                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, term, j == 0,
+                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0,
                                 ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), unassignedInfo));
             }
             builder.addIndexShard(indexShard.build());

@@ -25,7 +25,14 @@ task buildRpm(type: Rpm) {
   packageGroup 'Application/Internet'
   prefix '/usr'
   packager 'Elasticsearch'
-  release '1'
+  if (version.contains('~')) {
+    def tokenized = version.tokenize('~')
+    version tokenized[0]
+    release tokenized[1]
+  } else {
+    version version
+    release '1'
+  }
   arch NOARCH
   os LINUX
   // TODO ospackage doesn't support icon but we used to have one

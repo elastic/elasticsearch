@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.health;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -35,7 +35,7 @@ class RoutingTableGenerator {
 
         ShardRoutingState state;
 
-        int stateRandomizer = RandomizedTest.randomInt(40);
+        int stateRandomizer = RandomizedContext.current().getRandom().nextInt(40);
         if (stateRandomizer > 5) {
             state = ShardRoutingState.STARTED;
         } else if (stateRandomizer > 3) {
@@ -44,15 +44,13 @@ class RoutingTableGenerator {
             state = ShardRoutingState.INITIALIZING;
         }
 
-        long primaryTerm = RandomizedTest.randomIntBetween(0, 200);
-
         switch (state) {
             case STARTED:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primaryTerm, primary, ShardRoutingState.STARTED);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.STARTED);
             case INITIALIZING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primaryTerm, primary, ShardRoutingState.INITIALIZING);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.INITIALIZING);
             case RELOCATING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primaryTerm, primary, ShardRoutingState.RELOCATING);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING);
             default:
                 throw new ElasticsearchException("Unknown state: " + state.name());
         }

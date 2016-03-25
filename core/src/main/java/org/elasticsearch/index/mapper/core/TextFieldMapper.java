@@ -27,6 +27,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -38,6 +41,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
@@ -49,6 +53,10 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
 
     public static class Defaults {
+        public static double FIELDDATA_MIN_FREQUENCY = 0;
+        public static double FIELDDATA_MAX_FREQUENCY = Integer.MAX_VALUE;
+        public static int FIELDDATA_MIN_SEGMENT_SIZE = 0;
+
         public static final MappedFieldType FIELD_TYPE = new TextFieldType();
 
         static {
@@ -72,6 +80,11 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             builder = this;
         }
 
+        @Override
+        public TextFieldType fieldType() {
+            return (TextFieldType) super.fieldType();
+        }
+
         public Builder positionIncrementGap(int positionIncrementGap) {
             if (positionIncrementGap < 0) {
                 throw new MapperParsingException("[positions_increment_gap] must be positive, got " + positionIncrementGap);
@@ -80,12 +93,29 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             return this;
         }
 
+        public Builder fielddata(boolean fielddata) {
+            fieldType().setFielddata(fielddata);
+            return builder;
+        }
+
         @Override
         public Builder docValues(boolean docValues) {
             if (docValues) {
                 throw new IllegalArgumentException("[text] fields do not support doc values");
             }
             return super.docValues(docValues);
+        }
+
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            return builder;
+        }
+
+        public Builder fielddataFrequencyFilter(double minFreq, double maxFreq, int minSegmentSize) {
+            fieldType().setFielddataMinFrequency(minFreq);
+            fieldType().setFielddataMaxFrequency(maxFreq);
+            fieldType().setFielddataMinSegmentSize(minSegmentSize);
+            return builder;
         }
 
         @Override
@@ -119,7 +149,19 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
                     builder.positionIncrementGap(newPositionIncrementGap);
                     iterator.remove();
-                } else if (parseMultiField(builder, fieldName, parserContext, propName, propNode)) {
+                } else if (propName.equals("fielddata")) {
+                    builder.fielddata(XContentMapValues.nodeBooleanValue(propNode));
+                    iterator.remove();
+                } else if (propName.equals("eager_global_ordinals")) {
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode));
+                    iterator.remove();
+                } else if (propName.equals("fielddata_frequency_filter")) {
+                    Map<?,?> frequencyFilter = (Map<?, ?>) propNode;
+                    double minFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("min"), 0);
+                    double maxFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("max"), Integer.MAX_VALUE);
+                    int minSegmentSize = XContentMapValues.nodeIntegerValue(frequencyFilter.remove("min_segment_size"), 0);
+                    builder.fielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
+                    DocumentMapperParser.checkNoRemainingFields(propName, frequencyFilter, parserContext.indexVersionCreated());
                     iterator.remove();
                 }
             }
@@ -129,14 +171,108 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
     public static final class TextFieldType extends MappedFieldType {
 
-        public TextFieldType() {}
+        private boolean fielddata;
+        private double fielddataMinFrequency;
+        private double fielddataMaxFrequency;
+        private int fielddataMinSegmentSize;
+
+        public TextFieldType() {
+            // TODO: change the default to false
+            fielddata = true;
+            fielddataMinFrequency = Defaults.FIELDDATA_MIN_FREQUENCY;
+            fielddataMaxFrequency = Defaults.FIELDDATA_MAX_FREQUENCY;
+            fielddataMinSegmentSize = Defaults.FIELDDATA_MIN_SEGMENT_SIZE;
+        }
 
         protected TextFieldType(TextFieldType ref) {
             super(ref);
+            this.fielddata = ref.fielddata;
+            this.fielddataMinFrequency = ref.fielddataMinFrequency;
+            this.fielddataMaxFrequency = ref.fielddataMaxFrequency;
+            this.fielddataMinSegmentSize = ref.fielddataMinSegmentSize;
         }
 
         public TextFieldType clone() {
             return new TextFieldType(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (super.equals(o) == false) {
+                return false;
+            }
+            TextFieldType that = (TextFieldType) o;
+            return fielddata == that.fielddata
+                    && fielddataMinFrequency == that.fielddataMinFrequency
+                    && fielddataMaxFrequency == that.fielddataMaxFrequency
+                    && fielddataMinSegmentSize == that.fielddataMinSegmentSize;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), fielddata,
+                    fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
+        }
+
+        @Override
+        public void checkCompatibility(MappedFieldType other,
+                List<String> conflicts, boolean strict) {
+            super.checkCompatibility(other, conflicts, strict);
+            TextFieldType otherType = (TextFieldType) other;
+            if (strict) {
+                if (fielddata() != otherType.fielddata()) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [fielddata] "
+                            + "across all types.");
+                }
+                if (fielddataMinFrequency() != otherType.fielddataMinFrequency()) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
+                            + "[fielddata_frequency_filter.min] across all types.");
+                }
+                if (fielddataMaxFrequency() != otherType.fielddataMaxFrequency()) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
+                            + "[fielddata_frequency_filter.max] across all types.");
+                }
+                if (fielddataMinSegmentSize() != otherType.fielddataMinSegmentSize()) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
+                            + "[fielddata_frequency_filter.min_segment_size] across all types.");
+                }
+            }
+        }
+
+        public boolean fielddata() {
+            return fielddata;
+        }
+
+        public void setFielddata(boolean fielddata) {
+            checkIfFrozen();
+            this.fielddata = fielddata;
+        }
+
+        public double fielddataMinFrequency() {
+            return fielddataMinFrequency;
+        }
+
+        public void setFielddataMinFrequency(double fielddataMinFrequency) {
+            checkIfFrozen();
+            this.fielddataMinFrequency = fielddataMinFrequency;
+        }
+
+        public double fielddataMaxFrequency() {
+            return fielddataMaxFrequency;
+        }
+
+        public void setFielddataMaxFrequency(double fielddataMaxFrequency) {
+            checkIfFrozen();
+            this.fielddataMaxFrequency = fielddataMaxFrequency;
+        }
+
+        public int fielddataMinSegmentSize() {
+            return fielddataMinSegmentSize;
+        }
+
+        public void setFielddataMinSegmentSize(int fielddataMinSegmentSize) {
+            checkIfFrozen();
+            this.fielddataMinSegmentSize = fielddataMinSegmentSize;
         }
 
         @Override
@@ -158,6 +294,16 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                 return null;
             }
             return termQuery(nullValue(), null);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            if (fielddata == false) {
+                throw new IllegalStateException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
+                        + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
+                        + "use significant memory.");
+            }
+            return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
         }
     }
 
@@ -250,6 +396,11 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
     }
 
     @Override
+    public TextFieldType fieldType() {
+        return (TextFieldType) super.fieldType();
+    }
+
+    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         doXContentAnalyzers(builder, includeDefaults);
@@ -262,6 +413,28 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
             builder.field("position_increment_gap", positionIncrementGap);
+        }
+
+        if (includeDefaults || fieldType().fielddata() != ((TextFieldType) defaultFieldType).fielddata()) {
+            builder.field("fielddata", fieldType().fielddata());
+        }
+        if (fieldType().fielddata()) {
+            if (includeDefaults
+                    || fieldType().fielddataMinFrequency() != Defaults.FIELDDATA_MIN_FREQUENCY
+                    || fieldType().fielddataMaxFrequency() != Defaults.FIELDDATA_MAX_FREQUENCY
+                    || fieldType().fielddataMinSegmentSize() != Defaults.FIELDDATA_MIN_SEGMENT_SIZE) {
+                builder.startObject("fielddata_frequency_filter");
+                if (includeDefaults || fieldType().fielddataMinFrequency() != Defaults.FIELDDATA_MIN_FREQUENCY) {
+                    builder.field("min", fieldType().fielddataMinFrequency());
+                }
+                if (includeDefaults || fieldType().fielddataMaxFrequency() != Defaults.FIELDDATA_MAX_FREQUENCY) {
+                    builder.field("max", fieldType().fielddataMaxFrequency());
+                }
+                if (includeDefaults || fieldType().fielddataMinSegmentSize() != Defaults.FIELDDATA_MIN_SEGMENT_SIZE) {
+                    builder.field("min_segment_size", fieldType().fielddataMinSegmentSize());
+                }
+                builder.endObject();
+            }
         }
     }
 }

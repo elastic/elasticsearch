@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -132,7 +131,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private boolean enabled = Defaults.ENABLED;
 
         public FieldNamesFieldType() {
-            setFieldDataType(new FieldDataType("string"));
         }
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {

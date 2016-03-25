@@ -45,4 +45,7 @@ longer a double and is instead an object encapsulating the one-minute,
 five-minute and fifteen-minute load averages. Additionally, the recent
 CPU usage can be obtained from `OsStats.Cpu#getPercent`.
 
+==== Suggest stats
 
+Suggest stats exposed through `suggest` in indices stats has been merged
+with `search` stats. `suggest` stats is exposed as part of `search` stats.

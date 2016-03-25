@@ -32,7 +32,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -49,8 +48,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTestCase {
 
     @Override
-    protected FieldDataType getFieldDataType() {
-        return new FieldDataType("double");
+    protected String getFieldDataType() {
+        return "double";
     }
 
     @Override

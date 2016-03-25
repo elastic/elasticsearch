@@ -210,7 +210,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         IndexShard indexShard = mockIndexShard();
         ThreadPool threadPool = mockThreadPool();
         IndexWarmer.Listener listener = cache.createListener(threadPool);
-        listener.warmNewReaders(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
+        listener.warmReader(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
         PercolatorQueryCacheStats stats = cache.getStats(shardId);
         assertThat(stats.getNumQueries(), equalTo(9L));
 
@@ -257,7 +257,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         IndexShard indexShard = mockIndexShard();
         ThreadPool threadPool = mockThreadPool();
         IndexWarmer.Listener listener = cache.createListener(threadPool);
-        listener.warmNewReaders(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
+        listener.warmReader(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
         assertThat(cache.getStats(shardId).getNumQueries(), equalTo(3L));
 
         PercolatorQuery.QueryRegistry.Leaf leaf = cache.getQueries(indexReader.leaves().get(0));
@@ -277,7 +277,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
         assertThat(indexReader.leaves().size(), equalTo(2));
         assertThat(indexReader.maxDoc(), equalTo(2));
-        listener.warmNewReaders(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
+        listener.warmReader(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
         assertThat(cache.getStats(shardId).getNumQueries(), equalTo(2L));
 
         leaf = cache.getQueries(indexReader.leaves().get(0));
@@ -291,7 +291,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
         assertThat(indexReader.leaves().size(), equalTo(1));
         assertThat(indexReader.maxDoc(), equalTo(2));
-        listener.warmNewReaders(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
+        listener.warmReader(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
         assertThat(cache.getStats(shardId).getNumQueries(), equalTo(2L));
 
         leaf = cache.getQueries(indexReader.leaves().get(0));

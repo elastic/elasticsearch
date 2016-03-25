@@ -479,18 +479,11 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
 .addMapping("type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("str_value")
-                        .field("type", "keyword").startObject("fielddata")
-                        .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("boolean_value")
-                        .field("type", "boolean").endObject().startObject("byte_value").field("type", "byte").startObject("fielddata")
-                        .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("short_value")
-                        .field("type", "short").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null)
-                        .endObject().endObject().startObject("integer_value").field("type", "integer").startObject("fielddata")
-                        .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("long_value")
-                        .field("type", "long").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null)
-                        .endObject().endObject().startObject("float_value").field("type", "float").startObject("fielddata")
-                        .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("double_value")
-                        .field("type", "double").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null)
-                        .endObject().endObject().endObject().endObject().endObject()));
+                        .field("type", "keyword").endObject().startObject("boolean_value").field("type", "boolean").endObject()
+                        .startObject("byte_value").field("type", "byte").endObject().startObject("short_value").field("type", "short")
+                        .endObject().startObject("integer_value").field("type", "integer").endObject().startObject("long_value")
+                        .field("type", "long").endObject().startObject("float_value").field("type", "float").endObject()
+                        .startObject("double_value").field("type", "double").endObject().endObject().endObject().endObject()));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
@@ -714,11 +707,9 @@ public class FieldSortIT extends ESIntegTestCase {
                         .startObject("properties")
                             .startObject("i_value")
                                 .field("type", "integer")
-                                .startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject()
                             .endObject()
                             .startObject("d_value")
                                 .field("type", "float")
-                                .startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject()
                             .endObject()
                         .endObject()
                         .endObject()
@@ -901,17 +892,11 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
 .addMapping("type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("long_values")
-                        .field("type", "long").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null)
-                        .endObject().endObject().startObject("int_values").field("type", "integer").startObject("fielddata")
-                        .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("short_values")
-                        .field("type", "short").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null)
-                        .endObject().endObject().startObject("byte_values").field("type", "byte").startObject("fielddata")
-                        .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("float_values")
-                        .field("type", "float").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null)
-                        .endObject().endObject().startObject("double_values").field("type", "double").startObject("fielddata")
-                        .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().startObject("string_values")
-                        .field("type", "keyword").startObject("fielddata")
-                        .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().endObject().endObject()
+                        .field("type", "long").endObject().startObject("int_values").field("type", "integer").endObject()
+                        .startObject("short_values").field("type", "short").endObject().startObject("byte_values")
+                        .field("type", "byte").endObject().startObject("float_values").field("type", "float").endObject()
+                        .startObject("double_values").field("type", "double").endObject().startObject("string_values")
+                        .field("type", "keyword").endObject().endObject().endObject()
                         .endObject()));
         ensureGreen();
 
@@ -1255,9 +1240,7 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testSortOnRareField() throws IOException {
         assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("string_values")
-                        .field("type", "keyword").startObject("fielddata")
-                        .field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject().endObject().endObject()
-                        .endObject()));
+                        .field("type", "keyword").endObject().endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
                 .array("string_values", "01", "05", "10", "08")

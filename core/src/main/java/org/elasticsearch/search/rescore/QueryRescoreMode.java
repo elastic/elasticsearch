@@ -85,10 +85,7 @@ public enum QueryRescoreMode implements Writeable<QueryRescoreMode> {
 
     public abstract float combine(float primary, float secondary);
 
-    static QueryRescoreMode PROTOTYPE = Total;
-
-    @Override
-    public QueryRescoreMode readFrom(StreamInput in) throws IOException {
+    public static QueryRescoreMode readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown ScoreMode ordinal [" + ordinal + "]");

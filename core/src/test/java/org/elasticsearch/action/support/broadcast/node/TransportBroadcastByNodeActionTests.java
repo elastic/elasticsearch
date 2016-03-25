@@ -222,8 +222,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             totalIndexShards += numberOfShards;
             for (int j = 0; j < numberOfShards; j++) {
                 final ShardId shardId = new ShardId(index, "_na_", ++shardIndex);
-                final int primaryTerm = randomInt(200);
-                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), primaryTerm, true, ShardRoutingState.STARTED);
+                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), true, ShardRoutingState.STARTED);
                 IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(shardId);
                 indexShard.addShard(shard);
                 indexRoutingTable.addIndexShard(indexShard.build());

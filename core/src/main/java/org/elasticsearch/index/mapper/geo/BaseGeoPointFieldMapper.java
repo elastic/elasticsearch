@@ -34,6 +34,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractGeoPointDVIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -73,7 +75,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         public static final boolean ENABLE_GEOHASH = false;
         public static final boolean ENABLE_GEOHASH_PREFIX = false;
         public static final int GEO_HASH_PRECISION = GeoHashUtils.PRECISION;
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit(false, false);
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
     }
 
     public abstract static class Builder<T extends Builder, Y extends BaseGeoPointFieldMapper> extends FieldMapper.Builder<T, Y> {
@@ -97,12 +99,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         @Override
         public GeoPointFieldType fieldType() {
             return (GeoPointFieldType)fieldType;
-        }
-
-        @Override
-        public T fieldDataSettings(Settings settings) {
-            this.fieldDataSettings = settings;
-            return builder;
         }
 
         public T enableLatLon(boolean enableLatLon) {
@@ -224,8 +220,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 } else if (propName.equals(Names.IGNORE_MALFORMED)) {
                     builder.ignoreMalformed(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
-                    iterator.remove();
                 }
             }
 
@@ -344,6 +338,11 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             checkIfFrozen();
             this.latFieldType = latFieldType;
             this.lonFieldType = lonFieldType;
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            return new AbstractGeoPointDVIndexFieldData.Builder();
         }
     }
 

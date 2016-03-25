@@ -19,18 +19,6 @@
 
 package org.elasticsearch.index;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -58,7 +46,6 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
@@ -82,6 +69,18 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -329,10 +328,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                 (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
-            final Engine.Warmer engineWarmer = (searcher, toLevel) -> {
+            final Engine.Warmer engineWarmer = (searcher) -> {
                 IndexShard shard =  getShardOrNull(shardId.getId());
                 if (shard != null) {
-                    warmer.warm(searcher, shard, IndexService.this.indexSettings, toLevel);
+                    warmer.warm(searcher, shard, IndexService.this.indexSettings);
                 }
             };
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
@@ -525,21 +524,21 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
 
         @Override
-        public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
+        public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
-                    shard.fieldData().onCache(shardId, fieldName, fieldDataType, ramUsage);
+                    shard.fieldData().onCache(shardId, fieldName, ramUsage);
                 }
             }
         }
 
         @Override
-        public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+        public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
-                    shard.fieldData().onRemoval(shardId, fieldName, fieldDataType, wasEvicted, sizeInBytes);
+                    shard.fieldData().onRemoval(shardId, fieldName, wasEvicted, sizeInBytes);
                 }
             }
         }
@@ -621,6 +620,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             if (durability != oldTranslogDurability) {
                 rescheduleFsyncTask(durability);
             }
+        }
+
+        // update primary terms
+        for (final IndexShard shard : this.shards.values()) {
+            shard.updatePrimaryTerm(metadata.primaryTerm(shard.shardId().id()));
         }
     }
 
@@ -781,7 +785,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
 
         @Override
-        public void close() {
+        public synchronized void close() {
             if (closed.compareAndSet(false, true)) {
                 FutureUtils.cancel(scheduledFuture);
                 scheduledFuture = null;

@@ -174,7 +174,6 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
-
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", waitFor);
 
@@ -187,7 +186,6 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
-
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", waitFor);
 
@@ -313,17 +311,17 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             //if there was an error we try to wait and see if at some point it'll get fixed
             logger.info("--> trying to wait");
             assertTrue(awaitBusy(() -> {
-                        boolean errorOccurred = false;
-                        for (int i = 0; i < iterations; i++) {
-                            SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-                            if (searchResponse.getHits().totalHits() != numberOfDocs) {
-                                errorOccurred = true;
-                            }
-                        }
-                        return !errorOccurred;
-                    },
-                    5,
-                    TimeUnit.MINUTES
+                                boolean errorOccurred = false;
+                                for (int i = 0; i < iterations; i++) {
+                                    SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
+                                    if (searchResponse.getHits().totalHits() != numberOfDocs) {
+                                        errorOccurred = true;
+                                    }
+                                }
+                                return !errorOccurred;
+                            },
+                            5,
+                            TimeUnit.MINUTES
                     )
             );
         }

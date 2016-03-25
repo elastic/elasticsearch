@@ -42,9 +42,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.AbstractFieldDataTestCase;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.NoOrdinalsStringFieldDataTests;
@@ -64,8 +62,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class NestedSortingTests extends AbstractFieldDataTestCase {
     @Override
-    protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", Settings.builder().put("format", "paged_bytes"));
+    protected String getFieldDataType() {
+        return "string";
     }
 
     public void testDuel() throws Exception {

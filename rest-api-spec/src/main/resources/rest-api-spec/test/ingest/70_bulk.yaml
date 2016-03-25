@@ -69,7 +69,7 @@ setup:
   - is_false: _source.field2
 
   - do:
-    cluster.state: {}
+      cluster.state: {}
     # Get master node id
   - set: { master_node: master }
 

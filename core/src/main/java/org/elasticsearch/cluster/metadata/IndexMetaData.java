@@ -30,7 +30,8 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -220,14 +221,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             .numberOfShards(1).numberOfReplicas(0).build();
 
     public static final String KEY_ACTIVE_ALLOCATIONS = "active_allocations";
-    public static final String INDEX_STATE_FILE_PREFIX = "state-";
-
     static final String KEY_VERSION = "version";
     static final String KEY_SETTINGS = "settings";
     static final String KEY_STATE = "state";
     static final String KEY_MAPPINGS = "mappings";
     static final String KEY_ALIASES = "aliases";
-    static final String KEY_PRIMARY_TERMS = "primary_terms";
+    public static final String KEY_PRIMARY_TERMS = "primary_terms";
+
+    public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
     private final int numberOfShards;
     private final int numberOfReplicas;
@@ -312,8 +313,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     /**
      * The term of the current selected primary. This is a non-negative number incremented when
-     * a primary shard is assigned after a full cluster restart (see {@link ShardRouting#initialize(java.lang.String, java.lang.String, long)}
-     * or a replica shard is promoted to a primary (see {@link ShardRouting#moveToPrimary()}).
+     * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary
+     * See {@link AllocationService#updateMetaDataWithRoutingTable(MetaData, RoutingTable, RoutingTable)}.
      **/
     public long primaryTerm(int shardId) {
         return this.primaryTerms[shardId];
@@ -541,17 +542,17 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MappingMetaData.PROTO);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), AliasMetaData.PROTO);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                    new DiffableUtils.DiffableValueSerializer<String, Custom>() {
-                        @Override
-                        public Custom read(StreamInput in, String key) throws IOException {
-                            return lookupPrototypeSafe(key).readFrom(in);
-                        }
+                new DiffableUtils.DiffableValueSerializer<String, Custom>() {
+                    @Override
+                    public Custom read(StreamInput in, String key) throws IOException {
+                        return lookupPrototypeSafe(key).readFrom(in);
+                    }
 
-                        @Override
-                        public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                            return lookupPrototypeSafe(key).readDiffFrom(in);
-                        }
-                    });
+                    @Override
+                    public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
+                        return lookupPrototypeSafe(key).readDiffFrom(in);
+                    }
+                });
             activeAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance());
         }
@@ -903,8 +904,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
             return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
-                    tmpAliases.build(), customs.build(), filledActiveAllocationIds.build(), requireFilters, includeFilters, excludeFilters,
-                    indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion);
+                tmpAliases.build(), customs.build(), filledActiveAllocationIds.build(), requireFilters, includeFilters, excludeFilters,
+                indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion);
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {

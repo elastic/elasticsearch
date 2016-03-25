@@ -91,7 +91,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));
         // verify where the primary is
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node2"));
-        assertThat(routingTable.index("test").shard(0).primaryShard().primaryTerm(), equalTo(2L));
+        assertThat(clusterState.metaData().index("test").primaryTerm(0), equalTo(2L));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node3"));
     }
 
@@ -113,7 +113,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
         RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState, "reroute");
-        clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
 
         logger.info("Start the primary shards");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
@@ -123,6 +123,8 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
 
         assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(2));
         assertThat(routingNodes.shardsWithState(INITIALIZING).size(), equalTo(2));
+        assertThat(clusterState.metaData().index("test").primaryTerm(0), equalTo(1L));
+        assertThat(clusterState.metaData().index("test").primaryTerm(1), equalTo(1L));
 
         // now, fail one node, while the replica is initializing, and it also holds a primary
         logger.info("--> fail node with primary");
@@ -138,7 +140,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(1));
         assertThat(routingNodes.shardsWithState(INITIALIZING).size(), equalTo(1));
         assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(INITIALIZING).get(0).primary(), equalTo(true));
-        assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(INITIALIZING).get(0).primaryTerm(), equalTo(2L));
+        assertThat(clusterState.metaData().index("test").primaryTerm(0), equalTo(2L));
 
     }
 }

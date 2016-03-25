@@ -35,7 +35,6 @@ import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedGrowableWriter;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -287,18 +286,11 @@ public final class OrdinalsBuilder implements Closeable {
     private OrdinalsStore ordinals;
     private final LongsRef spare;
 
-    public OrdinalsBuilder(long numTerms, int maxDoc, float acceptableOverheadRatio) throws IOException {
+    public OrdinalsBuilder(int maxDoc, float acceptableOverheadRatio) throws IOException {
         this.maxDoc = maxDoc;
         int startBitsPerValue = 8;
-        if (numTerms >= 0) {
-            startBitsPerValue = PackedInts.bitsRequired(numTerms);
-        }
         ordinals = new OrdinalsStore(maxDoc, startBitsPerValue, acceptableOverheadRatio);
         spare = new LongsRef();
-    }
-
-    public OrdinalsBuilder(int maxDoc, float acceptableOverheadRatio) throws IOException {
-        this(-1, maxDoc, acceptableOverheadRatio);
     }
 
     public OrdinalsBuilder(int maxDoc) throws IOException {
@@ -413,10 +405,9 @@ public final class OrdinalsBuilder implements Closeable {
     /**
      * Builds an {@link Ordinals} instance from the builders current state.
      */
-    public Ordinals build(Settings settings) {
-        final float acceptableOverheadRatio = settings.getAsFloat("acceptable_overhead_ratio", PackedInts.FASTEST);
-        final boolean forceMultiOrdinals = settings.getAsBoolean(FORCE_MULTI_ORDINALS, false);
-        if (forceMultiOrdinals || numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)) {
+    public Ordinals build() {
+        final float acceptableOverheadRatio = PackedInts.DEFAULT;
+        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)) {
             // MultiOrdinals can be smaller than SinglePackedOrdinals for sparse fields
             return new MultiOrdinals(this, acceptableOverheadRatio);
         } else {

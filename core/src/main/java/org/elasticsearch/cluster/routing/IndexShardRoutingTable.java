@@ -120,40 +120,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * Normalizes all shard routings to the same (highest found) version &amp; primary terms.
-     */
-    public IndexShardRoutingTable normalizePrimaryTerms() {
-        if (shards.isEmpty()) {
-            return this;
-        }
-
-        if (shards.size() == 1) {
-            return this;
-        }
-        long highestPrimaryTerm = shards.get(0).primaryTerm();
-        boolean requiresNormalization = false;
-        for (int i = 1; i < shards.size(); i++) {
-            final long primaryTerm = shards.get(i).primaryTerm();
-            if (highestPrimaryTerm != primaryTerm) {
-                requiresNormalization = true;
-            }
-            highestPrimaryTerm = Math.max(highestPrimaryTerm, primaryTerm);
-        }
-        if (!requiresNormalization) {
-            return this;
-        }
-        List<ShardRouting> shardRoutings = new ArrayList<>(shards.size());
-        for (int i = 0; i < shards.size(); i++) {
-            if (shards.get(i).primaryTerm() == highestPrimaryTerm) {
-                shardRoutings.add(shards.get(i));
-            } else {
-                shardRoutings.add(new ShardRouting(shards.get(i), highestPrimaryTerm));
-            }
-        }
-        return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(shardRoutings));
-    }
-
-    /**
      * Returns the shards id
      *
      * @return id of the shard
@@ -424,21 +390,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
-        if (!shardId.equals(that.shardId)) {
-            return false;
-        }
-        if (!shards.equals(that.shards)) {
-            return false;
-        }
+        if (!shardId.equals(that.shardId)) return false;
+        if (!shards.equals(that.shards)) return false;
 
         return true;
     }

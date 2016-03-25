@@ -19,14 +19,11 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -50,9 +47,6 @@ import java.util.concurrent.TimeUnit;
  */
 public final class IndexWarmer extends AbstractComponent {
 
-    public static final Setting<MappedFieldType.Loading> INDEX_NORMS_LOADING_SETTING = new Setting<>("index.norms.loading",
-        MappedFieldType.Loading.LAZY.toString(), (s) -> MappedFieldType.Loading.parse(s, MappedFieldType.Loading.LAZY),
-        Property.IndexScope);
     private final List<Listener> listeners;
 
     IndexWarmer(Settings settings, ThreadPool threadPool, Listener... listeners) {
@@ -66,7 +60,7 @@ public final class IndexWarmer extends AbstractComponent {
         this.listeners = Collections.unmodifiableList(list);
     }
 
-    void warm(Engine.Searcher searcher, IndexShard shard, IndexSettings settings, boolean isTopReader) {
+    void warm(Engine.Searcher searcher, IndexShard shard, IndexSettings settings) {
         if (shard.state() == IndexShardState.CLOSED) {
             return;
         }
@@ -74,22 +68,14 @@ public final class IndexWarmer extends AbstractComponent {
             return;
         }
         if (logger.isTraceEnabled()) {
-            if (isTopReader) {
-                logger.trace("{} top warming [{}]", shard.shardId(), searcher.reader());
-            } else {
-                logger.trace("{} warming [{}]", shard.shardId(), searcher.reader());
-            }
+            logger.trace("{} top warming [{}]", shard.shardId(), searcher.reader());
         }
         shard.warmerService().onPreWarm();
         long time = System.nanoTime();
         final List<TerminationHandle> terminationHandles = new ArrayList<>();
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
-            if (isTopReader) {
-                terminationHandles.add(listener.warmTopReader(shard, searcher));
-            } else {
-                terminationHandles.add(listener.warmNewReaders(shard, searcher));
-            }
+            terminationHandles.add(listener.warmReader(shard, searcher));
         }
         // wait for termination
         for (TerminationHandle terminationHandle : terminationHandles) {
@@ -97,22 +83,14 @@ public final class IndexWarmer extends AbstractComponent {
                 terminationHandle.awaitTermination();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                if (isTopReader) {
-                    logger.warn("top warming has been interrupted", e);
-                } else {
-                    logger.warn("warming has been interrupted", e);
-                }
+                logger.warn("top warming has been interrupted", e);
                 break;
             }
         }
         long took = System.nanoTime() - time;
         shard.warmerService().onPostWarm(took);
         if (shard.warmerService().logger().isTraceEnabled()) {
-            if (isTopReader) {
-                shard.warmerService().logger().trace("top warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
-            } else {
-                shard.warmerService().logger().trace("warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
-            }
+            shard.warmerService().logger().trace("top warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
         }
     }
 
@@ -127,9 +105,7 @@ public final class IndexWarmer extends AbstractComponent {
     public interface Listener {
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the
          *  execution of those tasks. */
-        TerminationHandle warmNewReaders(IndexShard indexShard, Engine.Searcher searcher);
-
-        TerminationHandle warmTopReader(IndexShard indexShard, Engine.Searcher searcher);
+        TerminationHandle warmReader(IndexShard indexShard, Engine.Searcher searcher);
     }
 
     private static class FieldDataWarmer implements IndexWarmer.Listener {
@@ -140,67 +116,17 @@ public final class IndexWarmer extends AbstractComponent {
         }
 
         @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
-            final MapperService mapperService = indexShard.mapperService();
-            final Map<String, MappedFieldType> warmUp = new HashMap<>();
-            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
-                    final String indexName = fieldMapper.fieldType().name();
-                    if (fieldDataType == null) {
-                        continue;
-                    }
-                    if (fieldDataType.getLoading() == MappedFieldType.Loading.LAZY) {
-                        continue;
-                    }
-
-                    if (warmUp.containsKey(indexName)) {
-                        continue;
-                    }
-                    warmUp.put(indexName, fieldMapper.fieldType());
-                }
-            }
-            final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
-            final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());
-            for (final LeafReaderContext ctx : searcher.reader().leaves()) {
-                for (final MappedFieldType fieldType : warmUp.values()) {
-                    executor.execute(() -> {
-                        try {
-                            final long start = System.nanoTime();
-                            indexFieldDataService.getForField(fieldType).load(ctx);
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldType.name(),
-                                    TimeValue.timeValueNanos(System.nanoTime() - start));
-                            }
-                        } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldType.name());
-                        } finally {
-                            latch.countDown();
-                        }
-                    });
-                }
-            }
-            return () -> latch.await();
-        }
-
-        @Override
-        public TerminationHandle warmTopReader(final IndexShard indexShard, final Engine.Searcher searcher) {
+        public TerminationHandle warmReader(final IndexShard indexShard, final Engine.Searcher searcher) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
-                    final String indexName = fieldMapper.fieldType().name();
-                    if (fieldDataType == null) {
+                    final MappedFieldType fieldType = fieldMapper.fieldType();
+                    final String indexName = fieldType.name();
+                    if (fieldType.eagerGlobalOrdinals() == false) {
                         continue;
                     }
-                    if (fieldDataType.getLoading() != MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS) {
-                        continue;
-                    }
-                    if (warmUpGlobalOrdinals.containsKey(indexName)) {
-                        continue;
-                    }
-                    warmUpGlobalOrdinals.put(indexName, fieldMapper.fieldType());
+                    warmUpGlobalOrdinals.put(indexName, fieldType);
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
@@ -210,7 +136,12 @@ public final class IndexWarmer extends AbstractComponent {
                     try {
                         final long start = System.nanoTime();
                         IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
-                        ifd.loadGlobal(searcher.getDirectoryReader());
+                        DirectoryReader reader = searcher.getDirectoryReader();
+                        IndexFieldData<?> global = ifd.loadGlobal(reader);
+                        if (reader.leaves().isEmpty() == false) {
+                            global.load(reader.leaves().get(0));
+                        }
+
                         if (indexShard.warmerService().logger().isTraceEnabled()) {
                             indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.name(),
                                 TimeValue.timeValueNanos(System.nanoTime() - start));

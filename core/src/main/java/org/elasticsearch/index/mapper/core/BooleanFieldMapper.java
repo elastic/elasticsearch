@@ -29,6 +29,9 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -106,8 +109,6 @@ public class BooleanFieldMapper extends FieldMapper {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
                     builder.nullValue(lenientNodeBooleanValue(propNode));
-                    iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -190,6 +191,12 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public boolean useTermQueryWithQueryString() {
             return true;
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.BOOLEAN);
         }
     }
 

@@ -29,7 +29,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -37,18 +36,18 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
+import org.elasticsearch.index.IndexWarmer.TerminationHandle;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.query.PercolatorQuery;
@@ -98,9 +97,13 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
             final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
 
             @Override
-            public IndexWarmer.TerminationHandle warmNewReaders(IndexShard indexShard, Engine.Searcher searcher) {
+            public TerminationHandle warmReader(IndexShard indexShard, Searcher searcher) {
                 final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size());
                 for (final LeafReaderContext ctx : searcher.reader().leaves()) {
+                    if (cache.get(ctx.reader().getCoreCacheKey()) != null) {
+                        latch.countDown();
+                        continue;
+                    }
                     executor.execute(() -> {
                         try {
                             final long start = System.nanoTime();
@@ -121,11 +124,6 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
                 }
                 return () -> latch.await();
             }
-
-            @Override
-            public IndexWarmer.TerminationHandle warmTopReader(IndexShard indexShard, Engine.Searcher searcher) {
-                return IndexWarmer.TerminationHandle.NO_WAIT;
-            }
         };
     }
 
@@ -142,7 +140,7 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
         }
 
         IntObjectHashMap<Query> queries = new IntObjectHashMap<>();
-        boolean legacyLoading = indexVersionCreated.before(Version.V_5_0_0);
+        boolean legacyLoading = indexVersionCreated.before(Version.V_5_0_0_alpha1);
         PostingsEnum postings = leafReader.postings(new Term(TypeFieldMapper.NAME, PercolatorFieldMapper.TYPE_NAME), PostingsEnum.NONE);
         if (postings != null) {
             if (legacyLoading) {

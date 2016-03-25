@@ -20,9 +20,9 @@ package org.elasticsearch.plugins;
 
 public class DummyPluginInfo extends PluginInfo {
 
-    private DummyPluginInfo(String name, String description, String version, String classname, boolean isolated) {
-        super(name, description, version, classname, isolated);
+    private DummyPluginInfo(String name, String description, String version, String classname) {
+        super(name, description, version, classname);
     }
 
-    public static final DummyPluginInfo INSTANCE = new DummyPluginInfo("dummy_plugin_name", "dummy plugin description", "dummy_plugin_version", "DummyPluginName", true);
+    public static final DummyPluginInfo INSTANCE = new DummyPluginInfo("dummy_plugin_name", "dummy plugin description", "dummy_plugin_version", "DummyPluginName");
 }

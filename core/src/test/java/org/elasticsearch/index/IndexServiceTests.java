@@ -187,12 +187,13 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
                 return ThreadPool.Names.GENERIC;
             }
         };
+
         latch.get().await();
         latch.set(new CountDownLatch(1));
         assertEquals(1, count.get());
-        latch2.get().countDown();
-        latch2.set(new CountDownLatch(1));
-
+        // here we need to swap first before we let it go otherwise threads might be very fast and run that task twice due to
+        // random exception and the schedule interval is 1ms
+        latch2.getAndSet(new CountDownLatch(1)).countDown();
         latch.get().await();
         assertEquals(2, count.get());
         task.close();

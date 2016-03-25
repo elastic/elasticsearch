@@ -605,7 +605,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return tempList.subList(0, size);
     }
 
-
     /**
      * Returns true iff assertions for elasticsearch packages are enabled
      */

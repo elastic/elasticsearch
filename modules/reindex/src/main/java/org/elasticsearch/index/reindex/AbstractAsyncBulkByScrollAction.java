@@ -354,7 +354,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Start terminating a request that finished non-catastrophically.
      */
     void startNormalTermination(List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures, boolean timedOut) {
-        if (task.isCancelled() || false == mainRequest.isRefresh()) {
+        if (task.isCancelled() || false == mainRequest.isRefresh() || destinationIndices.isEmpty()) {
             finishHim(null, indexingFailures, searchFailures, timedOut);
             return;
         }

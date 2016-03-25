@@ -58,7 +58,6 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
@@ -98,7 +97,6 @@ public class QueryPhase implements SearchPhase {
         parseElements.put("query", new QueryParseElement());
         parseElements.put("post_filter", new PostFilterParseElement());
         parseElements.put("postFilter", new PostFilterParseElement());
-        parseElements.put("sort", new SortParseElement());
         parseElements.put("trackScores", new TrackScoresParseElement());
         parseElements.put("track_scores", new TrackScoresParseElement());
         parseElements.put("min_score", new MinScoreParseElement());
@@ -118,6 +116,12 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        if (searchContext.hasOnlySuggest()) {
+            suggestPhase.execute(searchContext);
+            // TODO: fix this once we can fetch docs for suggestions
+            searchContext.queryResult().topDocs(new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0));
+            return;
+        }
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase

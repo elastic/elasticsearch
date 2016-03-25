@@ -191,23 +191,24 @@ public class NetworkModuleTests extends ModuleTestCase {
         Settings settings = Settings.EMPTY;
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, registry);
 
-        // Builtin prototype comes back
-        assertNotNull(registry.getPrototype(Task.Status.class, ReplicationTask.Status.PROTOTYPE.getWriteableName()));
+        // Builtin reader comes back
+        assertNotNull(registry.getReader(Task.Status.class, ReplicationTask.Status.NAME));
 
-        Task.Status dummy = new DummyTaskStatus();
-        module.registerTaskStatus(dummy);
-        assertThat(registry.getPrototype(Task.Status.class, "dummy"), sameInstance(dummy));
+        module.registerTaskStatus(DummyTaskStatus.NAME, DummyTaskStatus::new);
+        assertEquals("test", expectThrows(UnsupportedOperationException.class,
+                () -> registry.getReader(Task.Status.class, DummyTaskStatus.NAME).read(null)).getMessage());
     }
 
     private class DummyTaskStatus implements Task.Status {
-        @Override
-        public String getWriteableName() {
-            return "dummy";
+        public static final String NAME = "dummy";
+
+        public DummyTaskStatus(StreamInput in) {
+            throw new UnsupportedOperationException("test");
         }
 
         @Override
-        public Status readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException();
+        public String getWriteableName() {
+            return NAME;
         }
 
         @Override

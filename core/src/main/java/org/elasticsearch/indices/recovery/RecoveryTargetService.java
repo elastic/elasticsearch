@@ -90,8 +90,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
 
     @Inject
     public RecoveryTargetService(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings
-            recoverySettings,
-                                 ClusterService clusterService) {
+            recoverySettings, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -329,9 +328,13 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                         throw exception;
                     }
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node
-                    // which causes local mapping changes. we want to wait until these mappings are processed.
+                    // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
+                    // we want to wait until these mappings are processed but also need to do some maintenance and roll back the
+                    // number of processed (completed) operations in this batch to ensure accounting is correct.
                     logger.trace("delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)", exception, exception
                             .completedOperations());
+                    final RecoveryState.Translog translog = recoveryTarget.state().getTranslog();
+                    translog.decrementRecoveredOperations(exception.completedOperations()); // do the maintainance and rollback competed ops
                     // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
                     // canceled)
                     observer.waitForNextChange(new ClusterStateObserver.Listener() {

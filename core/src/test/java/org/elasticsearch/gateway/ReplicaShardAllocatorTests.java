@@ -284,7 +284,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
-        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), 1, true, ShardRoutingState.STARTED);
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), true, ShardRoutingState.STARTED);
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT).put(settings))
                     .numberOfShards(1).numberOfReplicas(1)
@@ -292,10 +292,10 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
-                        .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                                .addShard(primaryShard)
-                                .addShard(ShardRouting.newUnassigned(shardId.getIndex(), shardId.getId(), null, 1, false, new UnassignedInfo(reason, null)))
-                                .build())
+                                .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
+                                        .addShard(primaryShard)
+                                        .addShard(ShardRouting.newUnassigned(shardId.getIndex(), shardId.getId(), null, false, new UnassignedInfo(reason, null)))
+                                        .build())
                 )
                 .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
@@ -306,7 +306,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {
-        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), 1, true, ShardRoutingState.STARTED);
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.id(), true, ShardRoutingState.STARTED);
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT))
                     .numberOfShards(1).numberOfReplicas(1)
@@ -316,7 +316,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
                                         .addShard(primaryShard)
-                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.id(), null, null, 1, false, ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
+                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.id(), null, null, false, ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
                                         .build())
                 )
                 .build();

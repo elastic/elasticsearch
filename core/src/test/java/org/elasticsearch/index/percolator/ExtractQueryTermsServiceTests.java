@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESTestCase;
 
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -100,6 +101,27 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery.getTerm().bytes()));
+    }
+
+    public void testExtractQueryMetadata_termsQuery() {
+        TermsQuery termsQuery = new TermsQuery("_field", new BytesRef("_term1"), new BytesRef("_term2"));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(termsQuery));
+        Collections.sort(terms);
+        assertThat(terms.size(), equalTo(2));
+        assertThat(terms.get(0).field(), equalTo("_field"));
+        assertThat(terms.get(0).text(), equalTo("_term1"));
+        assertThat(terms.get(1).field(), equalTo("_field"));
+        assertThat(terms.get(1).text(), equalTo("_term2"));
+
+        // test with different fields
+        termsQuery = new TermsQuery(new Term("_field1", "_term1"), new Term("_field2", "_term2"));
+        terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(termsQuery));
+        Collections.sort(terms);
+        assertThat(terms.size(), equalTo(2));
+        assertThat(terms.get(0).field(), equalTo("_field1"));
+        assertThat(terms.get(0).text(), equalTo("_term1"));
+        assertThat(terms.get(1).field(), equalTo("_field2"));
+        assertThat(terms.get(1).text(), equalTo("_term2"));
     }
 
     public void testExtractQueryMetadata_phraseQuery() {

@@ -471,8 +471,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
     public void testGlobalOrdinals() throws Exception {
         fillExtendedMvSet();
         refreshReader();
-        FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("global_values", "fixed"));
-        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value", hasDocValues());
+        IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
@@ -596,8 +595,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
         fillExtendedMvSet();
         refreshReader();
-        FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("global_values", "fixed").put("cache", "node"));
-        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value", hasDocValues());
+        IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
         // 3 b/c 1 segment level caches and 1 top level cache

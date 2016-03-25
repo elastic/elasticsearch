@@ -41,6 +41,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -94,8 +95,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
-import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -137,7 +136,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardRequestCache shardQueryCache;
     private final ShardFieldData shardFieldData;
     private final IndexFieldDataService indexFieldDataService;
-    private final ShardSuggestMetric shardSuggestMetric = new ShardSuggestMetric();
     private final ShardBitsetFilterCache shardBitsetFilterCache;
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -149,13 +147,16 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
 
-    /** How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
-     *  across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
-     *  being indexed/deleted. */
+    /**
+     * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
+     * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
+     * being indexed/deleted.
+     */
     private final AtomicLong writingBytes = new AtomicLong();
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
+    protected volatile long primaryTerm;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     protected final EngineFactory engineFactory;
 
@@ -241,23 +242,22 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.suspendableRefContainer = new SuspendableRefContainer();
         this.searcherWrapper = indexSearcherWrapper;
+        this.primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
     }
 
     public Store store() {
         return this.store;
     }
 
-    /** returns true if this shard supports indexing (i.e., write) operations. */
+    /**
+     * returns true if this shard supports indexing (i.e., write) operations.
+     */
     public boolean canIndex() {
         return true;
     }
 
     public ShardGetService getService() {
         return this.getService;
-    }
-
-    public ShardSuggestMetric getSuggestMetric() {
-        return shardSuggestMetric;
     }
 
     public ShardBitsetFilterCache shardBitsetFilterCache() {
@@ -288,6 +288,30 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this.shardFieldData;
     }
 
+
+    /**
+     * Returns the primary term the index shard is on. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
+     */
+    public long getPrimaryTerm() {
+        return this.primaryTerm;
+    }
+
+    /**
+     * notifies the shard of an increase in the primary term
+     */
+    public void updatePrimaryTerm(final long newTerm) {
+        synchronized (mutex) {
+            if (newTerm != primaryTerm) {
+                assert shardRouting.primary() == false : "a primary shard should never update it's term. shard: " + shardRouting
+                    + " current term [" + primaryTerm + "] new term [" + newTerm + "]";
+                assert newTerm > primaryTerm : "primary terms can only go up. current [" + primaryTerm + "], new [" + newTerm + "]";
+                primaryTerm = newTerm;
+            }
+        }
+
+
+    }
+
     /**
      * Returns the latest cluster routing entry received with this shard. Might be null if the
      * shard was just created.
@@ -306,7 +330,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * unless explicitly disabled.
      *
      * @throws IndexShardRelocatedException if shard is marked as relocated and relocation aborted
-     * @throws IOException if shard state could not be persisted
+     * @throws IOException                  if shard state could not be persisted
      */
     public void updateRoutingEntry(final ShardRouting newRouting, final boolean persistState) throws IOException {
         final ShardRouting currentRouting = this.shardRouting;
@@ -428,9 +452,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Engine.Index prepareIndexOnPrimary(SourceToParse source, long version, VersionType versionType) {
         try {
-            if (shardRouting.primary() == false) {
-                throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
-            }
+            verifyPrimary();
             return prepareIndex(docMapper(source.type()), source, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, versionType, Engine.Operation.Origin.PRIMARY);
         } catch (Throwable t) {
             verifyNotClosed(t);
@@ -440,9 +462,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Engine.Index prepareIndexOnReplica(SourceToParse source, long seqNo, long version, VersionType versionType) {
         try {
-            if (shardRouting.primary() && shardRouting.isRelocationTarget() == false) {
-                throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");
-            }
+            verifyReplicationTarget();
             return prepareIndex(docMapper(source.type()), source, seqNo, version, versionType, Engine.Operation.Origin.REPLICA);
         } catch (Throwable t) {
             verifyNotClosed(t);
@@ -487,9 +507,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public Engine.Delete prepareDeleteOnPrimary(String type, String id, long version, VersionType versionType) {
-        if (shardRouting.primary() == false) {
-            throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
-        }
+        verifyPrimary();
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
         final Term uid = documentMapper.uidMapper().term(Uid.createUid(type, id));
         return prepareDelete(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, versionType, Engine.Operation.Origin.PRIMARY);
@@ -533,7 +551,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         return getEngine().get(get, this::acquireSearcher);
     }
 
-    /** Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}. */
+    /**
+     * Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link EngineClosedException}.
+     */
     public void refresh(String source) {
         verifyNotClosed();
         if (canIndex()) {
@@ -556,7 +576,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /** Returns how many bytes we are currently moving from heap to disk */
+    /**
+     * Returns how many bytes we are currently moving from heap to disk
+     */
     public long getWritingBytes() {
         return writingBytes.get();
     }
@@ -649,10 +671,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public TranslogStats translogStats() {
         return getEngine().getTranslog().stats();
-    }
-
-    public SuggestStats suggestStats() {
-        return shardSuggestMetric.stats();
     }
 
     public CompletionStats completionStats(String... fields) {
@@ -971,6 +989,22 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
+    private void verifyPrimary() {
+        if (shardRouting.primary() == false) {
+            // must use exception that is not ignored by replication logic. See TransportActions.isShardNotAvailableException
+            throw new IllegalStateException("shard is not a primary " + shardRouting);
+        }
+    }
+
+    private void verifyReplicationTarget() {
+        final IndexShardState state = state();
+        if (shardRouting.primary() && shardRouting.active() && state != IndexShardState.RELOCATED) {
+            // must use exception that is not ignored by replication logic. See TransportActions.isShardNotAvailableException
+            throw new IllegalStateException("active primary shard cannot be a replication target before " +
+                " relocation hand off " + shardRouting + ", state is [" + state + "]");
+        }
+    }
+
     protected final void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
@@ -1000,7 +1034,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /** Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed */
+    /**
+     * Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed
+     */
     public long getIndexBufferRAMBytesUsed() {
         Engine engine = getEngineOrNull();
         if (engine == null) {
@@ -1017,8 +1053,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.shardEventListener.delegates.add(onShardFailure);
     }
 
-    /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
-     *  indexing operation, and notify listeners that we are now inactive so e.g. sync'd flush can happen. */
+    /**
+     * Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
+     * indexing operation, and notify listeners that we are now inactive so e.g. sync'd flush can happen.
+     */
     public void checkIdle(long inactiveTimeNS) {
         Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
@@ -1163,11 +1201,12 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         } catch (Exception e) {
             handleRefreshException(e);
-        };
+        }
     }
 
     /**
      * Should be called for each no-op update operation to increment relevant statistics.
+     *
      * @param type the doc type of the update
      */
     public void noopUpdate(String type) {
@@ -1367,23 +1406,21 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Releasable acquirePrimaryOperationLock() {
         verifyNotClosed();
-        if (shardRouting.primary() == false) {
-            throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
-        }
+        verifyPrimary();
         return suspendableRefContainer.acquireUninterruptibly();
     }
 
     /**
      * acquires operation log. If the given primary term is lower then the one in {@link #shardRouting}
-     * an {@link IllegalIndexShardStateException} is thrown.
+     * an {@link IllegalArgumentException} is thrown.
      */
     public Releasable acquireReplicaOperationLock(long opPrimaryTerm) {
         verifyNotClosed();
-        if (shardRouting.primaryTerm() > opPrimaryTerm) {
-            throw new IllegalIndexShardStateException(shardId, state, "operation term [{}] is too old (current [{}])", opPrimaryTerm, shardRouting.primaryTerm());
-        }
-        if (shardRouting.primary() && shardRouting.isRelocationTarget() == false) {
-            throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");
+        verifyReplicationTarget();
+        if (primaryTerm > opPrimaryTerm) {
+            // must use exception that is not ignored by replication logic. See TransportActions.isShardNotAvailableException
+            throw new IllegalArgumentException(LoggerMessageFormat.format("{} operation term [{}] is too old (current [{}])",
+                shardId, opPrimaryTerm, primaryTerm));
         }
         return suspendableRefContainer.acquireUninterruptibly();
     }
@@ -1488,7 +1525,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher.
      * Otherwise <code>false</code>.
      *
-     * @throws EngineClosedException if the engine is already closed
+     * @throws EngineClosedException  if the engine is already closed
      * @throws AlreadyClosedException if the internal indexwriter in the engine is already closed
      */
     public boolean isRefreshNeeded() {

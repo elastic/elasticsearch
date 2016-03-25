@@ -42,11 +42,19 @@ public class DynamicTemplate implements ToXContent {
     public static enum MatchType {
         SIMPLE {
             @Override
+            public boolean matches(String pattern, String value) {
+                return Regex.simpleMatch(pattern, value);
+            }
+            @Override
             public String toString() {
                 return "simple";
             }
         },
         REGEX {
+            @Override
+            public boolean matches(String pattern, String value) {
+                return value.matches(pattern);
+            }
             @Override
             public String toString() {
                 return "regex";
@@ -61,6 +69,9 @@ public class DynamicTemplate implements ToXContent {
             }
             throw new IllegalArgumentException("No matching pattern matched on [" + value + "]");
         }
+
+        /** Whether {@code value} matches {@code regex}. */
+        public abstract boolean matches(String regex, String value);
     }
 
     public static DynamicTemplate parse(String name, Map<String, Object> conf,
@@ -89,7 +100,7 @@ public class DynamicTemplate implements ToXContent {
                 matchPattern = entry.getValue().toString();
             } else if ("mapping".equals(propName)) {
                 mapping = (Map<String, Object>) entry.getValue();
-            } else if (indexVersionCreated.onOrAfter(Version.V_5_0_0)) {
+            } else if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
                 // unknown parameters were ignored before but still carried through serialization
                 // so we need to ignore them at parsing time for old indices
                 throw new IllegalArgumentException("Illegal dynamic template parameter: [" + propName + "]");
@@ -137,23 +148,23 @@ public class DynamicTemplate implements ToXContent {
     }
 
     public boolean match(ContentPath path, String name, String dynamicType) {
-        if (pathMatch != null && !patternMatch(pathMatch, path.pathAsText(name))) {
+        if (pathMatch != null && !matchType.matches(pathMatch, path.pathAsText(name))) {
             return false;
         }
-        if (match != null && !patternMatch(match, name)) {
+        if (match != null && !matchType.matches(match, name)) {
             return false;
         }
-        if (pathUnmatch != null && patternMatch(pathUnmatch, path.pathAsText(name))) {
+        if (pathUnmatch != null && matchType.matches(pathUnmatch, path.pathAsText(name))) {
             return false;
         }
-        if (unmatch != null && patternMatch(unmatch, name)) {
+        if (unmatch != null && matchType.matches(unmatch, name)) {
             return false;
         }
         if (matchMappingType != null) {
             if (dynamicType == null) {
                 return false;
             }
-            if (!patternMatch(matchMappingType, dynamicType)) {
+            if (!matchType.matches(matchMappingType, dynamicType)) {
                 return false;
             }
         }
@@ -161,15 +172,30 @@ public class DynamicTemplate implements ToXContent {
     }
 
     public String mappingType(String dynamicType) {
-        return mapping.containsKey("type") ? mapping.get("type").toString().replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType) : dynamicType;
-    }
-
-    private boolean patternMatch(String pattern, String str) {
-        if (matchType == MatchType.SIMPLE) {
-            return Regex.simpleMatch(pattern, str);
+        String type;
+        if (mapping.containsKey("type")) {
+            type = mapping.get("type").toString();
+            type = type.replace("{dynamic_type}", dynamicType);
+            type = type.replace("{dynamicType}", dynamicType);
+        } else {
+            type = dynamicType;
         }
-        return str.matches(pattern);
-    }
+        if (type.equals(mapping.get("type")) == false // either the type was not set, or we updated it through replacements
+                && "text".equals(type)) { // and the result is "text"
+            // now that string has been splitted into text and keyword, we use text for
+            // dynamic mappings. However before it used to be possible to index as a keyword
+            // by setting index=not_analyzed, so for now we will use a keyword field rather
+            // than a text field if index=not_analyzed and the field type was not specified
+            // explicitly
+            // TODO: remove this in 6.0
+            // TODO: how to do it in the future?
+            final Object index = mapping.get("index");
+            if ("not_analyzed".equals(index) || "no".equals(index)) {
+                type = "keyword";
+            }
+        }
+        return type;
+     }
 
     public Map<String, Object> mappingForName(String name, String dynamicType) {
         return processMap(mapping, name, dynamicType);

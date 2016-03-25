@@ -301,7 +301,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
                 documentType, registry, document, docSearcher, percolateTypeQuery
         );
         Settings indexSettings = registry.getIndexSettings().getSettings();
-        if (indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_5_0_0)) {
+        if (indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_5_0_0_alpha1)) {
             builder.extractQueryTermsQuery(
                     PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME, PercolatorFieldMapper.UNKNOWN_QUERY_FULL_FIELD_NAME
             );

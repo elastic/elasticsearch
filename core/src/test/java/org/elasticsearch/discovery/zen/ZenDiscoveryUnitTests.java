@@ -25,10 +25,19 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -88,5 +97,35 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             newState.version(2);
         }
         assertFalse("should not ignore, because current state doesn't have a master", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+    }
+
+    public void testFilterNonMasterPingResponse() {
+        ArrayList<ZenPing.PingResponse> responses = new ArrayList<>();
+        ArrayList<DiscoveryNode> masterNodes = new ArrayList<>();
+        ArrayList<DiscoveryNode> allNodes = new ArrayList<>();
+        for (int i = randomIntBetween(10, 20); i >= 0; i--) {
+            Map<String, String> attrs = new HashMap<>();
+            for (String attr : randomSubsetOf(
+                    Arrays.asList(DiscoveryNode.INGEST_ATTR, DiscoveryNode.DATA_ATTR, DiscoveryNode.MASTER_ATTR))) {
+                attrs.put(attr, randomBoolean() + "");
+            }
+
+            DiscoveryNode node = new DiscoveryNode("node_" + i, "id_" + i, DummyTransportAddress.INSTANCE, attrs, Version.CURRENT);
+            responses.add(new ZenPing.PingResponse(node, randomBoolean() ? null : node, new ClusterName("test"), randomBoolean()));
+            allNodes.add(node);
+            if (node.isMasterNode()) {
+                masterNodes.add(node);
+            }
+        }
+
+        boolean ignore = randomBoolean();
+        List<ZenPing.PingResponse> filtered = ZenDiscovery.filterPingResponses(
+                responses.toArray(new ZenPing.PingResponse[responses.size()]), ignore, logger);
+        final List<DiscoveryNode> filteredNodes = filtered.stream().map(ZenPing.PingResponse::node).collect(Collectors.toList());
+        if (ignore) {
+            assertThat(filteredNodes, equalTo(masterNodes));
+        } else {
+            assertThat(filteredNodes, equalTo(allNodes));
+        }
     }
 }

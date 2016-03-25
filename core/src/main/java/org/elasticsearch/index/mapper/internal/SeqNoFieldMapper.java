@@ -24,7 +24,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -84,7 +83,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     static final class SeqNoFieldType extends MappedFieldType {
 
         public SeqNoFieldType() {
-            setFieldDataType(new FieldDataType("long"));
         }
 
         protected SeqNoFieldType(SeqNoFieldType ref) {

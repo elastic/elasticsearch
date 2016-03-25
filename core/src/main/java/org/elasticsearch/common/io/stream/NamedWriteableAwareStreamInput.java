@@ -36,7 +36,12 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
     @Override
     <C> C readNamedWriteable(Class<C> categoryClass) throws IOException {
         String name = readString();
-        NamedWriteable<? extends C> namedWriteable = namedWriteableRegistry.getPrototype(categoryClass, name);
-        return namedWriteable.readFrom(this);
+        Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, name);
+        C c = reader.read(this);
+        if (c == null) {
+            throw new IOException(
+                    "Writeable.Reader [" + reader + "] returned null which is not allowed and probably means it screwed up the stream.");
+        }
+        return c;
     }
 }

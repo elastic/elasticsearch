@@ -48,6 +48,7 @@ install_package() {
         case $opt in
             u)
                 rpmCommand='-U'
+                dpkgCommand='--force-confnew'
                 ;;
             v)
                 version=$OPTARG
@@ -60,7 +61,7 @@ install_package() {
     if is_rpm; then
         rpm $rpmCommand elasticsearch-$version.rpm
     elif is_dpkg; then
-        dpkg -i elasticsearch-$version.deb
+        dpkg $dpkgCommand -i elasticsearch-$version.deb
     else
         skip "Only rpm or deb supported"
     fi

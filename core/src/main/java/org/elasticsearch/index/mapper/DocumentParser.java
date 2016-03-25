@@ -706,7 +706,7 @@ final class DocumentParser implements Closeable {
                     Double.parseDouble(text);
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                     if (builder == null) {
-                        builder = new DoubleFieldMapper.Builder(currentFieldName);
+                        builder = new FloatFieldMapper.Builder(currentFieldName);
                     }
                     return builder;
                 } catch (NumberFormatException e) {

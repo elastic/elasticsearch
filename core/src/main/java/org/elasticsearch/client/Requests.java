@@ -60,9 +60,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.suggest.SuggestBuilder;
 
 /**
  * A handy one stop shop for creating requests (make sure to import static this class).
@@ -124,16 +122,6 @@ public class Requests {
      */
     public static GetRequest getRequest(String index) {
         return new GetRequest(index);
-    }
-
-    /**
-     * Creates a suggest request for getting suggestions from provided <code>indices</code>.
-     * The suggest query has to be set using {@link org.elasticsearch.action.suggest.SuggestRequest#suggest(SuggestBuilder)}.
-     * @param indices The indices to suggest from. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @see org.elasticsearch.client.Client#suggest(org.elasticsearch.action.suggest.SuggestRequest)
-     */
-    public static SuggestRequest suggestRequest(String... indices) {
-        return new SuggestRequest(indices);
     }
 
     /**

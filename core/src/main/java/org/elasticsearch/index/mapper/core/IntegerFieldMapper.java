@@ -40,6 +40,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -194,6 +197,12 @@ public class IntegerFieldMapper extends NumberFieldMapper {
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
             );
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.INT);
+        }
     }
 
     protected IntegerFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -261,7 +270,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
                     context.allEntries().addText(fieldType().name(), fieldType().nullValueAsString(), boost);
                 }
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                    && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
                 Integer objValue = fieldType().nullValue();
@@ -298,7 +307,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
     protected void addIntegerFields(ParseContext context, List<Field> fields, int value, float boost) {
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             CustomIntegerNumericField field = new CustomIntegerNumericField(value, fieldType());
-            if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+            if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 field.setBoost(boost);
             }
             fields.add(field);

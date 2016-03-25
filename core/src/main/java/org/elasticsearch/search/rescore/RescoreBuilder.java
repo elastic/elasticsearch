@@ -46,6 +46,27 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements T
 
     private static ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
+    /**
+     * Construct an empty RescoreBuilder.
+     */
+    public RescoreBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected RescoreBuilder(StreamInput in) throws IOException {
+        windowSize = in.readOptionalVInt();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalVInt(this.windowSize);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
     @SuppressWarnings("unchecked")
     public RB windowSize(int windowSize) {
         this.windowSize = windowSize;
@@ -74,7 +95,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements T
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // we only have QueryRescorer at this point
                 if (QueryRescorerBuilder.NAME.equals(fieldName)) {
-                    rescorer = QueryRescorerBuilder.PROTOTYPE.fromXContent(parseContext);
+                    rescorer = QueryRescorerBuilder.fromXContent(parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support rescorer with name [" + fieldName + "]");
                 }
@@ -127,23 +148,6 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements T
         RescoreBuilder other = (RescoreBuilder) obj;
         return Objects.equals(windowSize, other.windowSize);
     }
-
-    @Override
-    public RB readFrom(StreamInput in) throws IOException {
-        RB builder = doReadFrom(in);
-        builder.windowSize = in.readOptionalVInt();
-        return builder;
-    }
-
-    protected abstract RB doReadFrom(StreamInput in) throws IOException;
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        doWriteTo(out);
-        out.writeOptionalVInt(this.windowSize);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
     public final String toString() {

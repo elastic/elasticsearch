@@ -52,7 +52,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -359,32 +358,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     }
                 });
             } else {
-                try {
-                    failReplicaIfNeeded(t);
-                } catch (Throwable unexpected) {
-                    logger.error("{} unexpected error while failing replica", unexpected, request.shardId().id());
-                } finally {
                     responseWithFailure(t);
-                }
-            }
-        }
-
-        private void failReplicaIfNeeded(Throwable t) {
-            Index index = request.shardId().getIndex();
-            int shardId = request.shardId().id();
-            logger.trace("failure on replica [{}][{}], action [{}], request [{}]", t, index, shardId, actionName, request);
-            if (ignoreReplicaException(t) == false) {
-                IndexService indexService = indicesService.indexService(index);
-                if (indexService == null) {
-                    logger.debug("ignoring failed replica {}[{}] because index was already removed.", index, shardId);
-                    return;
-                }
-                IndexShard indexShard = indexService.getShardOrNull(shardId);
-                if (indexShard == null) {
-                    logger.debug("ignoring failed replica {}[{}] because index was already removed.", index, shardId);
-                    return;
-                }
-                indexShard.failShard(actionName + " failed on replica", t);
             }
         }
 
@@ -1101,8 +1075,13 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 totalShards,
                                 success.get(),
                                 failuresArray
-                    )
+                        )
                 );
+                if (logger.isTraceEnabled()) {
+                    logger.trace("finished replicating action [{}], request [{}], shardInfo [{}]", actionName, replicaRequest,
+                            finalResponse.getShardInfo());
+                }
+
                 try {
                     channel.sendResponse(finalResponse);
                 } catch (IOException responseException) {
@@ -1127,7 +1106,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         boolean isRelocated();
         void failShard(String reason, @Nullable Throwable e);
         ShardRouting routingEntry();
-        /** returns the primary term of the current opration */
+        /** returns the primary term of the current operation */
         long opPrimaryTerm();
     }
 
@@ -1175,7 +1154,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         @Override
         public long opPrimaryTerm() {
-            return routingEntry().primaryTerm();
+            return indexShard.getPrimaryTerm();
         }
     }
 

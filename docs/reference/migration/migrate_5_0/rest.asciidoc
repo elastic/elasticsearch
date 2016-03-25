@@ -15,3 +15,8 @@ endpoint should be used in lieu of optimize.
 The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 `POST` HTTP verb.
 
+==== Removed `mem` section from `/_cluster/stats` response
+
+The `mem` section contained only one value, the total memory available
+throughout all nodes in the cluster. The section was removed as it didn't
+prove useful.

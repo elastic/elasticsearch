@@ -34,7 +34,6 @@ setup:
   - is_true:  _all.total.completion
   - is_true:  _all.total.segments
   - is_true:  _all.total.translog
-  - is_true:  _all.total.suggest
   - is_true:  _all.total.recovery
 
 ---
@@ -56,7 +55,6 @@ setup:
   - is_true:  _all.total.completion
   - is_true:  _all.total.segments
   - is_true:  _all.total.translog
-  - is_true:  _all.total.suggest
   - is_true:  _all.total.recovery
 
 ---
@@ -78,7 +76,6 @@ setup:
   - is_false:  _all.total.completion
   - is_false:  _all.total.segments
   - is_false:  _all.total.translog
-  - is_false:  _all.total.suggest
   - is_false:  _all.total.recovery
 
 ---
@@ -100,7 +97,6 @@ setup:
   - is_false:  _all.total.completion
   - is_false:  _all.total.segments
   - is_false:  _all.total.translog
-  - is_false:  _all.total.suggest
   - is_false:  _all.total.recovery
 
 
@@ -123,6 +119,5 @@ setup:
   - is_false:  _all.total.completion
   - is_false:  _all.total.segments
   - is_false:  _all.total.translog
-  - is_false:  _all.total.suggest
   - is_true:   _all.total.recovery
 

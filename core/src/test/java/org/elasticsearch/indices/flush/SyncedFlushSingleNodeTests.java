@@ -111,7 +111,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
-        try (Releasable ignored = shard.acquirePrimaryOperationLock()) {
+        try (Releasable operationLock = shard.acquirePrimaryOperationLock()) {
             SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
             flushService.attemptSyncedFlush(shardId, listener);
             listener.latch.await();

@@ -1241,13 +1241,9 @@ public abstract class Engine implements Closeable {
      */
     public interface Warmer {
         /**
-         * Called once a new Searcher is opened.
-         *
-         * @param searcher         the searcer to warm
-         * @param isTopLevelReader <code>true</code> iff the searcher is build from a top-level reader.
-         *                         Otherwise the searcher might be build from a leaf reader to warm in isolation
+         * Called once a new Searcher is opened on the top-level searcher.
          */
-        void warm(Engine.Searcher searcher, boolean isTopLevelReader);
+        void warm(Engine.Searcher searcher);
     }
 
     /**

@@ -26,9 +26,6 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -138,14 +135,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             }
         }
 
-        for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
-            final long[] terms = result.get(indexRoutingTable.getIndex().getName());
-            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-                for (ShardRouting routing : shardRoutingTable.shards()) {
-                    assertThat("wrong primary term for " + routing, routing.primaryTerm(), equalTo(terms[routing.shardId().id()]));
-                }
-            }
-        }
         return result;
     }
 

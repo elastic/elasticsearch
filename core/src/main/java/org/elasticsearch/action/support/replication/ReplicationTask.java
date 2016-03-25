@@ -59,7 +59,7 @@ public class ReplicationTask extends Task {
     }
 
     public static class Status implements Task.Status {
-        public static final Status PROTOTYPE = new Status("prototype");
+        public static final String NAME = "replication";
 
         private final String phase;
 
@@ -73,7 +73,7 @@ public class ReplicationTask extends Task {
 
         @Override
         public String getWriteableName() {
-            return "replication";
+            return NAME;
         }
 
         @Override
@@ -87,11 +87,6 @@ public class ReplicationTask extends Task {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(phase);
-        }
-
-        @Override
-        public Status readFrom(StreamInput in) throws IOException {
-            return new Status(in);
         }
     }
 }

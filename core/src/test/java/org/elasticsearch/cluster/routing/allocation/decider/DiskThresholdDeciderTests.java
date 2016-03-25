@@ -119,8 +119,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .put(newNode("node1"))
-                        .put(newNode("node2"))
+                .put(newNode("node1"))
+                .put(newNode("node2"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -150,7 +150,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> adding node3");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                        .put(newNode("node3"))
+                .put(newNode("node3"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -237,7 +237,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> adding node4");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                        .put(newNode("node4"))
+                .put(newNode("node4"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -385,7 +385,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> adding node3");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                        .put(newNode("node3"))
+                .put(newNode("node3"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -472,7 +472,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> adding node4");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                        .put(newNode("node4"))
+                .put(newNode("node4"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -839,8 +839,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .build();
 
         // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
-        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, 1, true, ShardRoutingState.STARTED);
-        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, null, 1, true, ShardRoutingState.STARTED);
+        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, null, true, ShardRoutingState.STARTED);
         RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
         RoutingTable.Builder builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -859,8 +859,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(decision.type(), equalTo(Decision.Type.NO));
 
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
-        firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, 1, true, ShardRoutingState.STARTED);
-        secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", null, 1, true, ShardRoutingState.RELOCATING);
+        firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED);
+        secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", null, true, ShardRoutingState.RELOCATING);
         firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -957,8 +957,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .build();
 
         // Two shards consumes 80% of disk space in data node, but we have only one data node, shards should remain.
-        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, null, 1, true, ShardRoutingState.STARTED);
-        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", null, null, 1, true, ShardRoutingState.STARTED);
+        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, null, true, ShardRoutingState.STARTED);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", null, null, true, ShardRoutingState.STARTED);
         RoutingNode firstRoutingNode = new RoutingNode("node2", discoveryNode2, Arrays.asList(firstRouting, secondRouting));
 
         RoutingTable.Builder builder = RoutingTable.builder().add(
@@ -1015,8 +1015,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ClusterState updateClusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(discoveryNode3)).build();
 
-        firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, null, 1, true, ShardRoutingState.STARTED);
-        secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", "node3", null, 1, true, ShardRoutingState.RELOCATING);
+        firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, null, true, ShardRoutingState.STARTED);
+        secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", "node3", null, true, ShardRoutingState.RELOCATING);
         firstRoutingNode = new RoutingNode("node2", discoveryNode2, Arrays.asList(firstRouting, secondRouting));
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())

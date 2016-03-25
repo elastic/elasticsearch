@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,6 +33,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -40,6 +44,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -108,6 +114,56 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("The [string] type is removed in 5.0"));
     }
 
+    public void testUpgradeFielddataSettings() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String format = randomFrom("paged_bytes", "disabled");
+        String loading = randomFrom("lazy", "eager", "eager_global_ordinals");
+        boolean keyword = random().nextBoolean();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "string")
+                        .field("index", keyword ? "not_analyzed" : "analyzed")
+                        .startObject("fielddata")
+                            .field("format", format)
+                            .field("loading", loading)
+                            .startObject("filter")
+                                .startObject("frequency")
+                                    .field("min", 3)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        if (keyword) {
+            assertThat(field, instanceOf(KeywordFieldMapper.class));
+        } else {
+            assertThat(field, instanceOf(TextFieldMapper.class));
+            TextFieldType fieldType = (TextFieldType) field.fieldType();
+            assertEquals("disabled".equals(format) == false, fieldType.fielddata());
+            assertEquals(3, fieldType.fielddataMinFrequency(), 0d);
+            assertEquals(Integer.MAX_VALUE, fieldType.fielddataMaxFrequency(), 0d);
+        }
+        assertEquals("eager_global_ordinals".equals(loading), field.fieldType().eagerGlobalOrdinals());
+    }
+
+    public void testUpgradeIgnoreAbove() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("index", "not_analyzed").field("ignore_above", 200).endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(KeywordFieldMapper.class));
+        assertEquals(200, ((KeywordFieldMapper) field).ignoreAbove());
+    }
+
     public void testUpgradeRandomMapping() throws IOException {
         final int iters = 20;
         for (int i = 0; i < iters; ++i) {
@@ -153,6 +209,21 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
             }
         }
         if (randomBoolean()) {
+            Map<String, Object> fielddata = new HashMap<>();
+            if (randomBoolean()) {
+                fielddata.put("format", randomFrom("paged_bytes", "disabled"));
+            }
+            if (randomBoolean()) {
+                fielddata.put("loading", randomFrom("lazy", "eager", "eager_global_ordinals"));
+            }
+            if (randomBoolean()) {
+                Map<String, Object> frequencyFilter = new HashMap<>();
+                frequencyFilter.put("min", 10);
+                frequencyFilter.put("max", 1000);
+                frequencyFilter.put("min_segment_size", 10000);
+            }
+        }
+        if (randomBoolean()) {
             mapping.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
         }
         if (randomBoolean()) {
@@ -183,5 +254,97 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
                 assertEquals(hasNorms, field.fieldType().omitNorms() == false);
             }
         }
+    }
+
+    public void testUpgradeTemplateWithDynamicType() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("my_template")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("store", true)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        BytesReference source = XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "id", source);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertThat(fooMapper, instanceOf(TextFieldMapper.class));
+        assertTrue(((TextFieldMapper) fooMapper).fieldType().stored());
+    }
+
+    public void testUpgradeTemplateWithDynamicType2() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("my_template")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("type", "{dynamic_type}")
+                                .field("store", true)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        BytesReference source = XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "id", source);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertThat(fooMapper, instanceOf(TextFieldMapper.class));
+        assertTrue(((TextFieldMapper) fooMapper).fieldType().stored());
+    }
+
+    public void testUpgradeTemplateWithDynamicTypeKeyword() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("my_template")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        BytesReference source = XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "id", source);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
+    }
+
+    public void testUpgradeTemplateWithDynamicTypeKeyword2() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("my_template")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("type", "{dynamic_type}")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        BytesReference source = XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "id", source);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
     }
 }

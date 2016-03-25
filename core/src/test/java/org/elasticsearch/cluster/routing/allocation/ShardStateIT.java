@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -65,6 +67,14 @@ public class ShardStateIT extends ESIntegTestCase {
             IndexMetaData metaData = state.metaData().index("test");
             assertThat(metaData.primaryTerm(0), equalTo(term0));
             assertThat(metaData.primaryTerm(1), equalTo(term1));
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+            IndexService indexService = indicesService.indexService(metaData.getIndex());
+            if (indexService != null) {
+                for (IndexShard shard : indexService) {
+                    assertThat("term mismatch for shard " + shard.shardId(),
+                        shard.getPrimaryTerm(), equalTo(metaData.primaryTerm(shard.shardId().id())));
+                }
+            }
         }
     }
 }

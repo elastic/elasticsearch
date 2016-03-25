@@ -216,7 +216,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
         }
 
         @Override
-        public IndexWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
+        public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final Engine.Searcher searcher) {
             if (indexSettings.getIndex().equals(indexShard.indexSettings().getIndex()) == false) {
                 // this is from a different index
                 return TerminationHandle.NO_WAIT;
@@ -266,11 +266,6 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements L
                 }
             }
             return () -> latch.await();
-        }
-
-        @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, Engine.Searcher searcher) {
-            return TerminationHandle.NO_WAIT;
         }
 
     }

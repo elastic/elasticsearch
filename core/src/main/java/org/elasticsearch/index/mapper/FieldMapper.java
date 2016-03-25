@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -64,8 +62,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected Boolean includeInAll;
         protected boolean indexOptionsSet = false;
         protected boolean docValuesSet = false;
-        @Nullable
-        protected Settings fieldDataSettings;
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo;
 
@@ -203,11 +199,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        public T fieldDataSettings(Settings settings) {
-            this.fieldDataSettings = settings;
-            return builder;
-        }
-
         public Builder nullValue(Object nullValue) {
             this.fieldType.setNullValue(nullValue);
             return this;
@@ -228,7 +219,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected boolean defaultDocValues(Version indexCreated) {
-            if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            if (indexCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
                 // add doc values by default to keyword (boolean, numerics, etc.) fields
                 return fieldType.tokenized() == false;
             } else {
@@ -238,16 +229,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected void setupFieldType(BuilderContext context) {
             fieldType.setName(buildFullName(context));
-            if (context.indexCreatedVersion().before(Version.V_5_0_0)) {
+            if (context.indexCreatedVersion().before(Version.V_5_0_0_alpha1)) {
                 fieldType.setOmitNorms(fieldType.omitNorms() && fieldType.boost() == 1.0f);
             }
             if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
                 fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
                 fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            }
-            if (fieldDataSettings != null) {
-                Settings settings = Settings.builder().put(fieldType.fieldDataType().getSettings()).put(fieldDataSettings).build();
-                fieldType.setFieldDataType(new FieldDataType(fieldType.fieldDataType().getType(), settings));
             }
             boolean defaultDocValues = defaultDocValues(context.indexCreatedVersion());
             defaultFieldType.setHasDocValues(defaultDocValues);
@@ -302,7 +289,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (!customBoost()
                         // don't set boosts eg. on dv fields
                         && field.fieldType().indexOptions() != IndexOptions.NONE
-                        && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+                        && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                     field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);
@@ -423,6 +410,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         if (indexed && (includeDefaults || fieldType().indexOptions() != defaultFieldType.indexOptions())) {
             builder.field("index_options", indexOptionToString(fieldType().indexOptions()));
         }
+        if (includeDefaults || fieldType().eagerGlobalOrdinals() != defaultFieldType.eagerGlobalOrdinals()) {
+            builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
+        }
 
         if (fieldType().similarity() != null) {
             builder.field("similarity", fieldType().similarity().name());
@@ -430,9 +420,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
         }
 
-        if (includeDefaults || hasCustomFieldDataSettings()) {
-            builder.field("fielddata", fieldType().fieldDataType().getSettings().getAsMap());
-        }
         multiFields.toXContent(builder, params);
 
         if (copyTo != null) {
@@ -510,10 +497,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /* Only protected so that string can override it */
     protected Object indexTokenizeOption(boolean indexed, boolean tokenized) {
         return indexed;
-    }
-
-    protected boolean hasCustomFieldDataSettings() {
-        return fieldType().fieldDataType() != null && fieldType().fieldDataType().equals(defaultFieldType.fieldDataType()) == false;
     }
 
     protected abstract String contentType();

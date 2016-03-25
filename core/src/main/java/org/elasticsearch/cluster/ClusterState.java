@@ -63,7 +63,7 @@ import java.util.Set;
 
 /**
  * Represents the current state of the cluster.
- *
+ * <p>
  * The cluster state object is immutable with an
  * exception of the {@link RoutingNodes} structure, which is built on demand from the {@link RoutingTable},
  * and cluster state {@link #status}, which is updated during cluster state publishing and applying
@@ -74,7 +74,7 @@ import java.util.Set;
  * the type of discovery. For example, for local discovery it is implemented by the {@link LocalDiscovery#publish}
  * method. In the Zen Discovery it is handled in the {@link PublishClusterStateAction#publish} method. The
  * publishing mechanism can be overridden by other discovery.
- *
+ * <p>
  * The cluster state implements the {@link Diffable} interface in order to support publishing of cluster state
  * differences instead of the entire state on each change. The publishing mechanism should only send differences
  * to a node if this node was present in the previous version of the cluster state. If a node is not present was
@@ -281,6 +281,16 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
         sb.append("meta data version: ").append(metaData.version()).append("\n");
+        for (IndexMetaData indexMetaData : metaData) {
+            final String TAB = "   ";
+            sb.append(TAB).append(indexMetaData.getIndex());
+            sb.append(": v[").append(indexMetaData.getVersion()).append("]\n");
+            for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
+                sb.append(TAB).append(TAB).append(shard).append(": ");
+                sb.append("p_term [").append(indexMetaData.primaryTerm(shard)).append("], ");
+                sb.append("a_ids ").append(indexMetaData.activeAllocationIds(shard)).append("\n");
+            }
+        }
         sb.append(blocks().prettyPrint());
         sb.append(nodes().prettyPrint());
         sb.append(routingTable().prettyPrint());
@@ -477,7 +487,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 }
                 builder.endArray();
 
-                builder.startObject("primary_terms");
+                builder.startObject(IndexMetaData.KEY_PRIMARY_TERMS);
                 for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                     builder.field(Integer.toString(shard), indexMetaData.primaryTerm(shard));
                 }
@@ -493,7 +503,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 }
                 builder.endObject();
 
-                // index metdata data
+                // index metadata
                 builder.endObject();
             }
             builder.endObject();

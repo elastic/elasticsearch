@@ -87,7 +87,7 @@ public class RestIndexAction extends BaseRestHandler {
         if (sOpType != null) {
             try {
                 indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
-            } catch (IllegalArgumentException eia) {
+            } catch (IllegalArgumentException eia){
                 try {
                     XContentBuilder builder = channel.newErrorBuilder();
                     channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));

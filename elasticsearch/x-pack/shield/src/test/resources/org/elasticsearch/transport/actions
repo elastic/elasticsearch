@@ -64,7 +64,6 @@ indices:data/read/script/get
 indices:data/read/scroll
 indices:data/read/scroll/clear
 indices:data/read/search
-indices:data/read/suggest
 indices:data/read/tv
 indices:data/write/bulk
 indices:data/write/delete

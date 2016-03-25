@@ -496,6 +496,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
             // create a copy of the keys in the cache since we will be modifying this list
             final Set<String> existingRoles = new HashSet<>(roleCache.keySet());
             try {
+                client.admin().indices().prepareRefresh(ShieldTemplateService.SECURITY_INDEX_NAME);
                 SearchRequest request = client.prepareSearch(ShieldTemplateService.SECURITY_INDEX_NAME)
                         .setScroll(scrollKeepAlive)
                         .setQuery(QueryBuilders.typeQuery(ROLE_DOC_TYPE))
@@ -538,7 +539,8 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
                 // check to see if we had roles that do not exist in the index
                 if (existingRoles.isEmpty() == false) {
                     for (String roleName : existingRoles) {
-                        invalidate(roleName);
+                        logger.trace("role [{}] does not exist anymore, removing from cache", roleName);
+                        roleCache.remove(roleName);
                     }
                 }
             } catch (IndexNotFoundException e) {

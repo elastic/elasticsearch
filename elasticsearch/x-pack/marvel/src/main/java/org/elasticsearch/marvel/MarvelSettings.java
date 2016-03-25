@@ -32,6 +32,10 @@ public class MarvelSettings extends AbstractComponent {
     public static final String LEGACY_DATA_INDEX_NAME = ".marvel-es-data";
 
     public static final String HISTORY_DURATION_SETTING_NAME = "history.duration";
+    /**
+     * The minimum amount of time allowed for the history duration.
+     */
+    public static final TimeValue HISTORY_DURATION_MINIMUM = TimeValue.timeValueHours(24);
     public static final TimeValue MAX_LICENSE_GRACE_PERIOD = TimeValue.timeValueHours(7 * 24);
 
     /**
@@ -101,10 +105,21 @@ public class MarvelSettings extends AbstractComponent {
             listSetting(key("agent.collectors"), Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     /**
-     * The default retention duration of the monitoring history data
+     * The default retention duration of the monitoring history data.
+     * <p>
+     * Expected values:
+     * <ul>
+     * <li>Default: 7 days</li>
+     * <li>Minimum: 1 day</li>
+     * </ul>
+     *
+     * @see #HISTORY_DURATION_MINIMUM
      */
     public static final Setting<TimeValue> HISTORY_DURATION =
-            timeSetting(key(HISTORY_DURATION_SETTING_NAME), TimeValue.timeValueHours(7 * 24), Property.Dynamic, Property.NodeScope);
+            timeSetting(key(HISTORY_DURATION_SETTING_NAME),
+                        TimeValue.timeValueHours(7 * 24), // default value (7 days)
+                        HISTORY_DURATION_MINIMUM,         // minimum value
+                        Property.Dynamic, Property.NodeScope);
 
     /**
      * The index setting that holds the template version
@@ -221,7 +236,13 @@ public class MarvelSettings extends AbstractComponent {
         this.indices = indices.toArray(new String[0]);
     }
 
-    private static String key(String key) {
+    /**
+     * Prefix the {@code key} with the Monitoring prefix.
+     *
+     * @param key The key to prefix
+     * @return The key prefixed by the product prefixes.
+     */
+    static String key(String key) {
         return XPackPlugin.featureSettingPrefix(Marvel.NAME) + "." + key;
     }
 

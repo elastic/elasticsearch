@@ -679,12 +679,13 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
             final ObjectLongMap<String> map = new ObjectLongHashMap<>();
             SearchResponse response = null;
             try {
+                client.admin().indices().prepareRefresh(ShieldTemplateService.SECURITY_INDEX_NAME).get();
                 SearchRequest request = client.prepareSearch(ShieldTemplateService.SECURITY_INDEX_NAME)
                         .setScroll(scrollKeepAlive)
                         .setQuery(QueryBuilders.typeQuery(USER_DOC_TYPE))
                         .setSize(scrollSize)
                         .setVersion(true)
-                        .setFetchSource(true)
+                        .setFetchSource(false) // we only need id and version
                         .request();
                 response = client.search(request).actionGet();
 

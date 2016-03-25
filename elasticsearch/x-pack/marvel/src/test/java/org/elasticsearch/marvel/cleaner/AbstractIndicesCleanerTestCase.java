@@ -7,9 +7,6 @@ package org.elasticsearch.marvel.cleaner;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
@@ -17,7 +14,6 @@ import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
-import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.VersionUtils;
@@ -27,8 +23,6 @@ import org.joda.time.DateTimeZone;
 import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase {
@@ -37,8 +31,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
-                .put(MarvelSettings.HISTORY_DURATION.getKey(), "-1");
+                .put(MarvelSettings.INTERVAL.getKey(), "-1");
         return settings.build();
     }
 
@@ -163,46 +156,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(retention));
         assertIndicesCount(retention);
-    }
-
-    public void testRetentionAsExporterSetting() throws Exception {
-        final int max = 10;
-
-        // Default retention is between 3 and max days
-        final int defaultRetention = randomIntBetween(3, max);
-        internalCluster().startNode(Settings.builder().put(MarvelSettings.HISTORY_DURATION.getKey(),
-                String.format(Locale.ROOT, "%dd", defaultRetention)));
-
-        final DateTime now = now();
-        for (int i = 0; i < max; i++) {
-            createTimestampedIndex(MarvelTemplateUtils.TEMPLATE_VERSION, now.minusDays(i));
-        }
-        assertIndicesCount(max);
-
-        // Exporter retention is between 0 and the default retention
-        final int exporterRetention = randomIntBetween(1, defaultRetention);
-        assertThat(exporterRetention, lessThanOrEqualTo(defaultRetention));
-
-        // Updates the retention setting for the exporter
-        Exporters exporters = internalCluster().getInstance(Exporters.class);
-        for (Exporter exporter : exporters) {
-            Settings transientSettings = Settings.builder().put("xpack.monitoring.agent.exporters." + exporter.name() + "." +
-                    MarvelSettings.HISTORY_DURATION_SETTING_NAME, String.format(Locale.ROOT, "%dd", exporterRetention)).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(transientSettings));
-        }
-
-        // Move to GOLD license
-        for (MarvelLicensee licensee : internalCluster().getInstances(MarvelLicensee.class)) {
-            licensee.onChange(new Licensee.Status(License.OperationMode.GOLD, LicenseState.ENABLED));
-        }
-
-        // Try to clean indices using the global setting
-        CleanerService.Listener listener = getListener();
-        listener.onCleanUpIndices(days(defaultRetention));
-
-        // Checks that indices have been deleted according to
-        // the retention configured at exporter level
-        assertIndicesCount(exporterRetention);
     }
 
     protected CleanerService.Listener getListener() {

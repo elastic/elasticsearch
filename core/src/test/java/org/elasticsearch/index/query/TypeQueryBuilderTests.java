@@ -19,16 +19,11 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilder> {
 
@@ -39,14 +34,7 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     @Override
     protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(ConstantScoreQuery.class)));
-        if (query instanceof ConstantScoreQuery) {
-            query = ((ConstantScoreQuery) query).getQuery();
-            assertThat(query, instanceOf(TermQuery.class));
-        }
-        TermQuery termQuery = (TermQuery) query;
-        assertThat(termQuery.getTerm().field(), equalTo(TypeFieldMapper.NAME));
-        assertThat(termQuery.getTerm().text(), equalTo(queryBuilder.type()));
+        assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(queryBuilder.type())), query);
     }
 
     public void testIllegalArgument() {

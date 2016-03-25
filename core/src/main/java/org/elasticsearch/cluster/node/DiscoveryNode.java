@@ -111,6 +111,10 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         int rolesSize = in.readVInt();
         this.roles = new HashSet<>(rolesSize);
         for (int i = 0; i < rolesSize; i++) {
+            int ordinal = in.readVInt();
+            if (ordinal < 0 || ordinal >= Role.values().length) {
+                throw new IOException("Unknown Role ordinal [" + ordinal + "]");
+            }
             roles.add(Role.values()[in.readVInt()]);
         }
         this.version = Version.readVersion(in);

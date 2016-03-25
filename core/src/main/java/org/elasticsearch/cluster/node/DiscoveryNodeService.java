@@ -98,7 +98,8 @@ public class DiscoveryNodeService extends AbstractComponent {
                 logger.warn("failed to build custom attributes from provider [{}]", e, provider);
             }
         }
-        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, Collections.unmodifiableSet(roles), version);
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes,
+                Collections.unmodifiableSet(roles), version);
     }
 
     public interface CustomAttributesProvider {

@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.logging.support.LoggerMessageFormat.format;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  */
@@ -258,7 +258,7 @@ public class ExecutionService extends AbstractComponent {
             if (ctx.knownWatch() && watchStore.get(ctx.watch().id()) == null) {
                 // fail fast if we are trying to execute a deleted watch
                 String message = "unable to find watch for record [" + ctx.id() + "], perhaps it has been deleted, ignoring...";
-                logger.warn(message);
+                logger.warn("{}", message);
                 record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);
 
             } else {
@@ -332,7 +332,7 @@ public class ExecutionService extends AbstractComponent {
             executor.execute(new WatchExecutionTask(ctx));
         } catch (EsRejectedExecutionException e) {
             String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
-            logger.debug(message);
+            logger.debug("{}", message);
             WatchRecord record = ctx.abortBeforeExecution(ExecutionState.FAILED, message);
             if (ctx.overrideRecordOnConflict()) {
                 historyStore.forcePut(record);

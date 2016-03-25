@@ -28,14 +28,15 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
 
     public static final String ROLES =
                     "role_a:\n" +
-                    "  cluster: all\n" +
+                    "  cluster: [ all ]\n" +
                     "\n" +
                     "role_b:\n" +
-                    "  cluster: monitor\n" +
+                    "  cluster: [ monitor ]\n" +
                     "\n" +
                     "role_c:\n" +
                     "  indices:\n" +
-                    "    'someindex': all\n";
+                    "    - names: 'someindex'\n" +
+                    "      privileges: [ all ]\n";
 
     public static final String USERS =
                     "user_a:" + USERS_PASSWD_HASHED + "\n" +

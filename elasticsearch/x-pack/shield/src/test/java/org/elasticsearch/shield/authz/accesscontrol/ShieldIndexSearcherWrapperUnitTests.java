@@ -9,7 +9,9 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -17,15 +19,21 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -43,6 +51,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.shield.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -51,6 +60,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -58,6 +69,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper.intersectScorerAndRoleBits;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -153,12 +165,12 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testWildcards() throws Exception {
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("field1_a").field("type", "string").endObject()
-                    .startObject("field1_b").field("type", "string").endObject()
-                    .startObject("field1_c").field("type", "string").endObject()
-                    .startObject("field2_a").field("type", "string").endObject()
-                    .startObject("field2_b").field("type", "string").endObject()
-                    .startObject("field2_c").field("type", "string").endObject()
+                    .startObject("field1_a").field("type", "text").endObject()
+                    .startObject("field1_b").field("type", "text").endObject()
+                    .startObject("field1_c").field("type", "text").endObject()
+                    .startObject("field2_a").field("type", "text").endObject()
+                    .startObject("field2_b").field("type", "text").endObject()
+                    .startObject("field2_c").field("type", "text").endObject()
                 .endObject().endObject().endObject();
         mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
@@ -171,22 +183,22 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                 .startObject("foo")
                     .field("type", "object")
                     .startObject("properties")
-                        .startObject("bar").field("type", "string").endObject()
-                        .startObject("baz").field("type", "string").endObject()
+                        .startObject("bar").field("type", "text").endObject()
+                        .startObject("baz").field("type", "text").endObject()
                     .endObject()
                 .endObject()
                 .startObject("bar")
                     .field("type", "object")
                     .startObject("properties")
-                        .startObject("foo").field("type", "string").endObject()
-                        .startObject("baz").field("type", "string").endObject()
+                        .startObject("foo").field("type", "text").endObject()
+                        .startObject("baz").field("type", "text").endObject()
                     .endObject()
                 .endObject()
                 .startObject("baz")
                     .field("type", "object")
                     .startObject("properties")
-                        .startObject("bar").field("type", "string").endObject()
-                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("bar").field("type", "text").endObject()
+                        .startObject("foo").field("type", "text").endObject()
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject();
@@ -201,13 +213,13 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
     public void testParentChild() throws Exception {
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("parent1")
                 .startObject("properties")
-                    .startObject("field").field("type", "string").endObject()
+                    .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject();
         mapperService.merge("parent1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child1")
                 .startObject("properties")
-                    .startObject("field").field("type", "string").endObject()
+                    .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .startObject("_parent")
                     .field("type", "parent1")
@@ -216,7 +228,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         mapperService.merge("child1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child2")
                 .startObject("properties")
-                    .startObject("field").field("type", "string").endObject()
+                    .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .startObject("_parent")
                     .field("type", "parent1")
@@ -225,13 +237,13 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         mapperService.merge("child2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("parent2")
                 .startObject("properties")
-                .startObject("field").field("type", "string").endObject()
+                .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject();
         mapperService.merge("parent2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child3")
                 .startObject("properties")
-                    .startObject("field").field("type", "string").endObject()
+                    .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .startObject("_parent")
                     .field("type", "parent2")
@@ -370,4 +382,152 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         }
     }
 
+    public void testIndexSearcherWrapperSparseNoDeletions() throws IOException {
+        doTestIndexSearcherWrapper(true, false);
+    }
+
+    public void testIndexSearcherWrapperDenseNoDeletions() throws IOException {
+        doTestIndexSearcherWrapper(false, false);
+    }
+
+    public void testIndexSearcherWrapperSparseWithDeletions() throws IOException {
+        doTestIndexSearcherWrapper(true, true);
+    }
+
+    public void testIndexSearcherWrapperDenseWithDeletions() throws IOException {
+        doTestIndexSearcherWrapper(false, true);
+    }
+
+    static class CreateScorerOnceWeight extends Weight {
+
+        private final Weight weight;
+        private final Set<Object> seenLeaves = Collections.newSetFromMap(new IdentityHashMap<>());
+        
+        protected CreateScorerOnceWeight(Weight weight) {
+            super(weight.getQuery());
+            this.weight = weight;
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
+            weight.extractTerms(terms);
+        }
+
+        @Override
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+            return weight.explain(context, doc);
+        }
+
+        @Override
+        public float getValueForNormalization() throws IOException {
+            return weight.getValueForNormalization();
+        }
+
+        @Override
+        public void normalize(float norm, float boost) {
+            weight.normalize(norm, boost);
+        }
+
+        @Override
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            assertTrue(seenLeaves.add(context.reader().getCoreCacheKey()));
+            return weight.scorer(context);
+        }
+
+        @Override
+        public BulkScorer bulkScorer(LeafReaderContext context)
+                throws IOException {
+            assertTrue(seenLeaves.add(context.reader().getCoreCacheKey()));
+            return weight.bulkScorer(context);
+        }
+    }
+
+    static class CreateScorerOnceQuery extends Query {
+
+        private final Query query;
+
+        CreateScorerOnceQuery(Query query) {
+            this.query = query;
+        }
+
+        @Override
+        public String toString(String field) {
+            return query.toString(field);
+        }
+
+        @Override
+        public Query rewrite(IndexReader reader) throws IOException {
+            Query queryRewritten = query.rewrite(reader);
+            if (query != queryRewritten) {
+                return new CreateScorerOnceQuery(queryRewritten);
+            }
+            return super.rewrite(reader);
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+            return new CreateScorerOnceWeight(query.createWeight(searcher, needsScores));
+        }
+    }
+
+    public void doTestIndexSearcherWrapper(boolean sparse, boolean deletions) throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null));
+        Document doc = new Document();
+        StringField allowedField = new StringField("allowed", "yes", Store.NO);
+        doc.add(allowedField);
+        StringField fooField = new StringField("foo", "bar", Store.NO);
+        doc.add(fooField);
+        StringField deleteField = new StringField("delete", "no", Store.NO);
+        doc.add(deleteField);
+        w.addDocument(doc);
+        if (deletions) {
+            // add a document that matches foo:bar but will be deleted
+            deleteField.setStringValue("yes");
+            w.addDocument(doc);
+            deleteField.setStringValue("no");
+        }
+        allowedField.setStringValue("no");
+        w.addDocument(doc);
+        if (sparse) {
+            for (int i = 0; i < 1000; ++i) {
+                w.addDocument(doc);
+            }
+            w.forceMerge(1);
+        }
+        w.deleteDocuments(new Term("delete", "yes"));
+
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSettings settings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
+        BitsetFilterCache.Listener listener = new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        };
+        BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
+        Query roleQuery = new TermQuery(new Term("allowed", "yes"));
+        BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
+        if (sparse) {
+            assertThat(bitSet, instanceOf(SparseFixedBitSet.class));
+        } else {
+            assertThat(bitSet, instanceOf(FixedBitSet.class));
+        }
+
+        DocumentSubsetDirectoryReader filteredReader = DocumentSubsetReader.wrap(reader, cache, roleQuery);
+        IndexSearcher searcher = new ShieldIndexSearcherWrapper.IndexSearcherWrapper(filteredReader);
+
+        // Searching a non-existing term will trigger a null scorer
+        assertEquals(0, searcher.count(new TermQuery(new Term("non_existing_field", "non_existing_value"))));
+
+        assertEquals(1, searcher.count(new TermQuery(new Term("foo", "bar"))));
+
+        // make sure scorers are created only once, see #1725
+        assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
+        IOUtils.close(reader, w, dir);
+    }
 }

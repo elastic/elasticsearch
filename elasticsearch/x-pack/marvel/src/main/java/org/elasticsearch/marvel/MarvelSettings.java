@@ -20,11 +20,22 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.settings.Setting.Property;
+import static org.elasticsearch.common.settings.Setting.boolSetting;
+import static org.elasticsearch.common.settings.Setting.groupSetting;
+import static org.elasticsearch.common.settings.Setting.intSetting;
+import static org.elasticsearch.common.settings.Setting.listSetting;
+import static org.elasticsearch.common.settings.Setting.timeSetting;
+
 public class MarvelSettings extends AbstractComponent {
 
-    public static final String MONITORING_INDICES_PREFIX = ".monitoring-es-";
-    public static final String MONITORING_DATA_INDEX_PREFIX = ".monitoring-es-data-";
+    public static final String LEGACY_DATA_INDEX_NAME = ".marvel-es-data";
+
     public static final String HISTORY_DURATION_SETTING_NAME = "history.duration";
+    /**
+     * The minimum amount of time allowed for the history duration.
+     */
+    public static final TimeValue HISTORY_DURATION_MINIMUM = TimeValue.timeValueHours(24);
     public static final TimeValue MAX_LICENSE_GRACE_PERIOD = TimeValue.timeValueHours(7 * 24);
 
     /**
@@ -37,80 +48,91 @@ public class MarvelSettings extends AbstractComponent {
                     (s) -> String.valueOf(!XPackPlugin.isTribeNode(s) && !XPackPlugin.isTribeClientNode(s)),
 
                     Booleans::parseBooleanExact,
-                    false,
-                    Setting.Scope.CLUSTER);
+                    Property.NodeScope);
 
     /**
      * Sampling interval between two collections (default to 10s)
      */
     public static final Setting<TimeValue> INTERVAL =
-            Setting.timeSetting(key("agent.interval"), TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+            timeSetting(key("agent.interval"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting index statistics (default to 10m)
      */
     public static final Setting<TimeValue> INDEX_STATS_TIMEOUT =
-            Setting.timeSetting(key("agent.index.stats.timeout"), TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+            timeSetting(key("agent.index.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting total indices statistics (default to 10m)
      */
     public static final Setting<TimeValue> INDICES_STATS_TIMEOUT =
-            Setting.timeSetting(key("agent.indices.stats.timeout"), TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+            timeSetting(key("agent.indices.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * List of indices names whose stats will be exported (default to all indices)
      */
     public static final Setting<List<String>> INDICES =
-            Setting.listSetting(key("agent.indices"), Collections.emptyList(), Function.identity(), true, Setting.Scope.CLUSTER);
+            listSetting(key("agent.indices"), Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting the cluster state (default to 10m)
      */
     public static final Setting<TimeValue> CLUSTER_STATE_TIMEOUT =
-            Setting.timeSetting(key("agent.cluster.state.timeout"), TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+            timeSetting(key("agent.cluster.state.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting the recovery information (default to 10m)
      */
     public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT =
-            Setting.timeSetting(key("agent.cluster.stats.timeout"), TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+            timeSetting(key("agent.cluster.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting the recovery information (default to 10m)
      */
     public static final Setting<TimeValue> INDEX_RECOVERY_TIMEOUT =
-            Setting.timeSetting(key("agent.index.recovery.timeout"), TimeValue.timeValueSeconds(10), true, Setting.Scope.CLUSTER);
+            timeSetting(key("agent.index.recovery.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected)
      */
     public static final Setting<Boolean> INDEX_RECOVERY_ACTIVE_ONLY =
-            Setting.boolSetting(key("agent.index.recovery.active_only"), false, true, Setting.Scope.CLUSTER) ;
+            boolSetting(key("agent.index.recovery.active_only"), false, Property.Dynamic, Property.NodeScope) ;
 
     /**
      * List of collectors allowed to collect data (default to all)
      */
     public static final Setting<List<String>> COLLECTORS =
-            Setting.listSetting(key("agent.collectors"), Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
+            listSetting(key("agent.collectors"), Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     /**
-     * The default retention duration of the monitoring history data
+     * The default retention duration of the monitoring history data.
+     * <p>
+     * Expected values:
+     * <ul>
+     * <li>Default: 7 days</li>
+     * <li>Minimum: 1 day</li>
+     * </ul>
+     *
+     * @see #HISTORY_DURATION_MINIMUM
      */
     public static final Setting<TimeValue> HISTORY_DURATION =
-            Setting.timeSetting(key(HISTORY_DURATION_SETTING_NAME), TimeValue.timeValueHours(7 * 24), true, Setting.Scope.CLUSTER);
+            timeSetting(key(HISTORY_DURATION_SETTING_NAME),
+                        TimeValue.timeValueHours(7 * 24), // default value (7 days)
+                        HISTORY_DURATION_MINIMUM,         // minimum value
+                        Property.Dynamic, Property.NodeScope);
 
     /**
      * The index setting that holds the template version
      */
     public static final Setting<Integer> INDEX_TEMPLATE_VERSION =
-            Setting.intSetting("index.xpack.monitoring.template.version", MarvelTemplateUtils.TEMPLATE_VERSION, true, Setting.Scope.INDEX);
+            intSetting("index.xpack.monitoring.template.version", MarvelTemplateUtils.TEMPLATE_VERSION,
+                    Property.Dynamic, Property.IndexScope);
 
     /**
      * Settings/Options per configured exporter
      */
     public static final Setting<Settings> EXPORTERS_SETTINGS =
-            Setting.groupSetting(key("agent.exporters."), true, Setting.Scope.CLUSTER);
+            groupSetting(key("agent.exporters."), Property.Dynamic, Property.NodeScope);
 
     static void register(SettingsModule module) {
         module.registerSetting(INDICES);
@@ -127,7 +149,8 @@ public class MarvelSettings extends AbstractComponent {
         module.registerSetting(ENABLED);
         module.registerSetting(INDEX_TEMPLATE_VERSION);
 
-        module.registerSettingsFilter("xpack.monitoring.agent.exporters.*.auth.password");
+        module.registerSettingsFilter("xpack.monitoring.agent.exporters.*.auth.*");
+        module.registerSettingsFilter("xpack.monitoring.agent.exporters.*.ssl.*");
     }
 
 
@@ -213,7 +236,13 @@ public class MarvelSettings extends AbstractComponent {
         this.indices = indices.toArray(new String[0]);
     }
 
-    private static String key(String key) {
+    /**
+     * Prefix the {@code key} with the Monitoring prefix.
+     *
+     * @param key The key to prefix
+     * @return The key prefixed by the product prefixes.
+     */
+    static String key(String key) {
         return XPackPlugin.featureSettingPrefix(Marvel.NAME) + "." + key;
     }
 

@@ -14,13 +14,17 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
+import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
+import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -31,6 +35,7 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
@@ -60,6 +65,8 @@ import static org.hamcrest.Matchers.lessThan;
  *
  */
 public abstract class MarvelIntegTestCase extends ESIntegTestCase {
+
+    public static final String MONITORING_INDICES_PREFIX = MonitoringIndexNameResolver.PREFIX + MonitoringIndexNameResolver.DELIMITER;
 
     protected static Boolean shieldEnabled;
 
@@ -130,6 +137,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 
+    protected MonitoringClient monitoringClient() {
+        Client client = shieldEnabled ? internalCluster().transportClient() : client();
+        return randomBoolean() ? new XPackClient(client).monitoring() : new MonitoringClient(client);
+    }
+
     @Override
     protected Set<String> excludeTemplates() {
         Set<String> templates = new HashSet<>();
@@ -163,7 +175,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             @Override
             public void run() {
                 try {
-                    boolean exist = client().admin().indices().prepareExists(".monitoring-es-*").get().isExists();
+                    boolean exist = client().admin().indices().prepareExists(MONITORING_INDICES_PREFIX + "*")
+                            .get().isExists();
                     if (exist) {
                         deleteMarvelIndices();
                     } else {
@@ -180,12 +193,12 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected void deleteMarvelIndices() {
         if (shieldEnabled) {
             try {
-                assertAcked(client().admin().indices().prepareDelete(".monitoring-es-*"));
+                assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
             } catch (IndexNotFoundException e) {
                 // if shield couldn't resolve any marvel index, it'll throw index not found exception.
             }
         } else {
-            assertAcked(client().admin().indices().prepareDelete(".monitoring-es-*"));
+            assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
         }
     }
 
@@ -206,10 +219,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
-        String indices = MarvelSettings.MONITORING_INDICES_PREFIX + "*";
         try {
-            securedFlushAndRefresh(indices);
-            long count = client().prepareSearch(indices).setSize(0).setTypes(types).get().getHits().totalHits();
+            securedFlushAndRefresh(MONITORING_INDICES_PREFIX + "*");
+            long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*")
+                    .setSize(0).setTypes(types).get().getHits().totalHits();
             logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
             assertThat(count, matcher);
         } catch (IndexNotFoundException e) {
@@ -241,7 +254,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void waitForMarvelIndices() throws Exception {
-        awaitIndexExists(MarvelSettings.MONITORING_INDICES_PREFIX + "*");
+        awaitIndexExists(MONITORING_INDICES_PREFIX + "*");
         assertBusy(this::ensureMarvelIndicesYellow);
     }
 
@@ -358,6 +371,49 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 Settings.builder().put(MarvelSettings.INTERVAL.getKey(), value, timeUnit)));
     }
 
+    protected class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {
+
+        public MockDataIndexNameResolver(int version) {
+            super(version);
+        }
+
+        @Override
+        public String type(MonitoringDoc document) {
+            throw new UnsupportedOperationException("MockDataIndexNameResolver does not support resolving type");
+        }
+
+        @Override
+        public String id(MonitoringDoc document) {
+            throw new UnsupportedOperationException("MockDataIndexNameResolver does not support resolving id");
+        }
+
+        @Override
+        protected void buildXContent(MonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            throw new UnsupportedOperationException("MockDataIndexNameResolver does not support resolving building XContent");
+        }
+    }
+
+    protected class MockTimestampedIndexNameResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringDoc> {
+
+        public MockTimestampedIndexNameResolver(MonitoredSystem id, int version, Settings settings) {
+            super(id, version, settings);
+        }
+
+        public MockTimestampedIndexNameResolver(MonitoredSystem id, int version) {
+            this(id, version, Settings.EMPTY);
+        }
+
+        @Override
+        public String type(MonitoringDoc document) {
+            throw new UnsupportedOperationException("MockTimestampedIndexNameResolver does not support resolving type");
+        }
+
+        @Override
+        protected void buildXContent(MonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            throw new UnsupportedOperationException("MockTimestampedIndexNameResolver does not support resolving building XContent");
+        }
+    }
+
     /** Shield related settings */
 
     public static class ShieldSettings {
@@ -385,20 +441,21 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
-                        "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/stats, cluster:monitor/state, " +
-                        "cluster:monitor/health, cluster:monitor/stats, cluster:monitor/task, cluster:admin/settings/update, " +
-                        "cluster:admin/repository/delete, cluster:monitor/nodes/liveness, indices:admin/template/get, " +
-                        "indices:admin/template/put, indices:admin/template/delete\n" +
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
+                " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
+                " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
+                " 'cluster:monitor/task', 'cluster:admin/xpack/monitoring/bulk' ]\n" +
                 "  indices:\n" +
-                "    '*': all\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ all ]\n" +
                 "\n" +
                 "admin:\n" +
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
                 "transport_client:\n" +
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n" +
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
                 "\n" +
                 "monitor:\n" +
-                "  cluster: cluster:monitor/nodes/info, cluster:monitor/nodes/liveness\n"
+                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n"
                 ;
 
 
@@ -411,8 +468,6 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 Path folder = createTempDir().resolve("marvel_shield");
                 Files.createDirectories(folder);
 
-                builder.remove("index.queries.cache.type");
-
                 builder.put("shield.enabled", true)
                         .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
                         .put("shield.authc.realms.esusers.order", 0)
@@ -421,10 +476,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                         .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)
-                        .put("shield.audit.enabled", auditLogsEnabled)
-                                // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
-                                // validation in ShieldPlugin fail. Shield can only run with this query cache impl
-                        .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE);
+                        .put("shield.audit.enabled", auditLogsEnabled);
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);
             }

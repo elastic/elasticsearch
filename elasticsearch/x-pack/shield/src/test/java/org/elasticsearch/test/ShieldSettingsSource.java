@@ -9,10 +9,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Shield;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
@@ -67,13 +65,13 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     public static final String CONFIG_ROLE_ALLOW_ALL =
             DEFAULT_ROLE + ":\n" +
-                    "  cluster: ALL\n" +
+                    "  cluster: [ ALL ]\n" +
                     "  indices:\n" +
-                    "    '*': ALL\n" +
+                    "    - names: '*'\n" +
+                    "      privileges: [ ALL ]\n" +
             DEFAULT_TRANSPORT_CLIENT_ROLE + ":\n" +
                     "  cluster:\n" +
-                    "    - cluster:monitor/nodes/info\n" +
-                    "    - cluster:monitor/state";
+                    "    - transport_client";
 
     private final Path parentFolder;
     private final String subfolderPrefix;
@@ -135,9 +133,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.authc.realms.index.type", ESNativeRealm.TYPE)
                 .put("shield.authc.realms.index.order", "1")
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
-                // Test framework sometimes randomly selects the 'index' or 'none' cache and that makes the
-                // validation in ShieldPlugin fail.
-                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE)
                 .put(getNodeSSLSettings());
 
         return builder.build();

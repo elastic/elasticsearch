@@ -20,7 +20,7 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.util.Map;
@@ -34,10 +34,10 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
-    private final ClientProxy client;
+    private final WatcherClientProxy client;
     private final @Nullable TimeValue timeout;
 
-    public ExecutableSearchInput(SearchInput input, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout) {
+    public ExecutableSearchInput(SearchInput input, ESLogger logger, WatcherClientProxy client, @Nullable TimeValue defaultTimeout) {
         super(input, logger);
         this.client = client;
         this.timeout = input.getTimeout() != null ? input.getTimeout() : defaultTimeout;

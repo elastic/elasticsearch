@@ -12,7 +12,6 @@
         username: "joe"
         body:  >
             {
-              "username": "joe",
               "password": "s3krit",
               "roles" : [ "admin" ]
             }
@@ -21,9 +20,8 @@
   - do:
       shield.get_user:
         username: "joe"
-  - match: { found: true }
-  - match: { users.0.username: "joe" }
-  - match: { users.0.roles.0:  "admin" }
+  - match: { joe.username: "joe" }
+  - match: { joe.roles.0:  "admin" }
 
   - do:
       headers:
@@ -36,19 +34,27 @@
         username: "joe"
         body:  >
             {
-              "username": "joe",
-              "password": "s3krit2",
-              "roles" : [ "admin", "foo" ]
+              "password" : "s3krit2",
+              "roles" : [ "admin", "foo" ],
+              "full_name" : "Bazooka Joe",
+              "email" : "joe@bazooka.gum",
+              "metadata" : {
+                "key1" : "val1",
+                "key2" : "val2"
+              }
             }
   - match: { user: { created: false } }
 
   - do:
       shield.get_user:
         username: "joe"
-  - match: { found: true }
-  - match: { users.0.username: "joe" }
-  - match: { users.0.roles.0:  "admin" }
-  - match: { users.0.roles.1:  "foo" }
+  - match: { joe.username:  "joe" }
+  - match: { joe.roles.0:  "admin" }
+  - match: { joe.roles.1:  "foo" }
+  - match: { joe.full_name:  "Bazooka Joe" }
+  - match: { joe.email:  "joe@bazooka.gum" }
+  - match: { joe.metadata.key1:  "val1" }
+  - match: { joe.metadata.key2:  "val2" }
 
   - do:
       headers:

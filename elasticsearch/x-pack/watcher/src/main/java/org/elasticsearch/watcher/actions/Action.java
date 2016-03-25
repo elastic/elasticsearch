@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

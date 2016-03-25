@@ -32,7 +32,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -52,12 +52,12 @@ import static org.mockito.Mockito.when;
  */
 public class WatchStoreTests extends ESTestCase {
     private WatchStore watchStore;
-    private ClientProxy clientProxy;
+    private WatcherClientProxy clientProxy;
     private Watch.Parser parser;
 
     @Before
     public void init() {
-        clientProxy = mock(ClientProxy.class);
+        clientProxy = mock(WatcherClientProxy.class);
         parser = mock(Watch.Parser.class);
         watchStore = new WatchStore(Settings.EMPTY, clientProxy, parser);
     }

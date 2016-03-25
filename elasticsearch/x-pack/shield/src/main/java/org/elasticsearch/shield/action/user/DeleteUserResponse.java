@@ -14,16 +14,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Response when deleting a user from the shield administrative index. Returns a
- * single boolean field for whether the user was found (and deleted) or not
- * found.
+ * Response when deleting a native user. Returns a single boolean field for whether the user was
+ * found (and deleted) or not found.
  */
 public class DeleteUserResponse extends ActionResponse implements ToXContent {
 
     private boolean found;
 
     public DeleteUserResponse() {
-
     }
 
     public DeleteUserResponse(boolean found) {

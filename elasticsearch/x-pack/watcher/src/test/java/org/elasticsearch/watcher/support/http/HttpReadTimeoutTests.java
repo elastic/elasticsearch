@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import com.squareup.okhttp.mockwebserver.Dispatcher;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
-import org.elasticsearch.ElasticsearchException;
+import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -17,7 +18,8 @@ import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.junit.After;
 import org.junit.Before;
 
-import java.net.BindException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -28,25 +30,17 @@ import static org.mockito.Mockito.mock;
 public class HttpReadTimeoutTests extends ESTestCase {
 
     private MockWebServer webServer;
-    private int webPort;
 
     @Before
     public void init() throws Exception {
-        for (webPort = 9200; webPort < 9300; webPort++) {
-            try {
-                webServer = new MockWebServer();
-                webServer.start(webPort);
-                return;
-            } catch (BindException be) {
-                logger.warn("port [{}] was already in use trying next port", webPort);
-            }
-        }
-        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
+        webServer = new MockWebServer();
+        webServer.start();
     }
 
     @After
-    public void after() throws Exception {
+    public void cleanup() throws Exception {
         webServer.shutdown();
+
     }
 
     public void testDefaultTimeout() throws Exception {
@@ -55,7 +49,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
 
         // we're not going to enqueue an response... so the server will just hang
 
-        HttpRequest request = HttpRequest.builder("localhost", webPort)
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
                 .path("/" + randomAsciiOfLength(5))
                 .build();
@@ -83,33 +77,38 @@ public class HttpReadTimeoutTests extends ESTestCase {
         Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
 
         HttpClient httpClient = new HttpClient(Settings.builder()
-                .put("watcher.http.default_read_timeout", "5s")
+                .put("watcher.http.default_read_timeout", "3s")
                 .build()
                 , mock(HttpAuthRegistry.class), environment).start();
 
-        // we're not going to enqueue an response... so the server will just hang
+        final String path = '/' + randomAsciiOfLength(5);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final TimeValue sleepTime = TimeValue.timeValueSeconds(10);
+        webServer.setDispatcher(new CountDownLatchDispatcher(path, latch, sleepTime));
 
-        HttpRequest request = HttpRequest.builder("localhost", webPort)
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
-                .path("/" + randomAsciiOfLength(5))
+                .path(path)
                 .build();
 
         long start = System.nanoTime();
         try {
             httpClient.execute(request);
-            fail("expected read timeout after 5 seconds (default)");
+            fail("expected read timeout after 3 seconds (default)");
         } catch (ElasticsearchTimeoutException ete) {
             // expected
 
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
             logger.info("http connection timed out after {}", timeout.format());
 
-            // it's supposed to be 5, but we'll give it an error margin of 2 seconds
-            assertThat(timeout.seconds(), greaterThan(3L));
-            assertThat(timeout.seconds(), lessThan(7L));
+            // it's supposed to be 3, but we'll give it an error margin of 2 seconds
+            assertThat(timeout.seconds(), greaterThan(1L));
+            assertThat(timeout.seconds(), lessThan(5L));
+        }
 
-            // lets enqueue a response to relese the server.
-            webServer.enqueue(new MockResponse());
+        if (!latch.await(sleepTime.seconds(), TimeUnit.SECONDS)) {
+            // should never happen
+            fail("waited too long for the response to be returned");
         }
     }
 
@@ -121,18 +120,21 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .build()
                 , mock(HttpAuthRegistry.class), environment).start();
 
-        // we're not going to enqueue an response... so the server will just hang
+        final String path = '/' + randomAsciiOfLength(5);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final TimeValue sleepTime = TimeValue.timeValueSeconds(10);
+        webServer.setDispatcher(new CountDownLatchDispatcher(path, latch, sleepTime));
 
-        HttpRequest request = HttpRequest.builder("localhost", webPort)
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
                 .readTimeout(TimeValue.timeValueSeconds(5))
                 .method(HttpMethod.POST)
-                .path("/" + randomAsciiOfLength(5))
+                .path(path)
                 .build();
 
         long start = System.nanoTime();
         try {
             httpClient.execute(request);
-            fail("expected read timeout after 5 seconds (default)");
+            fail("expected read timeout after 5 seconds");
         } catch (ElasticsearchTimeoutException ete) {
             // expected
 
@@ -142,9 +144,33 @@ public class HttpReadTimeoutTests extends ESTestCase {
             // it's supposed to be 5, but we'll give it an error margin of 2 seconds
             assertThat(timeout.seconds(), greaterThan(3L));
             assertThat(timeout.seconds(), lessThan(7L));
+        }
 
-            // lets enqueue a response to relese the server.
-            webServer.enqueue(new MockResponse());
+        if (!latch.await(sleepTime.seconds(), TimeUnit.SECONDS)) {
+            // should never happen
+            fail("waited too long for the response to be returned");
+        }
+    }
+
+    private class CountDownLatchDispatcher extends Dispatcher {
+
+        private final String path;
+        private final CountDownLatch latch;
+        private TimeValue sleepTime;
+
+        public CountDownLatchDispatcher(String path, CountDownLatch latch, TimeValue sleepTime) {
+            this.path = path;
+            this.latch = latch;
+            this.sleepTime = sleepTime;
+        }
+
+        @Override
+        public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+            if (path.equals(request.getPath())) {
+                Thread.sleep(sleepTime.millis());
+                latch.countDown();
+            }
+            return new MockResponse().setStatus("200");
         }
     }
 }

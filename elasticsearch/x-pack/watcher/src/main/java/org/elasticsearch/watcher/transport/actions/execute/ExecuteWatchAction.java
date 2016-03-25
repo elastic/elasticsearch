@@ -15,7 +15,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class ExecuteWatchAction extends Action<ExecuteWatchRequest, ExecuteWatchResponse, ExecuteWatchRequestBuilder> {
 
     public static final ExecuteWatchAction INSTANCE = new ExecuteWatchAction();
-    public static final String NAME = "cluster:admin/watcher/watch/execute";
+    public static final String NAME = "cluster:admin/xpack/watcher/watch/execute";
 
     private ExecuteWatchAction() {
         super(NAME);

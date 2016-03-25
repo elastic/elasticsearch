@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.graph.Graph;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
@@ -50,6 +51,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
                 .put(XPackPlugin.featureEnabledSetting(Shield.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Graph.NAME), false)
                 .build();
     }
 

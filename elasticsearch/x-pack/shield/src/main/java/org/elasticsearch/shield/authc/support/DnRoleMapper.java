@@ -175,8 +175,7 @@ public class DnRoleMapper {
         }
         if (logger.isDebugEnabled()) {
             logger.debug("the roles [{}], are mapped from the user [{}] for realm [{}/{}]",
-                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, realmType, userDnString,
-                    realmType, config.name());
+                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, userDnString, realmType, config.name());
         }
         return roles;
     }

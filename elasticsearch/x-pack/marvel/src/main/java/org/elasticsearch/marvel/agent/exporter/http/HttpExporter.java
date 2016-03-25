@@ -22,13 +22,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
+import org.elasticsearch.marvel.agent.exporter.ExportException;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
-import org.elasticsearch.marvel.agent.renderer.Renderer;
-import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
+import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
+import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 import org.elasticsearch.marvel.support.VersionUtils;
 
 import javax.net.ssl.HostnameVerifier;
@@ -80,38 +80,46 @@ public class HttpExporter extends Exporter {
     public static final String SSL_TRUSTSTORE_ALGORITHM_SETTING = "truststore.algorithm";
     public static final String SSL_HOSTNAME_VERIFICATION_SETTING = SSL_SETTING + ".hostname_verification";
 
-    /** Minimum supported version of the remote monitoring cluster **/
+    /**
+     * Minimum supported version of the remote monitoring cluster
+     **/
     public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_2_0_0_beta2;
+
+    private static final XContentType CONTENT_TYPE = XContentType.JSON;
 
     volatile String[] hosts;
     final TimeValue connectionTimeout;
     final TimeValue connectionReadTimeout;
     final BasicAuth auth;
 
-    /** https support * */
+    /**
+     * https support *
+     */
     final SSLSocketFactory sslSocketFactory;
     final boolean hostnameVerification;
 
     final Environment env;
-    final RendererRegistry renderers;
+    final ResolversRegistry resolvers;
 
-    final @Nullable TimeValue templateCheckTimeout;
+    @Nullable
+    final TimeValue templateCheckTimeout;
 
     volatile boolean checkedAndUploadedIndexTemplate = false;
     volatile boolean supportedClusterVersion = false;
 
-    /** Version number of built-in templates **/
+    /**
+     * Version number of built-in templates
+     **/
     private final Integer templateVersion;
 
     boolean keepAlive;
     final ConnectionKeepAliveWorker keepAliveWorker;
     Thread keepAliveThread;
 
-    public HttpExporter(Exporter.Config config, Environment env, RendererRegistry rendererRegistry) {
+    public HttpExporter(Exporter.Config config, Environment env) {
 
         super(TYPE, config);
         this.env = env;
-        this.renderers = rendererRegistry;
 
         hosts = config.settings().getAsArray(HOST_SETTING, Strings.EMPTY_ARRAY);
         if (hosts.length == 0) {
@@ -142,10 +150,13 @@ public class HttpExporter extends Exporter {
         if (templateVersion == null) {
             throw new IllegalStateException("unable to find built-in template version");
         }
+        resolvers = new ResolversRegistry(config.settings());
+        logger.debug("initialized with hosts [{}], index prefix [{}], template version [{}]",
+                Strings.arrayToCommaDelimitedString(hosts), MonitoringIndexNameResolver.PREFIX, templateVersion);
+    }
 
-        logger.debug("initialized with hosts [{}], index prefix [{}], index resolver [{}], template version [{}]",
-                Strings.arrayToCommaDelimitedString(hosts),
-                MarvelSettings.MONITORING_INDICES_PREFIX, indexNameResolver, templateVersion);
+    ResolversRegistry getResolvers() {
+        return resolvers;
     }
 
     @Override
@@ -173,7 +184,7 @@ public class HttpExporter extends Exporter {
         if (bulkTimeout != null) {
             queryString = "?master_timeout=" + bulkTimeout;
         }
-        HttpURLConnection conn = openAndValidateConnection("POST", "/_bulk" + queryString, XContentType.SMILE.mediaType());
+        HttpURLConnection conn = openAndValidateConnection("POST", "/_bulk" + queryString, CONTENT_TYPE.mediaType());
         if (conn != null && (keepAliveThread == null || !keepAliveThread.isAlive())) {
             // start keep alive upon successful connection if not there.
             initKeepAliveThread();
@@ -181,46 +192,47 @@ public class HttpExporter extends Exporter {
         return conn;
     }
 
-    private void render(MarvelDoc marvelDoc, OutputStream out) throws IOException {
-        final XContentType xContentType = XContentType.SMILE;
+    private void render(MonitoringDoc doc, OutputStream out) throws IOException {
+        try {
+            MonitoringIndexNameResolver<MonitoringDoc> resolver = resolvers.getResolver(doc);
+            if (resolver != null) {
+                String index = resolver.index(doc);
+                String type = resolver.type(doc);
+                String id = resolver.id(doc);
 
-        // Get the appropriate renderer in order to render the MarvelDoc
-        Renderer renderer = renderers.getRenderer(marvelDoc);
-        assert renderer != null :
-                "unable to render monitoring document of type [" + marvelDoc.getType() + "]. no renderer found in registry";
+                try (XContentBuilder builder = new XContentBuilder(CONTENT_TYPE.xContent(), out)) {
+                    // Builds the bulk action metadata line
+                    builder.startObject();
+                    builder.startObject("index");
+                    builder.field("_index", index);
+                    builder.field("_type", type);
+                    if (id != null) {
+                        builder.field("_id", id);
+                    }
+                    builder.endObject();
+                    builder.endObject();
+                }
 
-        if (renderer == null) {
-            logger.warn("http exporter [{}] - unable to render monitoring document of type [{}]: no renderer found in registry",
-                    name(), marvelDoc.getType());
-            return;
-        }
+                // Adds action metadata line bulk separator
+                out.write(CONTENT_TYPE.xContent().streamSeparator());
 
-        try (XContentBuilder builder = new XContentBuilder(xContentType.xContent(), out)) {
+                // Render the monitoring document
+                out.write(resolver.source(doc, CONTENT_TYPE).toBytes());
 
-            // Builds the bulk action metadata line
-            builder.startObject();
-            builder.startObject("index");
+                // Adds final bulk separator
+                out.write(CONTENT_TYPE.xContent().streamSeparator());
 
-            // we need the index to be based on the document timestamp and/or template version
-            builder.field("_index", indexNameResolver.resolve(marvelDoc));
-
-            if (marvelDoc.getType() != null) {
-                builder.field("_type", marvelDoc.getType());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("http exporter [{}] - added index request [index={}, type={}, id={}]",
+                            name(), index, type, id);
+                }
+            } else if (logger.isTraceEnabled()) {
+                logger.trace("http exporter [{}] - no resolver found for monitoring document [class={}, id={}, version={}]",
+                        name(), doc.getClass().getName(), doc.getMonitoringId(), doc.getMonitoringVersion());
             }
-            if (marvelDoc.getId() != null) {
-                builder.field("_id", marvelDoc.getId());
-            }
-            builder.endObject();
-            builder.endObject();
+        } catch (Exception e) {
+            logger.warn("http exporter [{}] - failed to render document [{}], skipping it", e, name(), doc);
         }
-        // Adds action metadata line bulk separator
-        out.write(xContentType.xContent().streamSeparator());
-
-        // Render the MarvelDoc
-        renderer.render(marvelDoc, xContentType, out);
-
-        // Adds final bulk separator
-        out.write(xContentType.xContent().streamSeparator());
     }
 
     @SuppressWarnings("unchecked")
@@ -234,7 +246,7 @@ public class HttpExporter extends Exporter {
         }
 
         InputStream inputStream = conn.getInputStream();
-        try (XContentParser parser = XContentType.SMILE.xContent().createParser(inputStream)) {
+        try (XContentParser parser = CONTENT_TYPE.xContent().createParser(inputStream)) {
             Map<String, Object> response = parser.map();
             if (response.get("items") != null) {
                 ArrayList<Object> list = (ArrayList<Object>) response.get("items");
@@ -267,7 +279,7 @@ public class HttpExporter extends Exporter {
                     try {
                         Version remoteVersion = loadRemoteClusterVersion(host);
                         if (remoteVersion == null) {
-                            logger.warn("unable to check remote cluster version: no version found on host [" + host + "]");
+                            logger.warn("unable to check remote cluster version: no version found on host [{}]", host);
                             continue;
                         }
                         supportedClusterVersion = remoteVersion.onOrAfter(MIN_SUPPORTED_CLUSTER_VERSION);
@@ -312,10 +324,11 @@ public class HttpExporter extends Exporter {
         logger.error("could not connect to any configured elasticsearch instances [{}]", Strings.arrayToCommaDelimitedString(hosts));
 
         return null;
-
     }
 
-    /** open a connection to the given hosts, returning null when not successful * */
+    /**
+     * open a connection to the given hosts, returning null when not successful *
+     */
     private HttpURLConnection openConnection(String host, String method, String path, @Nullable String contentType) {
         try {
             final URL url = HttpExporterUtils.parseHostWithPath(host, path);
@@ -358,18 +371,17 @@ public class HttpExporter extends Exporter {
 
             return conn;
         } catch (URISyntaxException e) {
-            logErrorBasedOnLevel(e, "error parsing host [{}]", host);
+            logger.error("error parsing host [{}] [{}]", host, e.getMessage());
+            if (logger.isDebugEnabled()) {
+                logger.debug("error parsing host [{}]. full error details:\n[{}]", host, ExceptionsHelper.detailedMessage(e));
+            }
         } catch (IOException e) {
-            logErrorBasedOnLevel(e, "error connecting to [{}]", host);
+            logger.error("error connecting to [{}] [{}]", host, e.getMessage());
+            if (logger.isDebugEnabled()) {
+                logger.debug("error connecting to [{}]. full error details:\n[{}]", host, ExceptionsHelper.detailedMessage(e));
+            }
         }
         return null;
-    }
-
-    private void logErrorBasedOnLevel(Throwable t, String msg, Object... params) {
-        logger.error(msg + " [" + t.getMessage() + "]", params);
-        if (logger.isDebugEnabled()) {
-            logger.debug(msg + ". full error details:\n[{}]", params, ExceptionsHelper.detailedMessage(t));
-        }
     }
 
     /**
@@ -448,7 +460,7 @@ public class HttpExporter extends Exporter {
 
             // 200 means that the template has been found, 404 otherwise
             if (connection.getResponseCode() == 200) {
-                logger.debug("monitoring template [{}] found",templateName);
+                logger.debug("monitoring template [{}] found", templateName);
                 return true;
             }
         } catch (Exception e) {
@@ -527,7 +539,6 @@ public class HttpExporter extends Exporter {
         }
     }
 
-
     static private void validateHosts(String[] hosts) {
         for (String host : hosts) {
             try {
@@ -542,7 +553,9 @@ public class HttpExporter extends Exporter {
         }
     }
 
-    /** SSL Initialization * */
+    /**
+     * SSL Initialization *
+     */
     public SSLSocketFactory createSSLSocketFactory(Settings settings) {
         if (settings.names().isEmpty()) {
             logger.trace("no ssl context configured");
@@ -692,65 +705,70 @@ public class HttpExporter extends Exporter {
         }
 
         @Override
-        public Bulk add(Collection<MarvelDoc> docs) throws Exception {
-            if (connection == null) {
-                connection = openExportingConnection();
-            }
-            if ((docs != null) && (!docs.isEmpty())) {
-                if (out == null) {
-                    out = connection.getOutputStream();
-                }
+        public Bulk add(Collection<MonitoringDoc> docs) throws ExportException {
+            try {
+                if ((docs != null) && (!docs.isEmpty())) {
+                    if (connection == null) {
+                        connection = openExportingConnection();
+                        if (connection == null) {
+                            throw new IllegalStateException("No connection available to export documents");
+                        }
+                    }
+                    if (out == null) {
+                        out = connection.getOutputStream();
+                    }
 
-                // We need to use a buffer to render each monitoring document
-                // because the renderer might close the outputstream (ex: XContentBuilder)
-                try (BytesStreamOutput buffer = new BytesStreamOutput()) {
-                    for (MarvelDoc marvelDoc : docs) {
-                        try {
-                            render(marvelDoc, buffer);
-                            // write the result to the connection
-                            out.write(buffer.bytes().toBytes());
-                        } finally {
-                            buffer.reset();
+                    // We need to use a buffer to render each monitoring document
+                    // because the renderer might close the outputstream (ex: XContentBuilder)
+                    try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+                        for (MonitoringDoc monitoringDoc : docs) {
+                            try {
+                                render(monitoringDoc, buffer);
+                                // write the result to the connection
+                                out.write(buffer.bytes().toBytes());
+                            } finally {
+                                buffer.reset();
+                            }
                         }
                     }
                 }
+            } catch (Exception e) {
+                throw new ExportException("failed to add documents to export bulk [{}]", name);
             }
             return this;
         }
 
         @Override
-        public void flush() throws IOException {
+        public void flush() throws ExportException {
             if (connection != null) {
-                flush(connection);
-                connection = null;
+                try {
+                    flush(connection);
+                } catch (Exception e) {
+                    throw new ExportException("failed to flush export bulk [{}]", e, name);
+                } finally {
+                    connection = null;
+                }
             }
         }
 
         private void flush(HttpURLConnection connection) throws IOException {
-            try {
-                sendCloseExportingConnection(connection);
-            } catch (IOException e) {
-                logger.error("failed sending data to [{}]: {}", connection.getURL(), ExceptionsHelper.detailedMessage(e));
-                throw e;
-            }
+            sendCloseExportingConnection(connection);
         }
     }
 
     public static class Factory extends Exporter.Factory<HttpExporter> {
 
         private final Environment env;
-        private final RendererRegistry rendererRegistry;
 
         @Inject
-        public Factory(Environment env, RendererRegistry rendererRegistry) {
+        public Factory(Environment env) {
             super(TYPE, false);
             this.env = env;
-            this.rendererRegistry = rendererRegistry;
         }
 
         @Override
         public HttpExporter create(Config config) {
-            return new HttpExporter(config, env, rendererRegistry);
+            return new HttpExporter(config, env);
         }
     }
 }

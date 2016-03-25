@@ -69,7 +69,7 @@ public class ValidationTests extends ESTestCase {
 
     public void testESUsersValidatePassword() throws Exception {
         String passwd = randomAsciiOfLength(randomIntBetween(0, 20));
-        logger.info(passwd + "[{}]", passwd.length());
+        logger.info("{}[{}]", passwd, passwd.length());
         if (passwd.length() >= 6) {
             assertThat(Validation.ESUsers.validatePassword(passwd.toCharArray()), nullValue());
         } else {

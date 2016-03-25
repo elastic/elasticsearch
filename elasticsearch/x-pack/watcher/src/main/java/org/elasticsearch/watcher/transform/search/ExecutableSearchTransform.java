@@ -13,7 +13,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.WatcherUtils;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.watch.Payload;
 
@@ -24,10 +24,11 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
 
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
-    protected final ClientProxy client;
+    protected final WatcherClientProxy client;
     protected final @Nullable TimeValue timeout;
 
-    public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout) {
+    public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, WatcherClientProxy client,
+                                     @Nullable TimeValue defaultTimeout) {
         super(transform, logger);
         this.client = client;
         this.timeout = transform.getTimeout() != null ? transform.getTimeout() : defaultTimeout;

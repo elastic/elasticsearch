@@ -43,8 +43,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.unmodifiableMap;
-
 /**
  * Client class to wrap http connections
  */
@@ -211,16 +209,20 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
             }
         }
         logger.debug("http status code [{}]", statusCode);
-        if (statusCode < 400) {
-            final byte[] body;
-            try (InputStream inputStream = urlConnection.getInputStream();
-                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-                Streams.copy(inputStream, outputStream);
-                body = outputStream.toByteArray();
+        final byte[] body;
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            try (InputStream is = urlConnection.getInputStream()) {
+                Streams.copy(is, outputStream);
+            } catch (Exception e) {
+                if (urlConnection.getErrorStream() != null) {
+                    try (InputStream is = urlConnection.getErrorStream()) {
+                        Streams.copy(is, outputStream);
+                    }
+                }
             }
-            return new HttpResponse(statusCode, body, responseHeaders);
+            body = outputStream.toByteArray();
         }
-        return new HttpResponse(statusCode, responseHeaders);
+        return new HttpResponse(statusCode, body, responseHeaders);
     }
 
     /** SSL Initialization **/
@@ -279,7 +281,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         if (keyStore == null) {
             return null;
         }
-        Path path = env.binFile().getParent().resolve(keyStore);
+        Path path = env.configFile().resolve(keyStore);
         if (Files.notExists(path)) {
             return null;
         }
@@ -302,7 +304,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
             // Load TrustStore
             KeyStore ks = null;
             if (trustStore != null) {
-                Path trustStorePath = env.binFile().getParent().resolve(trustStore);
+                Path trustStorePath = env.configFile().resolve(trustStore);
                 if (Files.exists(trustStorePath)) {
                     ks = readKeystore(trustStorePath, trustStorePassword);
                 }

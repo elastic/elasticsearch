@@ -9,7 +9,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.cleaner.AbstractIndicesCleanerTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -48,18 +47,14 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
 
     @Override
     protected void assertIndicesCount(int count) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    assertThat(client().admin().indices().prepareGetSettings(MarvelSettings.MONITORING_INDICES_PREFIX + "*")
-                            .get().getIndexToSettings().size(), equalTo(count));
-                } catch (IndexNotFoundException e) {
-                    if (shieldEnabled) {
-                        assertThat(0, equalTo(count));
-                    } else {
-                        throw e;
-                    }
+        assertBusy(() -> {
+            try {
+                assertThat(client().admin().indices().prepareGetSettings().get().getIndexToSettings().size(), equalTo(count));
+            } catch (IndexNotFoundException e) {
+                if (shieldEnabled) {
+                    assertThat(0, equalTo(count));
+                } else {
+                    throw e;
                 }
             }
         });

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.tool;
 
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 
 /**
  * A small executable tool that can eval crons

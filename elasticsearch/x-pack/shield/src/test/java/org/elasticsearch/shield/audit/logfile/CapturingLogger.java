@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.shield.audit.logfile;
 
-import org.elasticsearch.common.logging.support.AbstractESLogger;
+import org.elasticsearch.common.logging.ESLogger;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+
 /**
 *
 */
-public class CapturingLogger extends AbstractESLogger {
+public class CapturingLogger extends ESLogger {
 
     private Level level;
 
@@ -25,58 +27,43 @@ public class CapturingLogger extends AbstractESLogger {
     public final List<Msg> trace = new ArrayList<>();
 
     public CapturingLogger(Level level) {
-        super("");
+        super(null, null);
         this.level = level;
     }
 
     @Override
-    protected void internalTrace(String msg) {
-        add(trace, msg);
+    public void trace(String msg, Throwable cause, Object... params) {
+        if (isTraceEnabled()) {
+            add(trace, format(msg, params), cause);
+        }
     }
 
     @Override
-    protected void internalTrace(String msg, Throwable cause) {
-        add(trace, msg, cause);
+    public void debug(String msg, Throwable cause, Object... params) {
+        if (isDebugEnabled()) {
+            add(debug, format(msg, params), cause);
+        }
     }
 
     @Override
-    protected void internalDebug(String msg) {
-        add(debug, msg);
+    public void info(String msg, Throwable cause, Object... params) {
+        if (isInfoEnabled()) {
+            add(info, format(msg, params), cause);
+        }
     }
 
     @Override
-    protected void internalDebug(String msg, Throwable cause) {
-        add(debug, msg, cause);
+    public void warn(String msg, Throwable cause, Object... params) {
+        if (isWarnEnabled()) {
+            add(warn, format(msg, params), cause);
+        }
     }
 
     @Override
-    protected void internalInfo(String msg) {
-        add(info, msg);
-    }
-
-    @Override
-    protected void internalInfo(String msg, Throwable cause) {
-        add(info, msg, cause);
-    }
-
-    @Override
-    protected void internalWarn(String msg) {
-        add(warn, msg);
-    }
-
-    @Override
-    protected void internalWarn(String msg, Throwable cause) {
-        add(warn, msg, cause);
-    }
-
-    @Override
-    protected void internalError(String msg) {
-        add(error, msg);
-    }
-
-    @Override
-    protected void internalError(String msg, Throwable cause) {
-        add(error, msg, cause);
+    public void error(String msg, Throwable cause, Object... params) {
+        if (isErrorEnabled()) {
+            add(error, format(msg, params), cause);
+        }
     }
 
     @Override
@@ -135,10 +122,6 @@ public class CapturingLogger extends AbstractESLogger {
         }
     }
 
-    private static void add(List<Msg> list, String text) {
-        list.add(new Msg(text));
-    }
-
     private static void add(List<Msg> list, String text, Throwable t) {
         list.add(new Msg(text, t));
     }
@@ -150,10 +133,6 @@ public class CapturingLogger extends AbstractESLogger {
     public static class Msg {
         public String text;
         public Throwable t;
-
-        public Msg(String text) {
-            this.text = text;
-        }
 
         public Msg(String text, Throwable t) {
             this.text = text;

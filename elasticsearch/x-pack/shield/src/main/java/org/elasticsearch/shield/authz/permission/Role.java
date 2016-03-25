@@ -68,7 +68,11 @@ public class Role extends GlobalPermission {
 
         private Builder(RoleDescriptor rd) {
             this.name = rd.getName();
-            this.cluster(ClusterPrivilege.get((new Privilege.Name(rd.getClusterPattern()))));
+            if (rd.getClusterPrivileges().length == 0) {
+                cluster = ClusterPermission.Core.NONE;
+            } else {
+                this.cluster(ClusterPrivilege.get((new Privilege.Name(rd.getClusterPrivileges()))));
+            }
             for (RoleDescriptor.IndicesPrivileges iGroup : rd.getIndicesPrivileges()) {
                 this.add(iGroup.getFields() == null ? null : Arrays.asList(iGroup.getFields()),
                         iGroup.getQuery(),

@@ -136,7 +136,7 @@ public class WatcherUtilsTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
         QueryParseContext context = new QueryParseContext(registry);
         context.reset(parser);
-        SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null);
+        SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);
 
         assertThat(result.indices(), arrayContainingInAnyOrder(expectedRequest.indices()));
         assertThat(result.types(), arrayContainingInAnyOrder(expectedRequest.types()));
@@ -224,7 +224,7 @@ public class WatcherUtilsTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
         QueryParseContext context = new QueryParseContext(registry);
         context.reset(parser);
-        SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null);
+        SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);
 
         assertThat(result.indices(), arrayContainingInAnyOrder(indices));
         assertThat(result.types(), arrayContainingInAnyOrder(types));

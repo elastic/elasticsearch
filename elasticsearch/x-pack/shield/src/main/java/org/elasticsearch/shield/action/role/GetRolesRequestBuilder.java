@@ -21,8 +21,8 @@ public class GetRolesRequestBuilder extends ActionRequestBuilder<GetRolesRequest
         super(client, action, new GetRolesRequest());
     }
 
-    public GetRolesRequestBuilder roles(String... roles) {
-        request.roles(roles);
+    public GetRolesRequestBuilder names(String... names) {
+        request.names(names);
         return this;
     }
 }

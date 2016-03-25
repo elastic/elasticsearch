@@ -38,9 +38,10 @@ public class PermissionPrecedenceTests extends ShieldIntegTestCase {
     @Override
     protected String configRoles() {
         return "admin:\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ] \n" +
                 "  indices:\n" +
-                "    '*': all\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ all ]" +
                 "\n" +
                 "transport_client:\n" +
                 "  cluster:\n" +
@@ -49,7 +50,8 @@ public class PermissionPrecedenceTests extends ShieldIntegTestCase {
                 "\n" +
                 "user:\n" +
                 "  indices:\n" +
-                "    'test_*': all\n";
+                "    - names: 'test_*'\n" +
+                "      privileges: [ all ]";
     }
 
     @Override

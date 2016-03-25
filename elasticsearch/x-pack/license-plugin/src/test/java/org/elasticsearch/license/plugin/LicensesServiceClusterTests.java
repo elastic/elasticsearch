@@ -80,7 +80,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         wipeAllLicenses();
 
         int numNodes = randomIntBetween(1, 5);
-        logger.info("--> starting " + numNodes + " node(s)");
+        logger.info("--> starting {} node(s)", numNodes);
         for (int i = 0; i < numNodes; i++) {
             internalCluster().startNode();
         }

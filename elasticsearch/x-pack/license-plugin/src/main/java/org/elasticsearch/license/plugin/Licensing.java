@@ -84,6 +84,6 @@ public class Licensing {
 
     public void onModule(SettingsModule module) {
         // TODO convert this wildcard to a real setting
-        module.registerSetting(Setting.groupSetting("license.", false, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.groupSetting("license.", Setting.Property.NodeScope));
     }
 }

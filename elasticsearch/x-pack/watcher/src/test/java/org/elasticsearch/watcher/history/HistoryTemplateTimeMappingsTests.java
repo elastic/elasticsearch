@@ -71,8 +71,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                     try {
                         Map<String, Object> source = metadata.getSourceAsMap();
                         logger.info("checking index [{}] with metadata:\n[{}]", metadatas.key, metadata.source().toString());
-                        assertThat(extractValue("properties.trigger_event.properties.type.type", source), is((Object) "string"));
-                        assertThat(extractValue("properties.trigger_event.properties.type.index", source), is((Object) "not_analyzed"));
+                        assertThat(extractValue("properties.trigger_event.properties.type.type", source), is((Object) "keyword"));
                         assertThat(extractValue("properties.trigger_event.properties.triggered_time.type", source), is((Object) "date"));
                         assertThat(extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source),
                                 is((Object) "date"));

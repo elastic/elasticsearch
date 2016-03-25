@@ -12,9 +12,14 @@
         username: "joe"
         body:  >
             {
-              "username": "joe",
-              "password": "s3krit",
-              "roles" : [ "admin" ]
+              "password" : "s3krit",
+              "roles" : [ "admin" ],
+              "full_name" : "Bazooka Joe",
+              "email" : "joe@bazooka.gum",
+              "metadata" : {
+                "key1" : "val1",
+                "key2" : "val2"
+              }
             }
   - match: { user: { created: true } }
 
@@ -27,6 +32,9 @@
   - do:
       shield.get_user:
         username: "joe"
-  - match: { found: true }
-  - match: { users.0.username: "joe" }
-  - match: { users.0.roles.0:  "admin" }
+  - match: { joe.username:  "joe" }
+  - match: { joe.roles.0:  "admin" }
+  - match: { joe.full_name:  "Bazooka Joe" }
+  - match: { joe.email:  "joe@bazooka.gum" }
+  - match: { joe.metadata.key1:  "val1" }
+  - match: { joe.metadata.key2:  "val2" }

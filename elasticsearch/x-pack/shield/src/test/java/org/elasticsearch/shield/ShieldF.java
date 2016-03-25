@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
@@ -41,10 +40,8 @@ public class ShieldF {
         settings.put("http.cors.allow-origin", "*");
         settings.put("script.inline", "true");
         settings.put("xpack.shield.enabled", "true");
-        settings.put("security.manager.enabled", "false");
         // Disable Monitoring to prevent cluster activity
         settings.put("xpack.monitoring.enabled", "false");
-        settings.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), Shield.OPT_OUT_QUERY_CACHE);
         settings.put("cluster.name", ShieldF.class.getSimpleName());
 
         String homeDir = System.getProperty("es.path.home");

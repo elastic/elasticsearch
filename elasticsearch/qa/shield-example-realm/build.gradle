@@ -1,29 +1,50 @@
-apply plugin: 'elasticsearch.esplugin'
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.VersionProperties
 
-esplugin {
-  description 'a very basic implementation of a custom realm to validate it works'
-  classname 'org.elasticsearch.example.ExampleRealmPlugin'
-  isolated false
-}
+apply plugin: 'elasticsearch.build'
 
 dependencies {
+  provided "org.elasticsearch:elasticsearch:${versions.elasticsearch}"
+  testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
   provided project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-//compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
+Map generateSubstitutions() {
+  def stringSnap = { version ->
+    if (version.endsWith("-SNAPSHOT")) {
+      return version.substring(0, version.length() - 9)
+    }
+    return version
+  }
+  return [
+    'version': stringSnap(version),
+    'xpack.version': stringSnap(VersionProperties.elasticsearch),
+    'java.version': targetCompatibility as String
+  ]
+}
 
-integTest {
+processResources {
+  MavenFilteringHack.filter(it, generateSubstitutions())
+}
+
+task buildZip(type:Zip, dependsOn: [jar]) {
+  from 'build/resources/main/xpack-extension-descriptor.properties'
+  from project.jar
+}
+
+task integTest(type: org.elasticsearch.gradle.test.RestIntegTestTask, dependsOn: buildZip) {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     // TODO: these should be settings?
-    systemProperty 'es.shield.authc.realms.custom.order', '0'
-    systemProperty 'es.shield.authc.realms.custom.type', 'custom'
-    systemProperty 'es.shield.authc.realms.esusers.order', '1'
-    systemProperty 'es.shield.authc.realms.esusers.type', 'esusers'
+    setting 'shield.authc.realms.custom.order', '0'
+    setting 'shield.authc.realms.custom.type', 'custom'
+    setting 'shield.authc.realms.esusers.order', '1'
+    setting 'shield.authc.realms.esusers.type', 'esusers'
 
     setupCommand 'setupDummyUser',
                  'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    setupCommand 'installExtension',
+                  'bin/xpack/extension', 'install', 'file:' + buildZip.archivePath
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
       ant.get(src: "http://${node.httpUri()}",
@@ -36,4 +57,5 @@ integTest {
     }
   }
 }
-
+check.dependsOn integTest
+integTest.mustRunAfter precommit

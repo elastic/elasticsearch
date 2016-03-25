@@ -17,7 +17,7 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
 
     private final HttpRequestTemplate requestTemplate;
     private final String contentType;
-    private String id;
+    private final String id;
 
     public HttpRequestAttachment(String id, HttpRequestTemplate requestTemplate, @Nullable String contentType) {
         this.id = id;
@@ -33,7 +33,8 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
         return contentType;
     }
 
-    public String getId() {
+    @Override
+    public String id() {
         return id;
     }
 

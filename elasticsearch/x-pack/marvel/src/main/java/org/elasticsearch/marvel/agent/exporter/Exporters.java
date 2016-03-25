@@ -6,7 +6,7 @@
 package org.elasticsearch.marvel.agent.exporter;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -18,6 +18,7 @@ import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -105,7 +106,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         return exporters.iterator();
     }
 
-    public ExportBulk openBulk() {
+    ExportBulk openBulk() {
         List<ExportBulk> bulks = new ArrayList<>();
         for (Exporter exporter : exporters) {
             if (exporter.masterOnly() && !clusterService.localNode().masterNode()) {
@@ -121,7 +122,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
                     bulks.add(bulk);
                 }
             } catch (Exception e) {
-                logger.error("exporter [{}] failed to export monitoring data", e, exporter.name());
+                logger.error("exporter [{}] failed to open exporting bulk", e, exporter.name());
             }
         }
         return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks);
@@ -173,6 +174,28 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         }
 
         return new CurrentExporters(settings, exporters);
+    }
+
+    /**
+     * Exports a collection of monitoring documents using the configured exporters
+     */
+    public synchronized void export(Collection<MonitoringDoc> docs) throws ExportException {
+        if (this.lifecycleState() != Lifecycle.State.STARTED) {
+            throw new ExportException("Export service is not started");
+        }
+        if (docs != null && docs.size() > 0) {
+            ExportBulk bulk = openBulk();
+            if (bulk == null) {
+                logger.debug("exporters are either not ready or faulty");
+                return;
+            }
+
+            try {
+                bulk.add(docs);
+            } finally {
+                bulk.close(lifecycleState() == Lifecycle.State.STARTED);
+            }
+        }
     }
 
     static class CurrentExporters implements Iterable<Exporter> {

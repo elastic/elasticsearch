@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc.esusers;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -187,6 +188,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         assertThat(usersRoles.get("period.user"), arrayContaining("role4"));
     }
 
+    @SuppressLoggerChecks(reason = "mock usage")
     public void testParseFileEmpty() throws Exception {
         Path empty = createTempFile();
         ESLogger log = ESLoggerFactory.getLogger("test");

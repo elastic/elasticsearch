@@ -13,7 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.WatcherModule;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.execution.Wid;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 import org.junit.Before;
@@ -31,11 +31,11 @@ import static org.mockito.Mockito.when;
  */
 public class HistoryStoreTests extends ESTestCase {
     private HistoryStore historyStore;
-    private ClientProxy clientProxy;
+    private WatcherClientProxy clientProxy;
 
     @Before
     public void init() {
-        clientProxy = mock(ClientProxy.class);
+        clientProxy = mock(WatcherClientProxy.class);
         historyStore = new HistoryStore(Settings.EMPTY, clientProxy);
         historyStore.start();
     }

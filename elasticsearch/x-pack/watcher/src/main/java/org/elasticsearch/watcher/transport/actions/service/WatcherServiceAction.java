@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class WatcherServiceAction extends Action<WatcherServiceRequest, WatcherServiceResponse, WatcherServiceRequestBuilder> {
 
     public static final WatcherServiceAction INSTANCE = new WatcherServiceAction();
-    public static final String NAME = "cluster:admin/watcher/service";
+    public static final String NAME = "cluster:admin/xpack/watcher/service";
 
     private WatcherServiceAction() {
         super(NAME);

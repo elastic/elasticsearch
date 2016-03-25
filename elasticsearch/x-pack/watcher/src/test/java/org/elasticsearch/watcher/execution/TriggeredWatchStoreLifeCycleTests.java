@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;

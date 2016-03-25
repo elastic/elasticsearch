@@ -15,46 +15,57 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to delete a user from the shield administrative index by username
+ * A request to delete a native user.
  */
 public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> {
 
     private String username;
+    private boolean refresh = true;
 
     public DeleteUserRequest() {
     }
 
-    public DeleteUserRequest(String user) {
-        this.username = user;
+    public DeleteUserRequest(String username) {
+        this.username = username;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (username == null) {
-            validationException = addValidationError("user is missing", validationException);
+            validationException = addValidationError("username is missing", validationException);
         }
         return validationException;
     }
 
-    public String user() {
+    public String username() {
         return this.username;
     }
 
-    public void user(String username) {
+    public boolean refresh() {
+        return refresh;
+    }
+
+    public void username(String username) {
         this.username = username;
+    }
+
+    public void refresh(boolean refresh) {
+        this.refresh = refresh;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         username = in.readString();
+        refresh = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
+        out.writeBoolean(refresh);
     }
 
 }

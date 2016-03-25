@@ -5,26 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers.tool;
 
-import org.apache.commons.cli.CommandLine;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CheckFileCommand;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolConfig;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.authc.Realms;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
-import org.elasticsearch.shield.authc.esusers.FileUserPasswdStore;
-import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
-import org.elasticsearch.shield.authc.support.Hasher;
-import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authz.store.FileRolesStore;
-import org.elasticsearch.shield.support.Validation;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -35,376 +15,264 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.shield.authc.Realms;
+import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.esusers.FileUserPasswdStore;
+import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
+import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
+import org.elasticsearch.shield.support.FileAttributesChecker;
+import org.elasticsearch.shield.support.Validation;
 
-/**
- *
- */
-public class ESUsersTool extends CliTool {
-
-    private static final CliToolConfig CONFIG = CliToolConfig.config("esusers", ESUsersTool.class)
-            .cmds(Useradd.CMD, Userdel.CMD, Passwd.CMD, Roles.CMD, ListUsersAndRoles.CMD)
-            .build();
+public class ESUsersTool extends MultiCommand {
 
     public static void main(String[] args) throws Exception {
-        ExitStatus exitStatus = new ESUsersTool().execute(args);
-        exit(exitStatus.status());
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, Terminal.DEFAULT);
+        exit(new ESUsersTool(env).main(args, Terminal.DEFAULT));
     }
 
-    @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
-    private static void exit(int status) {
-        System.exit(status);
+    ESUsersTool(Environment env) {
+        super("Manages elasticsearch native users");
+        subcommands.put("useradd", new AddUserCommand(env));
+        subcommands.put("userdel", new DeleteUserCommand(env));
+        subcommands.put("passwd", new PasswordCommand(env));
+        subcommands.put("roles", new RolesCommand(env));
+        subcommands.put("list", new ListCommand(env));
     }
 
-    public ESUsersTool() {
-        super(CONFIG);
-    }
+    static class AddUserCommand extends Command {
 
-    public ESUsersTool(Terminal terminal) {
-        super(CONFIG, terminal);
-    }
+        private final Environment env;
+        private final OptionSpec<String> passwordOption;
+        private final OptionSpec<String> rolesOption;
+        private final OptionSpec<String> arguments;
 
-    @Override
-    protected Command parse(String cmdName, CommandLine cli) throws Exception {
-        switch (cmdName.toLowerCase(Locale.ROOT)) {
-            case Useradd.NAME:
-                return Useradd.parse(terminal, cli);
-            case Userdel.NAME:
-                return Userdel.parse(terminal, cli);
-            case Passwd.NAME:
-                return Passwd.parse(terminal, cli);
-            case ListUsersAndRoles.NAME:
-                return ListUsersAndRoles.parse(terminal, cli);
-            case Roles.NAME:
-                return Roles.parse(terminal, cli);
-            default:
-                assert false : "should never get here, if the user enters an unknown command, an error message should be shown before " +
-                        "parse is called";
-                return null;
+        AddUserCommand(Environment env) {
+            super("Adds a native user");
+            this.env = env;
+            this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"),
+                "The user password")
+                .withRequiredArg();
+            this.rolesOption = parser.acceptsAll(Arrays.asList("r", "roles"),
+                "Comma-separated list of the roles of the user")
+                .withRequiredArg().defaultsTo("");
+            this.arguments = parser.nonOptions("username");
         }
-    }
 
-    static class Useradd extends CheckFileCommand {
+        @Override
+        protected void printAdditionalHelp(Terminal terminal) {
+            terminal.println("Adds a native user to elasticsearch (via internal realm). The user will");
+            terminal.println("be added to the users file and its roles will be added to the");
+            terminal.println("users_roles file. If non-default files are used (different file");
+            terminal.println("locations are configured in elasticsearch.yml) the appropriate files");
+            terminal.println("will be resolved from the settings and the user and its roles will be");
+            terminal.println("added to them.");
+            terminal.println("");
+        }
 
-        private static final String NAME = "useradd";
-
-        private static final CliToolConfig.Cmd CMD = cmd(NAME, Useradd.class)
-                .options(
-                        option("p", "password").hasArg(false).required(false),
-                        option("r", "roles").hasArg(false).required(false))
-                .build();
-
-        public static Command parse(Terminal terminal, CommandLine cli) {
-            if (cli.getArgs().length == 0) {
-                return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
-            } else if (cli.getArgs().length != 1) {
-                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
-                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. please ensure " +
-                        "all special characters are escaped");
-            }
-
-            String username = cli.getArgs()[0];
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            String username = parseUsername(arguments.values(options));
             Validation.Error validationError = Validation.ESUsers.validateUsername(username);
             if (validationError != null) {
-                return exitCmd(ExitStatus.DATA_ERROR, terminal, "Invalid username [" + username + "]... " + validationError);
+                throw new UserError(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
             }
 
-            char[] password;
-            String passwordStr = cli.getOptionValue("password");
-            if (passwordStr != null) {
-                password = passwordStr.toCharArray();
-                validationError = Validation.ESUsers.validatePassword(password);
-                if (validationError != null) {
-                    return exitCmd(ExitStatus.DATA_ERROR, terminal, "Invalid password..." + validationError);
-                }
-            } else {
-                password = terminal.readSecret("Enter new password: ");
-                validationError = Validation.ESUsers.validatePassword(password);
-                if (validationError != null) {
-                    return exitCmd(ExitStatus.DATA_ERROR, terminal, "Invalid password..." + validationError);
-                }
-                char[] retyped = terminal.readSecret("Retype new password: ");
-                if (!Arrays.equals(password, retyped)) {
-                    return exitCmd(ExitStatus.USAGE, terminal, "Password mismatch");
-                }
-            }
+            char[] password = parsePassword(terminal, passwordOption.value(options));
+            String[] roles = parseRoles(terminal, env, rolesOption.value(options));
 
-            String rolesCsv = cli.getOptionValue("roles");
-            String[] roles = (rolesCsv != null) ? rolesCsv.split(",") : Strings.EMPTY_ARRAY;
-            for (String role : roles) {
-                validationError = Validation.Roles.validateRoleName(role);
-                if (validationError != null) {
-                    return exitCmd(ExitStatus.DATA_ERROR, terminal, "Invalid role [" + role + "]... " + validationError);
-                }
-            }
-            return new Useradd(terminal, username, new SecuredString(password), roles);
-        }
+            Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+            Path passwordFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
+            Path rolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
+            FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
 
-        final String username;
-        final SecuredString passwd;
-        final String[] roles;
-
-        Useradd(Terminal terminal, String username, SecuredString passwd, String... roles) {
-            super(terminal);
-            this.username = username;
-            this.passwd = passwd;
-            this.roles = roles;
-        }
-
-        @Override
-        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
-            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-            verifyRoles(terminal, settings, env, roles);
-            Path file = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
+            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null));
             if (users.containsKey(username)) {
-                terminal.println(String.format(Locale.ROOT, "User [%s] already exists", username));
-                return ExitStatus.CODE_ERROR;
+                throw new UserError(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
             }
             Hasher hasher = Hasher.BCRYPT;
-            users.put(username, hasher.hash(passwd));
-            FileUserPasswdStore.writeFile(users, file);
+            users.put(username, hasher.hash(new SecuredString(password)));
+            FileUserPasswdStore.writeFile(users, passwordFile);
 
-            if (roles != null && roles.length > 0) {
-                file = FileUserRolesStore.resolveFile(esusersSettings, env);
-                Map<String, String[]> userRoles = new HashMap<>(FileUserRolesStore.parseFile(file, null));
+            if (roles.length > 0) {
+                Map<String, String[]> userRoles = new HashMap<>(FileUserRolesStore.parseFile(rolesFile, null));
                 userRoles.put(username, roles);
-                FileUserRolesStore.writeFile(userRoles, file);
+                FileUserRolesStore.writeFile(userRoles, rolesFile);
             }
-            return ExitStatus.OK;
-        }
 
-        @Override
-        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
-            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-            Path userPath = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Path userRolesPath = FileUserRolesStore.resolveFile(esusersSettings, env);
-            return new Path[]{userPath, userRolesPath};
+            attributesChecker.check(terminal);
         }
     }
 
-    static class Userdel extends CheckFileCommand {
+    static class DeleteUserCommand extends Command {
 
-        private static final String NAME = "userdel";
+        private final Environment env;
+        private final OptionSpec<String> arguments;
 
-        private static final CliToolConfig.Cmd CMD = cmd(NAME, Userdel.class).build();
-
-        public static Command parse(Terminal terminal, CommandLine cli) {
-            if (cli.getArgs().length == 0) {
-                return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
-            } else if (cli.getArgs().length != 1) {
-                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
-                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. userdel only " +
-                        "supports deleting one user at a time");
-            }
-
-            String username = cli.getArgs()[0];
-            return new Userdel(terminal, username);
-        }
-
-        final String username;
-
-        Userdel(Terminal terminal, String username) {
-            super(terminal);
-            this.username = username;
+        DeleteUserCommand(Environment env) {
+            super("Deletes a native user");
+            this.env = env;
+            this.arguments = parser.nonOptions("username");
         }
 
         @Override
-        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
-            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-            Path userPath = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Path userRolesPath = FileUserRolesStore.resolveFile(esusersSettings, env);
-
-            if (Files.exists(userRolesPath)) {
-                return new Path[]{userPath, userRolesPath};
-            }
-            return new Path[]{userPath};
+        protected void printAdditionalHelp(Terminal terminal) {
+            terminal.println("Removes an existing native user from elasticsearch. The user will be");
+            terminal.println("removed from the users file and its roles will be removed to the");
+            terminal.println("users_roles file. If non-default files are used (different file");
+            terminal.println("locations are configured in elasticsearch.yml) the appropriate files");
+            terminal.println("will be resolved from the settings and the user and its roles will be");
+            terminal.println("removed to them.");
+            terminal.println("");
         }
 
         @Override
-        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
-            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-            Path file = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
-            if (!users.containsKey(username)) {
-                terminal.println(String.format(Locale.ROOT, "User [%s] doesn't exist", username));
-                return ExitStatus.NO_USER;
-            }
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            String username = parseUsername(arguments.values(options));
+            Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+            Path passwordFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
+            Path rolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
+            FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
 
-            if (Files.exists(file)) {
+            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null));
+            if (users.containsKey(username) == false) {
+                throw new UserError(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
+            }
+            if (Files.exists(passwordFile)) {
                 char[] passwd = users.remove(username);
                 if (passwd != null) {
-                    FileUserPasswdStore.writeFile(users, file);
+                    FileUserPasswdStore.writeFile(users, passwordFile);
                 }
             }
 
-            file = FileUserRolesStore.resolveFile(esusersSettings, env);
-            Map<String, String[]> userRoles = new HashMap<>(FileUserRolesStore.parseFile(file, null));
-            if (Files.exists(file)) {
+            Map<String, String[]> userRoles = new HashMap<>(FileUserRolesStore.parseFile(rolesFile, null));
+            if (Files.exists(rolesFile)) {
                 String[] roles = userRoles.remove(username);
                 if (roles != null) {
-                    FileUserRolesStore.writeFile(userRoles, file);
+                    FileUserRolesStore.writeFile(userRoles, rolesFile);
                 }
             }
 
-            return ExitStatus.OK;
+            attributesChecker.check(terminal);
         }
     }
 
-    static class Passwd extends CheckFileCommand {
+    static class PasswordCommand extends Command {
 
-        private static final String NAME = "passwd";
+        private final Environment env;
+        private final OptionSpec<String> passwordOption;
+        private final OptionSpec<String> arguments;
 
-        private static final CliToolConfig.Cmd CMD = cmd(NAME, Passwd.class)
-                .options(option("p", "password").hasArg(false).required(false))
-                .build();
-
-        public static Command parse(Terminal terminal, CommandLine cli) {
-            if (cli.getArgs().length == 0) {
-                return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
-            } else if (cli.getArgs().length != 1) {
-                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
-                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided");
-            }
-
-            String username = cli.getArgs()[0];
-
-            char[] password;
-            String passwordStr = cli.getOptionValue("password");
-            if (passwordStr != null) {
-                password = passwordStr.toCharArray();
-            } else {
-                password = terminal.readSecret("Enter new password: ");
-                char[] retyped = terminal.readSecret("Retype new password: ");
-                if (!Arrays.equals(password, retyped)) {
-                    return exitCmd(ExitStatus.USAGE, terminal, "Password mismatch");
-                }
-            }
-            return new Passwd(terminal, username, password);
-        }
-
-        final String username;
-        final SecuredString passwd;
-
-        Passwd(Terminal terminal, String username, char[] passwd) {
-            super(terminal);
-            this.username = username;
-            this.passwd = new SecuredString(passwd);
-            Arrays.fill(passwd, (char) 0);
-        }
-
-
-        @Override
-        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
-            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-            Path path = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            return new Path[]{path};
+        PasswordCommand(Environment env) {
+            super("Changes the password of an existing native user");
+            this.env = env;
+            this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"),
+                "The user password")
+                .withRequiredArg();
+            this.arguments = parser.nonOptions("username");
         }
 
         @Override
-        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
-            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
+        protected void printAdditionalHelp(Terminal terminal) {
+            terminal.println("The passwd command changes passwords for native user accounts. The tool");
+            terminal.println("prompts twice for a replacement password. The second entry is compared");
+            terminal.println("against the first and both are required to match in order for the");
+            terminal.println("password to be changed. If non-default users file is used (a different");
+            terminal.println("file location is configured in elasticsearch.yml) the  appropriate file");
+            terminal.println("will be resolved from the settings.");
+            terminal.println("");
+        }
+
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            String username = parseUsername(arguments.values(options));
+            char[] password = parsePassword(terminal, passwordOption.value(options));
+
+            Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
             Path file = FileUserPasswdStore.resolveFile(esusersSettings, env);
+            FileAttributesChecker attributesChecker = new FileAttributesChecker(file);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
-            if (!users.containsKey(username)) {
-                terminal.println(String.format(Locale.ROOT, "User [%s] doesn't exist", username));
-                return ExitStatus.NO_USER;
+            if (users.containsKey(username) == false) {
+                throw new UserError(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
-            Hasher hasher = Hasher.BCRYPT;
-            users.put(username, hasher.hash(passwd));
+            users.put(username, Hasher.BCRYPT.hash(new SecuredString(password)));
             FileUserPasswdStore.writeFile(users, file);
-            return ExitStatus.OK;
+
+            attributesChecker.check(terminal);
         }
     }
 
+    static class RolesCommand extends Command {
 
-    static class Roles extends CheckFileCommand {
+        private final Environment env;
+        private final OptionSpec<String> addOption;
+        private final OptionSpec<String> removeOption;
+        private final OptionSpec<String> arguments;
 
-        private static final String NAME = "roles";
-
-        private static final CliToolConfig.Cmd CMD = cmd(NAME, Roles.class)
-                .options(
-                        option("a", "add").hasArg(true).required(false),
-                        option("r", "remove").hasArg(true).required(false))
-                .build();
-
-        public static Command parse(Terminal terminal, CommandLine cli) {
-            if (cli.getArgs().length == 0) {
-                return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
-            } else if (cli.getArgs().length != 1) {
-                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
-                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. please ensure " +
-                        "all special characters are escaped");
-            }
-
-            String username = cli.getArgs()[0];
-            String addRolesCsv = cli.getOptionValue("add");
-            String[] addRoles = (addRolesCsv != null) ? addRolesCsv.split(",") : Strings.EMPTY_ARRAY;
-            String removeRolesCsv = cli.getOptionValue("remove");
-            String[] removeRoles = (removeRolesCsv != null) ? removeRolesCsv.split(",") : Strings.EMPTY_ARRAY;
-
-            return new Roles(terminal, username, addRoles, removeRoles);
-        }
-
-        public static final Pattern ROLE_PATTERN = Pattern.compile("[\\w@-]+");
-        final String username;
-        final String[] addRoles;
-        final String[] removeRoles;
-
-        public Roles(Terminal terminal, String username, String[] addRoles, String[] removeRoles) {
-            super(terminal);
-            this.username = username;
-            this.addRoles = addRoles;
-            this.removeRoles = removeRoles;
+        RolesCommand(Environment env) {
+            super("Edit roles of an existing user");
+            this.env = env;
+            this.addOption = parser.acceptsAll(Arrays.asList("a", "add"),
+                "Adds supplied roles to the specified user")
+                .withRequiredArg().defaultsTo("");
+            this.removeOption = parser.acceptsAll(Arrays.asList("r", "remove"),
+                "Remove supplied roles from the specified user")
+                .withRequiredArg().defaultsTo("");
+            this.arguments = parser.nonOptions("username");
         }
 
         @Override
-        protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
-            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-            Path path = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            return new Path[]{path};
+        protected void printAdditionalHelp(Terminal terminal) {
+            terminal.println("The roles command allows to edit roles for an existing user.");
+            terminal.println("corresponding roles. Alternatively you can also list just a");
+            terminal.println("single users roles, if you do not specify the -a or the -r parameter.");
+            terminal.println("");
         }
 
         @Override
-        public ExitStatus doExecute(Settings settings, Environment env) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            String username = parseUsername(arguments.values(options));
+            String[] addRoles = parseRoles(terminal, env, addOption.value(options));
+            String[] removeRoles = parseRoles(terminal, env, removeOption.value(options));
+
             // check if just need to return data as no write operation happens
             // Nothing to add, just list the data for a username
             boolean readOnlyUserListing = removeRoles.length == 0 && addRoles.length == 0;
             if (readOnlyUserListing) {
-                return new ListUsersAndRoles(terminal, username).execute(settings, env);
+                listUsersAndRoles(terminal, env, username);
+                return;
             }
 
-            // check for roles if they match
-            String[] allRoles = ArrayUtils.concat(addRoles, removeRoles, String.class);
-            for (String role : allRoles) {
-                if (!ROLE_PATTERN.matcher(role).matches()) {
-                    terminal.println(String.format(Locale.ROOT, "Role name [%s] is not valid. Please use lowercase and numbers only",
-                            role));
-                    return ExitStatus.DATA_ERROR;
-                }
-            }
+            Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+            Path usersFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
+            Path rolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
+            FileAttributesChecker attributesChecker = new FileAttributesChecker(usersFile, rolesFile);
 
-            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-
-            Path path = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Map<String, char[]> usersMap = FileUserPasswdStore.parseFile(path, null);
+            Map<String, char[]> usersMap = FileUserPasswdStore.parseFile(usersFile, null);
             if (!usersMap.containsKey(username)) {
-                terminal.println(String.format(Locale.ROOT, "User [%s] doesn't exist", username));
-                return ExitStatus.NO_USER;
+                throw new UserError(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
 
-            Path file = FileUserRolesStore.resolveFile(esusersSettings, env);
-            Map<String, String[]> userRoles = FileUserRolesStore.parseFile(file, null);
-
+            Map<String, String[]> userRoles = FileUserRolesStore.parseFile(rolesFile, null);
             List<String> roles = new ArrayList<>();
             if (userRoles.get(username) != null) {
                 roles.addAll(Arrays.asList(userRoles.get(username)));
             }
-            verifyRoles(terminal, settings, env, addRoles);
             roles.addAll(Arrays.asList(addRoles));
             roles.removeAll(Arrays.asList(removeRoles));
 
@@ -415,115 +283,101 @@ public class ESUsersTool extends CliTool {
             } else {
                 userRolesToWrite.put(username, new LinkedHashSet<>(roles).toArray(new String[]{}));
             }
-            FileUserRolesStore.writeFile(userRolesToWrite, file);
+            FileUserRolesStore.writeFile(userRolesToWrite, rolesFile);
 
-            return ExitStatus.OK;
+            attributesChecker.check(terminal);
         }
     }
 
-    static class ListUsersAndRoles extends CliTool.Command {
+    static class ListCommand extends Command {
 
-        private static final String NAME = "list";
+        private final Environment env;
+        private final OptionSpec<String> arguments;
 
-        private static final CliToolConfig.Cmd CMD = cmd(NAME, Useradd.class).build();
-
-        public static Command parse(Terminal terminal, CommandLine cli) {
-            String username = null;
-            if (cli.getArgs().length == 1) {
-                username = cli.getArgs()[0];
-            } else if (cli.getArgs().length > 1) {
-                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
-                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. list can be " +
-                        "used without a user or with a single user");
-            }
-            return new ListUsersAndRoles(terminal, username);
-        }
-
-        String username;
-
-        public ListUsersAndRoles(Terminal terminal, String username) {
-            super(terminal);
-            this.username = username;
+        ListCommand(Environment env) {
+            super("List existing users and their corresponding roles");
+            this.env = env;
+            this.arguments = parser.nonOptions("username");
         }
 
         @Override
-        public ExitStatus execute(Settings settings, Environment env) throws Exception {
-            Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-            Set<String> knownRoles = loadRoleNames(terminal, settings, env);
-            Path userRolesFilePath = FileUserRolesStore.resolveFile(esusersSettings, env);
-            Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
-            Path userFilePath = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Set<String> users = FileUserPasswdStore.parseFile(userFilePath, null).keySet();
+        protected void printAdditionalHelp(Terminal terminal) {
+            terminal.println("");
+            terminal.println("");
+        }
 
-            if (username != null) {
-                if (!users.contains(username)) {
-                    terminal.println(String.format(Locale.ROOT, "User [%s] doesn't exist", username));
-                    return ExitStatus.NO_USER;
-                }
-
-                if (userRoles.containsKey(username)) {
-                    String[] roles = userRoles.get(username);
-                    Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
-                    String[] markedRoles = markUnknownRoles(roles, unknownRoles);
-                    terminal.println(String.format(Locale.ROOT, "%-15s: %s", username, Arrays.stream(markedRoles).map(s -> s == null ?
-                            "-" : s).collect(Collectors.joining(","))));
-                    if (!unknownRoles.isEmpty()) {
-                        // at least one role is marked... so printing the legend
-                        Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
-                        terminal.println("");
-                        terminal.println(String.format(Locale.ROOT, " [*]   An unknown role. Please check [%s] to see available roles",
-                                rolesFile.toAbsolutePath()));
-                    }
-                } else {
-                    terminal.println(String.format(Locale.ROOT, "%-15s: -", username));
-                }
-            } else {
-                boolean unknownRolesFound = false;
-                boolean usersExist = false;
-                for (Map.Entry<String, String[]> entry : userRoles.entrySet()) {
-                    String[] roles = entry.getValue();
-                    Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
-                    String[] markedRoles = markUnknownRoles(roles, unknownRoles);
-                    terminal.println(String.format(Locale.ROOT, "%-15s: %s", entry.getKey(), String.join(",", markedRoles)));
-                    unknownRolesFound = unknownRolesFound || !unknownRoles.isEmpty();
-                    usersExist = true;
-                }
-                // list users without roles
-                Set<String> usersWithoutRoles = Sets.newHashSet(users);
-                usersWithoutRoles.removeAll(userRoles.keySet());
-                for (String user : usersWithoutRoles) {
-                    terminal.println(String.format(Locale.ROOT, "%-15s: -", user));
-                    usersExist = true;
-                }
-
-                if (!usersExist) {
-                    terminal.println("No users found");
-                    return ExitStatus.OK;
-                }
-
-                if (unknownRolesFound) {
-                    // at least one role is marked... so printing the legend
-                    Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
-                    terminal.println("");
-                    terminal.println(String.format(Locale.ROOT, " [*]   An unknown role. Please check [%s] to see available roles",
-                            rolesFile.toAbsolutePath()));
-                }
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            String username = null;
+            if (options.has(arguments)) {
+                username = arguments.value(options);
             }
-
-            return ExitStatus.OK;
+            listUsersAndRoles(terminal, env, username);
         }
     }
 
-    private static Set<String> loadRoleNames(Terminal terminal, Settings settings, Environment env) {
-        Path rolesFile = FileRolesStore.resolveFile(settings, env);
-        try {
-            return FileRolesStore.parseFileForRoleNames(rolesFile, null);
-        } catch (Throwable t) {
-            // if for some reason, parsing fails (malformatted perhaps) we just warn
-            terminal.println(String.format(Locale.ROOT, "Warning:  Could not parse [%s] for roles verification. Please revise and fix it." +
-                    " Nonetheless, the user will still be associated with all specified roles", rolesFile.toAbsolutePath()));
+    // pkg private for tests
+    static void listUsersAndRoles(Terminal terminal, Environment env, String username) throws Exception {
+        Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+        Path userRolesFilePath = FileUserRolesStore.resolveFile(esusersSettings, env);
+        Set<String> knownRoles = FileRolesStore.parseFileForRoleNames(userRolesFilePath, null);
+        Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
+        Path userFilePath = FileUserPasswdStore.resolveFile(esusersSettings, env);
+        Set<String> users = FileUserPasswdStore.parseFile(userFilePath, null).keySet();
+
+        if (username != null) {
+            if (!users.contains(username)) {
+                throw new UserError(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
+            }
+
+            if (userRoles.containsKey(username)) {
+                String[] roles = userRoles.get(username);
+                Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
+                String[] markedRoles = markUnknownRoles(roles, unknownRoles);
+                terminal.println(String.format(Locale.ROOT, "%-15s: %s", username, Arrays.stream(markedRoles).map(s -> s == null ?
+                    "-" : s).collect(Collectors.joining(","))));
+                if (!unknownRoles.isEmpty()) {
+                    // at least one role is marked... so printing the legend
+                    Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
+                    terminal.println("");
+                    terminal.println(" [*]   An unknown role. "
+                        + "Please check [" + rolesFile.toAbsolutePath() + "] to see available roles");
+                }
+            } else {
+                terminal.println(String.format(Locale.ROOT, "%-15s: -", username));
+            }
+        } else {
+            boolean unknownRolesFound = false;
+            boolean usersExist = false;
+            for (Map.Entry<String, String[]> entry : userRoles.entrySet()) {
+                String[] roles = entry.getValue();
+                Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
+                String[] markedRoles = markUnknownRoles(roles, unknownRoles);
+                terminal.println(String.format(Locale.ROOT, "%-15s: %s", entry.getKey(), String.join(",", markedRoles)));
+                unknownRolesFound = unknownRolesFound || !unknownRoles.isEmpty();
+                usersExist = true;
+            }
+            // list users without roles
+            Set<String> usersWithoutRoles = Sets.newHashSet(users);
+            usersWithoutRoles.removeAll(userRoles.keySet());
+            for (String user : usersWithoutRoles) {
+                terminal.println(String.format(Locale.ROOT, "%-15s: -", user));
+                usersExist = true;
+            }
+
+            if (!usersExist) {
+                terminal.println("No users found");
+                return;
+            }
+
+            if (unknownRolesFound) {
+                // at least one role is marked... so printing the legend
+                Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
+                terminal.println("");
+                terminal.println(" [*]   An unknown role. "
+                    + "Please check [" + rolesFile.toAbsolutePath() + "] to see available roles");
+            }
         }
-        return null;
     }
 
     private static String[] markUnknownRoles(String[] roles, Set<String> unknownRoles) {
@@ -541,14 +395,73 @@ public class ESUsersTool extends CliTool {
         return marked;
     }
 
+    // pkg private for testing
+    static String parseUsername(List<String> args) throws UserError {
+        if (args.isEmpty()) {
+            throw new UserError(ExitCodes.USAGE, "Missing username argument");
+        } else if (args.size() > 1) {
+            throw new UserError(ExitCodes.USAGE, "Expected a single username argument, found extra: " + args.toString());
+        }
+        String username = args.get(0);
+        Validation.Error validationError = Validation.ESUsers.validateUsername(username);
+        if (validationError != null) {
+            throw new UserError(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
+        }
+        return username;
+    }
+
+    // pkg private for testing
+    static char[] parsePassword(Terminal terminal, String passwordStr) throws UserError {
+        char[] password;
+        if (passwordStr != null) {
+            password = passwordStr.toCharArray();
+            Validation.Error validationError = Validation.ESUsers.validatePassword(password);
+            if (validationError != null) {
+                throw new UserError(ExitCodes.DATA_ERROR, "Invalid password..." + validationError);
+            }
+        } else {
+            password = terminal.readSecret("Enter new password: ");
+            Validation.Error validationError = Validation.ESUsers.validatePassword(password);
+            if (validationError != null) {
+                throw new UserError(ExitCodes.DATA_ERROR, "Invalid password..." + validationError);
+            }
+            char[] retyped = terminal.readSecret("Retype new password: ");
+            if (Arrays.equals(password, retyped) == false) {
+                throw new UserError(ExitCodes.DATA_ERROR, "Password mismatch");
+            }
+        }
+        return password;
+    }
+
     private static void verifyRoles(Terminal terminal, Settings settings, Environment env, String[] roles) {
-        Set<String> knownRoles = loadRoleNames(terminal, settings, env);
+        Path rolesFile = FileRolesStore.resolveFile(settings, env);
+        assert Files.exists(rolesFile);
+        Set<String> knownRoles = FileRolesStore.parseFileForRoleNames(rolesFile, null);
         Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
         if (!unknownRoles.isEmpty()) {
-            Path rolesFile = FileRolesStore.resolveFile(settings, env);
             terminal.println(String.format(Locale.ROOT, "Warning: The following roles [%s] are unknown. Make sure to add them to the [%s]" +
                     " file. Nonetheless the user will still be associated with all specified roles",
-                    Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath()));
+                Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath()));
+            terminal.println("Known roles: " + knownRoles.toString());
         }
+    }
+
+    // pkg private for testing
+    static String[] parseRoles(Terminal terminal, Environment env, String rolesStr) throws UserError {
+        if (rolesStr.isEmpty()) {
+            return Strings.EMPTY_ARRAY;
+        }
+        String[] roles = rolesStr.split(",");
+        for (String role : roles) {
+            Validation.Error validationError = Validation.Roles.validateRoleName(role);
+            if (validationError != null) {
+                throw new UserError(ExitCodes.DATA_ERROR, "Invalid role [" + role + "]... " + validationError);
+            }
+        }
+
+        Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+        verifyRoles(terminal, esusersSettings, env, roles);
+
+        return roles;
     }
 }

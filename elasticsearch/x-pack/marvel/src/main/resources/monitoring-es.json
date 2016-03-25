@@ -1,7 +1,6 @@
 {
   "template": ".monitoring-es-${monitoring.template.version}-*",
   "settings": {
-    "index.xpack.version": "${project.version}",
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
     "index.codec": "best_compression",
@@ -15,8 +14,7 @@
       "date_detection": false,
       "properties": {
         "cluster_uuid": {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         },
         "timestamp": {
           "type": "date",
@@ -25,27 +23,22 @@
         "source_node": {
           "properties": {
             "uuid": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "host": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "transport_address": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "ip": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "name": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "attributes": {
-              "dynamic": false,
+              "dynamic": true,
               "properties": {
                 "data": {
                   "type": "boolean"
@@ -101,14 +94,74 @@
         "index_stats": {
           "properties": {
             "index": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "primaries": {
               "properties": {
                 "docs": {
                   "properties": {
                     "count": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "fielddata" : {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "store": {
+                  "properties": {
+                    "size_in_bytes": {
+                      "type": "long"
+                    },
+                    "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "indexing": {
+                  "properties": {
+                    "index_total": {
+                      "type": "long"
+                    },
+                    "index_time_in_millis": {
+                      "type": "long"
+                    },
+                    "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "merges": {
+                  "properties": {
+                    "total_size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "search": {
+                  "properties": {
+                    "query_total": {
+                      "type": "long"
+                    },
+                    "query_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "segments": {
+                  "properties": {
+                    "memory_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "refresh": {
+                  "properties": {
+                    "total_time_in_millis": {
                       "type": "long"
                     }
                   }
@@ -213,16 +266,13 @@
               "type": "long"
             },
             "master_node": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "state_uuid": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "status": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "nodes": {
               "enabled": false
@@ -237,14 +287,12 @@
     "node": {
       "properties": {
         "state_uuid": {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         },
         "node": {
           "properties": {
             "id": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             }
           }
         }
@@ -255,8 +303,7 @@
         "node_stats": {
           "properties": {
             "node_id": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "node_master": {
               "type": "boolean"
@@ -302,32 +349,27 @@
     "shards": {
       "properties": {
         "state_uuid": {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         },
         "shard": {
           "properties": {
             "state": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "primary": {
               "type": "boolean"
             },
             "index": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "relocating_node": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             },
             "shard": {
               "type": "long"
             },
             "node": {
-              "type": "string",
-              "index": "not_analyzed"
+              "type": "keyword"
             }
           }
         }

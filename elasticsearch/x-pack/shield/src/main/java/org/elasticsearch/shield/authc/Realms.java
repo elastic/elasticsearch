@@ -56,8 +56,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
         }
 
         if (internalRealms.isEmpty()) {
-            // lets create a default one so they can do something
-            internalRealms.add(factories.get(ESUsersRealm.TYPE).createDefault("default_" + ESUsersRealm.TYPE));
+            addInternalRealms(internalRealms);
         }
         this.internalRealmsOnly = Collections.unmodifiableList(internalRealms);
 
@@ -130,16 +129,8 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             return realms;
         }
 
-        // there is no "realms" configuration, go over all the factories and try to create defaults
-        // for all the internal realms
-        Realm.Factory indexRealmFactory = factories.get(ESNativeRealm.TYPE);
-        if (indexRealmFactory != null) {
-            realms.add(indexRealmFactory.createDefault("default_" + ESNativeRealm.TYPE));
-        }
-        Realm.Factory esUsersRealm = factories.get(ESUsersRealm.TYPE);
-        if (esUsersRealm != null) {
-            realms.add(esUsersRealm.createDefault("default_" + ESUsersRealm.TYPE));
-        }
+        // there is no "realms" configuration, add the defaults
+        addInternalRealms(realms);
         return realms;
     }
 
@@ -168,4 +159,14 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
         return result != null ? result : Settings.EMPTY;
     }
 
+    private void addInternalRealms(List<Realm> realms) {
+        Realm.Factory indexRealmFactory = factories.get(ESNativeRealm.TYPE);
+        if (indexRealmFactory != null) {
+            realms.add(indexRealmFactory.createDefault("default_" + ESNativeRealm.TYPE));
+        }
+        Realm.Factory esUsersRealm = factories.get(ESUsersRealm.TYPE);
+        if (esUsersRealm != null) {
+            realms.add(esUsersRealm.createDefault("default_" + ESUsersRealm.TYPE));
+        }
+    }
 }

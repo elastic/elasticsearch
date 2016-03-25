@@ -19,9 +19,10 @@ public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
         return super.configRoles() +
                 "\n" +
                 "MarvelCharacters:\n" +
-                "  cluster: NONE\n" +
+                "  cluster: [ NONE ]\n" +
                 "  indices:\n" +
-                "    'marvel_comics': ALL\n";
+                "    - names: 'marvel_comics'\n" +
+                "      privileges: [ all ]\n";
     }
 
     @Override

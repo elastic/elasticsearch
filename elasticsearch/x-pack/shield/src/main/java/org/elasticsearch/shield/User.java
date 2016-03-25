@@ -6,14 +6,20 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * An authenticated user
@@ -23,19 +29,37 @@ public class User implements ToXContent {
     private final String username;
     private final String[] roles;
     private final User runAs;
+    private final Map<String, Object> metadata;
+
+    private final @Nullable String fullName;
+    private final @Nullable String email;
 
     public User(String username, String... roles) {
-        this.username = username;
-        this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
-        this.runAs = null;
+        this(username, roles, null, null, null);
     }
 
     public User(String username, String[] roles, User runAs) {
+        this(username, roles, null, null, null, runAs);
+    }
+
+    public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata) {
         this.username = username;
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
-        assert (runAs == null || runAs.runAs() == null) : "the runAs user should not be a user that can run as";
+        this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
+        this.fullName = fullName;
+        this.email = email;
+        this.runAs = null;
+    }
+
+    public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, User runAs) {
+        this.username = username;
+        this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
+        this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
+        this.fullName = fullName;
+        this.email = email;
+        assert (runAs == null || runAs.runAs() == null) : "the run_as user should not be a user that can run as";
         if (runAs == SystemUser.INSTANCE) {
-            throw new ElasticsearchSecurityException("the runAs user cannot be the internal system user");
+            throw new ElasticsearchSecurityException("invalid run_as user");
         }
         this.runAs = runAs;
     }
@@ -58,6 +82,27 @@ public class User implements ToXContent {
     }
 
     /**
+     * @return  The metadata that is associated with this user. Can never be {@code null}.
+     */
+    public Map<String, Object> metadata() {
+        return metadata;
+    }
+
+    /**
+     * @return  The full name of this user. May be {@code null}.
+     */
+    public String fullName() {
+        return fullName;
+    }
+
+    /**
+     * @return  The email of this user. May be {@code null}.
+     */
+    public String email() {
+        return email;
+    }
+
+    /**
      * @return The user that will be used for run as functionality. If run as
      *         functionality is not being used, then <code>null</code> will be
      *         returned
@@ -70,13 +115,11 @@ public class User implements ToXContent {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("User[username=").append(username);
-        sb.append(",roles=[");
-        if (roles != null) {
-            for (String role : roles) {
-                sb.append(role).append(",");
-            }
-        }
-        sb.append("]");
+        sb.append(",roles=[").append(Strings.arrayToCommaDelimitedString(roles)).append("]");
+        sb.append(",fullName=").append(fullName);
+        sb.append(",email=").append(email);
+        sb.append(",metadata=");
+        append(sb, metadata);
         if (runAs != null) {
             sb.append(",runAs=[").append(runAs.toString()).append("]");
         }
@@ -87,33 +130,40 @@ public class User implements ToXContent {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null) return false;
-        if (!(o instanceof User)) return false;
+        if (o == null || getClass() != o.getClass()) return false;
 
         User user = (User) o;
-        if (!principal().equals(user.principal())) return false;
-        if (!Arrays.equals(roles(), user.roles())) return false;
-        if (runAs != null ? !runAs.equals(user.runAs) : user.runAs != null) {
-            return false;
-        }
-        return true;
+
+        if (!username.equals(user.username)) return false;
+        // Probably incorrect - comparing Object[] arrays with Arrays.equals
+        if (!Arrays.equals(roles, user.roles)) return false;
+        if (runAs != null ? !runAs.equals(user.runAs) : user.runAs != null) return false;
+        if (!metadata.equals(user.metadata)) return false;
+        if (fullName != null ? !fullName.equals(user.fullName) : user.fullName != null) return false;
+        return !(email != null ? !email.equals(user.email) : user.email != null);
+
     }
 
     @Override
     public int hashCode() {
-        int result = principal().hashCode();
-        result = 31 * result + Arrays.hashCode(roles());
+        int result = username.hashCode();
+        result = 31 * result + Arrays.hashCode(roles);
         result = 31 * result + (runAs != null ? runAs.hashCode() : 0);
+        result = 31 * result + metadata.hashCode();
+        result = 31 * result + (fullName != null ? fullName.hashCode() : 0);
+        result = 31 * result + (email != null ? email.hashCode() : 0);
         return result;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("username", principal());
-        builder.array("roles", roles());
-        builder.endObject();
-        return builder;
+        builder.field(Fields.USERNAME.getPreferredName(), username);
+        builder.array(Fields.ROLES.getPreferredName(), roles);
+        builder.field(Fields.FULL_NAME.getPreferredName(), fullName);
+        builder.field(Fields.EMAIL.getPreferredName(), email);
+        builder.field(Fields.METADATA.getPreferredName(), metadata);
+        return builder.endObject();
     }
 
     public static User readFrom(StreamInput input) throws IOException {
@@ -130,12 +180,19 @@ public class User implements ToXContent {
         }
         String username = input.readString();
         String[] roles = input.readStringArray();
+        Map<String, Object> metadata = input.readMap();
+        String fullName = input.readOptionalString();
+        String email = input.readOptionalString();
         if (input.readBoolean()) {
             String runAsUsername = input.readString();
             String[] runAsRoles = input.readStringArray();
-            return new User(username, roles, new User(runAsUsername, runAsRoles));
+            Map<String, Object> runAsMetadata = input.readMap();
+            String runAsFullName = input.readOptionalString();
+            String runAsEmail = input.readOptionalString();
+            User runAs = new User(runAsUsername, runAsRoles, runAsFullName, runAsEmail, runAsMetadata);
+            return new User(username, roles, fullName, email, metadata, runAs);
         }
-        return new User(username, roles);
+        return new User(username, roles, fullName, email, metadata);
     }
 
     public static void writeTo(User user, StreamOutput output) throws IOException {
@@ -147,16 +204,67 @@ public class User implements ToXContent {
             output.writeString(XPackUser.NAME);
         } else {
             output.writeBoolean(false);
-            output.writeString(user.principal());
-            output.writeStringArray(user.roles());
+            output.writeString(user.username);
+            output.writeStringArray(user.roles);
+            output.writeMap(user.metadata);
+            output.writeOptionalString(user.fullName);
+            output.writeOptionalString(user.email);
             if (user.runAs == null) {
                 output.writeBoolean(false);
             } else {
                 output.writeBoolean(true);
-                output.writeString(user.runAs.principal());
-                output.writeStringArray(user.runAs.roles());
+                output.writeString(user.runAs.username);
+                output.writeStringArray(user.runAs.roles);
+                output.writeMap(user.runAs.metadata);
+                output.writeOptionalString(user.runAs.fullName);
+                output.writeOptionalString(user.runAs.email);
             }
         }
     }
 
+    public static void append(StringBuilder sb, Object object) {
+        if (object == null) {
+            sb.append((Object) null);
+        }
+        if (object instanceof Map) {
+            sb.append("{");
+            for (Map.Entry<String, Object> entry : ((Map<String, Object>)object).entrySet()) {
+                sb.append(entry.getKey()).append("=");
+                append(sb, entry.getValue());
+            }
+            sb.append("}");
+
+        } else if (object instanceof Collection) {
+            sb.append("[");
+            boolean first = true;
+            for (Object item : (Collection) object) {
+                if (!first) {
+                    sb.append(",");
+                }
+                append(sb, item);
+                first = false;
+            }
+            sb.append("]");
+        } else if (object.getClass().isArray()) {
+            sb.append("[");
+            for (int i = 0; i < Array.getLength(object); i++) {
+                if (i != 0) {
+                    sb.append(",");
+                }
+                append(sb, Array.get(object, i));
+            }
+            sb.append("]");
+        } else {
+            sb.append(object);
+        }
+    }
+
+    public interface Fields {
+        ParseField USERNAME = new ParseField("username");
+        ParseField PASSWORD = new ParseField("password");
+        ParseField ROLES = new ParseField("roles");
+        ParseField FULL_NAME = new ParseField("full_name");
+        ParseField EMAIL = new ParseField("email");
+        ParseField METADATA = new ParseField("metadata");
+    }
 }

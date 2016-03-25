@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -163,11 +165,17 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     }
 
     private String currentDataIndexName() {
-        return ".monitoring-es-data-" + String.valueOf(currentVersion);
+        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver(currentVersion);
+        return resolver.index(null);
     }
 
     private String currentTimestampedIndexName() {
-        return exporter().indexNameResolver().resolve(System.currentTimeMillis());
+        MonitoringDoc doc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
+        doc.setTimestamp(System.currentTimeMillis());
+
+        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, currentVersion,
+                exporterSettings());
+        return resolver.index(doc);
     }
 
     /** Generates a basic template **/
@@ -187,8 +195,7 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
                                         .field("date_detection", false)
                                         .startObject("properties")
                                             .startObject("cluster_uuid")
-                                                .field("type", "string")
-                                                .field("index", "not_analyzed")
+                                                .field("type", "keyword")
                                             .endObject()
                                             .startObject("timestamp")
                                                 .field("type", "date")

@@ -5,15 +5,16 @@
  */
 package org.elasticsearch.marvel.agent.collector.node;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoredSystem;
+import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -31,26 +32,28 @@ import static org.hamcrest.Matchers.notNullValue;
 // such files.
 @ClusterScope(numClientNodes = 0)
 public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
+
     public void testNodeStatsCollector() throws Exception {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {
             logger.info("--> collecting node stats on node [{}]", node);
-            Collection<MarvelDoc> results = newNodeStatsCollector(node).doCollect();
+            Collection<MonitoringDoc> results = newNodeStatsCollector(node).doCollect();
             assertThat(results, hasSize(1));
 
-            MarvelDoc marvelDoc = results.iterator().next();
-            assertNotNull(marvelDoc);
-            assertThat(marvelDoc, instanceOf(NodeStatsMarvelDoc.class));
+            MonitoringDoc monitoringDoc = results.iterator().next();
+            assertNotNull(monitoringDoc);
+            assertThat(monitoringDoc, instanceOf(NodeStatsMonitoringDoc.class));
 
-            NodeStatsMarvelDoc nodeStatsMarvelDoc = (NodeStatsMarvelDoc) marvelDoc;
+            NodeStatsMonitoringDoc nodeStatsMarvelDoc = (NodeStatsMonitoringDoc) monitoringDoc;
+            assertThat(nodeStatsMarvelDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
+            assertThat(nodeStatsMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
             assertThat(nodeStatsMarvelDoc.getClusterUUID(),
                     equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
             assertThat(nodeStatsMarvelDoc.getTimestamp(), greaterThan(0L));
-            assertThat(nodeStatsMarvelDoc.getType(), equalTo(NodeStatsCollector.TYPE));
             assertThat(nodeStatsMarvelDoc.getSourceNode(), notNullValue());
 
             assertThat(nodeStatsMarvelDoc.getNodeId(),
-                    equalTo(internalCluster().getInstance(DiscoveryService.class, node).localNode().id()));
+                    equalTo(internalCluster().getInstance(ClusterService.class, node).localNode().id()));
             assertThat(nodeStatsMarvelDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
             assertThat(nodeStatsMarvelDoc.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
             assertNotNull(nodeStatsMarvelDoc.isDiskThresholdDeciderEnabled());
@@ -96,7 +99,6 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 internalCluster().getInstance(InternalClient.class, nodeId),
-                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(NodeEnvironment.class, nodeId),
                 internalCluster().getInstance(DiskThresholdDecider.class, nodeId));
     }

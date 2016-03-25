@@ -4,11 +4,11 @@
     "methods": [ "GET" ],
     "url": {
       "path": "/_shield/user/{username}",
-      "paths": [ "/_shield/user/{username}" ],
+      "paths": [ "/_shield/user/{username}", "/_shield/user" ],
       "parts": {
         "username": {
-          "type" : "string",
-          "description" : "The username of the User",
+          "type" : "list",
+          "description" : "A comma-separated list of usernames",
           "required" : false
         }
       },

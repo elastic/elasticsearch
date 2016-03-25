@@ -9,13 +9,12 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * Action for deleting a user from the shield administrative index
+ * Action for deleting a native user.
  */
 public class DeleteUserAction extends Action<DeleteUserRequest, DeleteUserResponse, DeleteUserRequestBuilder> {
 
     public static final DeleteUserAction INSTANCE = new DeleteUserAction();
-    public static final String NAME = "cluster:admin/shield/user/delete";
-
+    public static final String NAME = "cluster:admin/xpack/security/user/delete";
 
     protected DeleteUserAction() {
         super(NAME);

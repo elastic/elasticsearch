@@ -6,8 +6,8 @@
 package org.elasticsearch.shield.authz.privilege;
 
 import dk.brics.automaton.Automaton;
-import dk.brics.automaton.BasicAutomata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.shield.support.Automatons;
 
 import java.util.Locale;
 import java.util.Set;
@@ -15,15 +15,30 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.shield.support.Automatons.minusAndDeterminize;
+import static org.elasticsearch.shield.support.Automatons.patterns;
+
 /**
  *
  */
 public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivilege> {
 
-    public static final ClusterPrivilege NONE = new ClusterPrivilege(Name.NONE, BasicAutomata.makeEmpty());
-    public static final ClusterPrivilege ALL = new ClusterPrivilege(Name.ALL, "cluster:*", "indices:admin/template/*");
-    public static final ClusterPrivilege MONITOR = new ClusterPrivilege("monitor", "cluster:monitor/*");
-    public static final ClusterPrivilege MANAGE_SHIELD = new ClusterPrivilege("manage_shield", "cluster:admin/shield/*");
+    // shared automatons
+    private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
+    private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
+    private static final Automaton ALL_CLUSTER_AUTOMATON = patterns("cluster:*", "indices:admin/template/*");
+    private static final Automaton MANAGE_AUTOMATON = minusAndDeterminize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON);
+    private static final Automaton TRANSPORT_CLIENT_AUTOMATON = patterns("cluster:monitor/nodes/liveness", "cluster:monitor/state");
+    private static final Automaton MANAGE_IDX_TEMPLATE_AUTOMATON = patterns("indices:admin/template/*");
+
+    public static final ClusterPrivilege NONE =                  new ClusterPrivilege(Name.NONE,                Automatons.EMPTY);
+    public static final ClusterPrivilege ALL =                   new ClusterPrivilege(Name.ALL,                 ALL_CLUSTER_AUTOMATON);
+    public static final ClusterPrivilege MONITOR =               new ClusterPrivilege("monitor",                MONITOR_AUTOMATON);
+    public static final ClusterPrivilege MANAGE =                new ClusterPrivilege("manage",                 MANAGE_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_IDX_TEMPLATES =
+            new ClusterPrivilege("manage_index_templates", MANAGE_IDX_TEMPLATE_AUTOMATON);
+    public static final ClusterPrivilege TRANSPORT_CLIENT =      new ClusterPrivilege("transport_client",       TRANSPORT_CLIENT_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",        MANAGE_SECURITY_AUTOMATON);
 
     public final static Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
@@ -33,7 +48,10 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
         values.add(NONE);
         values.add(ALL);
         values.add(MONITOR);
-        values.add(MANAGE_SHIELD);
+        values.add(MANAGE);
+        values.add(MANAGE_IDX_TEMPLATES);
+        values.add(TRANSPORT_CLIENT);
+        values.add(MANAGE_SECURITY);
     }
 
     static Set<ClusterPrivilege> values() {
@@ -46,8 +64,8 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
         super(name, patterns);
     }
 
-    private ClusterPrivilege(Name name, String... patterns) {
-        super(name, patterns);
+    private ClusterPrivilege(String name, Automaton automaton) {
+        super(new Name(name), automaton);
     }
 
     private ClusterPrivilege(Name name, Automaton automaton) {

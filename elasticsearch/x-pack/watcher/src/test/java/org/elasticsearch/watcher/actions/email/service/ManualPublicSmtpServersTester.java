@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.actions.email.service;
 
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;

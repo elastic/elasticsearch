@@ -21,7 +21,7 @@ import org.elasticsearch.watcher.actions.ExecutableAction;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.ArrayObjectIterator;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.watch.Payload;
 
@@ -34,10 +34,10 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalState;
 
 public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
-    private final ClientProxy client;
+    private final WatcherClientProxy client;
     private final TimeValue timeout;
 
-    public ExecutableIndexAction(IndexAction action, ESLogger logger, ClientProxy client, @Nullable TimeValue defaultTimeout) {
+    public ExecutableIndexAction(IndexAction action, ESLogger logger, WatcherClientProxy client, @Nullable TimeValue defaultTimeout) {
         super(action, logger);
         this.client = client;
         this.timeout = action.timeout != null ? action.timeout : defaultTimeout;

@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.shield.action.user.DeleteUserRequest;
+import org.elasticsearch.shield.action.user.DeleteUserRequestBuilder;
 import org.elasticsearch.shield.action.user.DeleteUserResponse;
 import org.elasticsearch.shield.client.SecurityClient;
 
@@ -34,10 +35,13 @@ public class RestDeleteUserAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        String user = request.param("username");
-        DeleteUserRequest delUserRequest = new DeleteUserRequest(user);
+        String username = request.param("username");
 
-        new SecurityClient(client).deleteUser(delUserRequest, new RestBuilderListener<DeleteUserResponse>(channel) {
+        DeleteUserRequestBuilder requestBuilder = new SecurityClient(client).prepareDeleteUser(username);
+        if (request.hasParam("refresh")) {
+            requestBuilder.refresh(request.paramAsBoolean("refresh", true));
+        }
+        requestBuilder.execute(new RestBuilderListener<DeleteUserResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteUserResponse response, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,

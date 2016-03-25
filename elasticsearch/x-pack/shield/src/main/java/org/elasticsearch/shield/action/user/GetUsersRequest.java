@@ -16,43 +16,43 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Request to retrieve a user from the shield administrative index from a username
+ * Request to retrieve a native user.
  */
 public class GetUsersRequest extends ActionRequest<GetUsersRequest> {
 
-    private String[] users;
+    private String[] usernames;
 
     public GetUsersRequest() {
-        users = Strings.EMPTY_ARRAY;
+        usernames = Strings.EMPTY_ARRAY;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (users == null) {
-            validationException = addValidationError("users cannot be null", validationException);
+        if (usernames == null) {
+            validationException = addValidationError("usernames cannot be null", validationException);
         }
         return validationException;
     }
 
-    public void users(String... usernames) {
-        this.users = usernames;
+    public void usernames(String... usernames) {
+        this.usernames = usernames;
     }
 
-    public String[] users() {
-        return users;
+    public String[] usernames() {
+        return usernames;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        users = in.readStringArray();
+        usernames = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArray(users);
+        out.writeStringArray(usernames);
     }
 
 }

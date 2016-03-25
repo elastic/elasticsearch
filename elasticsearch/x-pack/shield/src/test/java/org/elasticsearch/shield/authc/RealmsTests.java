@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.license.ShieldLicenseState;
@@ -26,6 +27,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,7 +42,8 @@ public class RealmsTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         factories = new HashMap<>();
-        factories.put("esusers", new DummyRealm.Factory("esusers", true));
+        factories.put(ESUsersRealm.TYPE, new DummyRealm.Factory(ESUsersRealm.TYPE, true));
+        factories.put(ESNativeRealm.TYPE, new DummyRealm.Factory(ESNativeRealm.TYPE, true));
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             DummyRealm.Factory factory = new DummyRealm.Factory("type_" + i, rarely());
             factories.put("type_" + i, factory);
@@ -52,13 +55,13 @@ public class RealmsTests extends ESTestCase {
     public void testWithSettings() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(factories.size() - 1);
-        for (int i = 0; i < factories.size() - 1; i++) {
+        List<Integer> orders = new ArrayList<>(factories.size() - 2);
+        for (int i = 0; i < factories.size() - 2; i++) {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
-        for (int i = 0; i < factories.size() - 1; i++) {
+        for (int i = 0; i < factories.size() - 2; i++) {
             builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
             builder.put("shield.authc.realms.realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
@@ -102,6 +105,10 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
         assertThat(realm, notNullValue());
+        assertThat(realm.type(), equalTo(ESNativeRealm.TYPE));
+        assertThat(realm.name(), equalTo("default_" + ESNativeRealm.TYPE));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
         assertThat(realm.type(), equalTo(ESUsersRealm.TYPE));
         assertThat(realm.name(), equalTo("default_" + ESUsersRealm.TYPE));
         assertThat(iter.hasNext(), is(false));
@@ -110,13 +117,13 @@ public class RealmsTests extends ESTestCase {
     public void testUnlicensedWithOnlyCustomRealms() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(factories.size() - 1);
-        for (int i = 0; i < factories.size() - 1; i++) {
+        List<Integer> orders = new ArrayList<>(factories.size() - 2);
+        for (int i = 0; i < factories.size() - 2; i++) {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
-        for (int i = 0; i < factories.size() - 1; i++) {
+        for (int i = 0; i < factories.size() - 2; i++) {
             builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
             builder.put("shield.authc.realms.realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
@@ -138,10 +145,10 @@ public class RealmsTests extends ESTestCase {
         i = 0;
         when(shieldLicenseState.customRealmsEnabled()).thenReturn(false);
         for (Realm realm : realms) {
-            assertThat(realm.type, is(ESUsersRealm.TYPE));
+            assertThat(realm.type, isOneOf(ESUsersRealm.TYPE, ESNativeRealm.TYPE));
             i++;
         }
-        assertThat(i, is(1));
+        assertThat(i, is(2));
     }
 
     public void testUnlicensedWithInternalRealms() throws Exception {
@@ -178,13 +185,13 @@ public class RealmsTests extends ESTestCase {
     public void testDisabledRealmsAreNotAdded() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(factories.size() - 1);
-        for (int i = 0; i < factories.size() - 1; i++) {
+        List<Integer> orders = new ArrayList<>(factories.size() - 2);
+        for (int i = 0; i < factories.size() - 2; i++) {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
-        for (int i = 0; i < factories.size() - 1; i++) {
+        for (int i = 0; i < factories.size() - 2; i++) {
             builder.put("shield.authc.realms.realm_" + i + ".type", "type_" + i);
             builder.put("shield.authc.realms.realm_" + i + ".order", orders.get(i));
             boolean enabled = randomBoolean();
@@ -205,7 +212,11 @@ public class RealmsTests extends ESTestCase {
             Realm realm = iterator.next();
             Integer index = orderToIndex.get(realm.order());
             if (index == null) {
-                // Default realm is inserted when factories size is 1 and enabled is false
+                // Default realms are inserted when factories size is 1 and enabled is false
+                assertThat(realm.type(), equalTo(ESNativeRealm.TYPE));
+                assertThat(realm.name(), equalTo("default_" + ESNativeRealm.TYPE));
+                assertThat(iterator.hasNext(), is(true));
+                realm = iterator.next();
                 assertThat(realm.type(), equalTo(ESUsersRealm.TYPE));
                 assertThat(realm.name(), equalTo("default_" + ESUsersRealm.TYPE));
                 assertThat(iterator.hasNext(), is(false));
@@ -264,8 +275,8 @@ public class RealmsTests extends ESTestCase {
 
             @Override
             public DummyRealm createDefault(String name) {
-                if (type().equals("esusers")) {
-                    return new DummyRealm("esusers", new RealmConfig(name, Settings.EMPTY,
+                if (type().equals(ESNativeRealm.TYPE) || type().equals(ESUsersRealm.TYPE)) {
+                    return new DummyRealm(type(), new RealmConfig(name, Settings.EMPTY,
                             Settings.builder().put("path.home", createTempDir()).build()));
                 }
                 return null;

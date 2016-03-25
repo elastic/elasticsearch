@@ -5,28 +5,38 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
-import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoredSystem;
+import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.cleaner.CleanerService;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
@@ -57,8 +67,8 @@ public class ExportersTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(new InternalClient.Insecure(client), clusterService,
-                mock(RendererRegistry.class), mock(CleanerService.class)));
+        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(MonitoringClientProxy.of(client), clusterService,
+                mock(CleanerService.class)));
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS,
                 MarvelSettings.INTERVAL, MarvelSettings.EXPORTERS_SETTINGS)));
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, clusterSettings);
@@ -254,6 +264,69 @@ public class ExportersTests extends ESTestCase {
         verifyNoMoreInteractions(exporters.getExporter("_name1"));
     }
 
+    /**
+     * This test creates N threads that export a random number of document
+     * using a {@link Exporters} instance.
+     */
+    public void testConcurrentExports() throws Exception {
+        final int nbExporters = randomIntBetween(1, 5);
+
+        logger.info("--> creating {} exporters", nbExporters);
+        Settings.Builder settings = Settings.builder();
+        for (int i = 0; i < nbExporters; i++) {
+            settings.put("xpack.monitoring.agent.exporters._name" + String.valueOf(i) + ".type", "record");
+        }
+
+        Exporter.Factory factory = new CountingExportFactory("record", false);
+        factories.put("record", factory);
+
+        Exporters exporters = new Exporters(settings.build(), factories, clusterService, clusterSettings);
+        exporters.start();
+
+        final Thread[] threads = new Thread[3 + randomInt(7)];
+        final CyclicBarrier barrier = new CyclicBarrier(threads.length);
+        final List<Throwable> exceptions = new CopyOnWriteArrayList<>();
+
+        int total = 0;
+
+        logger.info("--> exporting documents using {} threads", threads.length);
+        for (int i = 0; i < threads.length; i++) {
+            int nbDocs = randomIntBetween(10, 50);
+            total += nbDocs;
+
+            logger.debug("--> exporting thread [{}] exports {} documents", i, nbDocs);
+            threads[i] = new Thread(new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.error("unexpected error in exporting thread", t);
+                    exceptions.add(t);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    List<MonitoringDoc> docs = new ArrayList<>();
+                    for (int n = 0; n < nbDocs; n++) {
+                        docs.add(new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString()));
+                    }
+                    barrier.await(10, TimeUnit.SECONDS);
+                    exporters.export(docs);
+                }
+            }, "export_thread_" + i);
+            threads[i].start();
+        }
+
+        logger.info("--> waiting for threads to exports {} documents", total);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        assertThat(exceptions, empty());
+        for (Exporter exporter : exporters) {
+            assertThat(exporter, instanceOf(CountingExportFactory.CountingExporter.class));
+            assertThat(((CountingExportFactory.CountingExporter)exporter).getExportedCount(), equalTo(total));
+        }
+    }
+
     static class TestFactory extends Exporter.Factory<TestFactory.TestExporter> {
         public TestFactory(String type, boolean singleton) {
             super(type, singleton);
@@ -270,7 +343,7 @@ public class ExportersTests extends ESTestCase {
             }
 
             @Override
-            public void export(Collection<MarvelDoc> marvelDocs) throws Exception {
+            public void export(Collection<MonitoringDoc> monitoringDocs) throws Exception {
             }
 
             @Override
@@ -303,4 +376,65 @@ public class ExportersTests extends ESTestCase {
         }
     }
 
+    /**
+     * A factory of exporters that count the number of exported documents.
+     */
+    static class CountingExportFactory extends Exporter.Factory<CountingExportFactory.CountingExporter> {
+
+        public CountingExportFactory(String type, boolean singleton) {
+            super(type, singleton);
+        }
+
+        @Override
+        public CountingExporter create(Exporter.Config config) {
+            return new CountingExporter(type(), config);
+        }
+
+        static class CountingExporter extends Exporter {
+
+            private static final AtomicInteger count = new AtomicInteger(0);
+            private final CountingBulk bulk;
+
+            public CountingExporter(String type, Config config) {
+                super(type, config);
+                this.bulk = new CountingBulk(type + "#" + count.getAndIncrement());
+            }
+
+            @Override
+            public ExportBulk openBulk() {
+                return bulk;
+            }
+
+            @Override
+            public void close() {
+            }
+
+            public int getExportedCount() {
+                return bulk.getCount().get();
+            }
+        }
+
+        static class CountingBulk extends ExportBulk {
+
+            private final AtomicInteger count = new AtomicInteger();
+
+            public CountingBulk(String name) {
+                super(name);
+            }
+
+            @Override
+            public ExportBulk add(Collection<MonitoringDoc> docs) throws ExportException {
+                count.addAndGet(docs.size());
+                return this;
+            }
+
+            @Override
+            public void flush() throws ExportException {
+            }
+
+            AtomicInteger getCount() {
+                return count;
+            }
+        }
+    }
 }

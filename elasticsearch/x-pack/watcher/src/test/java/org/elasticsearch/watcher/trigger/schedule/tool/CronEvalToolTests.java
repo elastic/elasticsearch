@@ -5,23 +5,19 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.tool;
 
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
 
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+public class CronEvalToolTests extends CommandTestCase {
+    @Override
+    protected Command newCommand() {
+        return new CronEvalTool();
+    }
 
-/**
- *
- */
-public class CronEvalToolTests extends CliToolTestCase {
     public void testParse() throws Exception {
         String countOption = randomBoolean() ? "-c" : "--count";
         int count = randomIntBetween(1, 100);
-        CliTool.Command command = new CronEvalTool().parse("eval", new String[] { "0 0 0 1-6 * ?", countOption, String.valueOf(count) });
-        assertThat(command, instanceOf(CronEvalTool.Eval.class));
-        CronEvalTool.Eval eval = (CronEvalTool.Eval) command;
-        assertThat(eval.expression, is("0 0 0 1-6 * ?"));
-        assertThat(eval.count, is(count));
+        String output = execute(countOption, Integer.toString(count), "0 0 0 1-6 * ?");
+        assertTrue(output, output.contains("Here are the next " + count + " times this cron expression will trigger"));
     }
 }

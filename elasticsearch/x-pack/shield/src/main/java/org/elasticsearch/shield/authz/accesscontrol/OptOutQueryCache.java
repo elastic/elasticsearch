@@ -55,7 +55,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
         // At this level only IndicesRequest
         final String indexName;
         if (context.getRequest() instanceof ShardSearchRequest) {
-            indexName = ((ShardSearchRequest) context.getRequest()).index();
+            indexName = ((ShardSearchRequest) context.getRequest()).shardId().getIndexName();
         } else if (context.getRequest() instanceof BroadcastShardRequest) {
             indexName = ((BroadcastShardRequest) context.getRequest()).shardId().getIndexName();
         } else {

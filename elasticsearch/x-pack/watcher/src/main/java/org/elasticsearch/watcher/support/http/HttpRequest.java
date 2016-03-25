@@ -242,6 +242,10 @@ public class HttpRequest implements ToXContent {
         return new Builder(host, port);
     }
 
+    static Builder builder() {
+        return new Builder();
+    }
+
     public static class Parser {
 
         private final HttpAuthRegistry httpAuthRegistry;
@@ -443,11 +447,18 @@ public class HttpRequest implements ToXContent {
         }
 
         public Builder fromUrl(String supposedUrl) {
+            if (Strings.hasLength(supposedUrl) == false) {
+                throw new ElasticsearchParseException("Configured URL is empty, please configure a valid URL");
+            }
+
             try {
                 URI uri = new URI(supposedUrl);
-                port = uri.getPort() > 0 ? uri.getPort() : 80;
-                host = uri.getHost();
+                if (Strings.hasLength(uri.getScheme()) == false) {
+                    throw new ElasticsearchParseException("URL [{}] does not contain a scheme", uri);
+                }
                 scheme = Scheme.parse(uri.getScheme());
+                port = uri.getPort() > 0 ? uri.getPort() : scheme.defaultPort();
+                host = uri.getHost();
                 if (Strings.hasLength(uri.getPath())) {
                     path = uri.getPath();
                 }

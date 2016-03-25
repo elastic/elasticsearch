@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
-import org.elasticsearch.ElasticsearchException;
-
-import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -21,27 +18,19 @@ public abstract class ExportBulk {
         this.name = name;
     }
 
-    public ExportBulk add(MarvelDoc... docs) throws Exception {
-        return add(Arrays.asList(docs));
-    }
-
     @Override
     public String toString() {
         return name;
     }
 
-    public abstract ExportBulk add(Collection<MarvelDoc> docs) throws Exception;
+    public abstract ExportBulk add(Collection<MonitoringDoc> docs) throws ExportException;
 
-    public abstract void flush() throws Exception;
+    public abstract void flush() throws ExportException;
 
-    public final void close(boolean flush) throws Exception {
-        Exception exception = null;
+    public final void close(boolean flush) throws ExportException {
+        ExportException exception = null;
         if (flush) {
-            try {
-                flush();
-            } catch (Exception e) {
-                exception = e;
-            }
+            flush();
         }
 
         // now closing
@@ -51,7 +40,7 @@ public abstract class ExportBulk {
             if (exception != null) {
                 exception.addSuppressed(e);
             } else {
-                exception = e;
+                exception = new ExportException("Exception when closing export bulk", e);
             }
         }
 
@@ -74,24 +63,35 @@ public abstract class ExportBulk {
         }
 
         @Override
-        public ExportBulk add(Collection<MarvelDoc> docs) throws Exception {
+        public ExportBulk add(Collection<MonitoringDoc> docs) throws ExportException {
+            ExportException exception = null;
             for (ExportBulk bulk : bulks) {
-                bulk.add(docs);
+                try {
+                    bulk.add(docs);
+                } catch (ExportException e) {
+                    if (exception == null) {
+                        exception = new ExportException("failed to add documents to export bulks");
+                    }
+                    exception.addExportException(e);
+                }
+            }
+            if (exception != null) {
+                throw exception;
             }
             return this;
         }
 
         @Override
-        public void flush() throws Exception {
-            Exception exception = null;
+        public void flush() throws ExportException {
+            ExportException exception = null;
             for (ExportBulk bulk : bulks) {
                 try {
                     bulk.flush();
-                } catch (Exception e) {
+                } catch (ExportException e) {
                     if (exception == null) {
-                        exception = new ElasticsearchException("failed to flush exporter bulks");
+                        exception = new ExportException("failed to flush export bulks");
                     }
-                    exception.addSuppressed(new ElasticsearchException("failed to flush [{}] exporter bulk", e, bulk.name));
+                    exception.addExportException(e);
                 }
             }
             if (exception != null) {

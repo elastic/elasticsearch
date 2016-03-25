@@ -126,7 +126,7 @@ public class Account {
             try {
                 transport.close();
             } catch (MessagingException me) {
-                logger.error("failed to close email transport for account [" + config.name + "]");
+                logger.error("failed to close email transport for account [{}]", config.name);
             }
             if (contextClassLoader != null) {
                 setContextClassLoader(contextClassLoader);

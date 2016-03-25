@@ -18,7 +18,6 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.shield.authz.privilege.IndexPrivilege.MONITOR;
 import static org.elasticsearch.shield.authz.privilege.IndexPrivilege.READ;
-import static org.elasticsearch.shield.authz.privilege.IndexPrivilege.SEARCH;
 import static org.elasticsearch.shield.authz.privilege.IndexPrivilege.union;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -33,7 +32,7 @@ public class PermissionTests extends ESTestCase {
     @Before
     public void init() {
         Role.Builder builder = Role.builder("test");
-        builder.add(union(SEARCH, MONITOR), "test_*", "/foo.*/");
+        builder.add(union(MONITOR), "test_*", "/foo.*/");
         builder.add(union(READ), "baz_*foo", "/fool.*bar/");
         builder.add(union(MONITOR), "/bar.*/");
         permission = builder.build();

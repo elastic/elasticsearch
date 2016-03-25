@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -56,7 +58,7 @@ public class HttpClientTests extends ESTestCase {
     public void init() throws Exception {
         secretService = SecretService.Insecure.INSTANCE;
         authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(secretService)));
-        webServer = startWebServer(9200, 9300);
+        webServer = startWebServer();
         webPort = webServer.getPort();
         httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
     }
@@ -265,17 +267,28 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
-    public void test400Code() throws Exception {
-        webServer.enqueue(new MockResponse().setResponseCode(400));
+    public void testHttpResponseWithAnyStatusCodeCanReturnBody() throws Exception {
+        int statusCode = randomFrom(200, 201, 400, 401, 403, 404, 405, 409, 413, 429, 500, 503);
+        String body = RandomStrings.randomAsciiOfLength(getRandom(), 100);
+        boolean hasBody = usually();
+        MockResponse mockResponse = new MockResponse().setResponseCode(statusCode);
+        if (hasBody) {
+            mockResponse.setBody(body);
+        }
+        webServer.enqueue(mockResponse);
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
                 .method(HttpMethod.POST)
                 .path("/test")
                 .auth(new BasicAuth("user", "pass".toCharArray()))
-                .body("body");
+                .body("body")
+                .connectionTimeout(TimeValue.timeValueMillis(500))
+                .readTimeout(TimeValue.timeValueMillis(500));
         HttpResponse response = httpClient.execute(request.build());
-        assertThat(response.status(), equalTo(400));
-        assertThat(response.hasContent(), is(false));
-        assertThat(response.body(), nullValue());
+        assertThat(response.status(), equalTo(statusCode));
+        assertThat(response.hasContent(), is(hasBody));
+        if (hasBody) {
+            assertThat(response.body().toUtf8(), is(body));
+        }
     }
 
     @Network
@@ -312,7 +325,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testThatProxyCanBeConfigured() throws Exception {
         // this test fakes a proxy server that sends a response instead of forwarding it to the mock web server
-        MockWebServer proxyServer = startWebServer(62000, 63000);
+        MockWebServer proxyServer = startWebServer();
         proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
 
         try {
@@ -340,7 +353,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testThatProxyCanBeOverriddenByRequest() throws Exception {
         // this test fakes a proxy server that sends a response instead of forwarding it to the mock web server
-        MockWebServer proxyServer = startWebServer(62000, 63000);
+        MockWebServer proxyServer = startWebServer();
         proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
 
         try {
@@ -382,17 +395,15 @@ public class HttpClientTests extends ESTestCase {
         assertThat(recordedRequest.getPath(), equalTo(path));
     }
 
-    private MockWebServer startWebServer(int startPort, int endPort) throws IOException {
-        for (int port = startPort; port < endPort; port++) {
-            try {
-                MockWebServer mockWebServer = new MockWebServer();
-                mockWebServer.start(port);
-                return mockWebServer;
-            } catch (BindException be) {
-                logger.warn("port [{}] was already in use trying next port", webPort);
-            }
+    private MockWebServer startWebServer() throws IOException {
+        try {
+            MockWebServer mockWebServer = new MockWebServer();
+            mockWebServer.start();
+            return mockWebServer;
+        } catch (BindException be) {
+            logger.warn("port [{}] was already in use trying next port", webPort);
         }
-        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
+        throw new ElasticsearchException("unable to find open port: none specified, free one should have been chosed automatically");
     }
 
     static class ClientAuthRequiringSSLSocketFactory extends SSLSocketFactory {

@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  */
@@ -64,7 +65,7 @@ public class WatchLockServiceTests extends ESTestCase {
             lockService.stop();
             fail("Expected ElasticsearchTimeoutException");
         } catch (ElasticsearchTimeoutException e) {
-            assertThat(e.getMessage(), is("timed out waiting for watches to complete, after waiting for [2s]"));
+            assertThat(e.getMessage(), startsWith("timed out waiting for watches to complete, after waiting for"));
         }
     }
 

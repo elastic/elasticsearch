@@ -20,38 +20,37 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetRolesRequest extends ActionRequest<GetRolesRequest> {
 
-    private String[] roles;
+    private String[] names = Strings.EMPTY_ARRAY;
 
     public GetRolesRequest() {
-        roles = Strings.EMPTY_ARRAY;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (roles == null) {
+        if (names == null) {
             validationException = addValidationError("role is missing", validationException);
         }
         return validationException;
     }
 
-    public void roles(String... roles) {
-        this.roles = roles;
+    public void names(String... names) {
+        this.names = names;
     }
 
-    public String[] roles() {
-        return roles;
+    public String[] names() {
+        return names;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        roles = in.readStringArray();
+        names = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArray(roles);
+        out.writeStringArray(names);
     }
 }

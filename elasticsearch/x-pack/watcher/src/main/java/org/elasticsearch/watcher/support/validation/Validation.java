@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.support.validation;
 
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 
 import java.util.regex.Pattern;
 

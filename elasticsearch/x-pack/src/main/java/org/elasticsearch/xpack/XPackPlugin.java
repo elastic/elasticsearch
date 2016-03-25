@@ -15,19 +15,26 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.graph.Graph;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.common.init.LazyInitializationModule;
+import org.elasticsearch.xpack.common.init.LazyInitializationService;
+import org.elasticsearch.xpack.extensions.XPackExtension;
+import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 
 public class XPackPlugin extends Plugin {
 
@@ -64,11 +71,13 @@ public class XPackPlugin extends Plugin {
     }
 
     protected final Settings settings;
+    protected final XPackExtensionsService extensionsService;
 
     protected Licensing licensing;
     protected Shield shield;
     protected Marvel marvel;
     protected Watcher watcher;
+    protected Graph graph;
 
     public XPackPlugin(Settings settings) {
         this.settings = settings;
@@ -76,6 +85,15 @@ public class XPackPlugin extends Plugin {
         this.shield = new Shield(settings);
         this.marvel = new Marvel(settings);
         this.watcher = new Watcher(settings);
+        this.graph = new Graph(settings);
+        // Check if the node is a transport client.
+        if (transportClientMode(settings) == false) {
+            Environment env = new Environment(settings);
+            this.extensionsService =
+                    new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
+        } else {
+            this.extensionsService = null;
+        }
     }
 
     @Override public String name() {
@@ -86,23 +104,35 @@ public class XPackPlugin extends Plugin {
         return "Elastic X-Pack";
     }
 
+    // For tests only
+    public Collection<Class<? extends XPackExtension>> getExtensions() {
+        return Collections.emptyList();
+    }
+
     @Override
     public Collection<Module> nodeModules() {
         ArrayList<Module> modules = new ArrayList<>();
+        modules.add(new LazyInitializationModule());
         modules.addAll(licensing.nodeModules());
         modules.addAll(shield.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(marvel.nodeModules());
+        modules.addAll(graph.nodeModules());
         return modules;
     }
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
+        // the initialization service must be first in the list
+        // as other services may depend on one of the initialized
+        // constructs
+        services.add(LazyInitializationService.class);
         services.addAll(licensing.nodeServices());
         services.addAll(shield.nodeServices());
         services.addAll(watcher.nodeServices());
         services.addAll(marvel.nodeServices());
+        services.addAll(graph.nodeServices());
         return services;
     }
 
@@ -111,6 +141,7 @@ public class XPackPlugin extends Plugin {
         Settings.Builder builder = Settings.builder();
         builder.put(shield.additionalSettings());
         builder.put(watcher.additionalSettings());
+        builder.put(graph.additionalSettings());
         return builder.build();
     }
 
@@ -121,28 +152,45 @@ public class XPackPlugin extends Plugin {
     public void onModule(SettingsModule module) {
 
         // we add the `xpack.version` setting to all internal indices
-        module.registerSetting(Setting.simpleString("index.xpack.version", false, Setting.Scope.INDEX));
+        module.registerSetting(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
         shield.onModule(module);
         marvel.onModule(module);
         watcher.onModule(module);
+        graph.onModule(module);
         licensing.onModule(module);
     }
 
     public void onModule(NetworkModule module) {
         licensing.onModule(module);
+        marvel.onModule(module);
         shield.onModule(module);
         watcher.onModule(module);
+        graph.onModule(module);
     }
 
     public void onModule(ActionModule module) {
         licensing.onModule(module);
+        marvel.onModule(module);
         shield.onModule(module);
         watcher.onModule(module);
+        graph.onModule(module);
+    }
+
+    public void onModule(AuthenticationModule module) {
+        if (extensionsService != null) {
+            extensionsService.onModule(module);
+        }
     }
 
     public void onIndexModule(IndexModule module) {
         shield.onIndexModule(module);
+        graph.onIndexModule(module);
+    }
+
+    public void onModule(LazyInitializationModule module) {
+        marvel.onModule(module);
+        watcher.onModule(module);
     }
 
     public static boolean transportClientMode(Settings settings) {
@@ -196,8 +244,12 @@ public class XPackPlugin extends Plugin {
      *          {@code "<feature>.enabled": true | false}
      */
     public static void registerFeatureEnabledSettings(SettingsModule settingsModule, String featureName, boolean defaultValue) {
-        settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, false, Setting.Scope.CLUSTER));
+        settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, Setting.Property.NodeScope));
         settingsModule.registerSetting(Setting.boolSetting(legacyFeatureEnabledSetting(featureName),
-                defaultValue, false, Setting.Scope.CLUSTER));
+                defaultValue, Setting.Property.NodeScope));
+    }
+
+    public static Path resolveXPackExtensionsFile(Environment env) {
+        return env.pluginsFile().resolve("xpack").resolve("extensions");
     }
 }

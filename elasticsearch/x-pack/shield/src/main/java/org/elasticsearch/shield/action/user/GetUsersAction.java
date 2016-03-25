@@ -14,8 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class GetUsersAction extends Action<GetUsersRequest, GetUsersResponse, GetUsersRequestBuilder> {
 
     public static final GetUsersAction INSTANCE = new GetUsersAction();
-    public static final String NAME = "cluster:admin/shield/user/get";
-
+    public static final String NAME = "cluster:admin/xpack/security/user/get";
 
     protected GetUsersAction() {
         super(NAME);

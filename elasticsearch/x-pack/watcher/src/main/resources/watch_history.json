@@ -37,16 +37,14 @@
       },
       "properties": {
         "watch_id": {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         },
         "trigger_event": {
           "type": "object",
           "dynamic": true,
           "properties": {
             "type" : {
-              "type" : "string",
-              "index" : "not_analyzed"
+              "type" : "keyword"
             },
             "triggered_time": {
               "type": "date"
@@ -90,11 +88,10 @@
           "enabled": false
         },
         "state": {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         },
         "messages": {
-          "type": "string"
+          "type": "text"
         },
         "result": {
           "type": "object",
@@ -111,12 +108,10 @@
               "dynamic": true,
               "properties": {
                 "type" : {
-                  "type" : "string",
-                  "index" : "not_analyzed"
+                  "type" : "keyword"
                 },
                 "status" : {
-                  "type" : "string",
-                  "index" : "not_analyzed"
+                  "type" : "keyword"
                 },
                 "payload" : {
                   "type" : "object",
@@ -131,16 +126,13 @@
                       "dynamic": true,
                       "properties": {
                         "search_type": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "indices": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "types": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         }
                       }
                     }
@@ -155,12 +147,10 @@
                       "dynamic": true,
                       "properties": {
                         "path": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "host": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         }
                       }
                     }
@@ -173,12 +163,10 @@
               "dynamic" : true,
               "properties" : {
                 "type" : {
-                  "type" : "string",
-                  "index" : "not_analyzed"
+                  "type" : "keyword"
                 },
                 "status" : {
-                  "type" : "string",
-                  "index" : "not_analyzed"
+                  "type" : "keyword"
                 },
                 "met" : {
                   "type" : "boolean"
@@ -202,8 +190,7 @@
               "dynamic" : true,
               "properties" : {
                 "type" : {
-                  "type" : "string",
-                  "index" : "not_analyzed"
+                  "type" : "keyword"
                 },
                 "search" : {
                   "type" : "object",
@@ -214,12 +201,10 @@
                       "dynamic" : true,
                       "properties" : {
                         "indices" : {
-                          "type" : "string",
-                          "index" : "not_analyzed"
+                          "type" : "keyword"
                         },
                         "types" : {
-                          "type" : "string",
-                          "index" : "not_analyzed"
+                          "type" : "keyword"
                         }
                       }
                     }
@@ -233,20 +218,16 @@
               "dynamic": true,
               "properties": {
                 "id" : {
-                  "type" : "string",
-                  "index" : "not_analyzed"
+                  "type" : "keyword"
                 },
                 "type" : {
-                  "type" : "string",
-                  "index" : "not_analyzed"
+                  "type" : "keyword"
                 },
                 "status" : {
-                  "type" : "string",
-                  "index" : "not_analyzed"
+                  "type" : "keyword"
                 },
                 "reason" : {
-                  "type" : "string",
-                  "index" : "analyzed"
+                  "type" : "keyword"
                 },
                 "email": {
                   "type": "object",
@@ -257,28 +238,22 @@
                       "dynamic": true,
                       "properties": {
                         "id": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "from": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "reply_to": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "to": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "cc": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "bcc": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         }
                       }
                     }
@@ -293,12 +268,10 @@
                       "dynamic": true,
                       "properties": {
                         "path": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "host": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         }
                       }
                     }
@@ -313,16 +286,13 @@
                       "dynamic": true,
                       "properties": {
                         "index": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "type": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "id": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         }
                       }
                     }
@@ -333,8 +303,7 @@
                   "dynamic": true,
                   "properties": {
                     "account": {
-                      "type": "string",
-                      "index": "not_analyzed"
+                      "type": "keyword"
                     },
                     "sent_messages": {
                       "type": "nested",
@@ -342,11 +311,10 @@
                       "dynamic": true,
                       "properties": {
                         "status": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "reason": {
-                          "type": "string"
+                          "type": "text"
                         },
                         "request" : {
                           "type" : "object",
@@ -357,33 +325,29 @@
                           "enabled" : false
                         },
                         "room" : {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "user" : {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "message" : {
                           "type" : "object",
                           "dynamic" : true,
                           "properties" : {
                             "message_format" : {
-                              "type" : "string",
-                              "index" : "not_analyzed"
+                              "type" : "keyword"
                             },
                             "color" : {
-                              "type" : "string",
-                              "index" : "not_analyzed"
+                              "type" : "keyword"
                             },
                             "notify" : {
                               "type" : "boolean"
                             },
                             "message" : {
-                              "type" : "string"
+                              "type" : "text"
                             },
                             "from" : {
-                              "type" : "string"
+                              "type" : "text"
                             }
                           }
                         }
@@ -396,8 +360,7 @@
                   "dynamic": true,
                   "properties": {
                     "account": {
-                      "type": "string",
-                      "index": "not_analyzed"
+                      "type": "keyword"
                     },
                     "sent_messages": {
                       "type": "nested",
@@ -405,11 +368,10 @@
                       "dynamic": true,
                       "properties": {
                         "status": {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "reason": {
-                          "type": "string"
+                          "type": "text"
                         },
                         "request" : {
                           "type" : "object",
@@ -420,22 +382,20 @@
                           "enabled" : false
                         },
                         "to" : {
-                          "type": "string",
-                          "index": "not_analyzed"
+                          "type": "keyword"
                         },
                         "message" : {
                           "type" : "object",
                           "dynamic" : true,
                           "properties" : {
                             "from" : {
-                              "type" : "string"
+                              "type" : "text"
                             },
                             "icon" : {
-                              "type" : "string",
-                              "index" : "not_analyzed"
+                              "type" : "keyword"
                             },
                             "text" : {
-                              "type" : "string"
+                              "type" : "text"
                             },
                             "attachments" : {
                               "type" : "nested",
@@ -443,8 +403,7 @@
                               "dynamic" : true,
                               "properties" : {
                                 "color" : {
-                                  "type" : "string",
-                                  "index" : "not_analyzed"
+                                  "type" : "keyword"
                                 }
                               }
                             }
@@ -459,8 +418,7 @@
                   "dynamic": true,
                   "properties": {
                     "account": {
-                      "type": "string",
-                      "index": "not_analyzed"
+                      "type": "keyword"
                     },
                     "sent_event": {
                       "type": "nested",
@@ -468,7 +426,7 @@
                       "dynamic": true,
                       "properties": {
                         "reason": {
-                          "type": "string"
+                          "type": "text"
                         },
                         "request" : {
                           "type" : "object",
@@ -483,29 +441,25 @@
                           "dynamic" : true,
                           "properties" : {
                             "type" : {
-                              "type" : "string",
-                              "index" : "not_analyzed"
+                              "type" : "keyword"
                             },
                             "client" : {
-                              "type" : "string"
+                              "type" : "text"
                             },
                             "client_url" : {
-                              "index" : "not_analyzed",
-                              "type" : "string"
+                              "type" : "keyword"
                             },
                             "account" : {
-                              "index" : "not_analyzed",
-                              "type" : "string"
+                              "type" : "keyword"
                             },
                             "attach_payload" : {
                               "type" : "boolean"
                             },
                             "incident_key" : {
-                              "index" : "not_analyzed",
-                              "type" : "string"
+                              "type" : "keyword"
                             },
                             "description" : {
-                              "type" : "string"
+                              "type" : "text"
                             },
                             "context" : {
                               "type" : "nested",
@@ -513,19 +467,16 @@
                               "dynamic" : true,
                               "properties" : {
                                 "type" : {
-                                  "type" : "string",
-                                  "index" : "not_analyzed"
+                                  "type" : "keyword"
                                 },
                                 "href" : {
-                                  "type" : "string",
-                                  "index" : "not_analyzed"
+                                  "type" : "keyword"
                                 },
                                 "src" : {
-                                  "type" : "string",
-                                  "index" : "not_analyzed"
+                                  "type" : "keyword"
                                 },
                                 "alt" : {
-                                  "type" : "string"
+                                  "type" : "text"
                                 }
                               }
                             }

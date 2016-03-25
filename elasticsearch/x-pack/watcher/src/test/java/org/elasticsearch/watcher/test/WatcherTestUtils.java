@@ -50,7 +50,7 @@ import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.text.TextTemplate;
@@ -172,11 +172,11 @@ public final class WatcherTestUtils {
 
     public static Watch createTestWatch(String watchName, HttpClient httpClient, EmailService emailService,
                                         ESLogger logger) throws AddressException {
-        return createTestWatch(watchName, ClientProxy.of(ESIntegTestCase.client()), httpClient, emailService, logger);
+        return createTestWatch(watchName, WatcherClientProxy.of(ESIntegTestCase.client()), httpClient, emailService, logger);
     }
 
 
-    public static Watch createTestWatch(String watchName, ClientProxy client, HttpClient httpClient, EmailService emailService,
+    public static Watch createTestWatch(String watchName, WatcherClientProxy client, HttpClient httpClient, EmailService emailService,
                                         ESLogger logger) throws AddressException {
 
         SearchRequest conditionRequest = newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));

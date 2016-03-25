@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.SearchScrollAction;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -21,7 +21,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.shield.ShieldTemplateService;
 import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.XPackUser;
@@ -112,6 +113,13 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             }
         }
 
+        if (XPackUser.is(user) == false) {
+            // we should filter out the .security index from wildcards
+            if (indicesAndAliases.remove(ShieldTemplateService.SECURITY_INDEX_NAME)) {
+                logger.debug("removed [{}] from user [{}] list of authorized indices",
+                        ShieldTemplateService.SECURITY_INDEX_NAME, user.principal());
+            }
+        }
         return Collections.unmodifiableList(indicesAndAliases);
     }
 
@@ -208,6 +216,13 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         IndicesAccessControl indicesAccessControl = permission.authorize(action, indexNames, metaData);
         if (!indicesAccessControl.isGranted()) {
             throw denial(user, action, request);
+        } else if (indicesAccessControl.getIndexPermissions(ShieldTemplateService.SECURITY_INDEX_NAME) != null
+                && indicesAccessControl.getIndexPermissions(ShieldTemplateService.SECURITY_INDEX_NAME).isGranted()
+                && XPackUser.is(user) == false) {
+            // only the XPackUser is allowed to work with this index, but we should allow health/stats through
+            logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]", user.principal(), action,
+                    ShieldTemplateService.SECURITY_INDEX_NAME);
+            throw denial(user, action, request);
         } else {
             setIndicesAccessControl(indicesAccessControl);
         }
@@ -281,12 +296,12 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     private static boolean isScrollRelatedAction(String action) {
         return action.equals(SearchScrollAction.NAME) ||
-                action.equals(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME) ||
-                action.equals(SearchServiceTransportAction.QUERY_FETCH_SCROLL_ACTION_NAME) ||
-                action.equals(SearchServiceTransportAction.QUERY_SCROLL_ACTION_NAME) ||
-                action.equals(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
+                action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
+                action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
+                action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
+                action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
                 action.equals(ClearScrollAction.NAME) ||
-                action.equals(SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+                action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 
     private ElasticsearchSecurityException denial(User user, String action, TransportRequest request) {

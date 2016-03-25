@@ -33,9 +33,9 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
     }
 
     @Override
-    protected void doExecute(GetRolesRequest request, ActionListener<GetRolesResponse> listener) {
-        if (request.roles().length == 1) {
-            final String rolename = request.roles()[0];
+    protected void doExecute(final GetRolesRequest request, final ActionListener<GetRolesResponse> listener) {
+        if (request.names().length == 1) {
+            final String rolename = request.names()[0];
             // We can fetch a single role with a get, much easier
             rolesStore.getRoleDescriptor(rolename, new ActionListener<RoleDescriptor>() {
                 @Override
@@ -54,16 +54,16 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
                 }
             });
         } else {
-            rolesStore.getRoleDescriptors(request.roles(), new ActionListener<List<RoleDescriptor>>() {
+            rolesStore.getRoleDescriptors(request.names(), new ActionListener<List<RoleDescriptor>>() {
                 @Override
                 public void onResponse(List<RoleDescriptor> roles) {
-                    listener.onResponse(new GetRolesResponse(roles));
+                    listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[roles.size()])));
                 }
 
                 @Override
                 public void onFailure(Throwable t) {
                     logger.error("failed to retrieve role [{}]", t,
-                            Strings.arrayToDelimitedString(request.roles(), ","));
+                            Strings.arrayToDelimitedString(request.names(), ","));
                 }
             });
         }

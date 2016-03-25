@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Action.Result.Status;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
@@ -32,12 +31,10 @@ import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
-import org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -46,7 +43,6 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
-import org.junit.After;
 import org.junit.Before;
 
 import javax.mail.internet.AddressException;
@@ -242,7 +238,7 @@ public class WebhookActionTests extends ESTestCase {
 
             ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
             String watchId = "test_url_encode" + randomAsciiOfLength(10);
-            Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
+            Watch watch = createWatch(watchId, mock(WatcherClientProxy.class), "account1");
             WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC),
                     new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
             executable.execute("_id", ctx, new Payload.Simple());
@@ -268,14 +264,14 @@ public class WebhookActionTests extends ESTestCase {
 
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, client, templateEngine);
 
-        Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
+        Watch watch = createWatch(watchId, mock(WatcherClientProxy.class), "account1");
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC),
                 new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
         assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
     }
 
-    private Watch createWatch(String watchId, ClientProxy client, final String account) throws AddressException, IOException {
+    private Watch createWatch(String watchId, WatcherClientProxy client, final String account) throws AddressException, IOException {
         return WatcherTestUtils.createTestWatch(watchId,
                 client,
                 ExecuteScenario.Success.client(),

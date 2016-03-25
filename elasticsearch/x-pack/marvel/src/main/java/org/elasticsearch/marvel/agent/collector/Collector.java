@@ -6,7 +6,7 @@
 package org.elasticsearch.marvel.agent.collector;
 
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 
 import java.util.Collection;
 
@@ -14,5 +14,5 @@ public interface Collector<T> extends LifecycleComponent<T> {
 
     String name();
 
-    Collection<MarvelDoc> collect();
+    Collection<MonitoringDoc> collect();
 }

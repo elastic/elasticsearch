@@ -6,12 +6,14 @@
 package org.elasticsearch.shield.authz.accesscontrol;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -24,8 +26,8 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -39,7 +41,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.shield.license.ShieldLicenseState;
@@ -52,7 +53,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
+import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
 /**
  * An {@link IndexSearcherWrapper} implementation that is used for field and document level security.
@@ -116,13 +117,15 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
             }
 
             if (permissions.getQueries() != null) {
-                BooleanQuery.Builder roleQuery = new BooleanQuery.Builder();
+                BooleanQuery.Builder filter = new BooleanQuery.Builder();
                 for (BytesReference bytesReference : permissions.getQueries()) {
                     QueryShardContext queryShardContext = copyQueryShardContext(this.queryShardContext);
                     ParsedQuery parsedQuery = queryShardContext.parse(bytesReference);
-                    roleQuery.add(parsedQuery.query(), FILTER);
+                    filter.add(parsedQuery.query(), SHOULD);
                 }
-                reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, roleQuery.build());
+                // at least one of the queries should match
+                filter.setMinimumNumberShouldMatch(1);
+                reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, new ConstantScoreQuery(filter.build()));
             }
 
             if (permissions.getFields() != null) {
@@ -154,56 +157,68 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
             // The reasons why we return a custom searcher:
             // 1) in the case the role query is sparse then large part of the main query can be skipped
             // 2) If the role query doesn't match with any docs in a segment, that a segment can be skipped
-            IndexSearcher indexSearcher = new IndexSearcher(directoryReader) {
-
-                @Override
-                protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                    for (LeafReaderContext ctx : leaves) { // search each subreader
-                        final LeafCollector leafCollector;
-                        try {
-                            leafCollector = collector.getLeafCollector(ctx);
-                        } catch (CollectionTerminatedException e) {
-                            // there is no doc of interest in this reader context
-                            // continue with the following leaf
-                            continue;
-                        }
-                        // The reader is always of type DocumentSubsetReader when we get here:
-                        DocumentSubsetReader reader = (DocumentSubsetReader) ctx.reader();
-
-                        BitSet roleQueryBits = reader.getRoleQueryBits();
-                        if (roleQueryBits == null) {
-                            // nothing matches with the role query, so skip this segment:
-                            continue;
-                        }
-
-                        Scorer scorer = weight.scorer(ctx);
-                        if (scorer != null) {
-                            try {
-                                // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
-                                if (roleQueryBits instanceof SparseFixedBitSet) {
-                                    SparseFixedBitSet sparseFixedBitSet = (SparseFixedBitSet) roleQueryBits;
-                                    Bits realLiveDocs = reader.getWrappedLiveDocs();
-                                    intersectScorerAndRoleBits(scorer, sparseFixedBitSet, leafCollector, realLiveDocs);
-                                } else {
-                                    BulkScorer bulkScorer = weight.bulkScorer(ctx);
-                                    Bits liveDocs = reader.getLiveDocs();
-                                    bulkScorer.score(leafCollector, liveDocs);
-                                }
-                            } catch (CollectionTerminatedException e) {
-                                // collection was terminated prematurely
-                                // continue with the following leaf
-                            }
-                        }
-
-                    }
-                }
-            };
+            IndexSearcher indexSearcher = new IndexSearcherWrapper((DocumentSubsetDirectoryReader) directoryReader);
             indexSearcher.setQueryCache(indexSearcher.getQueryCache());
             indexSearcher.setQueryCachingPolicy(indexSearcher.getQueryCachingPolicy());
             indexSearcher.setSimilarity(indexSearcher.getSimilarity(true));
             return indexSearcher;
         }
         return searcher;
+    }
+
+    static class IndexSearcherWrapper extends IndexSearcher {
+
+        public IndexSearcherWrapper(DocumentSubsetDirectoryReader r) {
+            super(r);
+        }
+
+        @Override
+        protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+            for (LeafReaderContext ctx : leaves) { // search each subreader
+                final LeafCollector leafCollector;
+                try {
+                    leafCollector = collector.getLeafCollector(ctx);
+                } catch (CollectionTerminatedException e) {
+                    // there is no doc of interest in this reader context
+                    // continue with the following leaf
+                    continue;
+                }
+                // The reader is always of type DocumentSubsetReader when we get here:
+                DocumentSubsetReader reader = (DocumentSubsetReader) ctx.reader();
+
+                BitSet roleQueryBits = reader.getRoleQueryBits();
+                if (roleQueryBits == null) {
+                    // nothing matches with the role query, so skip this segment:
+                    continue;
+                }
+
+                // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
+                if (roleQueryBits instanceof SparseFixedBitSet) {
+                    Scorer scorer = weight.scorer(ctx);
+                    if (scorer != null) {
+                        SparseFixedBitSet sparseFixedBitSet = (SparseFixedBitSet) roleQueryBits;
+                        Bits realLiveDocs = reader.getWrappedLiveDocs();
+                        try {
+                            intersectScorerAndRoleBits(scorer, sparseFixedBitSet, leafCollector, realLiveDocs);
+                        } catch (CollectionTerminatedException e) {
+                            // collection was terminated prematurely
+                            // continue with the following leaf
+                        }
+                    }
+                } else {
+                    BulkScorer bulkScorer = weight.bulkScorer(ctx);
+                    if (bulkScorer != null) {
+                        Bits liveDocs = reader.getLiveDocs();
+                        try {
+                            bulkScorer.score(leafCollector, liveDocs);
+                        } catch (CollectionTerminatedException e) {
+                            // collection was terminated prematurely
+                            // continue with the following leaf
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public Set<String> getAllowedMetaFields() {
@@ -226,9 +241,10 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
     }
 
     private void resolvePercolatorFields(Set<String> allowedFields) {
-        if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
+        if (mapperService.hasMapping(PercolatorFieldMapper.TYPE_NAME)) {
             allowedFields.add(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME);
             allowedFields.add(PercolatorFieldMapper.UNKNOWN_QUERY_FULL_FIELD_NAME);
+            allowedFields.add(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME);
         }
     }
 

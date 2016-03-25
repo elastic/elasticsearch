@@ -9,11 +9,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Collection;
 
@@ -22,20 +19,17 @@ public abstract class Exporter  {
     public static final String INDEX_NAME_TIME_FORMAT_SETTING = "index.name.time_format";
     public static final String BULK_TIMEOUT_SETTING = "bulk.timeout";
 
-    public static final String DEFAULT_INDEX_NAME_TIME_FORMAT = "YYYY.MM.dd";
-
     protected final String type;
     protected final Config config;
     protected final ESLogger logger;
-    protected final IndexNameResolver indexNameResolver;
+
     protected final @Nullable TimeValue bulkTimeout;
 
     public Exporter(String type, Config config) {
         this.type = type;
         this.config = config;
         this.logger = config.logger(getClass());
-        this.indexNameResolver = new DefaultIndexNameResolver(config.settings);
-        bulkTimeout = config.settings().getAsTime(BULK_TIMEOUT_SETTING, null);
+        this.bulkTimeout = config.settings().getAsTime(BULK_TIMEOUT_SETTING, null);
     }
 
     public String type() {
@@ -44,10 +38,6 @@ public abstract class Exporter  {
 
     public String name() {
         return config.name;
-    }
-
-    public IndexNameResolver indexNameResolver() {
-        return indexNameResolver;
     }
 
     public boolean masterOnly() {
@@ -60,10 +50,10 @@ public abstract class Exporter  {
      */
     public abstract ExportBulk openBulk();
 
-    public void export(Collection<MarvelDoc> marvelDocs) throws Exception {
+    public void export(Collection<MonitoringDoc> monitoringDocs) throws Exception {
         ExportBulk bulk = openBulk();
         if (bulk != null) {
-            bulk.add(marvelDocs).flush();
+            bulk.add(monitoringDocs).flush();
         }
     }
 
@@ -123,42 +113,5 @@ public abstract class Exporter  {
         }
 
         public abstract E create(Config config);
-    }
-
-    /**
-     *
-     */
-    public class DefaultIndexNameResolver implements IndexNameResolver {
-
-        private final DateTimeFormatter indexTimeFormatter;
-
-        public DefaultIndexNameResolver(Settings settings) {
-            String indexTimeFormat = settings.get(INDEX_NAME_TIME_FORMAT_SETTING, DEFAULT_INDEX_NAME_TIME_FORMAT);
-            try {
-                indexTimeFormatter = DateTimeFormat.forPattern(indexTimeFormat).withZoneUTC();
-            } catch (IllegalArgumentException e) {
-                throw new SettingsException("invalid monitoring index name time format [" + indexTimeFormat + "] set for [" +
-                        settingFQN(INDEX_NAME_TIME_FORMAT_SETTING) + "]", e);
-            }
-        }
-
-        @Override
-        public String resolve(MarvelDoc doc) {
-            if (doc.getIndex() != null) {
-                return doc.getIndex();
-            }
-            return resolve(doc.getTimestamp());
-        }
-
-        @Override
-        public String resolve(long timestamp) {
-            return MarvelSettings.MONITORING_INDICES_PREFIX + String.valueOf(MarvelTemplateUtils.TEMPLATE_VERSION) + "-" +
-                    indexTimeFormatter.print(timestamp);
-        }
-
-        @Override
-        public String toString() {
-            return indexTimeFormatter.toString();
-        }
     }
 }

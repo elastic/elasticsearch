@@ -13,17 +13,23 @@ import java.util.Locale;
 
 public enum Scheme implements ToXContent {
 
-    HTTP("http"),
-    HTTPS("https");
+    HTTP("http", 80),
+    HTTPS("https", 443);
 
     private final String scheme;
+    private final int defaultPort;
 
-    Scheme(String scheme) {
+    Scheme(String scheme, int defaultPort) {
         this.scheme = scheme;
+        this.defaultPort = defaultPort;
     }
 
     public String scheme() {
         return scheme;
+    }
+
+    public int defaultPort() {
+        return defaultPort;
     }
 
     public static Scheme parse(String value) {

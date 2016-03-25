@@ -63,9 +63,8 @@ public class ShieldServerTransportService extends TransportService {
                                         AuthorizationService authzService,
                                         ShieldActionMapper actionMapper,
                                         ClientTransportFilter clientTransportFilter,
-                                        ShieldLicenseState licenseState,
-                                        NamedWriteableRegistry namedWriteableRegistry) {
-        super(settings, transport, threadPool, namedWriteableRegistry);
+                                        ShieldLicenseState licenseState) {
+        super(settings, transport, threadPool);
         this.authcService = authcService;
         this.authzService = authzService;
         this.actionMapper = actionMapper;

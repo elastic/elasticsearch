@@ -11,51 +11,40 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
- * Response when retrieving a role from the shield index. Does not contain a
- * real {@code Role} object, only a {@code RoleDescriptor}.
+ * A response for the {@code Get Roles} API that holds the retrieved role descriptors.
  */
 public class GetRolesResponse extends ActionResponse {
-    private List<RoleDescriptor> roles;
 
-    public GetRolesResponse() {
-        roles = Collections.emptyList();
-    }
+    private RoleDescriptor[] roles;
 
-    public GetRolesResponse(RoleDescriptor role) {
-        this.roles = Collections.singletonList(role);
-    }
-
-    public GetRolesResponse(List<RoleDescriptor> roles) {
+    public GetRolesResponse(RoleDescriptor... roles) {
         this.roles = roles;
     }
 
-    public List<RoleDescriptor> roles() {
+    public RoleDescriptor[] roles() {
         return roles;
     }
 
-    public boolean isExists() {
-        return roles != null && roles.size() > 0;
+    public boolean hasRoles() {
+        return roles.length > 0;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        roles = new ArrayList<>(size);
+        roles = new RoleDescriptor[size];
         for (int i = 0; i < size; i++) {
-            roles.add(RoleDescriptor.readFrom(in));
+            roles[i] = RoleDescriptor.readFrom(in);
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(roles.size());
+        out.writeVInt(roles.length);
         for (RoleDescriptor role : roles) {
             RoleDescriptor.writeTo(role, out);
         }

@@ -12,7 +12,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.io.IOException;
 
@@ -21,11 +21,11 @@ import java.io.IOException;
  */
 public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableIndexAction> {
 
-    private final ClientProxy client;
+    private final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
 
     @Inject
-    public IndexActionFactory(Settings settings, ClientProxy client) {
+    public IndexActionFactory(Settings settings, WatcherClientProxy client) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
         this.client = client;
         this.defaultTimeout = settings.getAsTime("watcher.actions.index.default_timeout", null);

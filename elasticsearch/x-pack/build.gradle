@@ -1,13 +1,13 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
 
+group 'org.elasticsearch.plugin'
+
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'xpack'
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
-  // FIXME we still can't be isolated due to shield custom realms
-  isolated false
 }
 
 ext.versions = [
@@ -53,7 +53,7 @@ dependencies {
 
 // we keep the source directories in the original structure of split plugins,
 // in order to facilitate backports to 2.x.  TODO: remove after 5.0 release
-for (String module : ['', 'license-plugin/', 'shield/', 'watcher/', 'marvel/']) {
+for (String module : ['', 'license-plugin/', 'shield/', 'watcher/', 'marvel/', 'graph/']) {
   sourceSets {
     main {
       java.srcDir("${module}src/main/java")
@@ -111,6 +111,9 @@ bundlePlugin {
   from(projectDir) {
     include 'LICENSE.txt'
     include 'NOTICE.txt'
+  }
+  from('bin/xpack') {
+    into 'bin'
   }
   from('shield/bin/xpack') {
     into 'bin'

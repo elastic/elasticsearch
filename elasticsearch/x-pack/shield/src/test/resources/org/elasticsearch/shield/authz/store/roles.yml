@@ -1,31 +1,38 @@
 role1:
-  cluster: ALL
+  cluster:
+    - ALL
   indices:
-    'idx1,idx2': READ
-    idx3: crud
+    - names:
+        - idx1
+        - idx2
+      privileges:
+        - READ
+    - names: idx3
+      privileges:
+        - READ
+        - WRITE
 
 role1.ab:
-  cluster: ALL
+  cluster:
+    - ALL
 
 role2:
-  cluster: ALL, MONITOR
+  cluster:
+    - ALL
+    - MONITOR
 
 role3:
   indices:
-    '/.*_.*/': READ, WRITE
-
-#dadfad
-role4:
-  cluster:
-  indices:
-    #adfldkkd
-    'idx2':
-    '': READ
-    'idx1': []
+    - names: '/.*_.*/'
+      privileges:
+        - READ
+        - WRITE
 
 # role with run_as permissions only
 role_run_as:
-  run_as: "user1,user2"
+  run_as:
+    - user1
+    - user2
 
 # role with more than run_as
 role_run_as1:
@@ -33,23 +40,31 @@ role_run_as1:
 
 role_fields:
   indices:
-    'field_idx':
-      privileges: READ
+    - names:
+      #23456789ohbh
+        - 'field_idx'
+      privileges:
+        - READ
       fields:
         - foo
         - boo
 
 role_query:
   indices:
-    'query_idx':
-      privileges: READ
+    - names:
+        - 'query_idx'
+      privileges:
+        - READ
       query: '{ "match_all": {} }'
 
 role_query_fields:
   indices:
-    'query_fields_idx':
-      privileges: READ
-      query: '{ "match_all": {} }'
+    - names:
+        - 'query_fields_idx'
+      privileges:
+        - READ
+      query:
+        match_all:
       fields:
         - foo
         - boo

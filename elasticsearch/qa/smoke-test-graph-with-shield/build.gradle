@@ -1,0 +1,38 @@
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+}
+
+// bring in graph rest test suite
+task copyGraphRestTests(type: Copy) {
+  into project.sourceSets.test.output.resourcesDir
+  from project(':x-plugins:elasticsearch:x-pack').sourceSets.test.resources.srcDirs
+  include 'rest-api-spec/test/graph/**'
+}
+
+integTest {
+  dependsOn copyGraphRestTests
+
+  cluster {
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    extraConfigFile 'xpack/roles.yml', 'roles.yml'
+    setupCommand 'setupTestAdminUser',
+                 'bin/xpack/esusers', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'admin'
+    setupCommand 'setupGraphExplorerUser',
+                 'bin/xpack/esusers', 'useradd', 'graph_explorer', '-p', 'changeme', '-r', 'graph_explorer'
+    setupCommand 'setupPowerlessUser',
+                 'bin/xpack/esusers', 'useradd', 'no_graph_explorer', '-p', 'changeme', '-r', 'no_graph_explorer'
+    waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://${node.httpUri()}",
+              dest: tmpFile.toString(),
+              username: 'test_admin',
+              password: 'changeme',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
+    }
+  }
+}
+

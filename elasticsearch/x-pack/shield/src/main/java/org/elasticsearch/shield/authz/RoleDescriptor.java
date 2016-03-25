@@ -7,19 +7,27 @@ package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.shield.support.Validation;
+import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -29,27 +37,30 @@ import java.util.List;
 public class RoleDescriptor implements ToXContent {
 
     private final String name;
-    private final String[] clusterPattern;
-    private final List<IndicesPrivileges> indicesPrivileges;
+    private final String[] clusterPrivileges;
+    private final IndicesPrivileges[] indicesPrivileges;
     private final String[] runAs;
 
-    public RoleDescriptor(String name, String[] clusterPattern,
-                          List<IndicesPrivileges> indicesPrivileges, String[] runAs) {
+    public RoleDescriptor(String name,
+                          @Nullable String[] clusterPrivileges,
+                          @Nullable IndicesPrivileges[] indicesPrivileges,
+                          @Nullable String[] runAs) {
+
         this.name = name;
-        this.clusterPattern = clusterPattern;
-        this.indicesPrivileges = indicesPrivileges;
-        this.runAs = runAs;
+        this.clusterPrivileges = clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY;
+        this.indicesPrivileges = indicesPrivileges != null ? indicesPrivileges : IndicesPrivileges.NONE;
+        this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
     }
 
     public String getName() {
         return this.name;
     }
 
-    public String[] getClusterPattern() {
-        return this.clusterPattern;
+    public String[] getClusterPrivileges() {
+        return this.clusterPrivileges;
     }
 
-    public List<IndicesPrivileges> getIndicesPrivileges() {
+    public IndicesPrivileges[] getIndicesPrivileges() {
         return this.indicesPrivileges;
     }
 
@@ -57,152 +68,11 @@ public class RoleDescriptor implements ToXContent {
         return this.runAs;
     }
 
-    private static void validateIndexName(String idxName) throws ElasticsearchParseException {
-        if (idxName == null) {
-            return;
-        }
-
-        if (idxName.indexOf(",") != -1) {
-            throw new ElasticsearchParseException("index name [" + idxName + "] may not contain ','");
-        }
-    }
-
-    private static RoleDescriptor.IndicesPrivileges parseIndex(XContentParser parser) throws Exception {
-        XContentParser.Token token;
-        String currentFieldName = null;
-        String[] idxNames = null;
-        String query = null;
-        List<String> privs = new ArrayList<>();
-        List<String> fields = new ArrayList<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if ("names".equals(currentFieldName)) {
-                    String idxName = parser.text();
-                    validateIndexName(idxName);
-                    idxNames = new String[]{idxName};
-                } else if ("query".equals(currentFieldName)) {
-                    query = parser.text();
-                } else {
-                    throw new ElasticsearchParseException("unexpected field in add role request [{}]", currentFieldName);
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                // expected
-            } else if (token == XContentParser.Token.START_ARRAY && "names".equals(currentFieldName)) {
-                List<String> idxNameList = new ArrayList<>();
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    if (token.isValue()) {
-                        String idxName = parser.text();
-                        validateIndexName(idxName);
-                        idxNameList.add(idxName);
-                    } else {
-                        throw new ElasticsearchParseException("unexpected object while parsing index names [{}]", token);
-                    }
-                }
-                idxNames = idxNameList.toArray(Strings.EMPTY_ARRAY);
-            } else if (token == XContentParser.Token.START_ARRAY && "privileges".equals(currentFieldName)) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    if (token.isValue()) {
-                        privs.add(parser.text());
-                    } else {
-                        throw new ElasticsearchParseException("unexpected object while parsing index privileges [{}]", token);
-                    }
-                }
-            } else if (token == XContentParser.Token.START_ARRAY && "fields".equals(currentFieldName)) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    if (token.isValue()) {
-                        fields.add(parser.text());
-                    } else {
-                        throw new ElasticsearchParseException("unexpected object while parsing index fields [{}]", token);
-                    }
-                }
-            } else {
-                throw new ElasticsearchParseException("failed to parse add role request indices, got value with wrong type [{}]",
-                        currentFieldName);
-            }
-        }
-        if (idxNames == null || idxNames.length == 0) {
-            throw new ElasticsearchParseException("'name' is a required field for index permissions");
-        }
-        if (privs.isEmpty()) {
-            throw new ElasticsearchParseException("'privileges' is a required field for index permissions");
-        }
-        return RoleDescriptor.IndicesPrivileges.builder()
-                .indices(idxNames)
-                .privileges(privs.toArray(Strings.EMPTY_ARRAY))
-                .fields(fields.isEmpty() ? null : fields.toArray(Strings.EMPTY_ARRAY))
-                .query(query == null ? null : new BytesArray(query))
-                .build();
-    }
-
-    private static List<RoleDescriptor.IndicesPrivileges> parseIndices(XContentParser parser) throws Exception {
-        XContentParser.Token token;
-        List<RoleDescriptor.IndicesPrivileges> tempIndices = new ArrayList<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                tempIndices.add(parseIndex(parser));
-            } else {
-                throw new ElasticsearchParseException("unexpected type parsing index sub object [{}]", token);
-            }
-        }
-        return tempIndices;
-    }
-
-    public static RoleDescriptor source(BytesReference source) throws Exception {
-        try (XContentParser parser = XContentHelper.createParser(source)) {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            String roleName = null;
-            List<IndicesPrivileges> indicesPrivileges = new ArrayList<>();
-            List<String> runAsUsers = new ArrayList<>();
-            List<String> tempClusterPriv = new ArrayList<>();
-            parser.nextToken(); // remove object wrapping
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if ("name".equals(currentFieldName)) {
-                        roleName = parser.text();
-                    } else {
-                        throw new ElasticsearchParseException("unexpected field in add role request [{}]", currentFieldName);
-                    }
-                } else if (token == XContentParser.Token.START_ARRAY && "indices".equals(currentFieldName)) {
-                    indicesPrivileges = parseIndices(parser);
-                } else if (token == XContentParser.Token.START_ARRAY && "run_as".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token.isValue()) {
-                            runAsUsers.add(parser.text());
-                        } else {
-                            throw new ElasticsearchParseException("unexpected value parsing run_as users [{}]", token);
-                        }
-                    }
-                } else if (token == XContentParser.Token.START_ARRAY && "cluster".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token.isValue()) {
-                            tempClusterPriv.add(parser.text());
-                        } else {
-                            throw new ElasticsearchParseException("unexpected value parsing cluster privileges [{}]", token);
-                        }
-                    }
-                } else {
-                    throw new ElasticsearchParseException("failed to parse add role request, got value with wrong type [{}]",
-                            currentFieldName);
-                }
-            }
-            if (roleName == null) {
-                throw new ElasticsearchParseException("field [name] required for role description");
-            }
-            return new RoleDescriptor(roleName, tempClusterPriv.toArray(Strings.EMPTY_ARRAY),
-                    indicesPrivileges, runAsUsers.toArray(Strings.EMPTY_ARRAY));
-        }
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("Role[");
         sb.append("name=").append(name);
-        sb.append(", cluster=[").append(Strings.arrayToCommaDelimitedString(clusterPattern));
+        sb.append(", cluster=[").append(Strings.arrayToCommaDelimitedString(clusterPrivileges));
         sb.append("], indicesPrivileges=[");
         for (IndicesPrivileges group : indicesPrivileges) {
             sb.append(group.toString()).append(",");
@@ -213,74 +83,183 @@ public class RoleDescriptor implements ToXContent {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RoleDescriptor that = (RoleDescriptor) o;
+
+        if (!name.equals(that.name)) return false;
+        if (!Arrays.equals(clusterPrivileges, that.clusterPrivileges)) return false;
+        if (!Arrays.equals(indicesPrivileges, that.indicesPrivileges)) return false;
+        return Arrays.equals(runAs, that.runAs);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = name.hashCode();
+        result = 31 * result + Arrays.hashCode(clusterPrivileges);
+        result = 31 * result + Arrays.hashCode(indicesPrivileges);
+        result = 31 * result + Arrays.hashCode(runAs);
+        return result;
+    }
+
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("name", name);
-        builder.field("cluster", clusterPattern);
-        builder.field("indices", indicesPrivileges);
+        builder.field("cluster", (Object[]) clusterPrivileges);
+        builder.field("indices", (Object[]) indicesPrivileges);
         if (runAs != null) {
             builder.field("run_as", runAs);
         }
-        builder.endObject();
-        return builder;
+        return builder.endObject();
     }
 
     public static RoleDescriptor readFrom(StreamInput in) throws IOException {
         String name = in.readString();
-        String[] clusterPattern = in.readStringArray();
+        String[] clusterPrivileges = in.readStringArray();
         int size = in.readVInt();
-        List<IndicesPrivileges> indicesPrivileges = new ArrayList<>(size);
+        IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[size];
         for (int i = 0; i < size; i++) {
-            IndicesPrivileges group = new IndicesPrivileges();
-            group.readFrom(in);
-            indicesPrivileges.add(group);
+            indicesPrivileges[i] = IndicesPrivileges.createFrom(in);
         }
         String[] runAs = in.readStringArray();
-        return new RoleDescriptor(name, clusterPattern, indicesPrivileges, runAs);
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAs);
     }
 
     public static void writeTo(RoleDescriptor descriptor, StreamOutput out) throws IOException {
-        out.writeString(descriptor.getName());
-        out.writeStringArray(descriptor.getClusterPattern());
-        out.writeVInt(descriptor.getIndicesPrivileges().size());
-        for (IndicesPrivileges group : descriptor.getIndicesPrivileges()) {
+        out.writeString(descriptor.name);
+        out.writeStringArray(descriptor.clusterPrivileges);
+        out.writeVInt(descriptor.indicesPrivileges.length);
+        for (IndicesPrivileges group : descriptor.indicesPrivileges) {
             group.writeTo(out);
         }
-        out.writeStringArray(descriptor.getRunAs());
+        out.writeStringArray(descriptor.runAs);
     }
 
-    public static class IndicesPrivilegesBuilder {
-        private String[] privileges;
-        private String[] indices;
-        private String[] fields;
-        private BytesReference query;
+    public static RoleDescriptor parse(String name, BytesReference source) throws IOException {
+        assert name != null;
+        try (XContentParser parser = XContentHelper.createParser(source)) {
+            return parse(name, parser);
+        }
+    }
 
-        IndicesPrivilegesBuilder() {
+    public static RoleDescriptor parse(String name, XContentParser parser) throws IOException {
+        // validate name
+        Validation.Error validationError = Validation.Roles.validateRoleName(name);
+        if (validationError != null) {
+            ValidationException ve = new ValidationException();
+            ve.addValidationError(validationError.toString());
+            throw ve;
         }
 
-        public IndicesPrivilegesBuilder indices(String[] indices) {
-            this.indices = indices;
-            return this;
+        // advance to the START_OBJECT token if needed
+        XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new ElasticsearchParseException("failed to parse role [{}]. expected an object but found [{}] instead", name, token);
         }
+        String currentFieldName = null;
+        IndicesPrivileges[] indicesPrivileges = null;
+        String[] clusterPrivileges = null;
+        String[] runAsUsers = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.INDICES)) {
+                indicesPrivileges = parseIndices(name, parser);
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.RUN_AS)) {
+                runAsUsers = readStringArray(name, parser, true);
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CLUSTER)) {
+                clusterPrivileges = readStringArray(name, parser, true);
+            } else {
+                throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
+            }
+        }
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAsUsers);
+    }
 
-        public IndicesPrivilegesBuilder privileges(String[] privileges) {
-            this.privileges = privileges;
-            return this;
+    private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {
+        try {
+            return XContentUtils.readStringArray(parser, allowNull);
+        } catch (ElasticsearchParseException e) {
+            // re-wrap in order to add the role name
+            throw new ElasticsearchParseException("failed to parse role [{}]", e, roleName);
         }
+    }
 
-        public IndicesPrivilegesBuilder fields(@Nullable String[] fields) {
-            this.fields = fields;
-            return this;
+    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] value " +
+                    "to be an array, but found [{}] instead", roleName, parser.currentName(), parser.currentToken());
         }
+        List<RoleDescriptor.IndicesPrivileges> privileges = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            privileges.add(parseIndex(roleName, parser));
+        }
+        return privileges.toArray(new IndicesPrivileges[privileges.size()]);
+    }
 
-        public IndicesPrivilegesBuilder query(@Nullable BytesReference query) {
-            this.query = query;
-            return this;
+    private static RoleDescriptor.IndicesPrivileges parseIndex(String roleName, XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] value to " +
+                    "be an array of objects, but found an array element of type [{}]", roleName, parser.currentName(), token);
         }
-
-        public IndicesPrivileges build() {
-            return new IndicesPrivileges(privileges, indices, fields, query);
+        String currentFieldName = null;
+        String[] names = null;
+        String query = null;
+        String[] privileges = null;
+        String[] fields = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.NAMES)) {
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    names = new String[] { parser.text() };
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    names = readStringArray(roleName, parser, false);
+                    if (names.length == 0) {
+                        throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. [{}] cannot be an empty " +
+                                "array", roleName, currentFieldName);
+                    }
+                } else {
+                    throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
+                            "value to be a string or an array of strings, but found [{}] instead", roleName, currentFieldName, token);
+                }
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.QUERY)) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    XContentBuilder builder = JsonXContent.contentBuilder();
+                    XContentHelper.copyCurrentStructure(builder.generator(), parser);
+                    query = builder.string();
+                } else {
+                    query = parser.textOrNull();
+                }
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.PRIVILEGES)) {
+                privileges = readStringArray(roleName, parser, true);
+                if (names.length == 0) {
+                    throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. [{}] cannot be an empty " +
+                            "array", roleName, currentFieldName);
+                }
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELDS)) {
+                fields = readStringArray(roleName, parser, true);
+            } else {
+                throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. unexpected field [{}]",
+                        roleName, currentFieldName);
+            }
         }
+        if (names == null) {
+            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. missing required [{}] field",
+                    roleName, Fields.NAMES.getPreferredName());
+        }
+        if (privileges == null) {
+            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. missing required [{}] field",
+                    roleName, Fields.PRIVILEGES.getPreferredName());
+        }
+        return RoleDescriptor.IndicesPrivileges.builder()
+                .indices(names)
+                .privileges(privileges)
+                .fields(fields)
+                .query(query)
+                .build();
     }
 
     /**
@@ -289,32 +268,26 @@ public class RoleDescriptor implements ToXContent {
      */
     public static class IndicesPrivileges implements ToXContent, Streamable {
 
-        private String[] privileges;
+        private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
+
         private String[] indices;
+        private String[] privileges;
         private String[] fields;
         private BytesReference query;
 
         private IndicesPrivileges() {
         }
 
-        IndicesPrivileges(String[] privileges, String[] indices,
-                          @Nullable String[] fields, @Nullable BytesReference query) {
-            this.privileges = privileges;
-            this.indices = indices;
-            this.fields = fields;
-            this.query = query;
-        }
-
-        public static IndicesPrivilegesBuilder builder() {
-            return new IndicesPrivilegesBuilder();
-        }
-
-        public String[] getPrivileges() {
-            return this.privileges;
+        public static Builder builder() {
+            return new Builder();
         }
 
         public String[] getIndices() {
             return this.indices;
+        }
+
+        public String[] getPrivileges() {
+            return this.privileges;
         }
 
         @Nullable
@@ -330,8 +303,8 @@ public class RoleDescriptor implements ToXContent {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder("IndicesPrivileges[");
-            sb.append("privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
-            sb.append("], indices=[").append(Strings.arrayToCommaDelimitedString(indices));
+            sb.append("indices=[").append(Strings.arrayToCommaDelimitedString(indices));
+            sb.append("], privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
             sb.append("], fields=[").append(Strings.arrayToCommaDelimitedString(fields));
             if (query != null) {
                 sb.append("], query=").append(query.toUtf8());
@@ -341,8 +314,30 @@ public class RoleDescriptor implements ToXContent {
         }
 
         @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            IndicesPrivileges that = (IndicesPrivileges) o;
+
+            if (!Arrays.equals(indices, that.indices)) return false;
+            if (!Arrays.equals(privileges, that.privileges)) return false;
+            if (!Arrays.equals(fields, that.fields)) return false;
+            return !(query != null ? !query.equals(that.query) : that.query != null);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Arrays.hashCode(indices);
+            result = 31 * result + Arrays.hashCode(privileges);
+            result = 31 * result + Arrays.hashCode(fields);
+            result = 31 * result + (query != null ? query.hashCode() : 0);
+            return result;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(); // start
+            builder.startObject();
             builder.array("names", indices);
             builder.array("privileges", privileges);
             if (fields != null) {
@@ -351,11 +346,10 @@ public class RoleDescriptor implements ToXContent {
             if (query != null) {
                 builder.field("query", query.toUtf8());
             }
-            builder.endObject(); // end start
-            return builder;
+            return builder.endObject();
         }
 
-        public static IndicesPrivileges readIndicesPrivileges(StreamInput in) throws IOException {
+        public static IndicesPrivileges createFrom(StreamInput in) throws IOException {
             IndicesPrivileges ip = new IndicesPrivileges();
             ip.readFrom(in);
             return ip;
@@ -363,9 +357,9 @@ public class RoleDescriptor implements ToXContent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            this.privileges = in.readStringArray();
             this.indices = in.readStringArray();
             this.fields = in.readOptionalStringArray();
+            this.privileges = in.readStringArray();
             if (in.readBoolean()) {
                 this.query = new BytesArray(in.readByteArray());
             }
@@ -373,9 +367,9 @@ public class RoleDescriptor implements ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(privileges);
             out.writeStringArray(indices);
             out.writeOptionalStringArray(fields);
+            out.writeStringArray(privileges);
             if (query != null) {
                 out.writeBoolean(true);
                 out.writeByteArray(query.array());
@@ -383,5 +377,57 @@ public class RoleDescriptor implements ToXContent {
                 out.writeBoolean(false);
             }
         }
+
+        public static class Builder {
+
+            private IndicesPrivileges indicesPrivileges = new IndicesPrivileges();
+
+            private Builder() {
+            }
+
+            public Builder indices(String... indices) {
+                indicesPrivileges.indices = indices;
+                return this;
+            }
+
+            public Builder privileges(String... privileges) {
+                indicesPrivileges.privileges = privileges;
+                return this;
+            }
+
+            public Builder fields(@Nullable String... fields) {
+                indicesPrivileges.fields = fields;
+                return this;
+            }
+
+            public Builder query(@Nullable String query) {
+                return query(query == null ? null : new BytesArray(query));
+            }
+
+            public Builder query(@Nullable BytesReference query) {
+                indicesPrivileges.query = query;
+                return this;
+            }
+
+            public IndicesPrivileges build() {
+                if (indicesPrivileges.indices == null || indicesPrivileges.indices.length == 0) {
+                    throw new IllegalArgumentException("indices privileges must refer to at least one index name or index name pattern");
+                }
+                if (indicesPrivileges.privileges == null || indicesPrivileges.privileges.length == 0) {
+                    throw new IllegalArgumentException("indices privileges must define at least one privilege");
+                }
+                return indicesPrivileges;
+            }
+        }
+    }
+
+    public interface Fields {
+        ParseField CLUSTER = new ParseField("cluster");
+        ParseField INDICES = new ParseField("indices");
+        ParseField RUN_AS = new ParseField("run_as");
+        ParseField NAMES = new ParseField("names");
+        ParseField QUERY = new ParseField("query");
+        ParseField PRIVILEGES = new ParseField("privileges");
+        ParseField FIELDS = new ParseField("fields");
     }
 }

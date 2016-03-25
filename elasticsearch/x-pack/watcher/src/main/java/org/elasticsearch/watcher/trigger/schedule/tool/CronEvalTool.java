@@ -5,109 +5,70 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.tool;
 
-import org.apache.commons.cli.CommandLine;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolConfig;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import java.util.Arrays;
+import java.util.List;
+
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.watcher.trigger.schedule.Cron;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
-import static org.elasticsearch.common.cli.CliToolConfig.config;
-
-/**
- *
- */
-public class CronEvalTool extends CliTool {
-
-    private static final CliToolConfig CONFIG = config("croneval", CronEvalTool.class)
-            .cmds(Eval.CMD)
-            .build();
+public class CronEvalTool extends Command {
 
     public static void main(String[] args) throws Exception {
-        ExitStatus exitStatus = new CronEvalTool().execute(args);
-        exit(exitStatus.status());
+        exit(new CronEvalTool().main(args, Terminal.DEFAULT));
     }
 
-    @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
-    private static void exit(int status) {
-        System.exit(status);
-    }
+    private static final DateTimeFormatter formatter = DateTimeFormat.forPattern("EEE, d MMM yyyy HH:mm:ss");
 
-    public CronEvalTool() {
-        super(CONFIG);
+    private final OptionSpec<String> countOption;
+    private final OptionSpec<String> arguments;
+
+    CronEvalTool() {
+        super("Validates and evaluates a cron expression");
+        this.countOption = parser.acceptsAll(Arrays.asList("c", "count"),
+            "The number of future times this expression will be triggered")
+            // TODO: change this to ofType(Integer.class) with jopt-simple 5.0
+            // before then it will cause a security exception in tests
+            .withRequiredArg().defaultsTo("10");
+        this.arguments = parser.nonOptions("expression");
     }
 
     @Override
-    protected Command parse(String s, CommandLine cli) throws Exception {
-        return Eval.parse(terminal, cli);
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        int count = Integer.parseInt(countOption.value(options));
+        List<String> args = arguments.values(options);
+        if (args.size() != 1) {
+            throw new UserError(ExitCodes.USAGE, "expecting a single argument that is the cron expression to evaluate");
+        }
+        execute(terminal, args.get(0), count);
     }
 
-    static class Eval extends Command {
+    void execute(Terminal terminal, String expression, int count) throws Exception {
+        Cron.validate(expression);
+        terminal.println("Valid!");
 
-        private static final CliToolConfig.Cmd CMD = cmd("eval", Eval.class)
-                .options(option("c", "count").hasArg(false).required(false))
-                .build();
+        DateTime date = DateTime.now(DateTimeZone.UTC);
+        terminal.println("Now is [" + formatter.print(date) + "]");
+        terminal.println("Here are the next " + count + " times this cron expression will trigger:");
 
-        private static final DateTimeFormatter formatter = DateTimeFormat.forPattern("EEE, d MMM yyyy HH:mm:ss");
-
-        final String expression;
-        final int count;
-
-        Eval(Terminal terminal, String expression, int count) {
-            super(terminal);
-            this.expression = expression;
-            this.count = count;
-        }
-
-        public static Command parse(Terminal terminal, CommandLine cli) {
-            String[] args = cli.getArgs();
-            if (args.length != 1) {
-                return exitCmd(ExitStatus.USAGE, terminal, "expecting a single argument that is the cron expression to evaluate");
+        Cron cron = new Cron(expression);
+        long time = date.getMillis();
+        for (int i = 0; i < count; i++) {
+            long prevTime = time;
+            time = cron.getNextValidTimeAfter(time);
+            if (time < 0) {
+                throw new UserError(ExitCodes.OK, (i + 1) + ".\t Could not compute future times since ["
+                    + formatter.print(prevTime) + "] " + "(perhaps the cron expression only points to times in the past?)");
             }
-            String count = cli.getOptionValue("count", "10");
-            try {
-                return new Eval(terminal, args[0], Integer.parseInt(count));
-            } catch (NumberFormatException nfe) {
-                return exitCmd(ExitStatus.USAGE, terminal, "passed in count [%s] cannot be converted to a number", count);
-            }
-        }
-
-        @Override
-        public ExitStatus execute(Settings settings, Environment env) throws Exception {
-
-            // when invalid, a parse expression will be thrown with a descriptive error message
-            // the cli infra handles such exceptions and hows the exceptions' message
-            Cron.validate(expression);
-
-            terminal.println("Valid!");
-
-            DateTime date = DateTime.now(DateTimeZone.UTC);
-
-            terminal.println("Now is [" + formatter.print(date) + "]");
-            terminal.println("Here are the next " + count + " times this cron expression will trigger:");
-
-            Cron cron = new Cron(expression);
-
-            long time = date.getMillis();
-            for (int i = 0; i < count; i++) {
-                long prevTime = time;
-                time = cron.getNextValidTimeAfter(time);
-                if (time < 0) {
-                    terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + (i + 1) + ".\t Could not compute future times since ["
-                            + formatter.print(prevTime) + "] " + "(perhaps the cron expression only points to times in the past?)");
-                    return ExitStatus.OK;
-                }
-                terminal.println((i+1) + ".\t" + formatter.print(time));
-            }
-            return ExitStatus.OK;
+            terminal.println((i+1) + ".\t" + formatter.print(time));
         }
     }
 }

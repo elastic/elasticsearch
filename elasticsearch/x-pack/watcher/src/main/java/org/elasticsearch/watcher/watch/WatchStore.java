@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -49,7 +49,7 @@ public class WatchStore extends AbstractComponent {
     public static final String INDEX = ".watches";
     public static final String DOC_TYPE = "watch";
 
-    private final ClientProxy client;
+    private final WatcherClientProxy client;
     private final Watch.Parser watchParser;
 
     private final ConcurrentMap<String, Watch> watches;
@@ -59,7 +59,7 @@ public class WatchStore extends AbstractComponent {
     private final TimeValue scrollTimeout;
 
     @Inject
-    public WatchStore(Settings settings, ClientProxy client, Watch.Parser watchParser) {
+    public WatchStore(Settings settings, WatcherClientProxy client, Watch.Parser watchParser) {
         super(settings);
         this.client = client;
         this.watchParser = watchParser;

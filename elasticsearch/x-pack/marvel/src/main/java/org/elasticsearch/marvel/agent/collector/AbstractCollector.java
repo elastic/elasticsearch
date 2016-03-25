@@ -5,43 +5,36 @@
  */
 package org.elasticsearch.marvel.agent.collector;
 
-
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
-import org.elasticsearch.marvel.agent.exporter.IndexNameResolver;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoredSystem;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.Collection;
-import java.util.Objects;
 
 public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T> implements Collector<T> {
 
     private final String name;
 
     protected final ClusterService clusterService;
-    protected final DiscoveryService discoveryService;
     protected final MarvelSettings marvelSettings;
     protected final MarvelLicensee licensee;
-    protected final IndexNameResolver dataIndexNameResolver;
 
     @Inject
-    public AbstractCollector(Settings settings, String name, ClusterService clusterService, DiscoveryService discoveryService,
+    public AbstractCollector(Settings settings, String name, ClusterService clusterService,
                              MarvelSettings marvelSettings, MarvelLicensee licensee) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;
-        this.discoveryService = discoveryService;
         this.marvelSettings = marvelSettings;
         this.licensee = licensee;
-        this.dataIndexNameResolver = new DataIndexNameResolver(MarvelTemplateUtils.TEMPLATE_VERSION);
     }
 
     @Override
@@ -80,21 +73,21 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     }
 
     @Override
-    public Collection<MarvelDoc> collect() {
+    public Collection<MonitoringDoc> collect() {
         try {
             if (shouldCollect()) {
                 logger.trace("collector [{}] - collecting data...", name());
                 return doCollect();
             }
         } catch (ElasticsearchTimeoutException e) {
-            logger.error("collector [{}] timed out when collecting data");
+            logger.error("collector [{}] timed out when collecting data", name());
         } catch (Exception e) {
             logger.error("collector [{}] - failed collecting data", e, name());
         }
         return null;
     }
 
-    protected abstract Collection<MarvelDoc> doCollect() throws Exception;
+    protected abstract Collection<MonitoringDoc> doCollect() throws Exception;
 
     @Override
     public T stop() {
@@ -120,30 +113,18 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
         return clusterService.state().metaData().clusterUUID();
     }
 
+
     protected DiscoveryNode localNode() {
-        return discoveryService.localNode();
+        return clusterService.localNode();
     }
 
-    /**
-     * Resolves monitoring's data index name
-     */
-    public class DataIndexNameResolver implements IndexNameResolver {
+    protected String monitoringId() {
+        // Collectors always collects data for Elasticsearch
+        return MonitoredSystem.ES.getSystem();
+    }
 
-        private final String index;
-
-        DataIndexNameResolver(Integer version) {
-            Objects.requireNonNull(version, "index version cannot be null");
-            this.index = MarvelSettings.MONITORING_DATA_INDEX_PREFIX + String.valueOf(version);
-        }
-
-        @Override
-        public String resolve(MarvelDoc doc) {
-            return index;
-        }
-
-        @Override
-        public String resolve(long timestamp) {
-            return index;
-        }
+    protected String monitoringVersion() {
+        // Collectors always collects data for the current version of Elasticsearch
+        return Version.CURRENT.toString();
     }
 }

@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.marvel.agent.collector.shards;
 
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
-import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoredSystem;
+import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.Collection;
@@ -29,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ShardsCollectorTests extends AbstractCollectorTestCase {
 
     public void testShardsCollectorNoIndices() throws Exception {
-        Collection<MarvelDoc> results = newShardsCollector().doCollect();
+        Collection<MonitoringDoc> results = newShardsCollector().doCollect();
         assertThat(results, hasSize(0));
     }
 
@@ -53,7 +54,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
 
         assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
-        Collection<MarvelDoc> results = newShardsCollector().doCollect();
+        Collection<MonitoringDoc> results = newShardsCollector().doCollect();
         assertThat(results, hasSize(getNumShards("test-shards").totalNumShards));
 
         final ClusterState clusterState = client().admin().cluster().prepareState().setMetaData(true).get().getState();
@@ -61,16 +62,15 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         int primaries = 0;
         int replicas = 0;
 
-        for (MarvelDoc marvelDoc : results) {
-            assertNotNull(marvelDoc);
-            assertThat(marvelDoc, instanceOf(ShardMarvelDoc.class));
+        for (MonitoringDoc monitoringDoc : results) {
+            assertNotNull(monitoringDoc);
+            assertThat(monitoringDoc, instanceOf(ShardMonitoringDoc.class));
 
-            ShardMarvelDoc shardMarvelDoc = (ShardMarvelDoc) marvelDoc;
+            ShardMonitoringDoc shardMarvelDoc = (ShardMonitoringDoc) monitoringDoc;
+            assertThat(shardMarvelDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
+            assertThat(shardMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
             assertThat(shardMarvelDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
             assertThat(shardMarvelDoc.getTimestamp(), greaterThan(0L));
-            assertThat(shardMarvelDoc.getType(), equalTo(ShardsCollector.TYPE));
-            assertThat(shardMarvelDoc.getId(),
-                    equalTo(ShardsCollector.id(clusterState.stateUUID(), ((ShardMarvelDoc) marvelDoc).getShardRouting())));
             assertThat(shardMarvelDoc.getSourceNode(), notNullValue());
             assertThat(shardMarvelDoc.getClusterStateUUID(), equalTo(clusterState.stateUUID()));
 
@@ -118,31 +118,31 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
             totalShards += getNumShards(index).totalNumShards;
         }
 
-        Collection<MarvelDoc> results = newShardsCollector().doCollect();
+        Collection<MonitoringDoc> results = newShardsCollector().doCollect();
         assertThat(results, hasSize(totalShards));
 
         final ClusterState clusterState = client().admin().cluster().prepareState().setMetaData(true).get().getState();
 
-        for (MarvelDoc marvelDoc : results) {
-            assertNotNull(marvelDoc);
-            assertThat(marvelDoc, instanceOf(ShardMarvelDoc.class));
+        for (MonitoringDoc doc : results) {
+            assertNotNull(doc);
+            assertThat(doc, instanceOf(ShardMonitoringDoc.class));
 
-            ShardMarvelDoc shardMarvelDoc = (ShardMarvelDoc) marvelDoc;
-            assertThat(shardMarvelDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
-            assertThat(shardMarvelDoc.getTimestamp(), greaterThan(0L));
-            assertThat(shardMarvelDoc.getType(), equalTo(ShardsCollector.TYPE));
-            assertThat(shardMarvelDoc.getId(),
-                    equalTo(ShardsCollector.id(clusterState.stateUUID(), ((ShardMarvelDoc) marvelDoc).getShardRouting())));
-            assertThat(shardMarvelDoc.getClusterStateUUID(), equalTo(clusterState.stateUUID()));
+            ShardMonitoringDoc shardDoc = (ShardMonitoringDoc) doc;
+            assertThat(shardDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
+            assertThat(shardDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
+            assertThat(shardDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
+            assertThat(shardDoc.getTimestamp(), greaterThan(0L));
+            assertThat(shardDoc.getSourceNode(), notNullValue());
+            assertThat(shardDoc.getClusterStateUUID(), equalTo(clusterState.stateUUID()));
 
-            ShardRouting shardRouting = shardMarvelDoc.getShardRouting();
+            ShardRouting shardRouting = shardDoc.getShardRouting();
             assertNotNull(shardRouting);
         }
 
         // Checks that a correct number of ShardMarvelDoc documents has been created for each index
         int[] shards = new int[nbIndices];
-        for (MarvelDoc marvelDoc : results) {
-            ShardRouting routing = ((ShardMarvelDoc) marvelDoc).getShardRouting();
+        for (MonitoringDoc monitoringDoc : results) {
+            ShardRouting routing = ((ShardMonitoringDoc) monitoringDoc).getShardRouting();
             int index = Integer.parseInt(routing.getIndexName().substring(indexPrefix.length()));
             shards[index]++;
         }
@@ -201,7 +201,6 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         assertNotNull(nodeId);
         return new ShardsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId));
     }

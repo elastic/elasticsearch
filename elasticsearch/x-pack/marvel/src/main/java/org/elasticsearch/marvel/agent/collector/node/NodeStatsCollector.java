@@ -11,16 +11,15 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.marvel.agent.collector.AbstractCollector;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.collector.AbstractCollector;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
 
@@ -31,12 +30,11 @@ import java.util.Collections;
  * Collector for nodes statistics.
  * <p>
  * This collector runs on every non-client node and collect
- * a {@link NodeStatsMarvelDoc} document for each node of the cluster.
+ * a {@link NodeStatsMonitoringDoc} document for each node of the cluster.
  */
 public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
     public static final String NAME = "node-stats-collector";
-    public static final String TYPE = "node_stats";
 
     private final Client client;
     private final NodeEnvironment nodeEnvironment;
@@ -45,9 +43,9 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
     @Inject
     public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
-                              MarvelLicensee marvelLicensee, InternalClient client, DiscoveryService discoveryService,
+                              MarvelLicensee marvelLicensee, InternalClient client,
                               NodeEnvironment nodeEnvironment, DiskThresholdDecider diskThresholdDecider) {
-        super(settings, NAME, clusterService, discoveryService, marvelSettings, marvelLicensee);
+        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.client = client;
         this.nodeEnvironment = nodeEnvironment;
         this.diskThresholdDecider = diskThresholdDecider;
@@ -65,7 +63,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
     }
 
     @Override
-    protected Collection<MarvelDoc> doCollect() throws Exception {
+    protected Collection<MonitoringDoc> doCollect() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("_local");
         request.indices(CommonStatsFlags.ALL);
         request.os(true);
@@ -82,18 +80,17 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
         DiscoveryNode sourceNode = localNode();
 
-        NodeStatsMarvelDoc nodeStatsDoc = new NodeStatsMarvelDoc();
+        NodeStatsMonitoringDoc nodeStatsDoc = new NodeStatsMonitoringDoc(monitoringId(), monitoringVersion());
         nodeStatsDoc.setClusterUUID(clusterUUID());
-        nodeStatsDoc.setType(TYPE);
         nodeStatsDoc.setTimestamp(System.currentTimeMillis());
         nodeStatsDoc.setSourceNode(sourceNode);
-        nodeStatsDoc.setNodeId(sourceNode.getId());
+        nodeStatsDoc.setNodeId(sourceNode.id());
         nodeStatsDoc.setNodeMaster(isLocalNodeMaster());
         nodeStatsDoc.setNodeStats(nodeStats);
         nodeStatsDoc.setMlockall(BootstrapInfo.isMemoryLocked());
         nodeStatsDoc.setDiskThresholdWaterMarkHigh(diskThresholdWatermarkHigh);
         nodeStatsDoc.setDiskThresholdDeciderEnabled(diskThresholdDeciderEnabled);
 
-        return Collections.singletonList((MarvelDoc) nodeStatsDoc);
+        return Collections.singletonList(nodeStatsDoc);
     }
 }

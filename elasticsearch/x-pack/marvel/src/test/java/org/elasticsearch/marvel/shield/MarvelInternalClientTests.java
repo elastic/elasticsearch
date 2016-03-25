@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.InternalClient;
@@ -45,8 +45,8 @@ public class MarvelInternalClientTests extends MarvelIntegTestCase {
         assertAccessIsAllowed(internalClient.admin().indices().prepareRecoveries());
         assertAccessIsAllowed(internalClient.admin().indices().prepareStats());
 
-        assertAccessIsAllowed(internalClient.admin().indices().prepareDelete(MarvelSettings.MONITORING_INDICES_PREFIX));
-        assertAccessIsAllowed(internalClient.admin().indices().prepareCreate(MarvelSettings.MONITORING_INDICES_PREFIX + "test"));
+        assertAccessIsAllowed(internalClient.admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
+        assertAccessIsAllowed(internalClient.admin().indices().prepareCreate(MONITORING_INDICES_PREFIX + "test"));
 
         assertAccessIsAllowed(internalClient.admin().indices().preparePutTemplate("foo")
                 .setSource(MarvelTemplateUtils.loadTimestampedIndexTemplate()));

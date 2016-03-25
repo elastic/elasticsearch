@@ -13,15 +13,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.shield.Shield;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
@@ -38,6 +37,7 @@ import org.elasticsearch.watcher.execution.ExecutionModule;
 import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.input.InputModule;
+import org.elasticsearch.watcher.input.chain.ChainInputFactory;
 import org.elasticsearch.watcher.license.LicenseModule;
 import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.rest.action.RestAckWatchAction;
@@ -54,14 +54,14 @@ import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateCo
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpClientModule;
-import org.elasticsearch.watcher.support.init.InitializingModule;
-import org.elasticsearch.watcher.support.init.InitializingService;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.secret.SecretModule;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplateModule;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.TransformModule;
+import org.elasticsearch.watcher.transform.chain.ChainTransformFactory;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.watcher.transport.actions.ack.TransportAckWatchAction;
 import org.elasticsearch.watcher.transport.actions.activate.ActivateWatchAction;
@@ -82,6 +82,7 @@ import org.elasticsearch.watcher.trigger.TriggerModule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.WatchModule;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -92,7 +93,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.Setting.Scope.CLUSTER;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class Watcher {
@@ -100,9 +100,9 @@ public class Watcher {
     public static final String NAME = "watcher";
 
     public static final Setting<String> INDEX_WATCHER_VERSION_SETTING =
-            new Setting<>("index.watcher.plugin.version", "", Function.identity(), false, Setting.Scope.INDEX);
+            new Setting<>("index.watcher.plugin.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
-            new Setting<>("index.watcher.template.version", "", Function.identity(), false, Setting.Scope.INDEX);
+            new Setting<>("index.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -119,12 +119,6 @@ public class Watcher {
         transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
         enabled = enabled(settings);
         validAutoCreateIndex(settings);
-
-        // adding the watcher privileges to shield
-        if (Shield.enabled(settings)) {
-            Shield.registerClusterPrivilege("manage_watcher", "cluster:admin/watcher/*", "cluster:monitor/watcher/*");
-            Shield.registerClusterPrivilege("monitor_watcher", "cluster:monitor/watcher/*");
-        }
     }
 
     public Collection<Module> nodeModules() {
@@ -133,7 +127,6 @@ public class Watcher {
         }
         return Arrays.<Module>asList(
                 new WatcherModule(settings),
-                new InitializingModule(),
                 new LicenseModule(),
                 new WatchModule(),
                 new TextTemplateModule(),
@@ -156,10 +149,6 @@ public class Watcher {
             return Collections.emptyList();
         }
         return Arrays.<Class<? extends LifecycleComponent>>asList(
-            // the initialization service must be first in the list
-            // as other services may depend on one of the initialized
-            // constructs
-            InitializingService.class,
             WatcherLicensee.class,
             EmailService.class,
             HipChatService.class,
@@ -194,28 +183,28 @@ public class Watcher {
         module.registerSetting(InternalPagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
         module.registerSetting(INDEX_WATCHER_VERSION_SETTING);
         module.registerSetting(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
-        module.registerSetting(Setting.intSetting("watcher.execution.scroll.size", 0, false, CLUSTER));
-        module.registerSetting(Setting.intSetting("watcher.watch.scroll.size", 0, false, CLUSTER));
-        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, false, CLUSTER));
+        module.registerSetting(Setting.intSetting("watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
+        module.registerSetting(Setting.intSetting("watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
+        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, Setting.Property.NodeScope));
         module.registerSetting(SecretService.Secure.ENCRYPT_SENSITIVE_DATA_SETTING);
 
         // TODO add real settings for these
-        module.registerSetting(Setting.simpleString("watcher.internal.ops.search.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.internal.ops.bulk.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.internal.ops.index.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.execution.default_throttle_period", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.http.default_read_timeout", false, CLUSTER));
-        module.registerSetting(Setting.groupSetting("watcher.http.ssl.", false, CLUSTER));
-        module.registerSetting(Setting.groupSetting("watcher.http.proxy.", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.actions.index.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.index.rest.direct_access", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.engine", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.input.search.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.transform.search.default_timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.ticker.tick_interval", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.execution.scroll.timeout", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.start_immediately", false, CLUSTER));
-        module.registerSetting(Setting.simpleString("watcher.http.default_connection_timeout", false, CLUSTER));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.execution.default_throttle_period", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.http.default_read_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.groupSetting("watcher.http.ssl.", Setting.Property.NodeScope));
+        module.registerSetting(Setting.groupSetting("watcher.http.proxy.", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.actions.index.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.index.rest.direct_access", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.engine", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.input.search.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.transform.search.default_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.execution.scroll.timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.start_immediately", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("watcher.http.default_connection_timeout", Setting.Property.NodeScope));
 
         module.registerSettingsFilter("watcher.actions.email.service.account.*.smtp.password");
         module.registerSettingsFilter("watcher.actions.slack.service.account.*.url");
@@ -254,6 +243,15 @@ public class Watcher {
         }
     }
 
+    public void onModule(LazyInitializationModule module) {
+        if (enabled) {
+            module.registerLazyInitializable(WatcherClientProxy.class);
+            module.registerLazyInitializable(ScriptServiceProxy.class);
+            module.registerLazyInitializable(ChainTransformFactory.class);
+            module.registerLazyInitializable(ChainInputFactory.class);
+        }
+    }
+
     public static boolean enabled(Settings settings) {
         return XPackPlugin.featureEnabled(settings, NAME, true);
     }
@@ -266,7 +264,7 @@ public class Watcher {
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[.watches,.triggered_watches,.watcher-history*]", (Object) settings);
+                "[.watches,.triggered_watches,.watcher-history*]", (Object) value);
         if (Booleans.isExplicitFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }

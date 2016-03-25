@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.text.TextTemplate;
-import org.elasticsearch.watcher.support.xcontent.WatcherXContentUtils;
+import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,9 +68,9 @@ public class HipChatMessageTests extends ESTestCase {
             } else if ("body".equals(currentFieldName)) {
                 message = parser.text();
             } else if ("room".equals(currentFieldName)) {
-                rooms = WatcherXContentUtils.readStringArray(parser, false);
+                rooms = XContentUtils.readStringArray(parser, false);
             } else if ("user".equals(currentFieldName)) {
-                users = WatcherXContentUtils.readStringArray(parser, false);
+                users = XContentUtils.readStringArray(parser, false);
             } else if ("from".equals(currentFieldName)) {
                 from = parser.text();
             } else if ("format".equals(currentFieldName)) {

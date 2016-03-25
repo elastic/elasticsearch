@@ -71,10 +71,10 @@ public class SettingsFilterTests extends ShieldIntegTestCase {
         }
 
         public void onModule(SettingsModule module) {
-            module.registerSetting(Setting.simpleString("foo.bar", false, Setting.Scope.CLUSTER));
-            module.registerSetting(Setting.simpleString("foo.baz", false, Setting.Scope.CLUSTER));
-            module.registerSetting(Setting.simpleString("bar.baz", false, Setting.Scope.CLUSTER));
-            module.registerSetting(Setting.simpleString("baz.foo", false, Setting.Scope.CLUSTER));
+            module.registerSetting(Setting.simpleString("foo.bar", Setting.Property.NodeScope));
+            module.registerSetting(Setting.simpleString("foo.baz", Setting.Property.NodeScope));
+            module.registerSetting(Setting.simpleString("bar.baz", Setting.Property.NodeScope));
+            module.registerSetting(Setting.simpleString("baz.foo", Setting.Property.NodeScope));
         }
     }
 

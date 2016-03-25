@@ -58,6 +58,6 @@ public class DataAttachmentParser implements EmailAttachmentParser<DataAttachmen
     @Override
     public Attachment toAttachment(WatchExecutionContext ctx, Payload payload, DataAttachment attachment) {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
-        return attachment.getDataAttachment().create(model);
+        return attachment.getDataAttachment().create(attachment.id(), model);
     }
 }

@@ -37,19 +37,25 @@ public class RestGetUsersAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
-        String[] users = Strings.splitStringByCommaToArray(request.param("username"));
+        String[] usernames = request.paramAsStringArray("username", Strings.EMPTY_ARRAY);
 
-        new SecurityClient(client).prepareGetUsers().users(users).execute(new RestBuilderListener<GetUsersResponse>(channel) {
+        new SecurityClient(client).prepareGetUsers(usernames).execute(new RestBuilderListener<GetUsersResponse>(channel) {
             @Override
-            public RestResponse buildResponse(GetUsersResponse getUsersResponse, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(GetUsersResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field("found", getUsersResponse.isExists());
-                builder.startArray("users");
-                for (User user : getUsersResponse.users()) {
-                    user.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                for (User user : response.users()) {
+                    builder.field(user.principal(), user);
                 }
-                builder.endArray();
                 builder.endObject();
+
+                // if the user asked for specific users, but none of them were found
+                // we'll return an empty result and 404 status code
+                if (usernames.length != 0 && response.users().length == 0) {
+                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                }
+
+                // either the user asked for all users, or at least one of the users
+                // was found
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });

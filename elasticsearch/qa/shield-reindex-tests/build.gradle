@@ -1,0 +1,35 @@
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+}
+
+integTest {
+  cluster {
+    setting 'script.inline', 'true'
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    extraConfigFile 'xpack/roles.yml', 'roles.yml'
+    [
+      test_admin: 'admin',
+      powerful_user: 'admin',
+      minimal_user: 'minimal',
+      readonly_user: 'readonly',
+      dest_only_user: 'dest_only',
+      can_not_see_hidden_docs_user: 'can_not_see_hidden_docs',
+      can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
+    ].each { String user, String role ->
+      setupCommand 'setupUser#' + user,
+                   'bin/xpack/esusers', 'useradd', user, '-p', 'changeme', '-r', role
+    }
+    waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://${node.httpUri()}",
+              dest: tmpFile.toString(),
+              username: 'test_admin',
+              password: 'changeme',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
+    }
+  }
+}

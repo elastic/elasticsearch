@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,6 +26,7 @@ import java.util.Collections;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -155,6 +157,10 @@ public class HttpRequestTemplateTests extends ESTestCase {
         builder.scheme(Scheme.HTTPS);
         assertThatManualBuilderEqualsParsingFromUrl("https://www.example.org:1234/foo/bar/org?param=test", builder);
 
+        // ssl support, getting the default port right
+        builder = HttpRequestTemplate.builder("www.example.org", 443).scheme(Scheme.HTTPS).path("/test");
+        assertThatManualBuilderEqualsParsingFromUrl("https://www.example.org/test", builder);
+
         // test without specifying port
         builder = HttpRequestTemplate.builder("www.example.org", 80);
         assertThatManualBuilderEqualsParsingFromUrl("http://www.example.org", builder);
@@ -162,6 +168,33 @@ public class HttpRequestTemplateTests extends ESTestCase {
         // encoded values
         builder = HttpRequestTemplate.builder("www.example.org", 80).putParam("foo", TextTemplate.inline(" white space"));
         assertThatManualBuilderEqualsParsingFromUrl("http://www.example.org?foo=%20white%20space", builder);
+    }
+
+    public void testParsingEmptyUrl() throws Exception {
+        try {
+            HttpRequestTemplate.builder().fromUrl("");
+            fail("Expected exception due to empty URL");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("Configured URL is empty, please configure a valid URL"));
+        }
+    }
+
+    public void testInvalidUrlsWithMissingScheme() throws Exception {
+        try {
+            HttpRequestTemplate.builder().fromUrl("www.test.de");
+            fail("Expected exception due to missing scheme");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("URL [www.test.de] does not contain a scheme"));
+        }
+    }
+
+    public void testInvalidUrlsWithHost() throws Exception {
+        try {
+            HttpRequestTemplate.builder().fromUrl("https://");
+            fail("Expected exception due to missing host");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("Malformed URL [https://]"));
+        }
     }
 
     private void assertThatManualBuilderEqualsParsingFromUrl(String url, HttpRequestTemplate.Builder builder) throws Exception {

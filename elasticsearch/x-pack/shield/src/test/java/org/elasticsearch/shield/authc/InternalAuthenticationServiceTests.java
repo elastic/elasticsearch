@@ -7,6 +7,8 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -748,6 +750,15 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
             verify(auditTrail).authenticationFailed(token, "_action", message);
             verifyNoMoreInteractions(auditTrail);
         }
+    }
+
+    public void testVersionWrittenWithUser() throws Exception {
+        User user = new User("username", "r1", "r2", "r3");
+        String text = InternalAuthenticationService.encodeUser(user, null);
+
+        StreamInput input = StreamInput.wrap(Base64.decode(text));
+        Version version = Version.readVersion(input);
+        assertThat(version, is(Version.CURRENT));
     }
 
     private static class InternalMessage extends TransportMessage {

@@ -11,7 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class DeleteLicenseAction extends Action<DeleteLicenseRequest, DeleteLicenseResponse, DeleteLicenseRequestBuilder> {
 
     public static final DeleteLicenseAction INSTANCE = new DeleteLicenseAction();
-    public static final String NAME = "cluster:admin/plugin/license/delete";
+    public static final String NAME = "cluster:admin/xpack/license/delete";
 
     private DeleteLicenseAction() {
         super(NAME);

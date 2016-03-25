@@ -19,7 +19,7 @@ public class InternalSlackService extends AbstractLifecycleComponent<SlackServic
 
     private final HttpClient httpClient;
     public static final Setting<Settings> SLACK_ACCOUNT_SETTING =
-            Setting.groupSetting("watcher.actions.slack.service.", true, Setting.Scope.CLUSTER);
+            Setting.groupSetting("watcher.actions.slack.service.", Setting.Property.Dynamic, Setting.Property.NodeScope);
     private volatile SlackAccounts accounts;
 
     @Inject

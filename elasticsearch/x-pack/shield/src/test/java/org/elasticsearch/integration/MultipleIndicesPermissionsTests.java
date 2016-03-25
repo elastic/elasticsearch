@@ -34,20 +34,26 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegTestCase {
     @Override
     protected String configRoles() {
         return ShieldSettingsSource.DEFAULT_ROLE + ":\n" +
-                "  cluster: all\n" +
+                "  cluster: [ all ]\n" +
                 "  indices:\n" +
-                "    '*': manage\n" +
-                "    '/.*/': write\n" +
-                "    'test': read\n" +
-                "    'test1': read\n" +
+                "    - names: '*'\n" +
+                "      privileges: [manage]\n" +
+                "    - names: '/.*/'\n" +
+                "      privileges: [write]\n" +
+                "    - names: 'test'\n" +
+                "      privileges: [read]\n" +
+                "    - names: 'test1'\n" +
+                "      privileges: [read]\n" +
                 "\n" +
                 "role_a:\n" +
                 "  indices:\n" +
-                "    'a': all\n" +
+                "    - names: 'a'\n" +
+                "      privileges: [all]\n" +
                 "\n" +
                 "role_b:\n" +
                 "  indices:\n" +
-                "    'b': all\n";
+                "    - names: 'b'\n" +
+                "      privileges: [all]\n";
     }
 
     @Override

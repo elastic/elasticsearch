@@ -8,6 +8,8 @@ package org.elasticsearch.watcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class WatcherPluginTests extends ESTestCase {
 
     public void testValidAutoCreateIndex() {
@@ -17,6 +19,7 @@ public class WatcherPluginTests extends ESTestCase {
             Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history*]"));
         }
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
                 ".watches,.triggered_watches,.watcher-history*").build());
@@ -26,16 +29,19 @@ public class WatcherPluginTests extends ESTestCase {
             Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history*]"));
         }
         try {
             Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history*]"));
         }
         try {
             Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history*").build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history*]"));
         }
     }
 

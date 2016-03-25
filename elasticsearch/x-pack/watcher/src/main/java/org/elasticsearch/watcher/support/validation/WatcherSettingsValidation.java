@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.support.validation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.support.Exceptions;
 

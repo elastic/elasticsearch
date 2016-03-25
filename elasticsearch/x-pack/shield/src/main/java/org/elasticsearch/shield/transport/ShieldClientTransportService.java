@@ -7,7 +7,6 @@ package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -23,12 +22,10 @@ public class ShieldClientTransportService extends TransportService {
     private final ClientTransportFilter clientFilter;
 
     @Inject
-    public ShieldClientTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClientTransportFilter clientFilter,
-                                        NamedWriteableRegistry namedWriteableRegistry) {
-        super(settings, transport, threadPool, namedWriteableRegistry);
+    public ShieldClientTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClientTransportFilter clientFilter) {
+        super(settings, transport, threadPool);
         this.clientFilter = clientFilter;
     }
-
 
     @Override
     public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,

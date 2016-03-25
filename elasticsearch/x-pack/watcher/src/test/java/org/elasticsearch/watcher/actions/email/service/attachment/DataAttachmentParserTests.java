@@ -11,7 +11,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -36,7 +38,8 @@ public class DataAttachmentParserTests extends ESTestCase {
         assertThat(emailAttachments.getAttachments(), hasSize(1));
 
         XContentBuilder toXcontentBuilder = jsonBuilder().startObject();
-        emailAttachments.getAttachments().get(0).toXContent(toXcontentBuilder, ToXContent.EMPTY_PARAMS);
+        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
+        attachments.get(0).toXContent(toXcontentBuilder, ToXContent.EMPTY_PARAMS);
         toXcontentBuilder.endObject();
         assertThat(toXcontentBuilder.string(), is(builder.string()));
     }

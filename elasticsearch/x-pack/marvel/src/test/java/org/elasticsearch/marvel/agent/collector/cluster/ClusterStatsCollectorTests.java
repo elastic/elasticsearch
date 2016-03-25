@@ -6,15 +6,16 @@
 package org.elasticsearch.marvel.agent.collector.cluster;
 
 import org.apache.lucene.util.LuceneTestCase.BadApple;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.Collection;
@@ -30,19 +31,20 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
 
     public void testClusterStatsCollector() throws Exception {
-        Collection<MarvelDoc> results = newClusterStatsCollector().doCollect();
+        Collection<MonitoringDoc> results = newClusterStatsCollector().doCollect();
         assertThat(results, hasSize(2));
 
         // Check cluster info document
-        MarvelDoc marvelDoc = results.stream().filter(o -> o instanceof ClusterInfoMarvelDoc).findFirst().get();
-        assertNotNull(marvelDoc);
-        assertThat(marvelDoc, instanceOf(ClusterInfoMarvelDoc.class));
+        MonitoringDoc monitoringDoc = results.stream().filter(o -> o instanceof ClusterInfoMonitoringDoc).findFirst().get();
+        assertNotNull(monitoringDoc);
+        assertThat(monitoringDoc, instanceOf(ClusterInfoMonitoringDoc.class));
 
-        ClusterInfoMarvelDoc clusterInfoMarvelDoc = (ClusterInfoMarvelDoc) marvelDoc;
+        ClusterInfoMonitoringDoc clusterInfoMarvelDoc = (ClusterInfoMonitoringDoc) monitoringDoc;
+        assertThat(clusterInfoMarvelDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
+        assertThat(clusterInfoMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(clusterInfoMarvelDoc.getClusterUUID(),
                 equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterInfoMarvelDoc.getTimestamp(), greaterThan(0L));
-        assertThat(clusterInfoMarvelDoc.getType(), equalTo(ClusterStatsCollector.CLUSTER_INFO_TYPE));
         assertThat(clusterInfoMarvelDoc.getSourceNode(), notNullValue());
 
         assertThat(clusterInfoMarvelDoc.getClusterName(),
@@ -57,15 +59,16 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 equalTo(internalCluster().getNodeNames().length));
 
         // Check cluster stats document
-        marvelDoc = results.stream().filter(o -> o instanceof ClusterStatsMarvelDoc).findFirst().get();
-        assertNotNull(marvelDoc);
-        assertThat(marvelDoc, instanceOf(ClusterStatsMarvelDoc.class));
+        monitoringDoc = results.stream().filter(o -> o instanceof ClusterStatsMonitoringDoc).findFirst().get();
+        assertNotNull(monitoringDoc);
+        assertThat(monitoringDoc, instanceOf(ClusterStatsMonitoringDoc.class));
 
-        ClusterStatsMarvelDoc clusterStatsMarvelDoc = (ClusterStatsMarvelDoc) marvelDoc;
+        ClusterStatsMonitoringDoc clusterStatsMarvelDoc = (ClusterStatsMonitoringDoc) monitoringDoc;
+        assertThat(clusterStatsMarvelDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
+        assertThat(clusterStatsMarvelDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(clusterStatsMarvelDoc.getClusterUUID(),
                 equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterStatsMarvelDoc.getTimestamp(), greaterThan(0L));
-        assertThat(clusterStatsMarvelDoc.getType(), equalTo(ClusterStatsCollector.CLUSTER_STATS_TYPE));
         assertThat(clusterStatsMarvelDoc.getSourceNode(), notNullValue());
 
         assertNotNull(clusterStatsMarvelDoc.getClusterStats());
@@ -84,7 +87,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 logger.debug("--> enabling license and checks that the collector can collect data if node is master");
                 enableLicense();
                 if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector, ClusterInfoMarvelDoc.class, ClusterStatsMarvelDoc.class);
+                    assertCanCollect(collector, ClusterInfoMonitoringDoc.class, ClusterStatsMonitoringDoc.class);
                 } else {
                     assertCannotCollect(collector);
                 }
@@ -92,7 +95,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 logger.debug("--> starting graceful period and checks that the collector can still collect data if node is master");
                 beginGracefulPeriod();
                 if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector, ClusterInfoMarvelDoc.class, ClusterStatsMarvelDoc.class);
+                    assertCanCollect(collector, ClusterInfoMonitoringDoc.class, ClusterStatsMonitoringDoc.class);
                 } else {
                     assertCannotCollect(collector);
                 }
@@ -100,7 +103,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 logger.debug("--> ending graceful period and checks that the collector can still collect data (if node is master)");
                 endGracefulPeriod();
                 if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector, ClusterInfoMarvelDoc.class);
+                    assertCanCollect(collector, ClusterInfoMonitoringDoc.class);
                 } else {
                     assertCannotCollect(collector);
                 }
@@ -108,7 +111,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 logger.debug("--> disabling license and checks that the collector can still collect data (if node is master)");
                 disableLicense();
                 if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector, ClusterInfoMarvelDoc.class);
+                    assertCanCollect(collector, ClusterInfoMonitoringDoc.class);
                 } else {
                     assertCannotCollect(collector);
                 }
@@ -128,7 +131,6 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
         assertNotNull(nodeId);
         return new ClusterStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(DiscoveryService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),
                 securedClient(nodeId),

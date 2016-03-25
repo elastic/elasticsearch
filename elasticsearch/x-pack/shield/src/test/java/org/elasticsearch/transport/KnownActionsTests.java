@@ -10,6 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.license.plugin.Licensing;
+import org.elasticsearch.graph.Graph;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -112,6 +113,10 @@ public class KnownActionsTests extends ShieldIntegTestCase {
         // also loading all actions from the licensing plugin
         loadActions(collectSubClasses(Action.class, Licensing.class), actions);
 
+        // also loading all actions from the graph plugin
+        loadActions(collectSubClasses(Action.class, Graph.class), actions);
+        
+        
         return unmodifiableSet(actions);
     }
 

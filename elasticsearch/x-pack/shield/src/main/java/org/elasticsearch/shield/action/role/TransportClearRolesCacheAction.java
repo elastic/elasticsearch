@@ -8,7 +8,7 @@ package org.elasticsearch.shield.action.role;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +45,8 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRo
             Object resp = nodesResponses.get(i);
             if (resp instanceof ClearRolesCacheResponse.Node) {
                 responses.add((ClearRolesCacheResponse.Node) resp);
-            } else {
+            } else if (resp == null) {
+                // null is possible if there is an error and we do not accumulate exceptions...
                 throw new IllegalArgumentException("node response [" + resp.getClass() + "] is not the correct type");
             }
         }

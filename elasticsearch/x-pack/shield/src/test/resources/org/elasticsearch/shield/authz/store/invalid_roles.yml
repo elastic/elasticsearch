@@ -1,7 +1,10 @@
 valid_role:
-  cluster: ALL
+  cluster:
+    - ALL
   indices:
-    idx: ALL
+    - names: idx
+      privileges:
+        - ALL
 
 "$dlk39":
   cluster: all
@@ -25,3 +28,20 @@ role4:
   cluster: ALL
   indices:
     '*': al;kjdlkj;lkj
+
+#dadfad
+# role won't be available since empty privileges...
+role5:
+  cluster:
+  indices:
+    - names:
+      #adfldkkd
+      - idx2
+      privileges:
+    - names:
+        - ''
+      privileges:
+        - READ
+    - names:
+        - 'idx1'
+      privileges: []

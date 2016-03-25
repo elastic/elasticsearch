@@ -18,8 +18,8 @@ public class GetUsersRequestBuilder extends ActionRequestBuilder<GetUsersRequest
         super(client, action, new GetUsersRequest());
     }
 
-    public GetUsersRequestBuilder users(String... usernames) {
-        request.users(usernames);
+    public GetUsersRequestBuilder usernames(String... usernames) {
+        request.usernames(usernames);
         return this;
     }
 }

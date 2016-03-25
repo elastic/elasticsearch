@@ -76,7 +76,7 @@ public class ShieldFiles {
         tempFileView.setPermissions(attributes.permissions());
 
         // Make an attempt to set the username and group to match. If it fails, silently ignore the failure as the user
-        // will be notified by the CheckFileCommand that the ownership has changed and needs to be corrected
+        // will be notified by the FileAttributeChecker that the ownership has changed and needs to be corrected
         try {
             tempFileView.setOwner(attributes.owner());
         } catch (Exception e) {

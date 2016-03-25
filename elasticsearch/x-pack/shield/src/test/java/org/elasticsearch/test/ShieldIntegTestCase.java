@@ -12,15 +12,21 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.ShieldTemplateService;
+import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
 import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,7 +44,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 /**
@@ -79,7 +86,7 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
         return getAnnotation(clazz.getSuperclass());
     }
 
-    private Scope getCurrentClusterScope() {
+    Scope getCurrentClusterScope() {
         return getCurrentClusterScope(this.getClass());
     }
 

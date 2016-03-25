@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
@@ -303,6 +304,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
             builder.field("transport_address", getNode().address().toString(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("host", getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("ip", getNode().getAddress(), XContentBuilder.FieldCaseConversion.NONE);
+
+            builder.array("roles", getNode().getRoles().stream().map(DiscoveryNode.Role::getRoleName)
+                    .collect(Collectors.toList()).toArray());
 
             if (!getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");

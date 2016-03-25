@@ -49,10 +49,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -63,6 +62,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.shuffle;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -289,7 +291,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         // add
 
-        Collections.shuffle(nodesToJoin, random());
+        shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] unique master nodes. Total of [{}] join requests", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -314,7 +316,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
         }
 
-        Collections.shuffle(nodesToJoin, random());
+        shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", finalJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -361,7 +363,7 @@ public class NodeJoinControllerTests extends ESTestCase {
                 nodesToJoin.add(node);
             }
         }
-        Collections.shuffle(nodesToJoin, random());
+        shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -401,7 +403,8 @@ public class NodeJoinControllerTests extends ESTestCase {
     public void testNewClusterStateOnExistingNodeJoin() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
-        final DiscoveryNode other_node = new DiscoveryNode("other_node", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        final DiscoveryNode other_node = new DiscoveryNode("other_node", DummyTransportAddress.INSTANCE,
+                emptyMap(), emptySet(), Version.CURRENT);
         nodesBuilder.put(other_node);
         setState(clusterService, ClusterState.builder(state).nodes(nodesBuilder));
 
@@ -608,9 +611,11 @@ public class NodeJoinControllerTests extends ESTestCase {
     }
 
     protected DiscoveryNode newNode(int i, boolean master) {
-        Map<String, String> attributes = new HashMap<>();
-        attributes.put("master", Boolean.toString(master));
+        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        if (master) {
+            roles.add(DiscoveryNode.Role.MASTER);
+        }
         final String prefix = master ? "master_" : "data_";
-        return new DiscoveryNode(prefix + i, i + "", new LocalTransportAddress("test_" + i), attributes, Version.CURRENT);
+        return new DiscoveryNode(prefix + i, i + "", new LocalTransportAddress("test_" + i), emptyMap(), roles, Version.CURRENT);
     }
 }

@@ -39,6 +39,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Returns the list of tasks currently running on the nodes
@@ -130,6 +131,9 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
             builder.field("transport_address", node.address().toString());
             builder.field("host", node.getHostName());
             builder.field("ip", node.getAddress());
+
+            builder.array("roles", node.getRoles().stream().map(DiscoveryNode.Role::getRoleName)
+                    .collect(Collectors.toList()).toArray());
 
             if (!node.attributes().isEmpty()) {
                 builder.startObject("attributes");

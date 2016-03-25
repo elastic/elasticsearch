@@ -53,6 +53,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -87,8 +88,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         transportService = new TransportService(transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode("local_node", DummyTransportAddress.INSTANCE, Version.CURRENT);
-        remoteNode = new DiscoveryNode("remote_node", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        localNode = new DiscoveryNode("local_node", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+                Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
+        remoteNode = new DiscoveryNode("remote_node", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+                Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
         allNodes = new DiscoveryNode[]{localNode, remoteNode};
     }
 
@@ -105,7 +108,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    <T> void assertListenerThrows(String msg, ActionFuture<?> listener, Class<?> klass) throws InterruptedException {
+    void assertListenerThrows(String msg, ActionFuture<?> listener, Class<?> klass) throws InterruptedException {
         try {
             listener.get();
             fail(msg);

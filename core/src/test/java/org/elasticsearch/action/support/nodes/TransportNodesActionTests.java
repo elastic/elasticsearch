@@ -40,6 +40,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -126,13 +127,11 @@ public class TransportNodesActionTests extends ESTestCase {
         List<DiscoveryNode> discoveryNodes = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
-            for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
-                attributes.put(role.getRoleName(), Boolean.toString(randomBoolean()));
-            }
+            Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
             }
-            final DiscoveryNode node = newNode(i, attributes);
+            final DiscoveryNode node = newNode(i, attributes, roles);
             discoBuilder = discoBuilder.put(node);
             discoveryNodes.add(node);
         }
@@ -161,9 +160,9 @@ public class TransportNodesActionTests extends ESTestCase {
         transport.close();
     }
 
-    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes) {
+    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
         String node = "node_" + nodeId;
-        return new DiscoveryNode(node, node, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
+        return new DiscoveryNode(node, node, DummyTransportAddress.INSTANCE, attributes, roles, Version.CURRENT);
     }
 
     private static class TestTransportNodesAction extends TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest,

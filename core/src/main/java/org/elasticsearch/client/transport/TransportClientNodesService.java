@@ -49,7 +49,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -61,6 +60,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
@@ -81,12 +84,12 @@ public class TransportClientNodesService extends AbstractComponent {
     private final Version minCompatibilityVersion;
 
     // nodes that are added to be discovered
-    private volatile List<DiscoveryNode> listedNodes = Collections.emptyList();
+    private volatile List<DiscoveryNode> listedNodes = emptyList();
 
     private final Object mutex = new Object();
 
-    private volatile List<DiscoveryNode> nodes = Collections.emptyList();
-    private volatile List<DiscoveryNode> filteredNodes = Collections.emptyList();
+    private volatile List<DiscoveryNode> nodes = emptyList();
+    private volatile List<DiscoveryNode> filteredNodes = emptyList();
 
     private final AtomicInteger tempNodeIdGenerator = new AtomicInteger();
 
@@ -140,7 +143,7 @@ public class TransportClientNodesService extends AbstractComponent {
         for (DiscoveryNode listedNode : listedNodes) {
             lstBuilder.add(listedNode.address());
         }
-        return Collections.unmodifiableList(lstBuilder);
+        return unmodifiableList(lstBuilder);
     }
 
     public List<DiscoveryNode> connectedNodes() {
@@ -180,11 +183,12 @@ public class TransportClientNodesService extends AbstractComponent {
             List<DiscoveryNode> builder = new ArrayList<>();
             builder.addAll(listedNodes());
             for (TransportAddress transportAddress : filtered) {
-                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress, minCompatibilityVersion);
+                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(),
+                        transportAddress, emptyMap(), emptySet(), minCompatibilityVersion);
                 logger.debug("adding address [{}]", node);
                 builder.add(node);
             }
-            listedNodes = Collections.unmodifiableList(builder);
+            listedNodes = unmodifiableList(builder);
             nodesSampler.sample();
         }
         return this;
@@ -203,7 +207,7 @@ public class TransportClientNodesService extends AbstractComponent {
                     logger.debug("removing address [{}]", otherNode);
                 }
             }
-            listedNodes = Collections.unmodifiableList(builder);
+            listedNodes = unmodifiableList(builder);
             nodesSampler.sample();
         }
         return this;
@@ -231,7 +235,8 @@ public class TransportClientNodesService extends AbstractComponent {
 
         private volatile int i;
 
-        public RetryListener(NodeListenerCallback<Response> callback, ActionListener<Response> listener, List<DiscoveryNode> nodes, int index) {
+        public RetryListener(NodeListenerCallback<Response> callback, ActionListener<Response> listener,
+                             List<DiscoveryNode> nodes, int index) {
             this.callback = callback;
             this.listener = listener;
             this.nodes = nodes;
@@ -278,7 +283,7 @@ public class TransportClientNodesService extends AbstractComponent {
             for (DiscoveryNode listedNode : listedNodes) {
                 transportService.disconnectFromNode(listedNode);
             }
-            nodes = Collections.emptyList();
+            nodes = emptyList();
         }
     }
 
@@ -328,7 +333,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
             }
 
-            return Collections.unmodifiableList(new ArrayList<>(nodes));
+            return unmodifiableList(new ArrayList<>(nodes));
         }
 
     }
@@ -378,11 +383,13 @@ public class TransportClientNodesService extends AbstractComponent {
                         logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
                         newFilteredNodes.add(listedNode);
                     } else if (livenessResponse.getDiscoveryNode() != null) {
-                        // use discovered information but do keep the original transport address, so people can control which address is exactly used.
+                        // use discovered information but do keep the original transport address,
+                        // so people can control which address is exactly used.
                         DiscoveryNode nodeWithInfo = livenessResponse.getDiscoveryNode();
-                        newNodes.add(new DiscoveryNode(nodeWithInfo.name(), nodeWithInfo.id(), nodeWithInfo.getHostName(), nodeWithInfo.getHostAddress(), listedNode.address(), nodeWithInfo.attributes(), nodeWithInfo.version()));
+                        newNodes.add(new DiscoveryNode(nodeWithInfo.name(), nodeWithInfo.id(), nodeWithInfo));
                     } else {
-                        // although we asked for one node, our target may not have completed initialization yet and doesn't have cluster nodes
+                        // although we asked for one node, our target may not have completed
+                        // initialization yet and doesn't have cluster nodes
                         logger.debug("node {} didn't return any discovery info, temporarily using transport discovery node", listedNode);
                         newNodes.add(listedNode);
                     }
@@ -393,7 +400,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             nodes = validateNewNodes(newNodes);
-            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
+            filteredNodes = unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }
 
@@ -436,8 +443,10 @@ public class TransportClientNodesService extends AbstractComponent {
                                     return;
                                 }
                             }
-                            transportService.sendRequest(listedNode, ClusterStateAction.NAME, Requests.clusterStateRequest().clear().nodes(true).local(true),
-                                    TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
+                            transportService.sendRequest(listedNode, ClusterStateAction.NAME,
+                                    Requests.clusterStateRequest().clear().nodes(true).local(true),
+                                    TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE)
+                                            .withTimeout(pingTimeout).build(),
                                     new BaseTransportResponseHandler<ClusterStateResponse>() {
 
                                         @Override
@@ -482,7 +491,8 @@ public class TransportClientNodesService extends AbstractComponent {
             HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
             for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
                 if (!ignoreClusterName && !clusterName.equals(entry.getValue().getClusterName())) {
-                    logger.warn("node {} not part of the cluster {}, ignoring...", entry.getValue().getState().nodes().localNode(), clusterName);
+                    logger.warn("node {} not part of the cluster {}, ignoring...",
+                            entry.getValue().getState().nodes().localNode(), clusterName);
                     newFilteredNodes.add(entry.getKey());
                     continue;
                 }
@@ -492,7 +502,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             nodes = validateNewNodes(newNodes);
-            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
+            filteredNodes = unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }
 

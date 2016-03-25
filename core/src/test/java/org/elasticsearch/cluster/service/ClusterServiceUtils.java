@@ -31,6 +31,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 
 import static junit.framework.TestCase.fail;
@@ -41,7 +44,8 @@ public class ClusterServiceUtils {
         ClusterService clusterService = new ClusterService(Settings.EMPTY, null,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool, new ClusterName("ClusterServiceTests"));
-        clusterService.setLocalNode(new DiscoveryNode("node", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        clusterService.setLocalNode(new DiscoveryNode("node", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+                new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT));
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
             public void connectToAddedNodes(ClusterChangedEvent event) {

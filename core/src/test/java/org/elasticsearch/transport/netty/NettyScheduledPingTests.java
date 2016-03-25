@@ -41,6 +41,7 @@ import org.elasticsearch.transport.TransportSettings;
 import java.io.IOException;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -64,8 +65,8 @@ public class NettyScheduledPingTests extends ESTestCase {
         serviceB.start();
         serviceB.acceptIncomingRequests();
 
-        DiscoveryNode nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), Version.CURRENT);
-        DiscoveryNode nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), Version.CURRENT);
+        DiscoveryNode nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);

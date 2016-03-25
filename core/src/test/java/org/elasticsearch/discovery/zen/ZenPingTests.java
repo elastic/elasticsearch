@@ -29,6 +29,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ZenPingTests extends ESTestCase {
@@ -39,7 +41,7 @@ public class ZenPingTests extends ESTestCase {
         boolean hasJoinedOncePerNode[] = new boolean[nodes.length];
         ArrayList<ZenPing.PingResponse> pings = new ArrayList<>();
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = new DiscoveryNode("" + i, DummyTransportAddress.INSTANCE, Version.CURRENT);
+            nodes[i] = new DiscoveryNode("" + i, DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         }
 
         for (int pingCount = scaledRandomIntBetween(10, nodes.length * 10); pingCount > 0; pingCount--) {

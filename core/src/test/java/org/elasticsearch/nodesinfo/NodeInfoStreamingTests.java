@@ -52,6 +52,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -117,10 +119,10 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(param1Builder.string(), equalTo(param2Builder.string()));
     }
 
-
     private NodeInfo createNodeInfo() {
         Build build = Build.CURRENT;
-        DiscoveryNode node = new DiscoveryNode("test_node", DummyTransportAddress.INSTANCE, VersionUtils.randomVersion(random()));
+        DiscoveryNode node = new DiscoveryNode("test_node", DummyTransportAddress.INSTANCE,
+                emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         Map<String, String> serviceAttributes = new HashMap<>();
         serviceAttributes.put("test", "attribute");
         Settings settings = Settings.builder().put("test", "setting").build();

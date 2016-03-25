@@ -37,6 +37,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DiskUsageTests extends ESTestCase {
@@ -142,11 +144,11 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/most", "/dev/sda", 100, 90, 80),
         };
         NodeStats[] nodeStats = new NodeStats[] {
-                new NodeStats(new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+                new NodeStats(new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
                         null,null,null,null,null,new FsInfo(0, node1FSInfo), null,null,null,null,null, null),
-                new NodeStats(new DiscoveryNode("node_2", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+                new NodeStats(new DiscoveryNode("node_2", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
                         null,null,null,null,null, new FsInfo(0, node2FSInfo), null,null,null,null,null, null),
-                new NodeStats(new DiscoveryNode("node_3", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+                new NodeStats(new DiscoveryNode("node_3", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
                         null,null,null,null,null, new FsInfo(0, node3FSInfo), null,null,null,null,null, null)
         };
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvaiableUsages, newMostAvaiableUsages);
@@ -183,11 +185,11 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/least", "/dev/sda", 10, -8, 0),
         };
         NodeStats[] nodeStats = new NodeStats[] {
-                new NodeStats(new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+                new NodeStats(new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
                         null,null,null,null,null,new FsInfo(0, node1FSInfo), null,null,null,null,null, null),
-                new NodeStats(new DiscoveryNode("node_2", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+                new NodeStats(new DiscoveryNode("node_2", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
                         null,null,null,null,null, new FsInfo(0, node2FSInfo), null,null,null,null,null, null),
-                new NodeStats(new DiscoveryNode("node_3", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+                new NodeStats(new DiscoveryNode("node_3", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
                         null,null,null,null,null, new FsInfo(0, node3FSInfo), null,null,null,null,null, null)
         };
         InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvailableUsages, newMostAvailableUsages);

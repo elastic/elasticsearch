@@ -19,12 +19,17 @@
 
 package org.elasticsearch.cluster.node;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -33,12 +38,39 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
     public void testClientNodeSettingIsProhibited() {
         Settings settings = Settings.builder().put("node.client", randomBoolean()).build();
         try {
-            new DiscoveryNodeService(settings, Version.CURRENT).buildAttributes();
+            new DiscoveryNodeService(settings, Version.CURRENT).buildLocalNode(DummyTransportAddress.INSTANCE);
             fail("build attributes should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("node.client setting is no longer supported, use node.master, " +
                     "node.data and node.ingest explicitly instead"));
         }
+    }
+
+    public void testBuildLocalNode() {
+        Map<String, String> expectedAttributes = new HashMap<>();
+        int numCustomSettings = randomIntBetween(0, 5);
+        Settings.Builder builder = Settings.builder();
+        for (int i = 0; i < numCustomSettings; i++) {
+            builder.put("node.attr" + i, "value" + i);
+            expectedAttributes.put("attr" + i, "value" + i);
+        }
+        Set<DiscoveryNode.Role> selectedRoles = new HashSet<>();
+        for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
+            if (randomBoolean()) {
+                //test default true for every role
+                selectedRoles.add(role);
+            } else {
+                boolean isRoleEnabled = randomBoolean();
+                builder.put("node." + role.getRoleName(), isRoleEnabled);
+                if (isRoleEnabled) {
+                    selectedRoles.add(role);
+                }
+            }
+        }
+        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build(), Version.CURRENT);
+        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(DummyTransportAddress.INSTANCE);
+        assertThat(discoveryNode.getRoles(), equalTo(selectedRoles));
+        assertThat(copyAttributes(discoveryNode.getAttributes()), equalTo(expectedAttributes));
     }
 
     public void testBuildAttributesWithCustomAttributeServiceProvider() {
@@ -58,7 +90,15 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
         expectedAttributes.putAll(customAttributes);
         discoveryNodeService.addCustomAttributeProvider(() -> customAttributes);
 
-        Map<String, String> attributes = discoveryNodeService.buildAttributes();
-        assertThat(attributes, equalTo(expectedAttributes));
+        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(DummyTransportAddress.INSTANCE);
+        assertThat(copyAttributes(discoveryNode.getAttributes()), equalTo(expectedAttributes));
+    }
+
+    private static Map<String, String> copyAttributes(ImmutableOpenMap<String, String> attributes) {
+        Map<String, String> finalAttributes = new HashMap<>();
+        for (ObjectObjectCursor<String, String> cursor : attributes) {
+            finalAttributes.put(cursor.key, cursor.value);
+        }
+        return finalAttributes;
     }
 }

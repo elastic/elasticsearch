@@ -294,8 +294,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .put(newNode("fred","node1", singletonMap("disk", "ebs")))
-                        .put(newNode("barney","node2", singletonMap("disk", "ephemeral")))
+                        .put(newNode("fred", "node1", singletonMap("disk", "ebs")))
+                        .put(newNode("barney", "node2", singletonMap("disk", "ephemeral")))
                         .localNodeId("node1")
         ).build();
 
@@ -323,7 +323,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         try {
             shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("welma", clusterState.nodes());
-            fail("shouldve raised illegalArgumentException");
+            fail("should have raised illegalArgumentException");
         } catch (IllegalArgumentException illegal) {
             //expected exception
         }

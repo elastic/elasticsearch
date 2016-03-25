@@ -55,6 +55,8 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomReason;
@@ -68,8 +70,10 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class ClusterStateDiffIT extends ESIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
-        DiscoveryNode masterNode = new DiscoveryNode("master", new LocalTransportAddress("master"), Version.CURRENT);
-        DiscoveryNode otherNode = new DiscoveryNode("other", new LocalTransportAddress("other"), Version.CURRENT);
+        DiscoveryNode masterNode = new DiscoveryNode("master", new LocalTransportAddress("master"),
+                emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode otherNode = new DiscoveryNode("other", new LocalTransportAddress("other"),
+                emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(masterNode).put(otherNode).localNodeId(masterNode.id()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), otherNode);
@@ -186,13 +190,15 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     nodes.remove(nodeId);
                 } else {
-                    nodes.put(new DiscoveryNode(nodeId, new LocalTransportAddress(randomAsciiOfLength(10)), randomVersion(random())));
+                    nodes.put(new DiscoveryNode(nodeId, new LocalTransportAddress(randomAsciiOfLength(10)), emptyMap(),
+                            emptySet(), randomVersion(random())));
                 }
             }
         }
         int additionalNodeCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalNodeCount; i++) {
-            nodes.put(new DiscoveryNode("node-" + randomAsciiOfLength(10), new LocalTransportAddress(randomAsciiOfLength(10)), randomVersion(random())));
+            nodes.put(new DiscoveryNode("node-" + randomAsciiOfLength(10), new LocalTransportAddress(randomAsciiOfLength(10)),
+                    emptyMap(), emptySet(), randomVersion(random())));
         }
         return ClusterState.builder(clusterState).nodes(nodes);
     }

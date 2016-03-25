@@ -46,6 +46,9 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+
 /**
  *
  */
@@ -229,7 +232,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                                 continue;
                             }
 
-                            networkAddress = NetworkAddress.formatAddress(new InetSocketAddress(endpoint.getVirtualIPAddress(), endpoint.getPort()));
+                            networkAddress = NetworkAddress.formatAddress(new InetSocketAddress(endpoint.getVirtualIPAddress(),
+                                    endpoint.getPort()));
                         }
 
                         if (networkAddress == null) {
@@ -253,8 +257,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                     TransportAddress[] addresses = transportService.addressesFromString(networkAddress, 1);
                     for (TransportAddress address : addresses) {
                         logger.trace("adding {}, transport_address {}", networkAddress, address);
-                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), address,
-                            version.minimumCompatibilityVersion()));
+                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), address, emptyMap(),
+                                emptySet(), version.minimumCompatibilityVersion()));
                     }
                 } catch (Exception e) {
                     logger.warn("can not convert [{}] to transport address. skipping. [{}]", networkAddress, e.getMessage());

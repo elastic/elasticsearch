@@ -41,6 +41,8 @@ import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.net.InetSocketAddress;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UnicastZenPingIT extends ESTestCase {
@@ -58,14 +60,16 @@ public class UnicastZenPingIT extends ESTestCase {
         NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();
         transportServiceA.acceptIncomingRequests();
-        final DiscoveryNode nodeA = new DiscoveryNode("UZP_A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
+        final DiscoveryNode nodeA = new DiscoveryNode("UZP_A", transportServiceA.boundAddress().publishAddress(),
+                emptyMap(), emptySet(), Version.CURRENT);
 
         InetSocketTransportAddress addressA = (InetSocketTransportAddress) transportA.boundAddress().publishAddress();
 
         NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
         final TransportService transportServiceB = new TransportService(transportB, threadPool).start();
         transportServiceB.acceptIncomingRequests();
-        final DiscoveryNode nodeB = new DiscoveryNode("UZP_B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
+        final DiscoveryNode nodeB = new DiscoveryNode("UZP_B", transportServiceA.boundAddress().publishAddress(),
+                emptyMap(), emptySet(), Version.CURRENT);
 
         InetSocketTransportAddress addressB = (InetSocketTransportAddress) transportB.boundAddress().publishAddress();
 

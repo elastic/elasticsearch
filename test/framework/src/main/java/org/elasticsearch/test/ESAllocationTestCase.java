@@ -42,7 +42,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
@@ -51,11 +50,15 @@ import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -95,8 +98,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
 
-
-
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {
         final List<Class<? extends AllocationDecider>> defaultAllocationDeciders = ClusterModule.DEFAULT_ALLOCATION_DECIDERS;
         final List<AllocationDecider> list = new ArrayList<>();
@@ -119,31 +120,34 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             assertThat(defaultAllocationDeciders.contains(d.getClass()), is(true));
         }
         Randomness.shuffle(list);
-        return new AllocationDeciders(settings, list.toArray(new AllocationDecider[0]));
+        return new AllocationDeciders(settings, list.toArray(new AllocationDecider[list.size()]));
 
     }
 
-    public static DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
+    protected static Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA)));
+
+    protected static DiscoveryNode newNode(String nodeId) {
+        return newNode(nodeId, Version.CURRENT);
     }
 
-    public static DiscoveryNode newNode(String nodeId, TransportAddress address) {
-        return new DiscoveryNode(nodeId, address, Version.CURRENT);
+    protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {
+        return new DiscoveryNode(nodeName, nodeId, DummyTransportAddress.INSTANCE, attributes, MASTER_DATA_ROLES, Version.CURRENT);
     }
 
-    public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode("", nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
+    protected static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
+        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, attributes, MASTER_DATA_ROLES, Version.CURRENT);
     }
 
-    public static DiscoveryNode newNode(String nodeName,String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeName, nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
+    protected static DiscoveryNode newNode(String nodeId, Set<DiscoveryNode.Role> roles) {
+        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, emptyMap(), roles, Version.CURRENT);
     }
 
-    public static DiscoveryNode newNode(String nodeId, Version version) {
-        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, version);
+    protected static DiscoveryNode newNode(String nodeId, Version version) {
+        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, emptyMap(), MASTER_DATA_ROLES, version);
     }
 
-    public static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
+    protected  static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
         List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
         if (initializingShards.isEmpty()) {
             return clusterState;
@@ -152,15 +156,15 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return ClusterState.builder(clusterState).routingTable(routingTable).build();
     }
 
-    public static AllocationDeciders yesAllocationDeciders() {
+    protected static AllocationDeciders yesAllocationDeciders() {
         return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.YES)});
     }
 
-    public static AllocationDeciders noAllocationDeciders() {
+    protected static AllocationDeciders noAllocationDeciders() {
         return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.NO)});
     }
 
-    public static AllocationDeciders throttleAllocationDeciders() {
+    protected static AllocationDeciders throttleAllocationDeciders() {
         return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.THROTTLE)});
     }
 

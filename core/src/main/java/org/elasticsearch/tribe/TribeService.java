@@ -371,7 +371,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     }
                     tribeAttr.put(TRIBE_NAME_SETTING.getKey(), tribeName);
                     DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(),
-                            tribe.address(), unmodifiableMap(tribeAttr), tribe.version());
+                            tribe.address(), unmodifiableMap(tribeAttr), tribe.getRoles(), tribe.version());
                     clusterStateChanged = true;
                     logger.info("[{}] adding node [{}]", tribeName, discoNode);
                     nodes.put(discoNode);

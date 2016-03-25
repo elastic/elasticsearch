@@ -28,9 +28,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 public class ElectMasterServiceTests extends ESTestCase {
 
@@ -42,14 +42,14 @@ public class ElectMasterServiceTests extends ESTestCase {
         int count = scaledRandomIntBetween(1, 100);
         ArrayList<DiscoveryNode> nodes = new ArrayList<>(count);
 
-        Map<String, String> master = new HashMap<>();
-        master.put("master", "true");
-        Map<String, String> nonMaster = new HashMap<>();
-        nonMaster.put("master", "false");
+
 
         for (int i = 0; i < count; i++) {
-            Map<String, String> attributes = randomBoolean() ? master : nonMaster;
-            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
+            Set<DiscoveryNode.Role> roles = new HashSet<>();
+            if (randomBoolean()) {
+                roles.add(DiscoveryNode.Role.MASTER);
+            }
+            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, DummyTransportAddress.INSTANCE, Collections.emptyMap(), roles, Version.CURRENT);
             nodes.add(node);
         }
 

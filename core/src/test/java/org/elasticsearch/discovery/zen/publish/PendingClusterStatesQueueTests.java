@@ -34,6 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -137,7 +139,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         // now check that queue doesn't contain superseded states
         for (ClusterStateContext context : queue.pendingStates) {
             if (context.committed()) {
-                assertFalse("found a committed cluster state, which is superseded by a failed state.\nFound:" + context.state + "\nfailed:" + toFail,
+                assertFalse("found a committed cluster state, which is superseded by a failed state.\nFound:" +
+                        context.state + "\nfailed:" + toFail,
                         toFail.supersedes(context.state));
             }
         }
@@ -155,7 +158,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
             assertThat("removed state is not superseded by failed state. \nRemoved state:" + context + "\nfailed: " + toFail,
                     toFail.supersedes(context.state), equalTo(true));
             assertThat("removed state was failed with wrong exception", ((MockListener) context.listener).failure, notNullValue());
-            assertThat("removed state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(), containsString("boo"));
+            assertThat("removed state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(),
+                    containsString("boo"));
         }
     }
 
@@ -168,7 +172,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         assertThat(queue.getNextClusterStateToProcess(), nullValue());
         for (ClusterStateContext context : committedContexts) {
             assertThat("state was failed with wrong exception", ((MockListener) context.listener).failure, notNullValue());
-            assertThat("state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(), containsString("boo"));
+            assertThat("state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(),
+                    containsString("boo"));
         }
     }
 
@@ -230,7 +235,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
             ClusterState state = lastClusterStatePerMaster[masterIndex];
             if (state == null) {
                 state = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder()
-                                .put(new DiscoveryNode(masters[masterIndex], DummyTransportAddress.INSTANCE, Version.CURRENT)).masterNodeId(masters[masterIndex]).build()
+                                .put(new DiscoveryNode(masters[masterIndex], DummyTransportAddress.INSTANCE,
+                                        emptyMap(), emptySet(),Version.CURRENT)).masterNodeId(masters[masterIndex]).build()
                 ).build();
             } else {
                 state = ClusterState.builder(state).incrementVersion().build();

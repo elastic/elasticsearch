@@ -31,6 +31,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,8 +43,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         Version targetNodeVersion = randomVersion(random());
         StartRecoveryRequest outRequest = new StartRecoveryRequest(
                 new ShardId("test", "_na_", 0),
-                new DiscoveryNode("a", new LocalTransportAddress("1"), targetNodeVersion),
-                new DiscoveryNode("b", new LocalTransportAddress("1"), targetNodeVersion),
+                new DiscoveryNode("a", new LocalTransportAddress("1"), emptyMap(), emptySet(), targetNodeVersion),
+                new DiscoveryNode("b", new LocalTransportAddress("1"), emptyMap(), emptySet(), targetNodeVersion),
                 Store.MetadataSnapshot.EMPTY,
                 RecoveryState.Type.PRIMARY_RELOCATION,
                 1L

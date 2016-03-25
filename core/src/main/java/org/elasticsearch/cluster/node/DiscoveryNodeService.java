@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -27,13 +28,16 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.node.Node;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -64,20 +68,19 @@ public class DiscoveryNodeService extends AbstractComponent {
 
     public DiscoveryNode buildLocalNode(TransportAddress publishAddress) {
         final String nodeId = generateNodeId(settings);
-        return new DiscoveryNode(settings.get("node.name"), nodeId, publishAddress, buildAttributes(), version);
-    }
-
-    Map<String, String> buildAttributes() {
         Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(this.settings).getAsMap());
-        attributes.remove("name"); // name is extracted in other places
         if (attributes.containsKey("client")) {
             throw new IllegalArgumentException("node.client setting is no longer supported, use " + Node.NODE_MASTER_SETTING.getKey()
-                + ", " + Node.NODE_DATA_SETTING.getKey() + " and " + Node.NODE_INGEST_SETTING.getKey() + " explicitly instead");
+                    + ", " + Node.NODE_DATA_SETTING.getKey() + " and " + Node.NODE_INGEST_SETTING.getKey() + " explicitly instead");
         }
-        //nocommit why don't we remove master as well if it's true? and ingest?
-        if (attributes.containsKey(DiscoveryNode.Role.DATA.getRoleName())) {
-            if (attributes.get(DiscoveryNode.Role.DATA.getRoleName()).equals("true")) {
-                attributes.remove(DiscoveryNode.Role.DATA.getRoleName());
+
+        attributes.remove("name"); // name is extracted in other places
+        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
+            String isRoleEnabled = attributes.remove(role.getRoleName());
+            //all existing roles default to true
+            if (isRoleEnabled == null || Booleans.parseBooleanExact(isRoleEnabled)) {
+                roles.add(role);
             }
         }
 
@@ -95,7 +98,7 @@ public class DiscoveryNodeService extends AbstractComponent {
                 logger.warn("failed to build custom attributes from provider [{}]", e, provider);
             }
         }
-        return attributes;
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, Collections.unmodifiableSet(roles), version);
     }
 
     public interface CustomAttributesProvider {

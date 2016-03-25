@@ -62,6 +62,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.empty;
@@ -102,7 +104,8 @@ public class ClusterServiceTests extends ESTestCase {
         TimedClusterService timedClusterService = new TimedClusterService(Settings.EMPTY, null,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool, new ClusterName("ClusterServiceTests"));
-        timedClusterService.setLocalNode(new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        timedClusterService.setLocalNode(new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(),
+                emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
             public void connectToAddedNodes(ClusterChangedEvent event) {

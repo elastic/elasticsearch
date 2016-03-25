@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -84,6 +86,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
                 }
             }
 
+            builder.array("roles", nodeInfo.getNode().getRoles().stream().map(DiscoveryNode.Role::getRoleName)
+                    .collect(Collectors.toList()).toArray());
+
             if (!nodeInfo.getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");
                 for (ObjectObjectCursor<String, String> attr : nodeInfo.getNode().attributes()) {
@@ -91,7 +96,6 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
                 }
                 builder.endObject();
             }
-
 
             if (nodeInfo.getSettings() != null) {
                 builder.startObject("settings");

@@ -74,6 +74,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -234,7 +236,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
+        return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
     }
 
     @AfterClass

@@ -49,6 +49,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -60,10 +61,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
@@ -84,12 +81,12 @@ public class TransportClientNodesService extends AbstractComponent {
     private final Version minCompatibilityVersion;
 
     // nodes that are added to be discovered
-    private volatile List<DiscoveryNode> listedNodes = emptyList();
+    private volatile List<DiscoveryNode> listedNodes = Collections.emptyList();
 
     private final Object mutex = new Object();
 
-    private volatile List<DiscoveryNode> nodes = emptyList();
-    private volatile List<DiscoveryNode> filteredNodes = emptyList();
+    private volatile List<DiscoveryNode> nodes = Collections.emptyList();
+    private volatile List<DiscoveryNode> filteredNodes = Collections.emptyList();
 
     private final AtomicInteger tempNodeIdGenerator = new AtomicInteger();
 
@@ -143,7 +140,7 @@ public class TransportClientNodesService extends AbstractComponent {
         for (DiscoveryNode listedNode : listedNodes) {
             lstBuilder.add(listedNode.address());
         }
-        return unmodifiableList(lstBuilder);
+        return Collections.unmodifiableList(lstBuilder);
     }
 
     public List<DiscoveryNode> connectedNodes() {
@@ -184,11 +181,11 @@ public class TransportClientNodesService extends AbstractComponent {
             builder.addAll(listedNodes());
             for (TransportAddress transportAddress : filtered) {
                 DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(),
-                        transportAddress, emptyMap(), emptySet(), minCompatibilityVersion);
+                        transportAddress, Collections.emptyMap(), Collections.emptySet(), minCompatibilityVersion);
                 logger.debug("adding address [{}]", node);
                 builder.add(node);
             }
-            listedNodes = unmodifiableList(builder);
+            listedNodes = Collections.unmodifiableList(builder);
             nodesSampler.sample();
         }
         return this;
@@ -207,7 +204,7 @@ public class TransportClientNodesService extends AbstractComponent {
                     logger.debug("removing address [{}]", otherNode);
                 }
             }
-            listedNodes = unmodifiableList(builder);
+            listedNodes = Collections.unmodifiableList(builder);
             nodesSampler.sample();
         }
         return this;
@@ -283,7 +280,7 @@ public class TransportClientNodesService extends AbstractComponent {
             for (DiscoveryNode listedNode : listedNodes) {
                 transportService.disconnectFromNode(listedNode);
             }
-            nodes = emptyList();
+            nodes = Collections.emptyList();
         }
     }
 
@@ -333,7 +330,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
             }
 
-            return unmodifiableList(new ArrayList<>(nodes));
+            return Collections.unmodifiableList(new ArrayList<>(nodes));
         }
 
     }
@@ -400,7 +397,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             nodes = validateNewNodes(newNodes);
-            filteredNodes = unmodifiableList(new ArrayList<>(newFilteredNodes));
+            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }
 
@@ -502,7 +499,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             nodes = validateNewNodes(newNodes);
-            filteredNodes = unmodifiableList(new ArrayList<>(newFilteredNodes));
+            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }
 

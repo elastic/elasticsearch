@@ -120,12 +120,12 @@ start() {
     retval=''
     if [ $SUSE ]; then
         # SLES uses startproc
-        startproc -u $ES_USER $exec -p $pidfile -d -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.conf=$CONF_DIR &
+        startproc -u $ES_USER $exec -p $pidfile -d -Ees.default.path.home=$ES_HOME -Ees.default.path.logs=$LOG_DIR -Ees.default.path.data=$DATA_DIR -Ees.default.path.conf=$CONF_DIR &
         retval=$?
         rc_status -v
     else
         # For non-SLES usually something like "daemon $exec"
-        daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.conf=$CONF_DIR
+        daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Ees.default.path.home=$ES_HOME -Ees.default.path.logs=$LOG_DIR -Ees.default.path.data=$DATA_DIR -Ees.default.path.conf=$CONF_DIR
         retval=$?
     fi
 

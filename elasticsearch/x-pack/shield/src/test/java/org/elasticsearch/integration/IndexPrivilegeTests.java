@@ -22,10 +22,10 @@ import static org.hamcrest.Matchers.is;
 
 //test is just too slow, please fix it to not be sleep-based
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
-@ESIntegTestCase.ClusterScope(randomDynamicTemplates = false)
+@ESIntegTestCase.ClusterScope(randomDynamicTemplates = false, maxNumDataNodes = 2)
 public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
-    private String jsonDoc = "{ \"name\" : \"elasticsearch\"}";
+    private String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
 
     public static final String ROLES =
                     "all_cluster_role:\n" +
@@ -42,6 +42,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     "  indices:\n" +
                     "    - names: 'a'\n" +
                     "      privileges: [ read ]\n" +
+                    "read_b_role:\n" +
+                    "  indices:\n" +
+                    "    - names: 'b'\n" +
+                    "      privileges: [ read ]\n" +
                     "write_a_role:\n" +
                     "  indices:\n" +
                     "    - names: 'a'\n" +
@@ -50,14 +54,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     "  indices:\n" +
                     "    - names: [ 'a', 'b' ]\n" +
                     "      privileges: [ read ]\n" +
-                    "get_b_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'b'\n" +
-                    "      privileges: [ get ]\n" +
-                    "search_b_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'b'\n" +
-                    "      privileges: [ search ]\n" +
                     "all_regex_ab_role:\n" +
                     "  indices:\n" +
                     "    - names: '/a|b/'\n" +
@@ -66,10 +62,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     "  indices:\n" +
                     "    - names: 'a*'\n" +
                     "      privileges: [ manage ]\n" +
-                    "data_access_all_role:\n" +
+                    "read_write_all_role:\n" +
                     "  indices:\n" +
                     "    - names: '*'\n" +
-                    "      privileges: [ data_access ]\n" +
+                    "      privileges: [ read, write ]\n" +
                     "create_c_role:\n" +
                     "  indices:\n" +
                     "    - names: 'c'\n" +
@@ -78,10 +74,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     "  indices:\n" +
                     "    - names: 'b'\n" +
                     "      privileges: [ monitor ]\n" +
-                    "crud_a_role:\n" +
+                    "read_write_a_role:\n" +
                     "  indices:\n" +
                     "    - names: 'a'\n" +
-                    "      privileges: [ crud ]\n" +
+                    "      privileges: [ read, write ]\n" +
                     "delete_b_role:\n" +
                     "  indices:\n" +
                     "    - names: 'b'\n" +
@@ -90,10 +86,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     "  indices:\n" +
                     "    - names: 'a'\n" +
                     "      privileges: [ index ]\n" +
-                    "search_a_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a'\n" +
-                    "      privileges: [ search ]\n" +
                     "\n";
 
     public static final String USERS =
@@ -107,7 +99,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "u7:" + USERS_PASSWD_HASHED + "\n"+
             "u8:" + USERS_PASSWD_HASHED + "\n"+
             "u9:" + USERS_PASSWD_HASHED + "\n" +
-            "u10:" + USERS_PASSWD_HASHED + "\n" +
             "u11:" + USERS_PASSWD_HASHED + "\n" +
             "u12:" + USERS_PASSWD_HASHED + "\n" +
             "u13:" + USERS_PASSWD_HASHED + "\n" +
@@ -118,19 +109,17 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "all_cluster_role:admin\n" +
             "all_a_role:u1,u2,u6\n" +
             "read_a_role:u1,u5,u14\n" +
+            "read_b_role:u3,u5,u6,u8,u13\n" +
             "write_a_role:u9\n" +
             "read_ab_role:u2,u4,u9\n" +
-            "get_b_role:u3,u5,u8,u10\n" +
-            "search_b_role:u6,u10,u13\n" +
             "all_regex_ab_role:u3\n" +
-            "manage_starts_with_a_role:u4,u15\n" +
-            "data_access_all_role:u12\n" +
+            "manage_starts_with_a_role:u4\n" +
+            "read_write_all_role:u12\n" +
             "create_c_role:u11\n" +
             "monitor_b_role:u14\n" +
-            "crud_a_role:u12\n" +
+            "read_write_a_role:u12\n" +
             "delete_b_role:u11\n" +
-            "index_a_role:u13\n" +
-            "search_a_role:u15\n" ;
+            "index_a_role:u13\n";
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -193,7 +182,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     public void testUserU3() throws Exception {
-        // u3 has get b role, but all access to a* and b* via regex
+        // u3 has read b role, but all access to a* and b* via regex
         assertUserIsAllowed("u3", "all", "a");
         assertUserIsAllowed("u3", "all", "b");
         assertUserIsDenied("u3", "all", "c");
@@ -216,21 +205,20 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     public void testUserU5() throws Exception {
-        // u5 may read a and get b
+        // u5 may read a and read b
         assertUserIsAllowed("u5", "read", "a");
         assertUserIsDenied("u5", "manage", "a");
         assertUserIsDenied("u5", "write", "a");
 
-        assertUserIsAllowed("u5", "get", "b");
+        assertUserIsAllowed("u5", "read", "b");
         assertUserIsDenied("u5", "manage", "b");
         assertUserIsDenied("u5", "write", "b");
-        assertAccessIsDenied("u5", "GET", "/b/_search");
     }
 
     public void testUserU6() throws Exception {
-        // u6 has all access on a and search access on b
+        // u6 has all access on a and read access on b
         assertUserIsAllowed("u6", "all", "a");
-        assertUserIsAllowed("u6", "search", "b");
+        assertUserIsAllowed("u6", "read", "b");
         assertUserIsDenied("u6", "manage", "b");
         assertUserIsDenied("u6", "write", "b");
         assertUserIsDenied("u6", "all", "c");
@@ -244,7 +232,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     public void testUserU8() throws Exception {
-        // u8 has admin access and get access on b
+        // u8 has admin access and read access on b
         assertUserIsAllowed("u8", "all", "a");
         assertUserIsAllowed("u8", "all", "b");
         assertUserIsAllowed("u8", "all", "c");
@@ -258,15 +246,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u9", "manage", "b");
         assertUserIsDenied("u9", "write", "b");
         assertUserIsDenied("u9", "all", "c");
-    }
-
-    public void testUserU10() throws Exception {
-        // u10 has access on get/search on b
-        assertUserIsDenied("u10", "all", "a");
-        assertUserIsDenied("u10", "manage", "b");
-        assertUserIsDenied("u10", "write", "b");
-        assertUserIsAllowed("u10", "search", "b");
-        assertUserIsDenied("u10", "all", "c");
     }
 
     public void testUserU11() throws Exception {
@@ -295,7 +274,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     public void testUserU13() throws Exception {
-        // u13 has search access on b and index access on a
+        // u13 has read access on b and index access on a
         assertUserIsDenied("u13", "manage", "a");
         assertUserIsAllowed("u13", "index", "a");
         assertUserIsDenied("u13", "delete", "a");
@@ -303,7 +282,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
         assertUserIsDenied("u13", "manage", "b");
         assertUserIsDenied("u13", "write", "b");
-        assertUserIsAllowed("u13", "search", "b");
+        assertUserIsAllowed("u13", "read", "b");
 
         assertUserIsDenied("u13", "all", "c");
     }

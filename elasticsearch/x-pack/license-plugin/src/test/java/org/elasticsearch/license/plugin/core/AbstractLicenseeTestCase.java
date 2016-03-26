@@ -5,10 +5,15 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -32,7 +37,7 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
      * @param toMode New license
      * @param licensee The licensee to test
      */
-    public static void assertEmptyAck(License.OperationMode fromMode, License.OperationMode toMode, Licensee licensee) {
+    public static void assertEmptyAck(OperationMode fromMode, OperationMode toMode, Licensee licensee) {
         License fromLicense = mock(License.class);
         when(fromLicense.operationMode()).thenReturn(fromMode);
         License toLicense = mock(License.class);
@@ -57,7 +62,7 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
      * @param toMode New license
      * @param licenseeSupplier Supplies the licensee to test
      */
-    public static void assertEmptyAck(License.OperationMode fromMode, License.OperationMode toMode, Supplier<Licensee> licenseeSupplier) {
+    public static void assertEmptyAck(OperationMode fromMode, OperationMode toMode, Supplier<Licensee> licenseeSupplier) {
         assertEmptyAck(fromMode, toMode, licenseeSupplier.get());
     }
 
@@ -70,7 +75,7 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
      * @param toMode New license
      * @param licensee The licensee to test
      */
-    public static String[] ackLicenseChange(License.OperationMode fromMode, License.OperationMode toMode, Licensee licensee) {
+    public static String[] ackLicenseChange(OperationMode fromMode, OperationMode toMode, Licensee licensee) {
         License fromLicense = mock(License.class);
         when(fromLicense.operationMode()).thenReturn(fromMode);
         License toLicense = mock(License.class);
@@ -88,67 +93,54 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
      * @param toMode New license
      * @param licenseeSupplier Supplies the licensee to test
      */
-    public static String[] ackLicenseChange(License.OperationMode fromMode, License.OperationMode toMode, Supplier<Licensee> licenseeSupplier) {
+    public static String[] ackLicenseChange(OperationMode fromMode, OperationMode toMode, Supplier<Licensee> licenseeSupplier) {
         return ackLicenseChange(fromMode, toMode, licenseeSupplier.get());
     }
 
     /**
-     * Get any {@link License.OperationMode} that have {@link License.OperationMode#allFeaturesEnabled()} all features enabled}.
+     * Randomly get {@link OperationMode#TRIAL} or {@link OperationMode#PLATINUM}.
      *
      * @return Never {@code null}.
      */
-    public static License.OperationMode randomAllFeaturesMode() {
-        return randomFrom(License.OperationMode.values(), License.OperationMode::allFeaturesEnabled);
+    public static OperationMode randomTrialOrPlatinumMode() {
+        return randomFrom(OperationMode.TRIAL, OperationMode.PLATINUM);
     }
 
     /**
-     * Get any {@link License.OperationMode} that {@link License.OperationMode#isPaid() is paid}.
+     * Randomly get {@link OperationMode#TRIAL}, {@link OperationMode#GOLD}, or {@link OperationMode#PLATINUM}.
      *
      * @return Never {@code null}.
      */
-    public static License.OperationMode randomPaidMode() {
-        return randomFrom(License.OperationMode.values(), License.OperationMode::isPaid);
+    public static OperationMode randomTrialGoldOrPlatinumMode() {
+        return randomFrom(OperationMode.TRIAL, OperationMode.GOLD, OperationMode.PLATINUM);
     }
 
     /**
-     * Get any {@link License.OperationMode} that {@link License.OperationMode#isPaid() is not paid}.
+     * Randomly get any {@link OperationMode}.
      *
      * @return Never {@code null}.
      */
-    public static License.OperationMode randomFreeMode() {
-        Predicate<License.OperationMode> isPaid = License.OperationMode::isPaid;
-
-        return randomFrom(License.OperationMode.values(), isPaid.negate());
+    public static OperationMode randomMode() {
+        return randomFrom(OperationMode.values());
     }
 
     /**
-     * Get any {@link #randomPaidMode() paid mode}, except the selected {@code mode}.
+     * Get any {@link #randomMode() mode}, except the selected {@code mode}.
      *
      * @param mode The mode to exclude.
      * @return Never {@code null}.
      */
-    public static License.OperationMode randomFromPaidExcept(License.OperationMode mode) {
-        return randomValueOtherThan(mode, AbstractLicenseeTestCase::randomPaidMode);
+    public static OperationMode randomModeExcept(OperationMode mode) {
+        return randomValueOtherThan(mode, AbstractLicenseeTestCase::randomMode);
     }
 
     /**
-     * Get any {@link LicenseState} that {@link LicenseState#isActive() is active}.
+     * Randomly get {@link LicenseState#ENABLED} or {@link LicenseState#GRACE_PERIOD}.
      *
      * @return Never {@code null}.
      */
-    public static LicenseState randomActiveState() {
-        return randomFrom(LicenseState.values(), LicenseState::isActive);
-    }
-
-    /**
-     * Get any {@link LicenseState} that {@link LicenseState#isActive() is not active}.
-     *
-     * @return Never {@code null}.
-     */
-    public static LicenseState randomInactiveState() {
-        Predicate<LicenseState> isActive = LicenseState::isActive;
-
-        return randomFrom(LicenseState.values(), isActive.negate());
+    public static LicenseState randomEnabledOrGracePeriodState() {
+        return randomFrom(LicenseState.ENABLED, LicenseState.GRACE_PERIOD);
     }
 
     /**
@@ -162,5 +154,37 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
      */
     public static <T> T randomFrom(T[] values, Predicate<T> filter) {
         return randomFrom(Arrays.stream(values).filter(filter).collect(Collectors.toList()));
+    }
+
+    public static class SimpleLicenseeRegistry extends AbstractComponent implements LicenseeRegistry {
+        private final List<Licensee> licensees = new ArrayList<>();
+        private OperationMode operationMode;
+
+        public SimpleLicenseeRegistry() {
+            super(Settings.EMPTY);
+        }
+
+        @Override
+        public void register(Licensee licensee) {
+            licensees.add(licensee);
+            enable();
+        }
+
+        public void enable() {
+            for (Licensee licensee : licensees) {
+                licensee.onChange(new Licensee.Status(operationMode, randomEnabledOrGracePeriodState()));
+            }
+        }
+
+        public void disable() {
+            for (Licensee licensee : licensees) {
+                licensee.onChange(new Licensee.Status(operationMode, LicenseState.DISABLED));
+            }
+        }
+
+        public void setOperationMode(License.OperationMode operationMode) {
+            this.operationMode = operationMode;
+            enable();
+        }
     }
 }

@@ -67,10 +67,6 @@ public interface Licensee {
          * <p>
          * Note: Knowing the mode does not indicate whether the {@link #getLicenseState() state} is disabled. If that matters (e.g.,
          * disabling services when a license becomes disabled), then you should check it as well!
-         *
-         * @see OperationMode#allFeaturesEnabled()
-         * @see OperationMode#isPaid()
-         * @see LicenseState#isActive()
          */
         public OperationMode getMode() {
             return mode;
@@ -82,8 +78,6 @@ public interface Licensee {
          * the state changes to {@link LicenseState#GRACE_PERIOD}
          * and after the grace period has ended the state changes
          * to {@link LicenseState#DISABLED}
-         *
-         * @see LicenseState#isActive()
          */
         public LicenseState getLicenseState() {
             return licenseState;

@@ -102,30 +102,6 @@ public class License implements ToXContent {
                     throw new IllegalArgumentException("unknown type [" + type + "]");
             }
         }
-
-        /**
-         * Determine if the operation mode should be treated like a paid license.
-         * <p>
-         * This should be used for licenses that do not tier features, but that require a paid license.
-         * <p>
-         * Note: This does not mean that the license state is enabled!
-         *
-         * @return {@code true} if the license is <em>not</em> {@link #BASIC}.
-         */
-        public boolean isPaid() {
-            return this != BASIC;
-        }
-
-        /**
-         * Determine if the current operation mode unlocks all features.
-         * <p>
-         * Note: This does not mean that the license state is enabled!
-         *
-         * @return {@code true} if the license is either {@link #TRIAL} or {@link #PLATINUM}.
-         */
-        public boolean allFeaturesEnabled() {
-            return this == TRIAL || this == PLATINUM;
-        }
     }
 
     private License(int version, String uid, String issuer, String issuedTo, long issueDate, String type,

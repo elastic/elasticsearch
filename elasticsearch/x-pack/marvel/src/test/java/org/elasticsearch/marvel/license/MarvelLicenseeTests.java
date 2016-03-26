@@ -31,42 +31,42 @@ public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
     private final MarvelLicensee licensee = new MarvelLicensee(Settings.EMPTY, registry);
 
     public void testAcknowledgementMessagesToAnyFromFreeIsNoOp() {
-        assertEmptyAck(randomFreeMode(), randomFrom(OperationMode.values()), licensee);
+        assertEmptyAck(OperationMode.BASIC, randomMode(), licensee);
     }
 
-    public void testAcknowledgementMessagesToPaidFromAnyIsNoOp() {
-        assertEmptyAck(randomFrom(OperationMode.values()), randomPaidMode(), licensee);
+    public void testAcknowledgementMessagesToTrialGoldOrPlatinumFromAnyIsNoOp() {
+        assertEmptyAck(randomMode(), randomTrialGoldOrPlatinumMode(), licensee);
     }
 
-    public void testAcknowledgementMessagesToFreeFromPaidNotesLimits() {
-        String[] messages = ackLicenseChange(randomPaidMode(), randomFreeMode(), licensee);
+    public void testAcknowledgementMessagesToBasicFromNotBasicNotesLimits() {
+        String[] messages = ackLicenseChange(randomModeExcept(OperationMode.BASIC), OperationMode.BASIC, licensee);
 
         // leaving messages up to inspection
         assertThat(messages.length, equalTo(2));
     }
 
     public void testCollectionEnabledIsTrueForActiveState() {
-        assertEnabled(randomActiveState(), MarvelLicensee::collectionEnabled, true);
+        assertEnabled(randomEnabledOrGracePeriodState(), MarvelLicensee::collectionEnabled, true);
     }
 
     public void testCollectionEnabledIsFalseForInactiveState() {
-        assertEnabled(randomInactiveState(), MarvelLicensee::collectionEnabled, false);
+        assertEnabled(LicenseState.DISABLED, MarvelLicensee::collectionEnabled, false);
     }
 
     public void testCleaningEnabledIsTrueForActiveState() {
-        assertEnabled(randomActiveState(), MarvelLicensee::cleaningEnabled, true);
+        assertEnabled(randomEnabledOrGracePeriodState(), MarvelLicensee::cleaningEnabled, true);
     }
 
     public void testCleaningEnabledIsFalseForInactiveState() {
-        assertEnabled(randomInactiveState(), MarvelLicensee::cleaningEnabled, false);
+        assertEnabled(LicenseState.DISABLED, MarvelLicensee::cleaningEnabled, false);
     }
 
-    public void testAllowUpdateRetentionIsTrueForPaid() {
-        assertEnabled(randomPaidMode(), MarvelLicensee::allowUpdateRetention, true);
+    public void testAllowUpdateRetentionIsTrueForNotBasic() {
+        assertEnabled(randomModeExcept(OperationMode.BASIC), MarvelLicensee::allowUpdateRetention, true);
     }
 
-    public void testAllowUpdateRetentionIsFalseForFree() {
-        assertEnabled(randomFreeMode(), MarvelLicensee::allowUpdateRetention, false);
+    public void testAllowUpdateRetentionIsFalseForBasic() {
+        assertEnabled(OperationMode.BASIC, MarvelLicensee::allowUpdateRetention, false);
     }
 
     /**
@@ -95,7 +95,7 @@ public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
      * @param predicate The method to invoke (expected to be an instance method).
      * @param expected The expected outcome given the {@code mode} and {@code predicate}.
      */
-    private void assertEnabled(License.OperationMode mode, Predicate<MarvelLicensee> predicate, boolean expected) {
+    private void assertEnabled(OperationMode mode, Predicate<MarvelLicensee> predicate, boolean expected) {
         Status status = mock(Status.class);
         when(status.getMode()).thenReturn(mode);
 

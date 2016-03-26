@@ -16,29 +16,6 @@ import static org.hamcrest.Matchers.equalTo;
  * If you change the behavior of these tests, then it means that licensing changes across the products!
  */
 public class LicenseOperationModeTests extends ESTestCase {
-    public void testIsPaid() {
-        assertThat(OperationMode.BASIC.isPaid(), equalTo(false));
-
-        // EVERY other operation mode is expected to be equivalent to paid; loop will catch any new mode
-        for (OperationMode mode : OperationMode.values()) {
-            if (mode != OperationMode.BASIC) {
-                assertThat(mode.isPaid(), equalTo(true));
-            }
-        }
-    }
-
-    public void testAllFeaturesEnabled() {
-        assertThat(OperationMode.TRIAL.allFeaturesEnabled(), equalTo(true));
-        assertThat(OperationMode.PLATINUM.allFeaturesEnabled(), equalTo(true));
-
-        // EVERY other operation mode is expected to NOT enable everything; loop will catch any new mode
-        for (OperationMode mode : OperationMode.values()) {
-            if (mode != OperationMode.TRIAL && mode != OperationMode.PLATINUM) {
-                assertThat(mode.allFeaturesEnabled(), equalTo(false));
-            }
-        }
-    }
-
     public void testResolveTrial() {
         // assert 1.x BWC
         assertResolve(OperationMode.TRIAL, "nONE", "DEv", "deveLopment");
@@ -53,14 +30,14 @@ public class LicenseOperationModeTests extends ESTestCase {
 
     public void testResolveGold() {
         // assert expected (2.x+) variant (note: no different 1.x variant of GOLD)
-        assertResolve(OperationMode.BASIC, "SiLvEr", "gOlD", "silver", "gold");
+        assertResolve(OperationMode.GOLD, "SiLvEr", "gOlD", "silver", "gold");
     }
 
     public void testResolvePlatinum() {
         // assert 1.x BWC
-        assertResolve(OperationMode.TRIAL, "iNtErNaL");
+        assertResolve(OperationMode.PLATINUM, "iNtErNaL");
         // assert expected (2.x+) variant
-        assertResolve(OperationMode.TRIAL, "PlAtINum", "platinum");
+        assertResolve(OperationMode.PLATINUM, "PlAtINum", "platinum");
     }
 
     public void testResolveUnknown() {

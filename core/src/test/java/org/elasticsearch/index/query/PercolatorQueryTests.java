@@ -36,7 +36,6 @@ import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -61,8 +60,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class PercolatorQueryTests extends ESTestCase {
 
@@ -185,7 +182,7 @@ public class PercolatorQueryTests extends ESTestCase {
         }
     }
 
-    public void testDuel_specificQueries() throws Exception {
+    public void testDuelSpecificQueries() throws Exception {
         CommonTermsQuery commonTermsQuery = new CommonTermsQuery(BooleanClause.Occur.SHOULD, BooleanClause.Occur.SHOULD, 128);
         commonTermsQuery.add(new Term("field", "quick"));
         commonTermsQuery.add(new Term("field", "brown"));

@@ -24,7 +24,6 @@ import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -154,7 +153,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(3).getHighlightFields().get("field1").fragments()[0].string(),
                 equalTo("The quick brown fox jumps over the lazy <em>dog</em>"));
         assertThat(searchResponse.getHits().getAt(4).getHighlightFields().get("field1").fragments()[0].string(),
-                equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));;
+                equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
     }
 
 }

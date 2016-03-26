@@ -41,16 +41,13 @@ import org.elasticsearch.test.ESTestCase;
 
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ExtractQueryTermsServiceTests extends ESTestCase {
@@ -256,7 +253,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         }
 
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();;
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termRangeQuery, BooleanClause.Occur.SHOULD);
         BooleanQuery bq = builder.build();

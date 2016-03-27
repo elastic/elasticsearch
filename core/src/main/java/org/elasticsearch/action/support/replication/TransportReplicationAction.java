@@ -549,8 +549,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 public void handleException(TransportException exp) {
                     try {
                         // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
-                        if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
-                                (isPrimaryAction && retryPrimaryException(exp.unwrapCause()))) {
+                        final Throwable cause = exp.unwrapCause();
+                        if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException ||
+                            (isPrimaryAction && retryPrimaryException(cause))) {
                             logger.trace("received an error from node [{}] for request [{}], scheduling a retry", exp, node.id(), request);
                             retry(exp);
                         } else {
@@ -799,6 +800,12 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
+        // we may end up here if the cluster state used to route the primary is so stale that the underlying
+        // index shard was replaced with a replica. For example - in a two node cluster, if the primary fails
+        // the replica will take over and a replica will be assigned to the first node.
+        if (indexShard.routingEntry().primary() == false) {
+            throw new RetryOnPrimaryException(indexShard.shardId(), "actual shard is not a primary " +  indexShard.routingEntry());
+        }
         return IndexShardReferenceImpl.createOnPrimary(indexShard);
     }
 

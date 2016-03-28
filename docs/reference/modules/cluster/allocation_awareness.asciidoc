@@ -21,7 +21,7 @@ attribute called `rack_id` -- we could use any attribute name.  For example:
 
 [source,sh]
 ----------------------
-./bin/elasticsearch --node.rack_id rack_one <1>
+./bin/elasticsearch -Ees.node.rack_id=rack_one <1>
 ----------------------
 <1> This setting could also be specified in the `elasticsearch.yml` config file.
 

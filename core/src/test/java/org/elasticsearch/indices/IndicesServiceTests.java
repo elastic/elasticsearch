@@ -20,14 +20,13 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayMetaState;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -73,12 +72,16 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndexMetaData meta = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(
                 1).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
-        assertFalse("no shard location", indicesService.canDeleteShardContent(new ShardId("test", "_na_", 0), indexSettings));
+        ShardId shardId = new ShardId(meta.getIndex(), 0);
+        assertFalse("no shard location", indicesService.canDeleteShardContent(shardId, indexSettings));
         IndexService test = createIndex("test");
+        shardId = new ShardId(test.index(), 0);
         assertTrue(test.hasShard(0));
-        assertFalse("shard is allocated", indicesService.canDeleteShardContent(new ShardId("test", "_na_", 0), indexSettings));
+        assertFalse("shard is allocated", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()));
         test.removeShard(0, "boom");
-        assertTrue("shard is removed", indicesService.canDeleteShardContent(new ShardId("test", "_na_", 0), indexSettings));
+        assertTrue("shard is removed", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()));
+        ShardId notAllocated = new ShardId(test.index(), 100);
+        assertFalse("shard that was never on this node should NOT be deletable", indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()));
     }
 
     public void testDeleteIndexStore() throws Exception {

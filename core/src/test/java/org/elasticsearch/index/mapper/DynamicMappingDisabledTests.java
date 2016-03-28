@@ -28,27 +28,30 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.cluster.TestClusterService;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import static org.hamcrest.CoreMatchers.instanceOf;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.hamcrest.CoreMatchers.instanceOf;
+
 public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
     private static ThreadPool THREAD_POOL;
-    private TestClusterService clusterService;
+    private ClusterService clusterService;
     private LocalTransport transport;
     private TransportService transportService;
     private IndicesService indicesService;
@@ -67,9 +70,9 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         settings = Settings.builder()
-            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
-            .build();
-        clusterService = new TestClusterService(THREAD_POOL);
+                .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
+                .build();
+        clusterService = createClusterService(THREAD_POOL);
         transport = new LocalTransport(settings, THREAD_POOL, Version.CURRENT, new NamedWriteableRegistry());
         transportService = new TransportService(transport, THREAD_POOL);
         indicesService = getInstanceFromNode(IndicesService.class);
@@ -78,6 +81,14 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         autoCreateIndex = new AutoCreateIndex(settings, indexNameExpressionResolver);
     }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        clusterService.close();
+        transportService.close();
+    }
+
 
     @AfterClass
     public static void destroyThreadPool() {
@@ -88,8 +99,8 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
     public void testDynamicDisabled() {
         TransportIndexAction action = new TransportIndexAction(settings, transportService, clusterService,
-            indicesService, THREAD_POOL, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
-            autoCreateIndex);
+                indicesService, THREAD_POOL, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
+                autoCreateIndex);
 
         IndexRequest request = new IndexRequest("index", "type", "1");
         request.source("foo", 3);

@@ -108,7 +108,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
 
         for (String repoVersion : repoVersions) {
             if (expectedVersions.remove(repoVersion) == false) {
-                logger.warn("Old repositories tests contain extra repo: " + repoVersion);
+                logger.warn("Old repositories tests contain extra repo: {}", repoVersion);
             }
         }
         if (expectedVersions.isEmpty() == false) {

@@ -22,14 +22,10 @@ package org.elasticsearch.plugins;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.MockTerminal;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -48,8 +44,9 @@ public class ListPluginsCommandTests extends ESTestCase {
 
     static MockTerminal listPlugins(Environment env) throws Exception {
         MockTerminal terminal = new MockTerminal();
-        CliTool.ExitStatus status = new ListPluginsCommand(terminal).execute(env.settings(), env);
-        assertEquals(CliTool.ExitStatus.OK, status);
+        String[] args = {};
+        int status = new ListPluginsCommand(env).main(args, terminal);
+        assertEquals(ExitCodes.OK, status);
         return terminal;
     }
 

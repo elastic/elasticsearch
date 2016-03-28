@@ -221,18 +221,10 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(INITIALIZING)) {
-            logger.info(shard.toString());
-        }
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(STARTED)) {
-            logger.info(shard.toString());
-        }
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(RELOCATING)) {
-            logger.info(shard.toString());
-        }
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
-            logger.info(shard.toString());
-        }
+        logger.info("Initializing shards: {}", clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        logger.info("Started shards: {}", clusterState.getRoutingNodes().shardsWithState(STARTED));
+        logger.info("Relocating shards: {}", clusterState.getRoutingNodes().shardsWithState(RELOCATING));
+        logger.info("Unassigned shards: {}", clusterState.getRoutingNodes().shardsWithState(UNASSIGNED));
 
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(5));
 

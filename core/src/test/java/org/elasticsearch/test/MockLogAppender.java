@@ -80,7 +80,7 @@ public class MockLogAppender extends AppenderSkeleton {
         protected final String logger;
         protected final Level level;
         protected final String message;
-        protected boolean saw;
+        volatile boolean saw;
 
         public AbstractEventExpectation(String name, String logger, Level level, String message) {
             this.name = name;

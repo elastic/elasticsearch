@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -102,7 +101,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     static final class TypeFieldType extends MappedFieldType {
 
         public TypeFieldType() {
-            setFieldDataType(new FieldDataType("string"));
         }
 
         protected TypeFieldType(TypeFieldType ref) {

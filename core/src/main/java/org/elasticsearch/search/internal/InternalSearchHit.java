@@ -55,7 +55,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
-import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 import static org.elasticsearch.search.highlight.HighlightField.readHighlightField;
 import static org.elasticsearch.search.internal.InternalSearchHitField.readSearchHitField;
 
@@ -638,7 +637,7 @@ public class InternalSearchHit implements SearchHit {
 
         if (context.streamShardTarget() == ShardTargetType.STREAM) {
             if (in.readBoolean()) {
-                shard = readSearchShardTarget(in);
+                shard = new SearchShardTarget(in);
             }
         } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
             int lookupId = in.readVInt();

@@ -29,6 +29,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -92,12 +95,9 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
             return super.indexOptions(indexOptions);
         }
 
-        @Override
-        protected void setupFieldType(BuilderContext context) {
-            if (!omitNormsSet && fieldType.boost() != 1.0f) {
-                fieldType.setOmitNorms(false);
-            }
-            super.setupFieldType(context);
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            return builder;
         }
 
         @Override
@@ -128,7 +128,11 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (propName.equals("norms")) {
+                    builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode) == false);
+                    iterator.remove();
+                } else if (propName.equals("eager_global_ordinals")) {
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode));
                     iterator.remove();
                 }
             }
@@ -168,6 +172,12 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
             }
             return termQuery(nullValue(), null);
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder();
+        }
     }
 
     private Boolean includeInAll;
@@ -178,6 +188,13 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
+    }
+
+    /** Values that have more chars than the return value of this method will
+     *  be skipped at parsing time. */
+    // pkg-private for testing
+    int ignoreAbove() {
+        return ignoreAbove;
     }
 
     @Override

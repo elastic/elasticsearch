@@ -80,7 +80,7 @@ To upgrade using a zip or compressed tarball:
     overwrite the `config` or `data` directories.
 
 *   Either copy the files in the `config` directory from your old installation
-    to your new installation, or use the `--path.conf` option on the command
+    to your new installation, or use the `-E path.conf=` option on the command
     line to point to an external config directory.
 
 *   Either copy the files in the `data` directory from your old installation

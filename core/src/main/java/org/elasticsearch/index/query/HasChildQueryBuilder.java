@@ -189,7 +189,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.field(HasChildQueryParser.QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
         builder.field(HasChildQueryParser.TYPE_FIELD.getPreferredName(), type);
-        builder.field(HasChildQueryParser.SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        builder.field(HasChildQueryParser.SCORE_MODE_FIELD.getPreferredName(), HasChildQueryParser.scoreModeAsString(scoreMode));
         builder.field(HasChildQueryParser.MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
         builder.field(HasChildQueryParser.MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
         printBoostAndQueryName(builder);
@@ -257,12 +257,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
 
         final ParentChildIndexFieldData parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
-        int maxChildren = maxChildren();
-        // 0 in pre 2.x p/c impl means unbounded
-        if (maxChildren == 0) {
-            maxChildren = Integer.MAX_VALUE;
-        }
-        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren,
+        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren(),
                                     parentType, scoreMode, parentChildIndexFieldData, context.getSearchSimilarity());
     }
 

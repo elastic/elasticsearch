@@ -69,7 +69,6 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(RescoreBuilder.class, QueryRescorerBuilder.PROTOTYPE);
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
 
@@ -109,14 +108,17 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             assertTrue("rescore builder is not equal to self", secondBuilder.equals(secondBuilder));
             assertTrue("rescore builder is not equal to its copy", firstBuilder.equals(secondBuilder));
             assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
-            assertThat("rescore builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(firstBuilder.hashCode()));
+            assertThat("rescore builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
+                    equalTo(firstBuilder.hashCode()));
 
             RescoreBuilder<?> thirdBuilder = serializedCopy(secondBuilder);
             assertTrue("rescore builder is not equal to self", thirdBuilder.equals(thirdBuilder));
             assertTrue("rescore builder is not equal to its copy", secondBuilder.equals(thirdBuilder));
-            assertThat("rescore builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
+            assertThat("rescore builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
+                    equalTo(thirdBuilder.hashCode()));
             assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-            assertThat("rescore builder copy's hashcode is different from original hashcode", firstBuilder.hashCode(), equalTo(thirdBuilder.hashCode()));
+            assertThat("rescore builder copy's hashcode is different from original hashcode", firstBuilder.hashCode(),
+                    equalTo(thirdBuilder.hashCode()));
             assertTrue("equals is not symmetric", thirdBuilder.equals(secondBuilder));
             assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
         }
@@ -159,7 +161,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry) {
+        QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry,
+                null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -172,7 +175,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             QueryRescoreContext rescoreContext = rescoreBuilder.build(mockShardContext);
             XContentParser parser = createParser(rescoreBuilder);
 
-            QueryRescoreContext parsedRescoreContext = (QueryRescoreContext) new RescoreParseElement().parseSingleRescoreContext(parser, mockShardContext);
+            QueryRescoreContext parsedRescoreContext = (QueryRescoreContext) new RescoreParseElement().parseSingleRescoreContext(parser,
+                    mockShardContext);
             assertNotSame(rescoreContext, parsedRescoreContext);
             assertEquals(rescoreContext.window(), parsedRescoreContext.window());
             assertEquals(rescoreContext.query(), parsedRescoreContext.query());
@@ -315,7 +319,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      * create random shape that is put under test
      */
     public static org.elasticsearch.search.rescore.QueryRescorerBuilder randomRescoreBuilder() {
-        QueryBuilder<MatchAllQueryBuilder> queryBuilder = new MatchAllQueryBuilder().boost(randomFloat()).queryName(randomAsciiOfLength(20));
+        QueryBuilder<MatchAllQueryBuilder> queryBuilder = new MatchAllQueryBuilder().boost(randomFloat())
+                .queryName(randomAsciiOfLength(20));
         org.elasticsearch.search.rescore.QueryRescorerBuilder rescorer = new
                 org.elasticsearch.search.rescore.QueryRescorerBuilder(queryBuilder);
         if (randomBoolean()) {

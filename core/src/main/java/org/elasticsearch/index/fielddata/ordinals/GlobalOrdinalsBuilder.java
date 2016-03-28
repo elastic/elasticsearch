@@ -70,7 +70,7 @@ public enum GlobalOrdinalsBuilder {
             );
         }
         return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
-                indexFieldData.getFieldDataType(), atomicFD, ordinalMap, memorySizeInBytes
+                atomicFD, ordinalMap, memorySizeInBytes
         );
     }
 
@@ -104,7 +104,7 @@ public enum GlobalOrdinalsBuilder {
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
         return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
-                indexFieldData.getFieldDataType(), atomicFD, ordinalMap, 0
+                atomicFD, ordinalMap, 0
         );
     }
 

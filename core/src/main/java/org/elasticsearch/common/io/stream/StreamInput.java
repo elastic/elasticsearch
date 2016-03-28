@@ -37,10 +37,13 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.tasks.Task;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -283,6 +286,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    public Float readOptionalFloat() throws IOException {
+        if (readBoolean()) {
+            return readFloat();
+        }
+        return null;
+    }
+
+    @Nullable
     public Integer readOptionalVInt() throws IOException {
         if (readBoolean()) {
             return readVInt();
@@ -361,6 +372,9 @@ public abstract class StreamInput extends InputStream {
      */
     @Override
     public abstract void close() throws IOException;
+
+    @Override
+    public abstract int available() throws IOException;
 
     public String[] readStringArray() throws IOException {
         int size = readVInt();
@@ -552,6 +566,19 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
+        if (readBoolean()) {
+            T t = reader.read(this);
+            if (t == null) {
+                throw new IOException("Writeable.Reader [" + reader
+                        + "] returned null which is not allowed and probably means it screwed up the stream.");
+            }
+            return t;
+        } else {
+            return null;
+        }
+    }
+
     public <T extends Throwable> T readThrowable() throws IOException {
         if (readBoolean()) {
             int key = readVInt();
@@ -666,22 +693,32 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a {@link AggregatorBuilder} from the current stream
      */
-    public AggregatorBuilder readAggregatorFactory() throws IOException {
+    public AggregatorBuilder<?> readAggregatorFactory() throws IOException {
         return readNamedWriteable(AggregatorBuilder.class);
     }
 
     /**
      * Reads a {@link PipelineAggregatorBuilder} from the current stream
      */
-    public PipelineAggregatorBuilder readPipelineAggregatorFactory() throws IOException {
+    public PipelineAggregatorBuilder<?> readPipelineAggregatorFactory() throws IOException {
         return readNamedWriteable(PipelineAggregatorBuilder.class);
     }
 
     /**
      * Reads a {@link QueryBuilder} from the current stream
      */
-    public QueryBuilder readQuery() throws IOException {
+    public QueryBuilder<?> readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
+    }
+
+    /**
+     * Reads an optional {@link QueryBuilder}.
+     */
+    public QueryBuilder<?> readOptionalQuery() throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteable(QueryBuilder.class);
+        }
+        return null;
     }
 
     /**
@@ -699,10 +736,31 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a {@link SuggestionBuilder} from the current stream
+     */
+    public SuggestionBuilder<?> readSuggestion() throws IOException {
+        return readNamedWriteable(SuggestionBuilder.class);
+    }
+
+    /**
+     * Reads a {@link SortBuilder} from the current stream
+     */
+    public SortBuilder<?> readSortBuilder() throws IOException {
+        return readNamedWriteable(SortBuilder.class);
+    }
+
+    /**
      * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
      */
     public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
         return readNamedWriteable(ScoreFunctionBuilder.class);
+    }
+
+    /**
+     * Reads a {@link SmoothingModel} from the current stream
+     */
+    public SmoothingModel readPhraseSuggestionSmoothingModel() throws IOException {
+        return readNamedWriteable(SmoothingModel.class);
     }
 
     /**

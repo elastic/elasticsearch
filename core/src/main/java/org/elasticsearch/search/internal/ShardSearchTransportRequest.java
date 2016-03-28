@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -71,13 +73,9 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         return originalIndices.indicesOptions();
     }
 
-    @Override
-    public String index() {
-        return shardSearchLocalRequest.index();
-    }
 
     @Override
-    public int shardId() {
+    public ShardId shardId() {
         return shardSearchLocalRequest.shardId();
     }
 
@@ -158,5 +156,17 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public boolean isProfile() {
         return shardSearchLocalRequest.isProfile();
+    }
+
+    @Override
+    public void rewrite(QueryShardContext context) throws IOException {
+        shardSearchLocalRequest.rewrite(context);
+    }
+
+    private ShardSearchTransportRequest shallowCopy(ShardSearchLocalRequest rewritten) {
+        ShardSearchTransportRequest newRequest = new ShardSearchTransportRequest();
+        newRequest.originalIndices = originalIndices;
+        newRequest.shardSearchLocalRequest = rewritten;
+        return newRequest;
     }
 }

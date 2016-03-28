@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -71,9 +72,12 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 public class AttachmentMapper extends FieldMapper {
 
     private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
-    public static final Setting<Boolean> INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING = Setting.boolSetting("index.mapping.attachment.ignore_errors", true, false, Setting.Scope.INDEX);
-    public static final Setting<Boolean> INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING = Setting.boolSetting("index.mapping.attachment.detect_language", false, false, Setting.Scope.INDEX);
-    public static final Setting<Integer> INDEX_ATTACHMENT_INDEXED_CHARS_SETTING = Setting.intSetting("index.mapping.attachment.indexed_chars", 100000, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING =
+        Setting.boolSetting("index.mapping.attachment.ignore_errors", true, Property.IndexScope);
+    public static final Setting<Boolean> INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING =
+        Setting.boolSetting("index.mapping.attachment.detect_language", false, Property.IndexScope);
+    public static final Setting<Integer> INDEX_ATTACHMENT_INDEXED_CHARS_SETTING =
+        Setting.intSetting("index.mapping.attachment.indexed_chars", 100000, Property.IndexScope);
 
     public static final String CONTENT_TYPE = "attachment";
 

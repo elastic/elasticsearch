@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -65,14 +66,14 @@ public class SimpleSortTests extends ESIntegTestCase {
         Random random = random();
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("str_value").field("type", "keyword").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("str_value").field("type", "keyword").endObject()
                         .startObject("boolean_value").field("type", "boolean").endObject()
-                        .startObject("byte_value").field("type", "byte").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
-                        .startObject("short_value").field("type", "short").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
-                        .startObject("integer_value").field("type", "integer").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
-                        .startObject("long_value").field("type", "long").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
-                        .startObject("float_value").field("type", "float").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
-                        .startObject("double_value").field("type", "double").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("byte_value").field("type", "byte").endObject()
+                        .startObject("short_value").field("type", "short").endObject()
+                        .startObject("integer_value").field("type", "integer").endObject()
+                        .startObject("long_value").field("type", "long").endObject()
+                        .startObject("float_value").field("type", "float").endObject()
+                        .startObject("double_value").field("type", "double").endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -109,7 +110,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
-                .addSort(new ScriptSortBuilder(new Script("doc['str_value'].value"), "string")).execute().actionGet();
+                .addSort(new ScriptSortBuilder(new Script("doc['str_value'].value"), ScriptSortType.STRING)).execute().actionGet();
         assertHitCount(searchResponse, 10);
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
@@ -217,7 +218,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20L));
         for (int i = 0; i < 10; i++) {
-            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), closeTo((double) i, TOLERANCE));
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), closeTo(i, TOLERANCE));
         }
     }
 
@@ -226,7 +227,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("svalue").field("type", "keyword").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                .startObject("svalue").field("type", "keyword").endObject()
                 .endObject().endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureGreen();
@@ -326,7 +327,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         }
         refresh();
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery())
-                .addSort(SortBuilders.scriptSort(new Script("\u0027\u0027"), "string")).setSize(10).execute().actionGet();
+                .addSort(SortBuilders.scriptSort(new Script("\u0027\u0027"), ScriptSortType.STRING)).setSize(10).execute().actionGet();
         assertNoFailures(searchResponse);
     }
 }

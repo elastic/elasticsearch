@@ -23,7 +23,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
@@ -43,6 +43,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 import java.util.List;
@@ -76,7 +77,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             builder.map(source);
             parser = parser.contentType().xContent().createParser(builder.bytes());
             context.queryParseContext.reset(parser);
-            search.source().parseXContent(parser, context.queryParseContext, context.aggParsers);
+            search.source().parseXContent(parser, context.queryParseContext, context.aggParsers, context.suggesters);
         };
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
@@ -102,9 +103,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Inject
     public RestReindexAction(Settings settings, RestController controller, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, ClusterService clusterService,
-            TransportReindexAction action) {
-        super(settings, client, indicesQueriesRegistry, aggParsers, clusterService, action);
+            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
+            ClusterService clusterService, TransportReindexAction action) {
+        super(settings, client, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
         controller.registerHandler(POST, "/_reindex", this);
     }
 
@@ -118,7 +119,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         ReindexRequest internalRequest = new ReindexRequest(new SearchRequest(), new IndexRequest());
 
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
-            PARSER.parse(xcontent, internalRequest, new ReindexParseContext(new QueryParseContext(indicesQueriesRegistry), aggParsers));
+            PARSER.parse(xcontent, internalRequest, new ReindexParseContext(new QueryParseContext(indicesQueriesRegistry), aggParsers,
+                    suggesters));
         } catch (ParsingException e) {
             logger.warn("Bad request", e);
             badRequest(channel, e.getDetailedMessage());
@@ -170,10 +172,13 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     private class ReindexParseContext {
         private final QueryParseContext queryParseContext;
         private final AggregatorParsers aggParsers;
+        private final Suggesters suggesters;
 
-        public ReindexParseContext(QueryParseContext queryParseContext, AggregatorParsers aggParsers) {
+        public ReindexParseContext(QueryParseContext queryParseContext, AggregatorParsers aggParsers,
+            Suggesters suggesters) {
             this.queryParseContext = queryParseContext;
             this.aggParsers = aggParsers;
+            this.suggesters = suggesters;
         }
     }
 }

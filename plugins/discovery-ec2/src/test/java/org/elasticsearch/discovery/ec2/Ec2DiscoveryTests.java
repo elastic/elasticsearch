@@ -191,7 +191,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             tagsList.add(tags);
         }
 
-        logger.info("started [{}] instances with [{}] stage=prod tag");
+        logger.info("started [{}] instances with [{}] stage=prod tag", nodes, prodInstances);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes, tagsList);
         assertThat(discoveryNodes, hasSize(prodInstances));
     }
@@ -222,7 +222,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             tagsList.add(tags);
         }
 
-        logger.info("started [{}] instances with [{}] stage=prod tag");
+        logger.info("started [{}] instances with [{}] stage=prod tag", nodes, prodInstances);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(nodeSettings, nodes, tagsList);
         assertThat(discoveryNodes, hasSize(prodInstances));
     }

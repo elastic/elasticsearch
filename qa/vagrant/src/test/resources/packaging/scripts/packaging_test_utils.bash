@@ -179,8 +179,45 @@ assert_file() {
     fi
 }
 
+assert_module_or_plugin_directory() {
+    local directory=$1
+    shift
+
+    #owner group and permissions vary depending on how es was installed
+    #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install
+    config_user=$(find "$ESHOME" -maxdepth 0 -printf "%u")
+    config_owner=$(find "$ESHOME" -maxdepth 0 -printf "%g")
+    # directories should use the user file-creation mask
+    config_privileges=$(executable_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
+
+    assert_file $directory d $config_user $config_owner $(printf "%o" $config_privileges)
+}
+
+assert_module_or_plugin_file() {
+    local file=$1
+    shift
+
+    assert_file_exist "$(readlink -m $file)"
+
+    # config files should not be executable and otherwise use the user
+    # file-creation mask
+    expected_file_privileges=$(file_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
+    assert_file $file f $config_user $config_owner $(printf "%o" $expected_file_privileges)
+}
+
 assert_output() {
     echo "$output" | grep -E "$1"
+}
+
+assert_recursive_ownership() {
+    local directory=$1
+    local user=$2
+    local group=$3
+
+    realuser=$(find $directory -printf "%u\n" | sort | uniq)
+    [ "$realuser" = "$user" ]
+    realgroup=$(find $directory -printf "%g\n" | sort | uniq)
+    [ "$realgroup" = "$group" ]
 }
 
 # Deletes everything before running a test file
@@ -209,6 +246,22 @@ clean_before_test() {
     # Kills all running Elasticsearch processes
     ps aux | grep -i "org.elasticsearch.bootstrap.Elasticsearch" | awk {'print $2'} | xargs kill -9 > /dev/null 2>&1 || true
 
+    purge_elasticsearch
+
+    # Removes user & group
+    userdel elasticsearch > /dev/null 2>&1 || true
+    groupdel elasticsearch > /dev/null 2>&1 || true
+
+
+    # Removes all files
+    for d in "${ELASTICSEARCH_TEST_FILES[@]}"; do
+        if [ -e "$d" ]; then
+            rm -rf "$d"
+        fi
+    done
+}
+
+purge_elasticsearch() {
     # Removes RPM package
     if is_rpm; then
         rpm --quiet -e elasticsearch > /dev/null 2>&1 || true
@@ -226,28 +279,17 @@ clean_before_test() {
     if [ -x "`which apt-get 2>/dev/null`" ]; then
         apt-get --quiet --yes purge elasticsearch > /dev/null 2>&1 || true
     fi
-
-    # Removes user & group
-    userdel elasticsearch > /dev/null 2>&1 || true
-    groupdel elasticsearch > /dev/null 2>&1 || true
-
-
-    # Removes all files
-    for d in "${ELASTICSEARCH_TEST_FILES[@]}"; do
-        if [ -e "$d" ]; then
-            rm -rf "$d"
-        fi
-    done
 }
 
 # Start elasticsearch and wait for it to come up with a status.
 # $1 - expected status - defaults to green
 start_elasticsearch_service() {
     local desiredStatus=${1:-green}
+    local index=$2
 
     run_elasticsearch_service 0
 
-    wait_for_elasticsearch_status $desiredStatus
+    wait_for_elasticsearch_status $desiredStatus $index
 
     if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
         pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
@@ -285,6 +327,9 @@ run_elasticsearch_service() {
     if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
         if [ -z "$CONF_DIR" ]; then
             local CONF_DIR=""
+            local ES_PATH_CONF=""
+        else
+            local ES_PATH_CONF="-Ees.path.conf=$CONF_DIR"
         fi
         # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
         local background=""
@@ -303,7 +348,7 @@ run_elasticsearch_service() {
 # This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
 [ -f /usr/share/java/jayatanaag.jar ] && export JAVA_TOOL_OPTIONS="-javaagent:/usr/share/java/jayatanaag.jar"
 # And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
-$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid -Des.path.conf=$CONF_DIR $commandLineArgs
+$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $ES_PATH_CONF $commandLineArgs
 BASH
         [ "$status" -eq "$expectedStatus" ]
     elif is_systemd; then
@@ -353,9 +398,10 @@ stop_elasticsearch_service() {
 # $1 - expected status - defaults to green
 wait_for_elasticsearch_status() {
     local desiredStatus=${1:-green}
+    local index=$2
 
     echo "Making sure elasticsearch is up..."
-    wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200 || {
+    wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200/_cluster/health || {
           echo "Looks like elasticsearch never started. Here is its log:"
           if [ -e "$ESLOG/elasticsearch.log" ]; then
               cat "$ESLOG/elasticsearch.log"
@@ -366,8 +412,13 @@ wait_for_elasticsearch_status() {
           false
     }
 
-    echo "Tring to connect to elasticsearch and wait for expected status..."
-    curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
+    if [ -z "index" ]; then
+      echo "Tring to connect to elasticsearch and wait for expected status $desiredStatus..."
+      curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
+    else
+      echo "Trying to connect to elasticsearch and wait for expected status $desiredStatus for index $index"
+      curl -sS "http://localhost:9200/_cluster/health/$index?wait_for_status=$desiredStatus&timeout=60s&pretty"
+    fi
     if [ $? -eq 0 ]; then
         echo "Connected"
     else
@@ -443,4 +494,20 @@ install_script() {
     local script="$BATS_TEST_DIRNAME/example/scripts/$name"
     echo "Installing $script to $ESSCRIPTS"
     cp $script $ESSCRIPTS
+}
+
+# permissions from the user umask with the executable bit set
+executable_privileges_for_user_from_umask() {
+    local user=$1
+    shift
+
+    echo $((0777 & ~$(sudo -E -u $user sh -c umask) | 0111))
+}
+
+# permissions from the user umask without the executable bit set
+file_privileges_for_user_from_umask() {
+    local user=$1
+    shift
+
+    echo $((0777 & ~$(sudo -E -u $user sh -c umask) & ~0111))
 }

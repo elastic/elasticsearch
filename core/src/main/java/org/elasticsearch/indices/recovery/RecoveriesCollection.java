@@ -238,7 +238,7 @@ public class RecoveriesCollection {
                 return;
             }
             lastSeenAccessTime = accessTime;
-            logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", lastSeenAccessTime);
+            logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", recoveryId, lastSeenAccessTime);
             threadPool.schedule(checkInterval, ThreadPool.Names.GENERIC, this);
         }
     }

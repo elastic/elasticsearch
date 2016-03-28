@@ -131,7 +131,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .addField("field1").addField("field2")
                 .execute().actionGet();
         if (searchResponse.getFailedShards() > 0) {
-            logger.warn("failed search " + Arrays.toString(searchResponse.getShardFailures()));
+            logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
         }
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));

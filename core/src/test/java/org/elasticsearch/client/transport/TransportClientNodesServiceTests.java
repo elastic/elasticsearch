@@ -71,7 +71,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     return  new TestResponse();
                 }
             };
-            transportService = new TransportService(Settings.EMPTY, transport, threadPool, new NamedWriteableRegistry());
+            transportService = new TransportService(Settings.EMPTY, transport, threadPool);
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService = new TransportClientNodesService(Settings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Version.CURRENT);

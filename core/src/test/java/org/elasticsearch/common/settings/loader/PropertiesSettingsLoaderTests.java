@@ -21,27 +21,37 @@ package org.elasticsearch.common.settings.loader;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
 
 public class PropertiesSettingsLoaderTests extends ESTestCase {
+
+    private PropertiesSettingsLoader loader;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        loader = new PropertiesSettingsLoader();
+    }
+
     public void testDuplicateKeyFromStringThrowsException() throws IOException {
-        PropertiesSettingsLoader loader = new PropertiesSettingsLoader();
-        try {
-            loader.load("foo=bar\nfoo=baz");
-            fail("expected exception");
-        } catch (ElasticsearchParseException e) {
-            assertEquals(e.getMessage(), "duplicate settings key [foo] found, previous value [bar], current value [baz]");
-        }
+        final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> loader.load("foo=bar\nfoo=baz"));
+        assertEquals(e.getMessage(), "duplicate settings key [foo] found, previous value [bar], current value [baz]");
     }
 
     public void testDuplicateKeysFromBytesThrowsException() throws IOException {
-        PropertiesSettingsLoader loader = new PropertiesSettingsLoader();
-        try {
-            loader.load("foo=bar\nfoo=baz".getBytes(Charset.defaultCharset()));
-        } catch (ElasticsearchParseException e) {
-            assertEquals(e.getMessage(), "duplicate settings key [foo] found, previous value [bar], current value [baz]");
-        }
+        final ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> loader.load("foo=bar\nfoo=baz".getBytes(Charset.defaultCharset()))
+        );
+        assertEquals(e.getMessage(), "duplicate settings key [foo] found, previous value [bar], current value [baz]");
     }
+
+    public void testThatNoDuplicatesPropertiesDoesNotAcceptNullValues() {
+        final PropertiesSettingsLoader.NoDuplicatesProperties properties = loader.new NoDuplicatesProperties();
+        expectThrows(NullPointerException.class, () -> properties.put("key", null));
+    }
+
 }

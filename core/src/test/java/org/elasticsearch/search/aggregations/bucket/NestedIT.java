@@ -84,7 +84,7 @@ public class NestedIT extends ESIntegTestCase {
         numParents = randomIntBetween(3, 10);
         numChildren = new int[numParents];
         aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        logger.info("AGG COLLECTION MODE: " + aggCollectionMode);
+        logger.info("AGG COLLECTION MODE: {}", aggCollectionMode);
         int totalChildren = 0;
         for (int i = 0; i < numParents; ++i) {
             if (i == numParents - 1 && totalChildren == 0) {

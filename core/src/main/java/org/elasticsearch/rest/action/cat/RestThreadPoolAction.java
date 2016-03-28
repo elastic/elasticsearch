@@ -63,11 +63,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.INDEX,
             ThreadPool.Names.MANAGEMENT,
             ThreadPool.Names.FORCE_MERGE,
-            ThreadPool.Names.PERCOLATE,
             ThreadPool.Names.REFRESH,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SNAPSHOT,
-            ThreadPool.Names.SUGGEST,
             ThreadPool.Names.WARMER
     };
 
@@ -79,11 +77,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
             "i",
             "ma",
             "fm",
-            "p",
             "r",
             "s",
             "sn",
-            "su",
             "w"
     };
 

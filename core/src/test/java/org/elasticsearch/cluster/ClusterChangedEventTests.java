@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -220,7 +222,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             final ClusterState newState = nextState(previousState, changeClusterUUID, addedIndices, delIndices, 0);
             final ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
             final List<String> addsFromEvent = event.indicesCreated();
-            final List<String> delsFromEvent = event.indicesDeleted();
+            final List<String> delsFromEvent = event.indicesDeleted().stream().map((s) -> s.getName()).collect(Collectors.toList());
             Collections.sort(addsFromEvent);
             Collections.sort(delsFromEvent);
             assertThat(addsFromEvent, equalTo(addedIndices));

@@ -31,7 +31,7 @@ grant codeBase "${codebase.securesm-1.0.jar}" {
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${codebase.lucene-core-6.0.0-snapshot-bea235f.jar}" {
+grant codeBase "${codebase.lucene-core-6.0.0-snapshot-f0aa4fc.jar}" {
   // needed to allow MMapDirectory's "unmap hack" (die unmap hack, die)
   // java 8 package
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
@@ -72,9 +72,6 @@ grant {
   // set by ESTestCase to improve test reproducibility
   // TODO: set this with gradle or some other way that repros with seed?
   permission java.util.PropertyPermission "es.processors.override", "write";
-  // set by CLIToolTestCase
-  // TODO: do this differently? or test commandline tools differently?
-  permission java.util.PropertyPermission "es.default.path.home", "write";
 
   // TODO: these simply trigger a noisy warning if its unable to clear the properties
   // fix that in randomizedtesting

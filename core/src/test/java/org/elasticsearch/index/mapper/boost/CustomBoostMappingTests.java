@@ -85,18 +85,17 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testBackCompatFieldMappingBoostValues() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("s_field").field("type", "keyword").field("boost", 2.0f).endObject()
-            .startObject("l_field").field("type", "long").field("boost", 3.0f).startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("i_field").field("type", "integer").field("boost", 4.0f).startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("sh_field").field("type", "short").field("boost", 5.0f).startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("b_field").field("type", "byte").field("boost", 6.0f).startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("d_field").field("type", "double").field("boost", 7.0f).startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("f_field").field("type", "float").field("boost", 8.0f).startObject("norms").field("enabled", true).endObject().endObject()
-            .startObject("date_field").field("type", "date").field("boost", 9.0f).startObject("norms").field("enabled", true).endObject().endObject()
-            .endObject().endObject().endObject().string();
-
         {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("s_field").field("type", "keyword").field("boost", 2.0f).endObject()
+                    .startObject("l_field").field("type", "long").field("boost", 3.0f).endObject()
+                    .startObject("i_field").field("type", "integer").field("boost", 4.0f).endObject()
+                    .startObject("sh_field").field("type", "short").field("boost", 5.0f).endObject()
+                    .startObject("b_field").field("type", "byte").field("boost", 6.0f).endObject()
+                    .startObject("d_field").field("type", "double").field("boost", 7.0f).endObject()
+                    .startObject("f_field").field("type", "float").field("boost", 8.0f).endObject()
+                    .startObject("date_field").field("type", "date").field("boost", 9.0f).endObject()
+                    .endObject().endObject().endObject().string();
             IndexService indexService = createIndex("test", BW_SETTINGS);
             QueryShardContext context = indexService.newQueryShardContext();
             DocumentMapper mapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -122,16 +121,34 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
                 .endObject().bytes());
 
             assertThat(doc.rootDoc().getField("s_field").boost(), equalTo(2.0f));
+            assertThat(doc.rootDoc().getField("s_field").fieldType().omitNorms(), equalTo(false));
             assertThat(doc.rootDoc().getField("l_field").boost(), equalTo(3.0f));
+            assertThat(doc.rootDoc().getField("l_field").fieldType().omitNorms(), equalTo(false));
             assertThat(doc.rootDoc().getField("i_field").boost(), equalTo(4.0f));
+            assertThat(doc.rootDoc().getField("i_field").fieldType().omitNorms(), equalTo(false));
             assertThat(doc.rootDoc().getField("sh_field").boost(), equalTo(5.0f));
+            assertThat(doc.rootDoc().getField("sh_field").fieldType().omitNorms(), equalTo(false));
             assertThat(doc.rootDoc().getField("b_field").boost(), equalTo(6.0f));
+            assertThat(doc.rootDoc().getField("b_field").fieldType().omitNorms(), equalTo(false));
             assertThat(doc.rootDoc().getField("d_field").boost(), equalTo(7.0f));
+            assertThat(doc.rootDoc().getField("d_field").fieldType().omitNorms(), equalTo(false));
             assertThat(doc.rootDoc().getField("f_field").boost(), equalTo(8.0f));
+            assertThat(doc.rootDoc().getField("f_field").fieldType().omitNorms(), equalTo(false));
             assertThat(doc.rootDoc().getField("date_field").boost(), equalTo(9.0f));
+            assertThat(doc.rootDoc().getField("date_field").fieldType().omitNorms(), equalTo(false));
         }
 
         {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("s_field").field("type", "keyword").field("boost", 2.0f).endObject()
+                    .startObject("l_field").field("type", "long").field("boost", 3.0f).endObject()
+                    .startObject("i_field").field("type", "integer").field("boost", 4.0f).endObject()
+                    .startObject("sh_field").field("type", "short").field("boost", 5.0f).endObject()
+                    .startObject("b_field").field("type", "byte").field("boost", 6.0f).endObject()
+                    .startObject("d_field").field("type", "double").field("boost", 7.0f).endObject()
+                    .startObject("f_field").field("type", "float").field("boost", 8.0f).endObject()
+                    .startObject("date_field").field("type", "date").field("boost", 9.0f).endObject()
+                    .endObject().endObject().endObject().string();
             IndexService indexService = createIndex("text");
             QueryShardContext context = indexService.newQueryShardContext();
             DocumentMapper mapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -157,13 +174,21 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
                 .endObject().bytes());
 
             assertThat(doc.rootDoc().getField("s_field").boost(), equalTo(1f));
+            assertThat(doc.rootDoc().getField("s_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("l_field").boost(), equalTo(1f));
+            assertThat(doc.rootDoc().getField("l_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("i_field").boost(), equalTo(1f));
+            assertThat(doc.rootDoc().getField("i_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("sh_field").boost(), equalTo(1f));
+            assertThat(doc.rootDoc().getField("sh_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("b_field").boost(), equalTo(1f));
+            assertThat(doc.rootDoc().getField("b_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("d_field").boost(), equalTo(1f));
+            assertThat(doc.rootDoc().getField("d_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("f_field").boost(), equalTo(1f));
+            assertThat(doc.rootDoc().getField("f_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("date_field").boost(), equalTo(1f));
+            assertThat(doc.rootDoc().getField("date_field").fieldType().omitNorms(), equalTo(true));
         }
     }
 }

@@ -114,10 +114,18 @@ node (c) |d
 cache memory |0b
 |`fielddata.evictions` |`fe`, `fielddataEvictions` |No |Fielddata cache
 evictions |0
-|`filter_cache.memory_size` |`fcm`, `filterCacheMemory` |No |Used filter
+|`query_cache.memory_size` |`qcm`, `queryCacheMemory` |No |Used query
 cache memory |0b
-|`filter_cache.evictions` |`fce`, `filterCacheEvictions` |No |Filter
+|`query_cache.evictions` |`qce`, `queryCacheEvictions` |No |Query
 cache evictions |0
+|`request_cache.memory_size` |`rcm`, `requestCacheMemory` |No | Used request
+cache memory |0b
+|`request_cache.evictions` |`rce`, `requestCacheEvictions` |No |Request
+cache evictions |0
+|`request_cache.hit_count` |`rchc`, `requestCacheHitCount` |No | Request
+cache hit count |0
+|`request_cache.miss_count` |`rcmc`, `requestCacheMissCount` |No | Request
+cache miss count |0
 |`flush.total` |`ft`, `flushTotal` |No |Number of flushes |1
 |`flush.total_time` |`ftt`, `flushTotalTime` |No |Time spent in flush |1
 |`get.current` |`gc`, `getCurrent` |No |Number of current get

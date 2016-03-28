@@ -31,6 +31,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -55,11 +56,13 @@ public final class MockEngineSupport {
      * Allows tests to wrap an index reader randomly with a given ratio. This is disabled by default ie. <tt>0.0d</tt> since reader wrapping is insanely
      * slow if {@link org.apache.lucene.index.AssertingDirectoryReader} is used.
      */
-    public static final Setting<Double> WRAP_READER_RATIO = Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, false, Setting.Scope.INDEX);
+    public static final Setting<Double> WRAP_READER_RATIO =
+        Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, Property.IndexScope);
     /**
      * Allows tests to prevent an engine from being flushed on close ie. to test translog recovery...
      */
-    public static final Setting<Boolean> DISABLE_FLUSH_ON_CLOSE = Setting.boolSetting("index.mock.disable_flush_on_close", false, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> DISABLE_FLUSH_ON_CLOSE =
+        Setting.boolSetting("index.mock.disable_flush_on_close", false, Property.IndexScope);
 
 
     private final AtomicBoolean closing = new AtomicBoolean(false);

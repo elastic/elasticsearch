@@ -67,7 +67,7 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = Index.readIndex(in);
+        index = new Index(in);
         shardId = in.readVInt();
         shards = new ShardRouting[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {

@@ -23,9 +23,10 @@ import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -52,12 +53,13 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class InternalSettingsPreparer {
 
     private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json", ".properties"};
-    static final String[] PROPERTY_PREFIXES = {"es.", "elasticsearch."};
-    static final String[] PROPERTY_DEFAULTS_PREFIXES = {"es.default.", "elasticsearch.default."};
+    static final String PROPERTY_PREFIX = "es.";
+    static final String PROPERTY_DEFAULTS_PREFIX = "es.default.";
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
-    public static final Setting<Boolean> IGNORE_SYSTEM_PROPERTIES_SETTING = Setting.boolSetting("config.ignore_system_properties", false, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> IGNORE_SYSTEM_PROPERTIES_SETTING =
+        Setting.boolSetting("config.ignore_system_properties", false, Property.NodeScope);
 
     /**
      * Prepares the settings by gathering all elasticsearch system properties and setting defaults.
@@ -124,13 +126,9 @@ public class InternalSettingsPreparer {
         output.put(input);
         if (useSystemProperties(input)) {
             if (loadDefaults) {
-                for (String prefix : PROPERTY_DEFAULTS_PREFIXES) {
-                    output.putProperties(prefix, BootstrapInfo.getSystemProperties());
-                }
+                output.putProperties(PROPERTY_DEFAULTS_PREFIX, BootstrapInfo.getSystemProperties());
             }
-            for (String prefix : PROPERTY_PREFIXES) {
-                output.putProperties(prefix, BootstrapInfo.getSystemProperties(), PROPERTY_DEFAULTS_PREFIXES);
-            }
+            output.putProperties(PROPERTY_PREFIX, BootstrapInfo.getSystemProperties(), PROPERTY_DEFAULTS_PREFIX);
         }
         output.replacePropertyPlaceholders();
     }

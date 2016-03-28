@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 
+import static org.hamcrest.Matchers.sameInstance;
+
 public class ThreadContextTests extends ESTestCase {
 
     public void testStashContext() {
@@ -235,4 +237,71 @@ public class ThreadContextTests extends ESTestCase {
         }
     }
 
+    public void testPreserveContext() throws IOException {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            Runnable withContext;
+
+            // Create a runnable that should run with some header
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "bar");
+                withContext = threadContext.preserveContext(sometimesAbstractRunnable(() -> {
+                    assertEquals("bar", threadContext.getHeader("foo"));
+                }));
+            }
+
+            // We don't see the header outside of the runnable
+            assertNull(threadContext.getHeader("foo"));
+
+            // But we do inside of it
+            withContext.run();
+        }
+    }
+
+    public void testPreserveContextKeepsOriginalContextWhenCalledTwice() throws IOException {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            Runnable originalWithContext;
+            Runnable withContext;
+
+            // Create a runnable that should run with some header
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "bar");
+                withContext = threadContext.preserveContext(sometimesAbstractRunnable(() -> {
+                    assertEquals("bar", threadContext.getHeader("foo"));
+                }));
+            }
+
+            // Now attempt to rewrap it
+            originalWithContext = withContext;
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putHeader("foo", "zot");
+                withContext = threadContext.preserveContext(withContext);
+            }
+
+            // We get the original context inside the runnable
+            withContext.run();
+
+            // In fact the second wrapping didn't even change it
+            assertThat(withContext, sameInstance(originalWithContext));
+        }
+    }
+
+    /**
+     * Sometimes wraps a Runnable in an AbstractRunnable.
+     */
+    private Runnable sometimesAbstractRunnable(Runnable r) {
+        if (random().nextBoolean()) {
+            return r;
+        }
+        return new AbstractRunnable() {
+            @Override
+            public void onFailure(Throwable t) {
+                throw new RuntimeException(t);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                r.run();
+            }
+        };
+    }
 }

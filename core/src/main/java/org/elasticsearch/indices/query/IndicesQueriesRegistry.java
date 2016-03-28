@@ -19,11 +19,11 @@
 
 package org.elasticsearch.indices.query;
 
-import java.util.Map;
-
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryParser;
+
+import java.util.Map;
 
 public class IndicesQueriesRegistry extends AbstractComponent {
     private Map<String, QueryParser<?>> queryParsers;

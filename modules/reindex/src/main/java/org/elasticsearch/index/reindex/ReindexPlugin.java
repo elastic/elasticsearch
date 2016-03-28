@@ -41,8 +41,9 @@ public class ReindexPlugin extends Plugin {
         actionModule.registerAction(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class);
     }
 
-    public void onModule(NetworkModule restModule) {
-        restModule.registerRestHandler(RestReindexAction.class);
-        restModule.registerRestHandler(RestUpdateByQueryAction.class);
+    public void onModule(NetworkModule networkModule) {
+        networkModule.registerRestHandler(RestReindexAction.class);
+        networkModule.registerRestHandler(RestUpdateByQueryAction.class);
+        networkModule.registerTaskStatus(BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new);
     }
 }

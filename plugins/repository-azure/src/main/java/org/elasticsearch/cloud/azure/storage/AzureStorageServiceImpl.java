@@ -169,7 +169,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             logger.trace("creating container [{}]", container);
             blob_container.createIfNotExists();
         } catch (IllegalArgumentException e) {
-            logger.trace("fails creating container [{}]", container, e.getMessage());
+            logger.trace("fails creating container [{}]", e, container);
             throw new RepositoryException(container, e.getMessage());
         }
     }

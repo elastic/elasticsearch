@@ -27,7 +27,7 @@ import java.util.Arrays;
 
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
-import org.elasticsearch.common.cli.MockTerminal;
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;

@@ -85,6 +85,10 @@ REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
 REM Disables explicit GC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
 
+REM Enable pre-touching of memory pages used by the JVM during hotspot
+REM initialization
+set JAVA_OPTS=%JAVA_OPTS% -XX:+AlwaysPreTouch
+
 REM Ensure UTF-8 encoding by default (e.g. filenames)
 set JAVA_OPTS=%JAVA_OPTS% -Dfile.encoding=UTF-8
 
@@ -100,4 +104,4 @@ ECHO additional elements via the plugin mechanism, or if code must really be 1>&
 ECHO added to the main classpath, add jars to lib\, unsupported 1>&2
 EXIT /B 1
 )
-set ES_PARAMS=-Delasticsearch -Des-foreground=yes -Des.path.home="%ES_HOME%"
+set ES_PARAMS=-Delasticsearch -Des.path.home="%ES_HOME%"

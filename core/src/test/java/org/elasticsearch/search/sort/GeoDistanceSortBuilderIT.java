@@ -50,6 +50,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSort
 import static org.hamcrest.Matchers.closeTo;
 
 public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
+    private static final String LOCATION_FIELD = "location";
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(InternalSettingsPlugin.class);
@@ -69,7 +71,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          */
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point"));
+        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
         createShuffeldJSONArray(d1Builder, d1Points);
@@ -78,8 +80,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         GeoPoint[] d2Points = {new GeoPoint(5, 1), new GeoPoint(6, 2)};
         createShuffeldJSONArray(d2Builder, d2Points);
 
-        logger.info(d1Builder.string());
-        logger.info(d2Builder.string());
+        logger.info("d1: {}", d1Builder);
+        logger.info("d2: {}", d2Builder);
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),
                 client().prepareIndex("index", "type", "d2").setSource(d2Builder));
@@ -95,7 +97,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location", q).sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MIN).order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
         assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS), 0.01d));
@@ -103,7 +105,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location", q).sortMode("min").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MIN).order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
         assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS), 0.01d));
@@ -111,7 +113,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location", q).sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MAX).order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
         assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS), 0.01d));
@@ -119,18 +121,61 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(new GeoDistanceSortBuilder("location", q).sortMode("max").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MAX).order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
         assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS), 0.01d));
         assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS), 0.01d));
     }
 
+    public void testSingeToManyAvgMedian() throws ExecutionException, InterruptedException, IOException {
+        /**
+         * q  = (0, 0)
+         *
+         * d1 = (0, 1), (0, 4), (0, 10); so avg. distance is 5, median distance is 4
+         * d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
+         */
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
+        XContentBuilder d1Builder = jsonBuilder();
+        GeoPoint[] d1Points = {new GeoPoint(0, 1), new GeoPoint(0, 4), new GeoPoint(0, 10)};
+        createShuffeldJSONArray(d1Builder, d1Points);
+
+        XContentBuilder d2Builder = jsonBuilder();
+        GeoPoint[] d2Points = {new GeoPoint(0, 1), new GeoPoint(0, 5), new GeoPoint(0, 6)};
+        createShuffeldJSONArray(d2Builder, d2Points);
+
+        logger.info("d1: {}", d1Builder);
+        logger.info("d2: {}", d2Builder);
+        indexRandom(true,
+                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
+                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
+        ensureYellow();
+        GeoPoint q = new GeoPoint(0,0);
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.AVG).order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d2", "d1");
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(0, 0, 0, 4, DistanceUnit.KILOMETERS), 0.01d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(0, 0, 0, 5, DistanceUnit.KILOMETERS), 0.01d));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MEDIAN).order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(0, 0, 0, 4, DistanceUnit.KILOMETERS), 0.01d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(0, 0, 0, 5, DistanceUnit.KILOMETERS), 0.01d));
+    }
+
     protected void createShuffeldJSONArray(XContentBuilder builder, GeoPoint[] pointsArray) throws IOException {
         List<GeoPoint> points = new ArrayList<>();
         points.addAll(Arrays.asList(pointsArray));
         builder.startObject();
-        builder.startArray("location");
+        builder.startArray(LOCATION_FIELD);
         int numPoints = points.size();
         for (int i = 0; i < numPoints; i++) {
             builder.value(points.remove(randomInt(points.size() - 1)));
@@ -154,7 +199,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          */
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point"));
+        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
         createShuffeldJSONArray(d1Builder, d1Points);
@@ -177,13 +222,13 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
             int at = randomInt(3 - i);
             if (randomBoolean()) {
                 if (geoDistanceSortBuilder == null) {
-                    geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", qHashes.get(at));
+                    geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, qHashes.get(at));
                 } else {
                     geoDistanceSortBuilder.geohashes(qHashes.get(at));
                 }
             } else {
                 if (geoDistanceSortBuilder == null) {
-                    geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", qPoints.get(at));
+                    geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, qPoints.get(at));
                 } else {
                     geoDistanceSortBuilder.points(qPoints.get(at));
                 }
@@ -194,7 +239,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
         assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
@@ -202,7 +247,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(geoDistanceSortBuilder.sortMode(SortMode.MAX).order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
         assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(3.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
@@ -211,61 +256,69 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
     }
 
     public void testSinglePointGeoDistanceSort() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point"));
+        assertAcked(prepareCreate("index").addMapping("type", LOCATION_FIELD, "type=geo_point"));
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(jsonBuilder().startObject().startObject("location").field("lat", 1).field("lon", 1).endObject().endObject()),
-                client().prepareIndex("index", "type", "d2").setSource(jsonBuilder().startObject().startObject("location").field("lat", 1).field("lon", 2).endObject().endObject()));
+                client().prepareIndex("index", "type", "d1").setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 1).endObject().endObject()),
+                client().prepareIndex("index", "type", "d2").setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 2).endObject().endObject()));
         ensureYellow();
 
         String hashPoint = "s037ms06g7h0";
 
-        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", hashPoint);
+        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, hashPoint);
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
-        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", new GeoPoint(2, 2));
+        geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, new GeoPoint(2, 2));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
-        geoDistanceSortBuilder = new GeoDistanceSortBuilder("location", 2, 2);
+        geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, 2, 2);
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
         searchResponse = client()
                 .prepareSearch()
                 .setSource(
-                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location", 2.0, 2.0)
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0)
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
         searchResponse = client()
                 .prepareSearch()
                 .setSource(
-                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location", "s037ms06g7h0")
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, "s037ms06g7h0")
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
         searchResponse = client()
                 .prepareSearch()
                 .setSource(
-                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("location", 2.0, 2.0)
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0)
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE))).execute().actionGet();
+        checkCorrectSortOrderForGeoSort(searchResponse);
+
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0)
+                                .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE)
+                                .ignoreMalformed(true).coerce(true))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
     }
 
-    private void checkCorrectSortOrderForGeoSort(SearchResponse searchResponse) {
+    private static void checkCorrectSortOrderForGeoSort(SearchResponse searchResponse) {
         assertOrderedSearchHits(searchResponse, "d2", "d1");
         assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 1, 2, DistanceUnit.KILOMETERS), 1.e-4));
         assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 1, 1, DistanceUnit.KILOMETERS), 1.e-4));

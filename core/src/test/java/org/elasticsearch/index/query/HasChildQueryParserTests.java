@@ -27,22 +27,27 @@ import static org.hamcrest.Matchers.is;
 public class HasChildQueryParserTests extends ESTestCase {
     public void testMinFromString() {
         assertThat("fromString(min) != MIN", ScoreMode.Min, equalTo(HasChildQueryParser.parseScoreMode("min")));
+        assertThat("min", equalTo(HasChildQueryParser.scoreModeAsString(ScoreMode.Min)));
     }
 
     public void testMaxFromString() {
         assertThat("fromString(max) != MAX", ScoreMode.Max, equalTo(HasChildQueryParser.parseScoreMode("max")));
+        assertThat("max", equalTo(HasChildQueryParser.scoreModeAsString(ScoreMode.Max)));
     }
 
     public void testAvgFromString() {
         assertThat("fromString(avg) != AVG", ScoreMode.Avg, equalTo(HasChildQueryParser.parseScoreMode("avg")));
+        assertThat("avg", equalTo(HasChildQueryParser.scoreModeAsString(ScoreMode.Avg)));
     }
 
     public void testSumFromString() {
-        assertThat("fromString(total) != SUM", ScoreMode.Total, equalTo(HasChildQueryParser.parseScoreMode("total")));
+        assertThat("fromString(total) != SUM", ScoreMode.Total, equalTo(HasChildQueryParser.parseScoreMode("sum")));
+        assertThat("sum", equalTo(HasChildQueryParser.scoreModeAsString(ScoreMode.Total)));
     }
 
     public void testNoneFromString() {
         assertThat("fromString(none) != NONE", ScoreMode.None, equalTo(HasChildQueryParser.parseScoreMode("none")));
+        assertThat("none", equalTo(HasChildQueryParser.scoreModeAsString(ScoreMode.None)));
     }
 
     /**

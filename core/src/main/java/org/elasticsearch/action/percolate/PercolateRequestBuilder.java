@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.action.percolate;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,12 +37,22 @@ import java.util.Map;
 /**
  * A builder the easy to use of defining a percolate request.
  */
-public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
+public class PercolateRequestBuilder extends ActionRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
 
     private PercolateSourceBuilder sourceBuilder;
 
     public PercolateRequestBuilder(ElasticsearchClient client, PercolateAction action) {
         super(client, action, new PercolateRequest());
+    }
+
+    public PercolateRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
+        return this;
+    }
+
+    public PercolateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
+        return this;
     }
 
     /**
@@ -115,7 +126,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     /**
      * Delegates to {@link PercolateSourceBuilder#addSort(SortBuilder)}
      */
-    public PercolateRequestBuilder addSort(SortBuilder sort) {
+    public PercolateRequestBuilder addSort(SortBuilder<?> sort) {
         sourceBuilder().addSort(sort);
         return this;
     }

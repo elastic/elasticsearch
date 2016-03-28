@@ -35,8 +35,9 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     public ReindexResponse() {
     }
 
-    public ReindexResponse(TimeValue took, Status status, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures) {
-        super(took, status, indexingFailures, searchFailures);
+    public ReindexResponse(TimeValue took, Status status, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures,
+            boolean timedOut) {
+        super(took, status, indexingFailures, searchFailures, timedOut);
     }
 
     public long getCreated() {
@@ -46,6 +47,7 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("took", getTook());
+        builder.field("timed_out", isTimedOut());
         getStatus().innerXContent(builder, params, true, false);
         builder.startArray("failures");
         for (Failure failure: getIndexingFailures()) {

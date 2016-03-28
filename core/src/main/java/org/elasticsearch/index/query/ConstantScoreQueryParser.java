@@ -42,7 +42,7 @@ public class ConstantScoreQueryParser implements QueryParser<ConstantScoreQueryB
     public ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        QueryBuilder query = null;
+        QueryBuilder<?> query = null;
         boolean queryFound = false;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -56,6 +56,10 @@ public class ConstantScoreQueryParser implements QueryParser<ConstantScoreQueryB
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_QUERY_FIELD)) {
+                    if (queryFound) {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + ConstantScoreQueryBuilder.NAME + "]"
+                                + " accepts only one 'filter' element.");
+                    }
                     query = parseContext.parseInnerQueryBuilder();
                     queryFound = true;
                 } else {
@@ -69,6 +73,8 @@ public class ConstantScoreQueryParser implements QueryParser<ConstantScoreQueryB
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[constant_score] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "]");
             }
         }
         if (!queryFound) {

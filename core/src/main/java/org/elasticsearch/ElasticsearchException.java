@@ -645,8 +645,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         // 87 used to be for MergeMappingException
         INVALID_INDEX_TEMPLATE_EXCEPTION(org.elasticsearch.indices.InvalidIndexTemplateException.class,
                 org.elasticsearch.indices.InvalidIndexTemplateException::new, 88),
-        PERCOLATE_EXCEPTION(org.elasticsearch.percolator.PercolateException.class,
-                org.elasticsearch.percolator.PercolateException::new, 89),
         REFRESH_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.RefreshFailedEngineException.class,
                 org.elasticsearch.index.engine.RefreshFailedEngineException::new, 90),
         AGGREGATION_INITIALIZATION_EXCEPTION(org.elasticsearch.search.aggregations.AggregationInitializationException.class,

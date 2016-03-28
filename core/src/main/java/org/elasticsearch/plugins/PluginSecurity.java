@@ -20,8 +20,8 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;

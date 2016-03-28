@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.discovery.local.LocalDiscovery;
@@ -45,10 +46,11 @@ import java.util.function.Function;
  */
 public class DiscoveryModule extends AbstractModule {
 
-    public static final Setting<String> DISCOVERY_TYPE_SETTING = new Setting<>("discovery.type",
-        settings -> DiscoveryNode.localNode(settings) ? "local" : "zen", Function.identity(), false, Setting.Scope.CLUSTER);
-    public static final Setting<String> ZEN_MASTER_SERVICE_TYPE_SETTING = new Setting<>("discovery.zen.masterservice.type",
-            "zen", Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<String> DISCOVERY_TYPE_SETTING =
+        new Setting<>("discovery.type", settings -> DiscoveryNode.localNode(settings) ? "local" : "zen", Function.identity(),
+            Property.NodeScope);
+    public static final Setting<String> ZEN_MASTER_SERVICE_TYPE_SETTING =
+        new Setting<>("discovery.zen.masterservice.type", "zen", Function.identity(), Property.NodeScope);
 
     private final Settings settings;
     private final Map<String, List<Class<? extends UnicastHostsProvider>>> unicastHostProviders = new HashMap<>();

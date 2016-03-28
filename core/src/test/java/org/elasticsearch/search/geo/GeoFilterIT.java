@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.locationtech.spatial4j.context.SpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
@@ -560,7 +561,7 @@ public class GeoFilterIT extends ESIntegTestCase {
             strategy.makeQuery(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
-            e.printStackTrace();
+            ESLoggerFactory.getLogger(GeoFilterIT.class.getName()).info("Unsupported spatial operation {}", e, relation);
             return false;
         }
     }

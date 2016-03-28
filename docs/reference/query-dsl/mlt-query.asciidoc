@@ -73,7 +73,6 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
                 },
                 "tweet": "You got no idea what I'd... what I'd give to be invisible."
               }
-            }
         },
         {
             "_index" : "marvel",
@@ -117,18 +116,18 @@ curl -s -XPUT 'http://localhost:9200/imdb/' -d '{
     "movies": {
       "properties": {
         "title": {
-          "type": "string",
+          "type": "text",
           "term_vector": "yes"
          },
          "description": {
-          "type": "string"
+          "type": "text"
         },
         "tags": {
-          "type": "string",
+          "type": "text",
           "fields" : {
             "raw": {
-              "type" : "string",
-              "index" : "not_analyzed",
+              "type" : "text",
+              "analyzer": "keyword",
               "term_vector" : "yes"
             }
           }

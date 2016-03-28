@@ -34,10 +34,12 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,9 +52,7 @@ import java.util.Set;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
-    public SuggestContextParser getContextParser() {
-        return new CompletionSuggestParser(this);
-    }
+    public static final CompletionSuggester PROTOTYPE = new CompletionSuggester();
 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
@@ -78,15 +78,18 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             }
             // collect payloads
             final Map<String, List<Object>> payload = new HashMap<>(0);
-            Set<String> payloadFields = suggestionContext.getPayloadFields();
+            List<String> payloadFields = suggestionContext.getPayloadFields();
             if (payloadFields.isEmpty() == false) {
                 final int readerIndex = ReaderUtil.subIndex(suggestDoc.doc, leaves);
                 final LeafReaderContext subReaderContext = leaves.get(readerIndex);
                 final int subDocId = suggestDoc.doc - subReaderContext.docBase;
                 for (String field : payloadFields) {
-                    MappedFieldType payloadFieldType = suggestionContext.getMapperService().fullName(field);
+                    MapperService mapperService = suggestionContext.getShardContext().getMapperService();
+                    MappedFieldType payloadFieldType = mapperService.fullName(field);
                     if (payloadFieldType != null) {
-                        final AtomicFieldData data = suggestionContext.getIndexFieldDataService().getForField(payloadFieldType).load(subReaderContext);
+                        QueryShardContext shardContext = suggestionContext.getShardContext();
+                        final AtomicFieldData data = shardContext.getForField(payloadFieldType)
+                                .load(subReaderContext);
                         final ScriptDocValues scriptValues = data.getScriptValues();
                         scriptValues.setNextDocId(subDocId);
                         payload.put(field, new ArrayList<>(scriptValues.getValues()));
@@ -261,5 +264,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 return TopSuggestDocs.EMPTY;
             }
         }
+    }
+
+    @Override
+    public SuggestionBuilder<?> getBuilderPrototype() {
+        return CompletionSuggestionBuilder.PROTOTYPE;
     }
 }

@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -39,6 +38,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -53,6 +53,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -188,7 +189,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        boolean indexCreated = false;
+                        Index createdIndex = null;
                         String removalReason = null;
                         try {
                             validate(request, currentState);
@@ -308,10 +309,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             // Set up everything, now locally create the index to see that things are ok, and apply
                             final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
                             // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                            indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.emptyList());
-                            indexCreated = true;
+                            final IndexService indexService = indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.emptyList());
+                            createdIndex = indexService.index();
                             // now add the mappings
-                            IndexService indexService = indicesService.indexServiceSafe(request.index());
                             MapperService mapperService = indexService.mapperService();
                             // first, add the default mapping
                             if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
@@ -415,9 +415,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             removalReason = "cleaning up after validating index on master";
                             return updatedState;
                         } finally {
-                            if (indexCreated) {
+                            if (createdIndex != null) {
                                 // Index was already partially created - need to clean up
-                                indicesService.removeIndex(request.index(), removalReason != null ? removalReason : "failed to create index");
+                                indicesService.removeIndex(createdIndex, removalReason != null ? removalReason : "failed to create index");
                             }
                         }
                     }

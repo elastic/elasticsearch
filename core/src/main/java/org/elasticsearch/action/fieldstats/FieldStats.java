@@ -28,6 +28,8 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 
@@ -145,6 +147,17 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
      *                       doesn't support it an {@link UnsupportedOperationException} is thrown
      */
     protected abstract T valueOf(String value, String optionalFormat);
+
+    /**
+     * @param value
+     *            The value to be converted to a String
+     * @param optionalFormat
+     *            A string describing how to print the specified value. Whether
+     *            this parameter is supported depends on the implementation. If
+     *            optionalFormat is specified and the implementation doesn't
+     *            support it an {@link UnsupportedOperationException} is thrown
+     */
+    public abstract String stringValueOf(Object value, String optionalFormat);
 
     /**
      * Merges the provided stats into this stats instance.
@@ -275,6 +288,18 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            if (value instanceof Number) {
+                return java.lang.Long.toString(((Number) value).longValue());
+            } else {
+                throw new IllegalArgumentException("value must be a Long: " + value);
+            }
+        }
+
+        @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             minValue = in.readLong();
@@ -328,6 +353,18 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            if (value instanceof Number) {
+                return java.lang.Float.toString(((Number) value).floatValue());
+            } else {
+                throw new IllegalArgumentException("value must be a Float: " + value);
+            }
+        }
+
+        @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             minValue = in.readFloat();
@@ -378,6 +415,18 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
                 throw new UnsupportedOperationException("custom format isn't supported");
             }
             return java.lang.Double.valueOf(value);
+        }
+
+        @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            if (value instanceof Number) {
+                return java.lang.Double.toString(((Number) value).doubleValue());
+            } else {
+                throw new IllegalArgumentException("value must be a Double: " + value);
+            }
         }
 
         @Override
@@ -438,6 +487,18 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            if (value instanceof BytesRef) {
+                return ((BytesRef) value).utf8ToString();
+            } else {
+                throw new IllegalArgumentException("value must be a BytesRef: " + value);
+            }
+        }
+
+        @Override
         protected void toInnerXContent(XContentBuilder builder) throws IOException {
             builder.field(Fields.MIN_VALUE, getMinValueAsString());
             builder.field(Fields.MAX_VALUE, getMaxValueAsString());
@@ -491,6 +552,25 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            FormatDateTimeFormatter dateFormatter = this.dateFormatter;
+            if (optionalFormat != null) {
+                dateFormatter = Joda.forPattern(optionalFormat);
+            }
+            long millis;
+            if (value instanceof java.lang.Long) {
+                millis = ((java.lang.Long) value).longValue();
+            } else if (value instanceof DateTime) {
+                millis = ((DateTime) value).getMillis();
+            } else if (value instanceof BytesRef) {
+                millis = dateFormatter.parser().parseMillis(((BytesRef) value).utf8ToString());
+            } else {
+                throw new IllegalArgumentException("value must be either a DateTime or a long: " + value);
+            }
+            return dateFormatter.printer().print(millis);
+        }
+
+        @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             dateFormatter =  Joda.forPattern(in.readString());
@@ -502,6 +582,28 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
             out.writeString(dateFormatter.format());
         }
 
+    }
+
+    public static class Ip extends Long {
+
+        public Ip(int maxDoc, int docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue) {
+            super(maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
+        }
+
+        protected Ip(int type, long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue) {
+            super(type, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
+        }
+
+        public Ip() {
+        }
+
+        @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (value instanceof BytesRef) {
+                return super.stringValueOf(IpFieldMapper.ipToLong(((BytesRef) value).utf8ToString()), optionalFormat);
+            }
+            return super.stringValueOf(value, optionalFormat);
+        }
     }
 
     public static FieldStats read(StreamInput in) throws IOException {

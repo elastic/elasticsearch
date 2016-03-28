@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -584,14 +585,6 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         return this.versionType;
     }
 
-    private Version getVersion(MetaData metaData, String concreteIndex) {
-        // this can go away in 3.0 but is here now for easy backporting - since in 2.x we need the version on the timestamp stuff
-        final IndexMetaData indexMetaData = metaData.getIndices().get(concreteIndex);
-        if (indexMetaData == null) {
-            throw new IndexNotFoundException(concreteIndex);
-        }
-        return Version.indexCreated(indexMetaData.getSettings());
-    }
 
     public void process(MetaData metaData, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
         // resolve the routing if needed
@@ -600,8 +593,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         // resolve timestamp if provided externally
         if (timestamp != null) {
             timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
-                    mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER,
-                    getVersion(metaData, concreteIndex));
+                    mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
         }
         if (mappingMd != null) {
             // might as well check for routing here
@@ -645,7 +637,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
                 // assigned again because mappingMd and
                 // mappingMd#timestamp() are not null
                 assert mappingMd != null;
-                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter(), getVersion(metaData, concreteIndex));
+                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter());
             }
         }
     }

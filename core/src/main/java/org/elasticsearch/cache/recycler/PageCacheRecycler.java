@@ -19,13 +19,13 @@
 
 package org.elasticsearch.cache.recycler;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -43,13 +43,19 @@ import static org.elasticsearch.common.recycler.Recyclers.none;
 /** A recycler of fixed-size pages. */
 public class PageCacheRecycler extends AbstractComponent implements Releasable {
 
-    public static final Setting<Type> TYPE_SETTING = new Setting<>("cache.recycler.page.type", Type.CONCURRENT.name(), Type::parse, false, Setting.Scope.CLUSTER);
-    public static final Setting<ByteSizeValue> LIMIT_HEAP_SETTING  = Setting.byteSizeSetting("cache.recycler.page.limit.heap", "10%", false, Setting.Scope.CLUSTER);
-    public static final Setting<Double> WEIGHT_BYTES_SETTING  = Setting.doubleSetting("cache.recycler.page.weight.bytes", 1d, 0d, false, Setting.Scope.CLUSTER);
-    public static final Setting<Double> WEIGHT_LONG_SETTING  = Setting.doubleSetting("cache.recycler.page.weight.longs", 1d, 0d, false, Setting.Scope.CLUSTER);
-    public static final Setting<Double> WEIGHT_INT_SETTING  = Setting.doubleSetting("cache.recycler.page.weight.ints", 1d, 0d, false, Setting.Scope.CLUSTER);
+    public static final Setting<Type> TYPE_SETTING =
+        new Setting<>("cache.recycler.page.type", Type.CONCURRENT.name(), Type::parse, Property.NodeScope);
+    public static final Setting<ByteSizeValue> LIMIT_HEAP_SETTING  =
+        Setting.byteSizeSetting("cache.recycler.page.limit.heap", "10%", Property.NodeScope);
+    public static final Setting<Double> WEIGHT_BYTES_SETTING  =
+        Setting.doubleSetting("cache.recycler.page.weight.bytes", 1d, 0d, Property.NodeScope);
+    public static final Setting<Double> WEIGHT_LONG_SETTING  =
+        Setting.doubleSetting("cache.recycler.page.weight.longs", 1d, 0d, Property.NodeScope);
+    public static final Setting<Double> WEIGHT_INT_SETTING  =
+        Setting.doubleSetting("cache.recycler.page.weight.ints", 1d, 0d, Property.NodeScope);
     // object pages are less useful to us so we give them a lower weight by default
-    public static final Setting<Double> WEIGHT_OBJECTS_SETTING  = Setting.doubleSetting("cache.recycler.page.weight.objects", 0.1d, 0d, false, Setting.Scope.CLUSTER);
+    public static final Setting<Double> WEIGHT_OBJECTS_SETTING  =
+        Setting.doubleSetting("cache.recycler.page.weight.objects", 0.1d, 0d, Property.NodeScope);
 
     private final Recycler<byte[]> bytePage;
     private final Recycler<int[]> intPage;

@@ -45,7 +45,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.List;
 
 public class MatchQuery {
 
@@ -336,10 +335,10 @@ public class MatchQuery {
                 return prefixQuery;
             } else if (query instanceof MultiPhraseQuery) {
                 MultiPhraseQuery pq = (MultiPhraseQuery)query;
-                List<Term[]> terms = pq.getTermArrays();
+                Term[][] terms = pq.getTermArrays();
                 int[] positions = pq.getPositions();
-                for (int i = 0; i < terms.size(); i++) {
-                    prefixQuery.add(terms.get(i), positions[i]);
+                for (int i = 0; i < terms.length; i++) {
+                    prefixQuery.add(terms[i], positions[i]);
                 }
                 return prefixQuery;
             } else if (query instanceof TermQuery) {

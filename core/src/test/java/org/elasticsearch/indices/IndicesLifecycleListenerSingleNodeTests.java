@@ -49,8 +49,9 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
         ensureGreen();
-        IndexMetaData metaData = indicesService.indexService("test").getMetaData();
-        ShardRouting shardRouting = indicesService.indexService("test").getShard(0).routingEntry();
+        Index idx = resolveIndex("test");
+        IndexMetaData metaData = indicesService.indexService(idx).getMetaData();
+        ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
         final AtomicInteger counter = new AtomicInteger(1);
         IndexEventListener countingListener = new IndexEventListener() {
             @Override
@@ -89,10 +90,11 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 counter.incrementAndGet();
             }
         };
-        indicesService.deleteIndex("test", "simon says");
+        indicesService.deleteIndex(idx, "simon says");
         try {
             NodeServicesProvider nodeServicesProvider = getInstanceFromNode(NodeServicesProvider.class);
             IndexService index = indicesService.createIndex(nodeServicesProvider, metaData, Arrays.asList(countingListener));
+            idx = index.index();
             ShardRouting newRouting = new ShardRouting(shardRouting);
             String nodeId = newRouting.currentNodeId();
             ShardRoutingHelper.moveToUnassigned(newRouting, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom"));
@@ -106,7 +108,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             ShardRoutingHelper.moveToStarted(newRouting);
             shard.updateRoutingEntry(newRouting, true);
         } finally {
-            indicesService.deleteIndex("test", "simon says");
+            indicesService.deleteIndex(idx, "simon says");
         }
         assertEquals(7, counter.get());
     }

@@ -31,12 +31,17 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -52,7 +57,9 @@ import java.util.List;
  *
  */
 public abstract class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
-    private static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, false, Setting.Scope.INDEX); // this is private since it has a different default
+    // this is private since it has a different default
+    private static final Setting<Boolean> COERCE_SETTING =
+        Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
 
     public static class Defaults {
 
@@ -113,7 +120,6 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
 
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            fieldType.setOmitNorms(fieldType.omitNorms() && fieldType.boost() == 1.0f);
             int precisionStep = fieldType.numericPrecisionStep();
             if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
                 fieldType.setNumericPrecisionStep(Integer.MAX_VALUE);

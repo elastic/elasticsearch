@@ -94,7 +94,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     @Override
                     public void close() throws IOException {
                         super.close();
-                        store.directory().sync(Collections.singleton(md.name())); // sync otherwise MDW will mess with it
+                        targetStore.directory().sync(Collections.singleton(md.name())); // sync otherwise MDW will mess with it
                     }
                 };
             } catch (IOException e) {

@@ -15,10 +15,10 @@ on all nodes. To disable ingest on a node, configure the following setting in th
 node.ingest: false
 --------------------------------------------------
 
-To pre-process documents before indexing, you <<pipe-line,define a pipeline>> that specifies
+To pre-process documents before indexing, you <<pipeline,define a pipeline>> that specifies
 a series of <<ingest-processors,processors>>. Each processor transforms the document in some way.
 For example, you may have a pipeline that consists of one processor that removes a field from
-the document followed by another processor that renames a field. 
+the document followed by another processor that renames a field.
 
 To use a pipeline, you simply specify the `pipeline` parameter on an index or bulk request to
 tell the ingest node which pipeline to use. For example:
@@ -32,7 +32,7 @@ PUT /my-index/my-type/my-id?pipeline=my_pipeline_id
 --------------------------------------------------
 // AUTOSENSE
 
-See <<ingest-apis,Ingest APIs>> for more information about creating, adding, and deleting pipelines. 
+See <<ingest-apis,Ingest APIs>> for more information about creating, adding, and deleting pipelines.
 
 --
 

@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -137,7 +138,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         PluginsAndModules plugins = new PluginsAndModules();
         plugins.addModule(DummyPluginInfo.INSTANCE);
         plugins.addPlugin(DummyPluginInfo.INSTANCE);
-        IngestInfo ingestInfo = new IngestInfo();
+        IngestInfo ingestInfo = new IngestInfo(Collections.emptyList());
         return new NodeInfo(VersionUtils.randomVersion(random()), build, node, serviceAttributes, settings, osInfo, process, jvm, threadPoolInfo, transport, htttpInfo, plugins, ingestInfo);
     }
 }

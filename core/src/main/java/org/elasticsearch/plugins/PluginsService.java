@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 
@@ -71,7 +72,8 @@ public class PluginsService extends AbstractComponent {
      */
     private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsAndModules info;
-    public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), false, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> MANDATORY_SETTING =
+        Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     private final Map<Plugin, List<OnModuleReference>> onModuleReferences;
 
@@ -101,7 +103,7 @@ public class PluginsService extends AbstractComponent {
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings);
-            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), "NA", pluginClass.getName(), false);
+            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), "NA", pluginClass.getName());
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -300,9 +302,6 @@ public class PluginsService extends AbstractComponent {
                     continue; // skip over .DS_Store etc
                 }
                 PluginInfo info = PluginInfo.readFromProperties(module);
-                if (!info.isIsolated()) {
-                    throw new IllegalStateException("modules must be isolated: " + info);
-                }
                 Bundle bundle = new Bundle();
                 bundle.plugins.add(info);
                 // gather urls for jar files
@@ -327,8 +326,6 @@ public class PluginsService extends AbstractComponent {
         }
 
         List<Bundle> bundles = new ArrayList<>();
-        // a special purgatory for plugins that directly depend on each other
-        bundles.add(new Bundle());
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
@@ -352,13 +349,8 @@ public class PluginsService extends AbstractComponent {
                         urls.add(jar.toRealPath().toUri().toURL());
                     }
                 }
-                final Bundle bundle;
-                if (info.isIsolated() == false) {
-                    bundle = bundles.get(0); // purgatory
-                } else {
-                    bundle = new Bundle();
-                    bundles.add(bundle);
-                }
+                final Bundle bundle = new Bundle();
+                bundles.add(bundle);
                 bundle.plugins.add(info);
                 bundle.urls.addAll(urls);
             }

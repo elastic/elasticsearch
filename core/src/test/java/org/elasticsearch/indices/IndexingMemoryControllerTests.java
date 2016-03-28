@@ -161,7 +161,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
     public void testShardAdditionAndRemoval() {
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
 
         MockController controller = new MockController(Settings.builder()
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "4mb").build());
@@ -194,7 +194,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
 
         MockController controller = new MockController(Settings.builder()
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "5mb")
@@ -248,7 +248,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
     public void testThrottling() throws Exception {
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
 
         MockController controller = new MockController(Settings.builder()
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "4mb").build());
@@ -281,7 +281,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         controller.assertNotThrottled(shard0);
         controller.assertThrottled(shard1);
 
-        System.out.println("TEST: now index more");
+        logger.info("--> Indexing more data");
 
         // More indexing to shard0
         controller.simulateIndexing(shard0);
@@ -316,7 +316,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         ensureGreen();
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexService("index");
+        IndexService indexService = indicesService.indexService(resolveIndex("index"));
         IndexShard shard = indexService.getShardOrNull(0);
         assertNotNull(shard);
 
@@ -342,7 +342,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             @Override
             protected long getIndexBufferRAMBytesUsed(IndexShard shard) {
                 return shard.getIndexBufferRAMBytesUsed();
-            }   
+            }
 
             @Override
             protected void writeIndexingBufferAsync(IndexShard shard) {

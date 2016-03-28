@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'azure': '0.9.0',
+  'azure': '0.9.3',
   'jersey': '1.13'
 ]
 

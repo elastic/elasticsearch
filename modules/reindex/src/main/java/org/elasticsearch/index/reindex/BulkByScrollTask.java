@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -29,6 +30,8 @@ import org.elasticsearch.tasks.Task;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
@@ -46,6 +49,7 @@ public class BulkByScrollTask extends CancellableTask {
     private final AtomicInteger batch = new AtomicInteger(0);
     private final AtomicLong versionConflicts = new AtomicLong(0);
     private final AtomicLong retries = new AtomicLong(0);
+    private final AtomicLong throttledNanos = new AtomicLong();
 
     public BulkByScrollTask(long id, String type, String action, String description) {
         super(id, type, action, description);
@@ -54,7 +58,7 @@ public class BulkByScrollTask extends CancellableTask {
     @Override
     public Status getStatus() {
         return new Status(total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(), noops.get(),
-                retries.get(), getReasonCancelled());
+                retries.get(), timeValueNanos(throttledNanos.get()), getReasonCancelled());
     }
 
     /**
@@ -65,8 +69,7 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     public static class Status implements Task.Status {
-        public static final Status PROTOTYPE = new Status(0, 0, 0, 0, 0, 0, 0, 0, null);
-
+        public static final String NAME = "bulk-by-scroll";
         private final long total;
         private final long updated;
         private final long created;
@@ -75,10 +78,11 @@ public class BulkByScrollTask extends CancellableTask {
         private final long versionConflicts;
         private final long noops;
         private final long retries;
+        private final TimeValue throttled;
         private final String reasonCancelled;
 
         public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops, long retries,
-                @Nullable String reasonCancelled) {
+                TimeValue throttled, @Nullable String reasonCancelled) {
             this.total = checkPositive(total, "total");
             this.updated = checkPositive(updated, "updated");
             this.created = checkPositive(created, "created");
@@ -87,6 +91,7 @@ public class BulkByScrollTask extends CancellableTask {
             this.versionConflicts = checkPositive(versionConflicts, "versionConflicts");
             this.noops = checkPositive(noops, "noops");
             this.retries = checkPositive(retries, "retries");
+            this.throttled = throttled;
             this.reasonCancelled = reasonCancelled;
         }
 
@@ -99,6 +104,7 @@ public class BulkByScrollTask extends CancellableTask {
             versionConflicts = in.readVLong();
             noops = in.readVLong();
             retries = in.readVLong();
+            throttled = TimeValue.readTimeValue(in);
             reasonCancelled = in.readOptionalString();
         }
 
@@ -112,6 +118,7 @@ public class BulkByScrollTask extends CancellableTask {
             out.writeVLong(versionConflicts);
             out.writeVLong(noops);
             out.writeVLong(retries);
+            throttled.writeTo(out);
             out.writeOptionalString(reasonCancelled);
         }
 
@@ -136,6 +143,7 @@ public class BulkByScrollTask extends CancellableTask {
             builder.field("version_conflicts", versionConflicts);
             builder.field("noops", noops);
             builder.field("retries", retries);
+            builder.timeValueField("throttled_millis", "throttled", throttled);
             if (reasonCancelled != null) {
                 builder.field("canceled", reasonCancelled);
             }
@@ -169,12 +177,7 @@ public class BulkByScrollTask extends CancellableTask {
 
         @Override
         public String getWriteableName() {
-            return "bulk-by-scroll";
-        }
-
-        @Override
-        public Status readFrom(StreamInput in) throws IOException {
-            return new Status(in);
+            return NAME;
         }
 
         /**
@@ -235,6 +238,13 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         /**
+         * The total time this request has throttled itself.
+         */
+        public TimeValue getThrottled() {
+            return throttled;
+        }
+
+        /**
          * The reason that the request was canceled or null if it hasn't been.
          */
         public String getReasonCancelled() {
@@ -286,5 +296,12 @@ public class BulkByScrollTask extends CancellableTask {
 
     void countRetry() {
         retries.incrementAndGet();
+    }
+
+    public void countThrottle(TimeValue delay) {
+        long nanos = delay.nanos();
+        if (nanos > 0) {
+            throttledNanos.addAndGet(nanos);
+        }
     }
 }

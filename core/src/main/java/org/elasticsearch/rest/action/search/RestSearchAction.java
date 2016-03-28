@@ -48,6 +48,8 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
+import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,13 +66,15 @@ public class RestSearchAction extends BaseRestHandler {
 
     private final IndicesQueriesRegistry queryRegistry;
     private final AggregatorParsers aggParsers;
+    private final Suggesters suggesters;
 
     @Inject
     public RestSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry,
-            AggregatorParsers aggParsers) {
+            AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings, client);
         this.queryRegistry = queryRegistry;
         this.aggParsers = aggParsers;
+        this.suggesters = suggesters;
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
@@ -88,7 +92,7 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, null);
+        parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, null);
         client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
@@ -101,8 +105,10 @@ public class RestSearchAction extends BaseRestHandler {
      *            content is read from the request using
      *            RestAction.hasBodyContent.
      */
-    public static void parseSearchRequest(SearchRequest searchRequest, IndicesQueriesRegistry indicesQueriesRegistry, RestRequest request, 
-            ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers, BytesReference restContent) throws IOException {
+    public static void parseSearchRequest(SearchRequest searchRequest, IndicesQueriesRegistry indicesQueriesRegistry, RestRequest request,
+            ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers, Suggesters suggesters, BytesReference restContent)
+        throws IOException {
+
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
@@ -117,16 +123,15 @@ public class RestSearchAction extends BaseRestHandler {
         }
         if (restContent != null) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-            if (isTemplateRequest) {
-                try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                    context.reset(parser);
-                    context.parseFieldMatcher(parseFieldMatcher);
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                context.reset(parser);
+                context.parseFieldMatcher(parseFieldMatcher);
+                if (isTemplateRequest) {
                     Template template = TemplateQueryParser.parse(parser, context.parseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
+                } else {
+                    searchRequest.source().parseXContent(parser, context, aggParsers, suggesters);
                 }
-            } else {
-                RestActions.parseRestSearchSource(searchRequest.source(), restContent, indicesQueriesRegistry, parseFieldMatcher,
-                        aggParsers);
             }
         }
 
@@ -254,8 +259,10 @@ public class RestSearchAction extends BaseRestHandler {
             String suggestText = request.param("suggest_text", request.param("q"));
             int suggestSize = request.paramAsInt("suggest_size", 5);
             String suggestMode = request.param("suggest_mode");
-            searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(
-                    termSuggestion(suggestField).field(suggestField).text(suggestText).size(suggestSize).suggestMode(suggestMode)));
+            searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(suggestField,
+                    termSuggestion(suggestField)
+                        .text(suggestText).size(suggestSize)
+                        .suggestMode(SuggestMode.resolve(suggestMode))));
         }
     }
 }

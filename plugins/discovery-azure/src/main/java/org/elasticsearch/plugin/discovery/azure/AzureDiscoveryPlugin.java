@@ -75,10 +75,5 @@ public class AzureDiscoveryPlugin extends Plugin {
         settingsModule.registerSetting(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING);
         settingsModule.registerSetting(AzureComputeService.Management.SERVICE_NAME_SETTING);
         settingsModule.registerSetting(AzureComputeService.Discovery.HOST_TYPE_SETTING);
-        // Cloud management API settings we need to hide
-        settingsModule.registerSettingsFilter(AzureComputeService.Management.KEYSTORE_PATH_SETTING.getKey());
-        settingsModule.registerSettingsFilter(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING.getKey());
-        settingsModule.registerSettingsFilter(AzureComputeService.Management.KEYSTORE_TYPE_SETTING.getKey());
-        settingsModule.registerSettingsFilter(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING.getKey());
     }
 }

@@ -68,20 +68,7 @@ public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
-                    String sScoreMode = parser.text();
-                    if ("avg".equals(sScoreMode)) {
-                        scoreMode = ScoreMode.Avg;
-                    } else if ("min".equals(sScoreMode)) {
-                        scoreMode = ScoreMode.Min;
-                    } else if ("max".equals(sScoreMode)) {
-                        scoreMode = ScoreMode.Max;
-                    } else if ("total".equals(sScoreMode) || "sum".equals(sScoreMode)) {
-                        scoreMode = ScoreMode.Total;
-                    } else if ("none".equals(sScoreMode)) {
-                        scoreMode = ScoreMode.None;
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "illegal score_mode for nested query [" + sScoreMode + "]");
-                    }
+                    scoreMode = HasChildQueryParser.parseScoreMode(parser.text());
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {

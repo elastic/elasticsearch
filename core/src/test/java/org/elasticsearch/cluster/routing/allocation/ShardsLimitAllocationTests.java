@@ -212,7 +212,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             assertThat(shardRouting.getIndexName(), equalTo("test1"));
         }
 
-        logger.info("update " + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() + " for test, see that things move");
+        logger.info("update {} for test, see that things move", ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey());
         metaData = MetaData.builder(metaData)
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)

@@ -60,7 +60,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (taskId.isSet() == false && nodesIds.length > 0) {
+        if (taskId.isSet() && nodesIds.length > 0) {
             validationException = addValidationError("task id cannot be used together with node ids",
                 validationException);
         }
@@ -71,7 +71,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
      * Sets the list of action masks for the actions that should be returned
      */
     @SuppressWarnings("unchecked")
-    public final Request actions(String... actions) {
+    public final Request setActions(String... actions) {
         this.actions = actions;
         return (Request) this;
     }
@@ -79,16 +79,16 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     /**
      * Return the list of action masks for the actions that should be returned
      */
-    public String[] actions() {
+    public String[] getActions() {
         return actions;
     }
 
-    public final String[] nodesIds() {
+    public final String[] getNodesIds() {
         return nodesIds;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request nodesIds(String... nodesIds) {
+    public final Request setNodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
         return (Request) this;
     }
@@ -98,12 +98,12 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
      *
      * By default tasks with any ids are returned.
      */
-    public TaskId taskId() {
+    public TaskId getTaskId() {
         return taskId;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request taskId(TaskId taskId) {
+    public final Request setTaskId(TaskId taskId) {
         this.taskId = taskId;
         return (Request) this;
     }
@@ -112,29 +112,29 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     /**
      * Returns the parent task id that tasks should be filtered by
      */
-    public TaskId parentTaskId() {
+    public TaskId getParentTaskId() {
         return parentTaskId;
     }
 
     @SuppressWarnings("unchecked")
-    public Request parentTaskId(TaskId parentTaskId) {
+    public Request setParentTaskId(TaskId parentTaskId) {
         this.parentTaskId = parentTaskId;
         return (Request) this;
     }
 
 
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return this.timeout;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request timeout(TimeValue timeout) {
+    public final Request setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return (Request) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request timeout(String timeout) {
+    public final Request setTimeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (Request) this;
     }
@@ -162,15 +162,15 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     }
 
     public boolean match(Task task) {
-        if (actions() != null && actions().length > 0 && Regex.simpleMatch(actions(), task.getAction()) == false) {
+        if (getActions() != null && getActions().length > 0 && Regex.simpleMatch(getActions(), task.getAction()) == false) {
             return false;
         }
-        if (taskId().isSet() == false) {
-            if(taskId().getId() != task.getId()) {
+        if (getTaskId().isSet()) {
+            if(getTaskId().getId() != task.getId()) {
                 return false;
             }
         }
-        if (parentTaskId.isSet() == false) {
+        if (parentTaskId.isSet()) {
             if (parentTaskId.equals(task.getParentTaskId()) == false) {
                 return false;
             }

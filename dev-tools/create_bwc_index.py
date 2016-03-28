@@ -247,6 +247,25 @@ def generate_index(client, version, index_name):
       }
     }
 
+  mappings['norms'] = {
+    'properties': {
+      'string_with_norms_disabled': {
+        'type': 'string',
+        'norms': {
+          'enabled': False
+        }
+      },
+      'string_with_norms_enabled': {
+        'type': 'string',
+        'index': 'not_analyzed',
+        'norms': {
+          'enabled': True,
+          'loading': 'eager'
+        }
+      }
+    }
+  }
+
   mappings['doc'] = {
     'properties': {
       'string': {

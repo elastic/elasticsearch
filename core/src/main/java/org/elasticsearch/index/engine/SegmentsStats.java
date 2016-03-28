@@ -348,7 +348,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         indexWriterMaxMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
 
-        if (in.getVersion().onOrAfter(Version.V_5_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
             int size = in.readVInt();
             ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(size);
             for (int i = 0; i < size; i++) {
@@ -376,7 +376,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         out.writeLong(indexWriterMaxMemoryInBytes);
         out.writeLong(bitsetMemoryInBytes);
 
-        if (out.getVersion().onOrAfter(Version.V_5_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
             out.writeVInt(fileSizes.size());
             for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
                 ObjectObjectCursor<String, Long> entry = it.next();

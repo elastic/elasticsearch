@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fieldstats.FieldStatsProvider;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 
@@ -31,12 +32,21 @@ public class QueryRewriteContext {
     protected final IndexSettings indexSettings;
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final QueryParseContext parseContext;
+    protected FieldStatsProvider fieldStatsProvider;
 
     public QueryRewriteContext(IndexSettings indexSettings, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry) {
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.parseContext = new QueryParseContext(indicesQueriesRegistry);
+    }
+
+    public void setFieldStatsProvider(FieldStatsProvider fieldStatsProvider) {
+        this.fieldStatsProvider = fieldStatsProvider;
+    }
+
+    public FieldStatsProvider getFieldStatsProvider() {
+        return fieldStatsProvider;
     }
 
     /**

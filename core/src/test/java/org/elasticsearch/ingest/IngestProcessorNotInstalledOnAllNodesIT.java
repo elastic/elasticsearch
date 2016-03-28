@@ -67,9 +67,11 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
 
     public void testFailPipelineCreation() throws Exception {
         installPlugin = true;
-        internalCluster().startNode();
+        String node1 = internalCluster().startNode();
         installPlugin = false;
-        internalCluster().startNode();
+        String node2 = internalCluster().startNode();
+        ensureStableCluster(2, node1);
+        ensureStableCluster(2, node2);
 
         try {
             client().admin().cluster().preparePutPipeline("_id", pipelineSource).get();

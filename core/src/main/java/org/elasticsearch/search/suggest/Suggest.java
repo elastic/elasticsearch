@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -47,9 +46,7 @@ import java.util.Map;
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    public static class Fields {
-        public static final XContentBuilderString SUGGEST = new XContentBuilderString("suggest");
-    }
+    private static final XContentBuilderString NAME = new XContentBuilderString("suggest");
 
     private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
         @Override
@@ -62,26 +59,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          }
     };
 
-    private final XContentBuilderString name;
-
     private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
     public Suggest() {
-        this.name = null;
-    }
-
-    public Suggest(XContentBuilderString name) {
-        this.name = name;
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
-        this(null, suggestions);
-    }
-
-    public Suggest(XContentBuilderString name, List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
-        this.name = name;
         this.suggestions = suggestions;
     }
 
@@ -149,23 +134,24 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if(name == null) {
-            for (Suggestion<?> suggestion : suggestions) {
-                suggestion.toXContent(builder, params);
-            }
-        } else {
-            builder.startObject(name);
-            for (Suggestion<?> suggestion : suggestions) {
-                suggestion.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-
+        builder.startObject(NAME);
+        toInnerXContent(builder, params);
+        builder.endObject();
         return builder;
     }
 
-    public static Suggest readSuggest(XContentBuilderString name, StreamInput in) throws IOException {
-        Suggest result = new Suggest(name);
+    /**
+     * use to write suggestion entries without <code>NAME</code> object
+     */
+    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
+        for (Suggestion<?> suggestion : suggestions) {
+            suggestion.toXContent(builder, params);
+        }
+        return builder;
+    }
+
+    public static Suggest readSuggest(StreamInput in) throws IOException {
+        Suggest result = new Suggest();
         result.readFrom(in);
         return result;
     }
@@ -197,7 +183,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
      * The suggestion responses corresponding with the suggestions in the request.
      */
     public static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, Streamable, ToXContent {
-
 
         public static final int TYPE = 0;
         protected String name;
@@ -640,39 +625,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 @Override
                 public int hashCode() {
                     return text.hashCode();
-                }
-            }
-        }
-
-        public enum Sort {
-
-            /**
-             * Sort should first be based on score.
-             */
-            SCORE((byte) 0x0),
-
-            /**
-             * Sort should first be based on document frequency.
-             */
-            FREQUENCY((byte) 0x1);
-
-            private byte id;
-
-            private Sort(byte id) {
-                this.id = id;
-            }
-
-            public byte id() {
-                return id;
-            }
-
-            public static Sort fromId(byte id) {
-                if (id == 0) {
-                    return SCORE;
-                } else if (id == 1) {
-                    return FREQUENCY;
-                } else {
-                    throw new ElasticsearchException("Illegal suggest sort " + id);
                 }
             }
         }

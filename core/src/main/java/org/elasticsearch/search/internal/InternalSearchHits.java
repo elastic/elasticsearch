@@ -34,7 +34,6 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 import static org.elasticsearch.search.internal.InternalSearchHit.readSearchHit;
 
 /**
@@ -216,7 +215,7 @@ public class InternalSearchHits implements SearchHits {
                 // read the lookup table first
                 int lookupSize = in.readVInt();
                 for (int i = 0; i < lookupSize; i++) {
-                    context.handleShardLookup().put(in.readVInt(), readSearchShardTarget(in));
+                    context.handleShardLookup().put(in.readVInt(), new SearchShardTarget(in));
                 }
             }
 

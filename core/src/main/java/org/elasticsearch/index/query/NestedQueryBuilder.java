@@ -121,7 +121,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         query.toXContent(builder, params);
         builder.field(NestedQueryParser.PATH_FIELD.getPreferredName(), path);
         if (scoreMode != null) {
-            builder.field(NestedQueryParser.SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+            builder.field(NestedQueryParser.SCORE_MODE_FIELD.getPreferredName(), HasChildQueryParser.scoreModeAsString(scoreMode));
         }
         printBoostAndQueryName(builder);
         if (queryInnerHits != null) {

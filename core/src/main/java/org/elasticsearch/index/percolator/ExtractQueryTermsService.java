@@ -23,9 +23,12 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -92,10 +95,17 @@ public final class ExtractQueryTermsService {
      * an UnsupportedQueryException is thrown.
      */
     static Set<Term> extractQueryTerms(Query query) {
-        // TODO: add support for the TermsQuery when it has methods to access the actual terms it encapsulates
         // TODO: add support for span queries
         if (query instanceof TermQuery) {
             return Collections.singleton(((TermQuery) query).getTerm());
+        } else if (query instanceof TermsQuery) {
+            Set<Term> terms = new HashSet<>();
+            TermsQuery termsQuery = (TermsQuery) query;
+            PrefixCodedTerms.TermIterator iterator = termsQuery.getTermData().iterator();
+            for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
+                terms.add(new Term(iterator.field(), term));
+            }
+            return  terms;
         } else if (query instanceof PhraseQuery) {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
@@ -154,6 +164,12 @@ public final class ExtractQueryTermsService {
         } else if (query instanceof BoostQuery) {
             Query wrappedQuery = ((BoostQuery) query).getQuery();
             return extractQueryTerms(wrappedQuery);
+        } else if (query instanceof CommonTermsQuery) {
+            List<Term> terms = ((CommonTermsQuery) query).getTerms();
+            return new HashSet<>(terms);
+        } else if (query instanceof BlendedTermQuery) {
+            List<Term> terms = ((BlendedTermQuery) query).getTerms();
+            return new HashSet<>(terms);
         } else {
             throw new UnsupportedQueryException(query);
         }

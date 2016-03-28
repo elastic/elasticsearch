@@ -302,7 +302,6 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
         int availableProcessors;
         int allocatedProcessors;
-        long availableMemory;
         final ObjectIntHashMap<String> names;
 
         public OsStats() {
@@ -326,15 +325,10 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             return allocatedProcessors;
         }
 
-        public ByteSizeValue getAvailableMemory() {
-            return new ByteSizeValue(availableMemory);
-        }
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
             availableProcessors = in.readVInt();
             allocatedProcessors = in.readVInt();
-            availableMemory = in.readLong();
             int size = in.readVInt();
             names.clear();
             for (int i = 0; i < size; i++) {
@@ -346,7 +340,6 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(availableProcessors);
             out.writeVInt(allocatedProcessors);
-            out.writeLong(availableMemory);
             out.writeVInt(names.size());
             for (ObjectIntCursor<String> name : names) {
                 out.writeString(name.key);
@@ -365,9 +358,6 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             static final XContentBuilderString ALLOCATED_PROCESSORS = new XContentBuilderString("allocated_processors");
             static final XContentBuilderString NAME = new XContentBuilderString("name");
             static final XContentBuilderString NAMES = new XContentBuilderString("names");
-            static final XContentBuilderString MEM = new XContentBuilderString("mem");
-            static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-            static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
             static final XContentBuilderString COUNT = new XContentBuilderString("count");
         }
 
@@ -375,10 +365,6 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
             builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
-            builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, availableMemory);
-            builder.endObject();
-
             builder.startArray(Fields.NAMES);
             for (ObjectIntCursor<String> name : names) {
                 builder.startObject();

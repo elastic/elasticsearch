@@ -20,8 +20,6 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.ExtensionPoint;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
 import org.elasticsearch.search.suggest.term.TermSuggester;
@@ -42,26 +40,30 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
         this(Collections.emptyMap());
     }
 
-    public Suggesters(Map<String, Suggester> suggesters) {
-        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion")), Suggesters.class, SuggestParseElement.class, SuggestPhase.class);
-        this.parsers = Collections.unmodifiableMap(suggesters);
-    }
-
     @Inject
-    public Suggesters(Map<String, Suggester> suggesters, ScriptService scriptService, IndicesService indexServices) {
-        this(addBuildIns(suggesters, scriptService, indexServices));
+    public Suggesters(Map<String, Suggester> suggesters) {
+        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion")), Suggesters.class, SuggestPhase.class);
+        this.parsers = Collections.unmodifiableMap(addBuildIns(suggesters));
     }
 
-    private static Map<String, Suggester> addBuildIns(Map<String, Suggester> suggesters, ScriptService scriptService, IndicesService indexServices) {
+    private static Map<String, Suggester> addBuildIns(Map<String, Suggester> suggesters) {
         final Map<String, Suggester> map = new HashMap<>();
-        map.put("phrase", new PhraseSuggester(scriptService, indexServices));
-        map.put("term", new TermSuggester());
-        map.put("completion", new CompletionSuggester());
+        map.put("phrase", PhraseSuggester.PROTOTYPE);
+        map.put("term", TermSuggester.PROTOTYPE);
+        map.put("completion", CompletionSuggester.PROTOTYPE);
         map.putAll(suggesters);
         return map;
     }
 
-    public Suggester get(String type) {
-        return parsers.get(type);
+    public SuggestionBuilder<? extends SuggestionBuilder> getSuggestionPrototype(String suggesterName) {
+        Suggester<?> suggester = parsers.get(suggesterName);
+        if (suggester == null) {
+            throw new IllegalArgumentException("suggester with name [" + suggesterName + "] not supported");
+        }
+        SuggestionBuilder<?> suggestParser = suggester.getBuilderPrototype();
+        if (suggestParser == null) {
+            throw new IllegalArgumentException("suggester with name [" + suggesterName + "] not supported");
+        }
+        return suggestParser;
     }
 }

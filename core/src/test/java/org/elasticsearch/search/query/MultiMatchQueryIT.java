@@ -156,12 +156,12 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .endObject()
                 .startObject("first_name")
                 .field("type", "text")
-                .field("omit_norms", "true")
+                .field("norms", false)
                 .field("copy_to", "first_name_phrase")
                 .endObject()
                 .startObject("last_name")
                 .field("type", "text")
-                .field("omit_norms", "true")
+                .field("norms", false)
                 .field("copy_to", "last_name_phrase")
                 .endObject()
                 .endObject()
@@ -567,7 +567,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
         // test if boosts work
         searchResponse = client().prepareSearch("test")
-                .setQuery(randomizeType(multiMatchQuery("the ultimate", "full_name", "first_name", "last_name", "category").field("last_name", 2)
+                .setQuery(randomizeType(multiMatchQuery("the ultimate", "full_name", "first_name", "last_name", "category").field("last_name", 10)
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .operator(Operator.AND))).get();
         assertFirstHit(searchResponse, hasId("ultimate1"));   // has ultimate in the last_name and that is boosted

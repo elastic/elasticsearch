@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -95,7 +94,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         public TTLFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             fieldType.setHasDocValues(false);
-            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, fieldDataSettings, context.indexSettings());
+            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, context.indexSettings());
         }
     }
 
@@ -161,11 +160,11 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     private long defaultTTL;
 
     private TTLFieldMapper(Settings indexSettings) {
-        this(Defaults.TTL_FIELD_TYPE.clone(), Defaults.ENABLED_STATE, Defaults.DEFAULT, null, indexSettings);
+        this(Defaults.TTL_FIELD_TYPE.clone(), Defaults.ENABLED_STATE, Defaults.DEFAULT, indexSettings);
     }
 
     private TTLFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL,
-                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                             Settings indexSettings) {
         super(NAME, fieldType, Defaults.TTL_FIELD_TYPE, indexSettings);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;

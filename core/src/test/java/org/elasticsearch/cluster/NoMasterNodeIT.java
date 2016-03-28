@@ -235,7 +235,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         ensureSearchable("test1", "test2");
 
         ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
-        logger.info("Cluster state:\n" + clusterState.getState().prettyPrint());
+        logger.info("Cluster state:\n{}", clusterState.getState().prettyPrint());
 
         internalCluster().stopRandomDataNode();
         assertTrue(awaitBusy(() -> {

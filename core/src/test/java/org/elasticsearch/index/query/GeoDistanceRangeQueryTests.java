@@ -24,10 +24,12 @@ import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.spatial.util.GeoDistanceUtils;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -294,6 +296,36 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("distance unit must not be null"));
         }
+    }
+
+    public void testNestedRangeQuery() throws IOException {
+        // create a nested geo_point type with a subfield named "geohash" (explicit testing for ISSUE #15179)
+        MapperService mapperService = queryShardContext().getMapperService();
+        String nestedMapping =
+            "{\"nested_doc\" : {\"properties\" : {" +
+            "\"locations\": {\"properties\": {" +
+            "\"geohash\": {\"type\": \"geo_point\"}}," +
+            "\"type\": \"nested\"}" +
+            "}}}";
+        mapperService.merge("nested_doc", new CompressedXContent(nestedMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+
+        // create a range query on the nested locations.geohash sub-field
+        String queryJson =
+            "{\n" +
+            "  \"nested\": {\n" +
+            "    \"path\": \"locations\",\n" +
+            "    \"query\": {\n" +
+            "      \"geo_distance_range\": {\n" +
+            "        \"from\": \"0.0km\",\n" +
+            "        \"to\" : \"200.0km\",\n" +
+            "        \"locations.geohash\": \"s7ws01wyd7ws\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}\n";
+        NestedQueryBuilder builder = (NestedQueryBuilder) parseQuery(queryJson);
+        QueryShardContext context = createShardContext();
+        builder.toQuery(context);
     }
 
     public void testFromJson() throws IOException {

@@ -144,7 +144,7 @@ public class ElasticsearchAssertions {
     }
 
     /**
-     * Checks that all shard requests of a replicated brodcast request failed due to a cluster block
+     * Checks that all shard requests of a replicated broadcast request failed due to a cluster block
      *
      * @param replicatedBroadcastResponse the response that should only contain failed shard responses
      *
@@ -716,7 +716,7 @@ public class ElasticsearchAssertions {
 
     /**
      * Applies basic assertions on the SearchResponse. This method checks if all shards were successful, if
-     * any of the shards threw an exception and if the response is serializeable.
+     * any of the shards threw an exception and if the response is serializable.
      */
     public static SearchResponse assertSearchResponse(SearchRequestBuilder request) {
         return assertSearchResponse(request.get());
@@ -724,7 +724,7 @@ public class ElasticsearchAssertions {
 
     /**
      * Applies basic assertions on the SearchResponse. This method checks if all shards were successful, if
-     * any of the shards threw an exception and if the response is serializeable.
+     * any of the shards threw an exception and if the response is serializable.
      */
     public static SearchResponse assertSearchResponse(SearchResponse response) {
         assertNoFailures(response);

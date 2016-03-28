@@ -93,7 +93,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         final String message = "[" + this.name + "] Data too large, data for [" +
                 fieldName + "] would be larger than limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
-        logger.debug(message);
+        logger.debug("{}", message);
         throw new CircuitBreakingException(message,
                 bytesNeeded, this.memoryBytesLimit);
     }

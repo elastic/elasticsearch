@@ -181,7 +181,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-            e.getCause().printStackTrace();
+            logger.info("Caught exception", e.getCause());
             e.getChannel().close();
         }
     }

@@ -127,7 +127,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
         if (analyzers.containsKey("default_index")) {
             final Version createdVersion = indexSettings.getIndexVersionCreated();
-            if (createdVersion.onOrAfter(Version.V_5_0_0)) {
+            if (createdVersion.onOrAfter(Version.V_5_0_0_alpha1)) {
                 throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index().getName() + "]");
             } else {
                 deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index().getName());
@@ -155,7 +155,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                     // because analyzers are aliased, they might be closed several times
                     // an NPE is thrown in this case, so ignore....
                 } catch (Exception e) {
-                    logger.debug("failed to close analyzer " + analyzer);
+                    logger.debug("failed to close analyzer {}", analyzer);
                 }
             }
         }

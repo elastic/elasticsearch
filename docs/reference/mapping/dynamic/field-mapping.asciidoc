@@ -22,7 +22,7 @@ string::                            Either a <<date,`date`>> field
                                         (if the value passes <<date-detection,date detection>>),
                                     a <<number,`double`>> or <<number,`long`>> field
                                         (if the value passes <<numeric-detection,numeric detection>>)
-                                    or an <<mapping-index,`analyzed`>> <<string,`string`>> field.
+                                    or an <<text,`text`>> field.
 
 These are the only <<mapping-types,field datatypes>> that are dynamically
 detected.  All other datatypes must be mapped explicitly.
@@ -81,7 +81,7 @@ PUT my_index/my_type/1 <1>
 --------------------------------------------------
 // AUTOSENSE
 
-<1> The `create_date` field has been added as a <<string,`string`>> field.
+<1> The `create_date` field has been added as a <<text,`text`>> field.
 
 ===== Customising detected date formats
 

@@ -12,11 +12,13 @@
   - do:
       update-by-query:
         index: test
+  - is_false: timed_out
   - match: {updated: 1}
   - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {failures: []}
   - match: {noops: 0}
+  - match: {throttled_millis: 0}
   - is_true: took
   - is_false: created # Update by query can't create
   - is_false: task
@@ -37,13 +39,20 @@
         wait_for_completion: false
         index: test
   - match: {task: '/.+:\d+/'}
+  - set: {task: task}
   - is_false: updated
   - is_false: version_conflicts
   - is_false: batches
   - is_false: failures
   - is_false: noops
   - is_false: took
+  - is_false: throttled_millis
   - is_false: created
+
+  - do:
+      tasks.list:
+        wait_for_completion: true
+        task_id: $task
 
 ---
 "Response for version conflict":
@@ -80,7 +89,8 @@
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
-  - match: {failures.0.cause.reason: "[foo][1]: version conflict, current version [2] is different than the one provided [1]"}
+  # Use a regex so we don't mind if the current version isn't always 1. Sometimes it comes out 2.
+  - match: {failures.0.cause.reason: "/\\[foo\\]\\[1\\]:.version.conflict,.current.version.\\[\\d+\\].is.different.than.the.one.provided.\\[\\d+\\]/"}
   - match: {failures.0.cause.shard:  /\d+/}
   - match: {failures.0.cause.index:  test}
   - is_true: took
@@ -117,6 +127,7 @@
   - match: {batches: 1}
   - match: {noops: 0}
   - match: {failures: []}
+  - match: {throttled_millis: 0}
   - is_true: took
 
 ---
@@ -174,6 +185,7 @@
   - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {failures: []}
+  - match: {throttled_millis: 0}
   - is_true: took
 
 ---

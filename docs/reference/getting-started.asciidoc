@@ -163,7 +163,7 @@ As mentioned previously, we can override either the cluster or node name. This c
 
 [source,sh]
 --------------------------------------------------
-./elasticsearch --cluster.name my_cluster_name --node.name my_node_name
+./elasticsearch -Ees.cluster.name=my_cluster_name -Ees.node.name=my_node_name
 --------------------------------------------------
 
 Also note the line marked http with information about the HTTP address (`192.168.8.112`) and port (`9200`) that our node is reachable from. By default, Elasticsearch uses port `9200` to provide access to its REST API. This port is configurable if necessary.

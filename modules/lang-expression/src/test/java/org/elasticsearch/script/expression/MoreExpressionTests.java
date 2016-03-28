@@ -383,7 +383,11 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .script(new Script("_value * 3", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
                 .addAggregation(
                         AggregationBuilders.stats("double_agg").field("y")
-                                .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
+                                .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
+                .addAggregation(
+                        AggregationBuilders.stats("const_agg").field("x") // specifically to test a script w/o _value
+                                .script(new Script("3.0", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null))
+                );
 
         SearchResponse rsp = req.get();
         assertEquals(3, rsp.getHits().getTotalHits());
@@ -395,6 +399,11 @@ public class MoreExpressionTests extends ESIntegTestCase {
         stats = rsp.getAggregations().get("double_agg");
         assertEquals(0.7, stats.getMax(), 0.0001);
         assertEquals(0.1, stats.getMin(), 0.0001);
+
+        stats = rsp.getAggregations().get("const_agg");
+        assertThat(stats.getMax(), equalTo(3.0));
+        assertThat(stats.getMin(), equalTo(3.0));
+        assertThat(stats.getAvg(), equalTo(3.0));
     }
 
     public void testStringSpecialValueVariable() throws Exception {

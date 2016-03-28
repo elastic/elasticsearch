@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -748,7 +749,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .addSort(
                         SortBuilders.fieldSort("parent.child.child_values")
                                 .setNestedPath("parent.child")
-                                .sortMode("sum")
+                                .sortMode(SortMode.SUM)
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
@@ -768,7 +769,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .addSort(
                         SortBuilders.fieldSort("parent.child.child_values")
                                 .setNestedPath("parent.child")
-                                .sortMode("sum")
+                                .sortMode(SortMode.SUM)
                                 .order(SortOrder.DESC)
                 )
                 .execute().actionGet();
@@ -789,7 +790,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                         SortBuilders.fieldSort("parent.child.child_values")
                                 .setNestedPath("parent.child")
                                 .setNestedFilter(QueryBuilders.termQuery("parent.child.filter", true))
-                                .sortMode("sum")
+                                .sortMode(SortMode.SUM)
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
@@ -809,7 +810,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .addSort(
                         SortBuilders.fieldSort("parent.child.child_values")
                                 .setNestedPath("parent.child")
-                                .sortMode("avg")
+                                .sortMode(SortMode.AVG)
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();
@@ -828,7 +829,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .addSort(
                         SortBuilders.fieldSort("parent.child.child_values")
                                 .setNestedPath("parent.child")
-                                .sortMode("avg")
+                                .sortMode(SortMode.AVG)
                                 .order(SortOrder.DESC)
                 )
                 .execute().actionGet();
@@ -849,7 +850,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                         SortBuilders.fieldSort("parent.child.child_values")
                                 .setNestedPath("parent.child")
                                 .setNestedFilter(QueryBuilders.termQuery("parent.child.filter", true))
-                                .sortMode("avg")
+                                .sortMode(SortMode.AVG)
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();

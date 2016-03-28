@@ -46,16 +46,15 @@ PUT my_index
     "my_type": { <1>
       "properties": {
         "region": {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         },
         "manager": { <2>
           "properties": {
             "age":  { "type": "integer" },
             "name": { <3>
               "properties": {
-                "first": { "type": "string" },
-                "last":  { "type": "string" }
+                "first": { "type": "text" },
+                "last":  { "type": "text" }
               }
             }
           }

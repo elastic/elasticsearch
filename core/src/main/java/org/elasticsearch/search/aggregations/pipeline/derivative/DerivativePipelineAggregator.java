@@ -92,7 +92,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         for (InternalHistogram.Bucket bucket : buckets) {
             Long thisBucketKey = resolveBucketKeyAsLong(bucket);
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
-            if (lastBucketValue != null) {
+            if (lastBucketValue != null && thisBucketValue != null) {
                 double gradient = thisBucketValue - lastBucketValue;
                 double xDiff = -1;
                 if (xAxisUnits != null) {

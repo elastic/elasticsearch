@@ -19,23 +19,97 @@
 
 package org.elasticsearch.bootstrap;
 
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import joptsimple.util.KeyValuePair;
+import org.elasticsearch.Build;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.monitor.jvm.JvmInfo;
+
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This class starts elasticsearch.
  */
-public final class Elasticsearch {
+class Elasticsearch extends Command {
 
-    /** no instantiation */
-    private Elasticsearch() {}
+    private final OptionSpec<Void> versionOption;
+    private final OptionSpec<Void> daemonizeOption;
+    private final OptionSpec<String> pidfileOption;
+    private final OptionSpec<KeyValuePair> propertyOption;
+
+    // visible for testing
+    Elasticsearch() {
+        super("starts elasticsearch");
+        // TODO: in jopt-simple 5.0, make this mutually exclusive with all other options
+        versionOption = parser.acceptsAll(Arrays.asList("V", "version"),
+            "Prints elasticsearch version information and exits");
+        daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
+            "Starts Elasticsearch in the background");
+        // TODO: in jopt-simple 5.0 this option type can be a Path
+        pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"),
+            "Creates a pid file in the specified path on start")
+            .withRequiredArg();
+        propertyOption = parser.accepts("E", "Configure an Elasticsearch setting").withRequiredArg().ofType(KeyValuePair.class);
+    }
 
     /**
      * Main entry point for starting elasticsearch
      */
-    public static void main(String[] args) throws StartupError {
+    public static void main(final String[] args) throws Exception {
+        final Elasticsearch elasticsearch = new Elasticsearch();
+        int status = main(args, elasticsearch, Terminal.DEFAULT);
+        if (status != ExitCodes.OK) {
+            exit(status);
+        }
+    }
+
+    static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
+        return elasticsearch.main(args, terminal);
+    }
+
+    @Override
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        if (options.nonOptionArguments().isEmpty() == false) {
+            throw new UserError(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
+        }
+        if (options.has(versionOption)) {
+            if (options.has(daemonizeOption) || options.has(pidfileOption)) {
+                throw new UserError(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");
+            }
+            terminal.println("Version: " + org.elasticsearch.Version.CURRENT
+                + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
+                + ", JVM: " + JvmInfo.jvmInfo().version());
+            return;
+        }
+
+        final boolean daemonize = options.has(daemonizeOption);
+        final String pidFile = pidfileOption.value(options);
+
+        final Map<String, String> esSettings = new HashMap<>();
+        for (final KeyValuePair kvp : propertyOption.values(options)) {
+            if (!kvp.key.startsWith("es.")) {
+                throw new UserError(ExitCodes.USAGE, "Elasticsearch settings must be prefixed with [es.] but was [" + kvp.key + "]");
+            }
+            if (kvp.value.isEmpty()) {
+                throw new UserError(ExitCodes.USAGE, "Elasticsearch setting [" + kvp.key + "] must not be empty");
+            }
+            esSettings.put(kvp.key, kvp.value);
+        }
+
+        init(daemonize, pidFile, esSettings);
+    }
+
+    void init(final boolean daemonize, final String pidFile, final Map<String, String> esSettings) {
         try {
-            Bootstrap.init(args);
-        } catch (Throwable t) {
+            Bootstrap.init(!daemonize, pidFile, esSettings);
+        } catch (final Throwable t) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.
             throw new StartupError(t);

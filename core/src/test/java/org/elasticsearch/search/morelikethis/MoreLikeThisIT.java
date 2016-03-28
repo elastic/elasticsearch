@@ -383,7 +383,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         int maxIters = randomIntBetween(10, 20);
         for (int i = 0; i < maxIters; i++) {
             int max_query_terms = randomIntBetween(1, values.length);
-            logger.info("Running More Like This with max_query_terms = %s", max_query_terms);
+            logger.info("Running More Like This with max_query_terms = {}", max_query_terms);
             MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery(new String[] {"text"}, null, new Item[] {new Item(null, null, "0")})
                     .minTermFreq(1).minDocFreq(1)
                     .maxQueryTerms(max_query_terms).minimumShouldMatch("0%");
@@ -419,7 +419,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                     .minTermFreq(1)
                     .minDocFreq(1)
                     .minimumShouldMatch(minimumShouldMatch);
-            logger.info("Testing with minimum_should_match = " + minimumShouldMatch);
+            logger.info("Testing with minimum_should_match = {}", minimumShouldMatch);
             SearchResponse response = client().prepareSearch("test").setTypes("type1")
                     .setQuery(mltQuery).get();
             assertSearchResponse(response);

@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -33,28 +32,36 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 
-public abstract class AbstractBaseReindexRestHandler<Request extends ActionRequest<Request>, Response extends BulkIndexByScrollResponse,
-        TA extends TransportAction<Request, Response>> extends BaseRestHandler {
+public abstract class AbstractBaseReindexRestHandler<
+                Request extends AbstractBulkByScrollRequest<Request>,
+                Response extends BulkIndexByScrollResponse,
+                TA extends TransportAction<Request, Response>
+            > extends BaseRestHandler {
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final AggregatorParsers aggParsers;
+    protected final Suggesters suggesters;
     private final ClusterService clusterService;
     private final TA action;
 
     protected AbstractBaseReindexRestHandler(Settings settings, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, ClusterService clusterService, TA action) {
+            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
+            ClusterService clusterService, TA action) {
         super(settings, client);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.aggParsers = aggParsers;
+        this.suggesters = suggesters;
         this.clusterService = clusterService;
         this.action = action;
     }
 
     protected void execute(RestRequest request, Request internalRequest, RestChannel channel) throws IOException {
+        internalRequest.setRequestsPerSecond(request.paramAsFloat("requests_per_second", internalRequest.getRequestsPerSecond()));
         if (request.paramAsBoolean("wait_for_completion", true)) {
             action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<Response>(channel));
             return;

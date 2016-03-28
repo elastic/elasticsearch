@@ -47,7 +47,7 @@ public class GceDiscoveryPlugin extends Plugin {
     static {
         /*
          * GCE's http client changes access levels because its silly and we
-         * can't allow that on any old stack stack so we pull it here, up front,
+         * can't allow that on any old stack so we pull it here, up front,
          * so we can cleanly check the permissions for it. Without this changing
          * the permission can fail if any part of core is on the stack because
          * our plugin permissions don't allow core to "reach through" plugins to

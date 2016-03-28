@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.SizeValue;
@@ -81,8 +82,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         public static final String INDEX = "index";
         public static final String BULK = "bulk";
         public static final String SEARCH = "search";
-        public static final String SUGGEST = "suggest";
-        public static final String PERCOLATE = "percolate";
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";
@@ -139,8 +138,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         map.put(Names.INDEX, ThreadPoolType.FIXED);
         map.put(Names.BULK, ThreadPoolType.FIXED);
         map.put(Names.SEARCH, ThreadPoolType.FIXED);
-        map.put(Names.SUGGEST, ThreadPoolType.FIXED);
-        map.put(Names.PERCOLATE, ThreadPoolType.FIXED);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
@@ -188,7 +185,8 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         }
     }
 
-    public static final Setting<Settings> THREADPOOL_GROUP_SETTING = Setting.groupSetting("threadpool.", true, Setting.Scope.CLUSTER);
+    public static final Setting<Settings> THREADPOOL_GROUP_SETTING =
+        Setting.groupSetting("threadpool.", Property.Dynamic, Property.NodeScope);
 
     private volatile Map<String, ExecutorHolder> executors;
 
@@ -227,8 +225,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.BULK).size(availableProcessors).queueSize(50));
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.GET).size(availableProcessors).queueSize(1000));
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.SEARCH).size(((availableProcessors * 3) / 2) + 1).queueSize(1000));
-        add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.SUGGEST).size(availableProcessors).queueSize(1000));
-        add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.PERCOLATE).size(availableProcessors).queueSize(1000));
         add(defaultExecutorTypeSettings, new ExecutorSettingsBuilder(Names.MANAGEMENT).size(5).keepAlive("5m"));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side
@@ -339,10 +335,18 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         return new ThreadPoolStats(stats);
     }
 
+    /**
+     * Get the generic executor. This executor's {@link Executor#execute(Runnable)} method will run the Runnable it is given in
+     * the {@link ThreadContext} of the thread that queues it.
+     */
     public Executor generic() {
         return executor(Names.GENERIC);
     }
 
+    /**
+     * Get the executor with the given name. This executor's {@link Executor#execute(Runnable)} method will run the Runnable it is given in
+     * the {@link ThreadContext} of the thread that queues it.
+     */
     public Executor executor(String name) {
         Executor executor = executors.get(name).executor();
         if (executor == null) {
@@ -355,10 +359,31 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         return this.scheduler;
     }
 
+    /**
+     * Schedules a periodic action that always runs on the scheduler thread.
+     *
+     * @param command the action to take
+     * @param interval the delay interval
+     * @return a ScheduledFuture who's get will return when the task is complete and throw an exception if it is canceled
+     */
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
         return scheduler.scheduleWithFixedDelay(new LoggingRunnable(command), interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Schedules a one-shot command to run after a given delay. The command is not run in the context of the calling thread. To preserve the
+     * context of the calling thread you may call <code>threadPool.getThreadContext().preserveContext</code> on the runnable before passing
+     * it to this method.
+     *
+     * @param delay delay before the task executes
+     * @param name the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes the
+     *        meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the command
+     *        completes.
+     * @param command the command to run
+     * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
+     *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
+     *         the ScheduledFuture will cannot interact with it.
+     */
     public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
         if (!Names.SAME.equals(name)) {
             command = new ThreadedRunnable(command, executor(name));

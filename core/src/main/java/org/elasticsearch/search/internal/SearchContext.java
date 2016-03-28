@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -148,6 +149,10 @@ public abstract class SearchContext implements Releasable {
         return nowInMillisUsed;
     }
 
+    public final void resetNowInMillisUsed() {
+        this.nowInMillisUsed = false;
+    }
+
     protected abstract long nowInMillisImpl();
 
     public abstract ScrollContext scrollContext();
@@ -216,6 +221,8 @@ public abstract class SearchContext implements Releasable {
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract IndexFieldDataService fieldData();
+
+    public abstract PercolatorQueryCache percolatorQueryCache();
 
     public abstract long timeoutInMillis();
 
@@ -344,6 +351,14 @@ public abstract class SearchContext implements Releasable {
             }
             Releasables.close(Iterables.flatten(releasables));
         }
+    }
+
+    /**
+     * @return true if the request contains only suggest
+     */
+    public final boolean hasOnlySuggest() {
+        return request().source() != null
+            && request().source().isSuggestOnly();
     }
 
     /**

@@ -162,11 +162,6 @@ The following are options allowed on the filter:
 
     Optional name field to identify the query
 
-`coerce`::
-
-    Set to `true` to normalize longitude and latitude values to a standard -180:180 / -90:90
-    coordinate system. (default is `false`).
-
 `ignore_malformed`::
 
     Set to `true` to accept geo points with invalid latitude or

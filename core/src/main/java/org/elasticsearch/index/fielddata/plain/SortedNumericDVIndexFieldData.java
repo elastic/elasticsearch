@@ -30,7 +30,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -51,8 +50,8 @@ import java.util.Collections;
 public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
     private final NumericType numericType;
 
-    public SortedNumericDVIndexFieldData(Index index, String fieldNames, NumericType numericType, FieldDataType fieldDataType) {
-        super(index, fieldNames, fieldDataType);
+    public SortedNumericDVIndexFieldData(Index index, String fieldNames, NumericType numericType) {
+        super(index, fieldNames);
         if (numericType == null) {
             throw new IllegalArgumentException("numericType must be non-null");
         }

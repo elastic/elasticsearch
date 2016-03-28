@@ -19,19 +19,31 @@
 
 package org.elasticsearch.index.reindex;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 
-import java.io.IOException;
+import static java.util.Collections.unmodifiableList;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
-public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> {
+/**
+ * Request to reindex some documents from one index to another. This implements CompositeIndicesRequest but in a misleading way. Rather than
+ * returning all the subrequests that it will make it tries to return a representative set of subrequests. This is best-effort for a bunch
+ * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
+ * to which documents are written.
+ */
+public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest {
     /**
      * Prototype for index requests.
      */
@@ -122,5 +134,21 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             b.append('[').append(destination.type()).append(']');
         }
         return b.toString();
+    }
+
+    // CompositeIndicesRequest implementation so plugins can reason about the request. This is really just a best effort thing.
+    /**
+     * Accessor to get the underlying {@link IndicesRequest}s that this request wraps. Note that this method is <strong>not
+     * accurate</strong> since it returns a prototype {@link IndexRequest} and not the actual requests that will be issued as part of the
+     * execution of this request. Additionally, scripts can modify the underlying {@link IndexRequest} and change values such as the index,
+     * type, {@link org.elasticsearch.action.support.IndicesOptions}. In short - only use this for very course reasoning about the request.
+     *
+     * @return a list comprising of the {@link SearchRequest} and the prototype {@link IndexRequest}
+     */
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        assert getSearchRequest() != null;
+        assert getDestination() != null;
+        return unmodifiableList(Arrays.asList(getSearchRequest(), getDestination()));
     }
 }

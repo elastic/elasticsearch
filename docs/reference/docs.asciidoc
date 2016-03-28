@@ -29,9 +29,13 @@ include::docs/delete.asciidoc[]
 
 include::docs/update.asciidoc[]
 
+include::docs/update-by-query.asciidoc[]
+
 include::docs/multi-get.asciidoc[]
 
 include::docs/bulk.asciidoc[]
+
+include::docs/reindex.asciidoc[]
 
 include::docs/termvectors.asciidoc[]
 

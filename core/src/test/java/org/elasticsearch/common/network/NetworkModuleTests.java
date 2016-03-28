@@ -19,12 +19,18 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
@@ -36,9 +42,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestNodesAction;
 import org.elasticsearch.rest.action.main.RestMainAction;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.Task.Status;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.sameInstance;
 
 public class NetworkModuleTests extends ModuleTestCase {
 
@@ -104,36 +116,36 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     public void testRegisterTransportService() {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "custom").build();
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, null);
+        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerTransportService("custom", FakeTransportService.class);
         assertBinding(module, TransportService.class, FakeTransportService.class);
 
         // check it works with transport only as well
-        module = new NetworkModule(new NetworkService(settings), settings, true, null);
+        module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
         module.registerTransportService("custom", FakeTransportService.class);
         assertBinding(module, TransportService.class, FakeTransportService.class);
     }
 
     public void testRegisterTransport() {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom").build();
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, null);
+        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerTransport("custom", FakeTransport.class);
         assertBinding(module, Transport.class, FakeTransport.class);
 
         // check it works with transport only as well
-        module = new NetworkModule(new NetworkService(settings), settings, true, null);
+        module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
         module.registerTransport("custom", FakeTransport.class);
         assertBinding(module, Transport.class, FakeTransport.class);
     }
 
     public void testRegisterHttpTransport() {
         Settings settings = Settings.builder().put(NetworkModule.HTTP_TYPE_SETTING.getKey(), "custom").build();
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, null);
+        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerHttpTransport("custom", FakeHttpTransport.class);
         assertBinding(module, HttpServerTransport.class, FakeHttpTransport.class);
 
         // check registration not allowed for transport only
-        module = new NetworkModule(new NetworkService(settings), settings, true, null);
+        module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
         try {
             module.registerHttpTransport("custom", FakeHttpTransport.class);
             fail();
@@ -144,19 +156,19 @@ public class NetworkModuleTests extends ModuleTestCase {
 
         // not added if http is disabled
         settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
-        module = new NetworkModule(new NetworkService(settings), settings, false, null);
+        module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         assertNotBound(module, HttpServerTransport.class);
     }
 
     public void testRegisterRestHandler() {
         Settings settings = Settings.EMPTY;
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, null);
+        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerRestHandler(FakeRestHandler.class);
         // also check a builtin is bound
         assertSetMultiBinding(module, RestHandler.class, FakeRestHandler.class, RestMainAction.class);
 
         // check registration not allowed for transport only
-        module = new NetworkModule(new NetworkService(settings), settings, true, null);
+        module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
         try {
             module.registerRestHandler(FakeRestHandler.class);
             fail();
@@ -168,9 +180,45 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     public void testRegisterCatRestHandler() {
         Settings settings = Settings.EMPTY;
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, null);
+        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerRestHandler(FakeCatRestHandler.class);
         // also check a builtin is bound
         assertSetMultiBinding(module, AbstractCatAction.class, FakeCatRestHandler.class, RestNodesAction.class);
+    }
+
+    public void testRegisterTaskStatus() {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry();
+        Settings settings = Settings.EMPTY;
+        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, registry);
+
+        // Builtin reader comes back
+        assertNotNull(registry.getReader(Task.Status.class, ReplicationTask.Status.NAME));
+
+        module.registerTaskStatus(DummyTaskStatus.NAME, DummyTaskStatus::new);
+        assertEquals("test", expectThrows(UnsupportedOperationException.class,
+                () -> registry.getReader(Task.Status.class, DummyTaskStatus.NAME).read(null)).getMessage());
+    }
+
+    private class DummyTaskStatus implements Task.Status {
+        public static final String NAME = "dummy";
+
+        public DummyTaskStatus(StreamInput in) {
+            throw new UnsupportedOperationException("test");
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 }

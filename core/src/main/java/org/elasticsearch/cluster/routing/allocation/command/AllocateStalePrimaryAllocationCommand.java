@@ -112,7 +112,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
                 "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
         }
 
-        final IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.getIndexName());
+        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
         if (shardRouting.allocatedPostIndexCreate(indexMetaData) == false) {
             return explainOrThrowRejectedCommand(explain, allocation,
                 "trying to allocate an existing primary shard [" + index + "][" + shardId + "], while no such shard has ever been active");

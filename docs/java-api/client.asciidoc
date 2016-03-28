@@ -12,12 +12,16 @@ Obtaining an elasticsearch `Client` is simple. The most common way to
 get a client is by creating a <<transport-client,`TransportClient`>>
 that connects to a cluster.
 
-*Important:*
-______________________________________________________________________________________________________________________________________________________________
-Please note that you are encouraged to use the same version on client
-and cluster sides. You may hit some incompatibility issues when mixing
-major versions.
-______________________________________________________________________________________________________________________________________________________________
+[IMPORTANT]
+==============================
+
+The client must have the same major version (e.g. `2.x`, or `5.x`) as the
+nodes in the cluster. Clients may connect to clusters which have a different
+minor version (e.g. `2.3.x`) but it is possible that new funcionality may not
+be supported.  Ideally, the client should have the same version as the
+cluster.
+
+==============================
 
 
 [[transport-client]]
@@ -53,11 +57,23 @@ Client client = TransportClient.builder().settings(settings).build();
 //Add transport addresses and do something with the client...
 --------------------------------------------------
 
-The client allows sniffing the rest of the cluster, which adds data nodes
-into its list of machines to use. In this case, note that the IP addresses
-used will be the ones that the other nodes were started with (the
-"publish" address). In order to enable it, set the
-`client.transport.sniff` to `true`:
+The Transport client comes with a cluster sniffing feature which
+allows it to dynamically add new hosts and remove old ones.
+When sniffing is enabled the the transport client will connect to the nodes in its
+internal node list, which is built via calls to addTransportAddress.
+After this, the client will call the internal cluster state API on those nodes
+to discover available data nodes. The internal node list of the client will
+be replaced with those data nodes only. This list is refreshed every five seconds by default.
+Note that the IP addresses the sniffer connects to are the ones declared as the 'publish'
+address in those node's elasticsearch config.
+
+Keep in mind that list might possibly not include the original node it connected to
+if that node is not a data node. If, for instance, you initially connect to a
+master node, after sniffing no further requests will go to that master node,
+but rather to any data nodes instead. The reason the transport excludes non-data
+nodes is to avoid sending search traffic to master only nodes.
+
+In order to enable sniffing, set `client.transport.sniff` to `true`:
 
 [source,java]
 --------------------------------------------------

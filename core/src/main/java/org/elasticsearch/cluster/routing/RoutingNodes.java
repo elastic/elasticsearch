@@ -597,6 +597,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     }
 
+    /**
+     * Returns the number of routing nodes
+     */
+    public int size() {
+        return nodesToShards.size();
+    }
+
     public static final class UnassignedShards implements Iterable<ShardRouting>  {
 
         private final RoutingNodes nodes;

@@ -25,13 +25,12 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
@@ -42,7 +41,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 public final class DirectCandidateGeneratorBuilder
-        implements Writeable<DirectCandidateGeneratorBuilder>, CandidateGenerator {
+        implements CandidateGenerator {
 
     private static final String TYPE = "direct_generator";
     static final DirectCandidateGeneratorBuilder PROTOTYPE = new DirectCandidateGeneratorBuilder("_na_");
@@ -350,8 +349,7 @@ public final class DirectCandidateGeneratorBuilder
         return replaceField(tmpFieldName.iterator().next(), tempGenerator);
     }
 
-    public PhraseSuggestionContext.DirectCandidateGenerator build(QueryShardContext context) throws IOException {
-        MapperService mapperService = context.getMapperService();
+    public PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException {
         PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
         generator.setField(this.field);
         transferIfNotNull(this.size, generator::size);
@@ -372,7 +370,7 @@ public final class DirectCandidateGeneratorBuilder
             generator.suggestMode(SuggestUtils.resolveSuggestMode(this.suggestMode));
         }
         if (this.sort != null) {
-            generator.sort(SuggestUtils.resolveSort(this.sort));
+            generator.sort(SortBy.resolve(this.sort));
         }
         if (this.stringDistance != null) {
             generator.stringDistance(SuggestUtils.resolveDistance(this.stringDistance));
@@ -384,7 +382,7 @@ public final class DirectCandidateGeneratorBuilder
         transferIfNotNull(this.maxInspections, generator::maxInspections);
         transferIfNotNull(this.maxTermFreq, generator::maxTermFreq);
         transferIfNotNull(this.prefixLength, generator::prefixLength);
-        transferIfNotNull(this.minWordLength, generator::minQueryLength);
+        transferIfNotNull(this.minWordLength, generator::minWordLength);
         transferIfNotNull(this.minDocFreq, generator::minDocFreq);
         return generator;
     }

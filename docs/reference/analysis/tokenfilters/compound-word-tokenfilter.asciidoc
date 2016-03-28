@@ -27,7 +27,8 @@ use. For languages like German they are quite good.
 
 XML based hyphenation grammar files can be found in the
 http://offo.sourceforge.net/hyphenation/#FOP+XML+Hyphenation+Patterns[Objects For Formatting Objects]
-(OFFO) Sourceforge project. You can download http://downloads.sourceforge.net/offo/offo-hyphenation.zip[offo-hyphenation.zip]
+(OFFO) Sourceforge project. Currently only FOP v1.2 compatible hyphenation files
+are supported. You can download https://sourceforge.net/projects/offo/files/offo-hyphenation/1.2/offo-hyphenation_v1.2.zip/download[offo-hyphenation_v1.2.zip]
 directly and look in the `offo-hyphenation/hyph/` directory.
 Credits for the hyphenation code go to the Apache FOP project .
 

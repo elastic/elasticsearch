@@ -26,13 +26,14 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -48,28 +49,40 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject().string();
         mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, true);
 
-        String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(PercolatorService.TYPE_NAME)
+        String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(PercolatorFieldMapper.TYPE_NAME)
             .startObject("properties").startObject("query").field("type", "percolator").endObject().endObject()
             .endObject().endObject().string();
-        mapperService.merge(PercolatorService.TYPE_NAME, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        mapperService.merge(PercolatorFieldMapper.TYPE_NAME, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
     }
 
     public void testPercolatorFieldMapper() throws Exception {
-        ParsedDocument doc = mapperService.documentMapper(PercolatorService.TYPE_NAME).parse("test", PercolatorService.TYPE_NAME, "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = mapperService.documentMapper(PercolatorFieldMapper.TYPE_NAME).parse("test", PercolatorFieldMapper.TYPE_NAME, "1", XContentFactory.jsonBuilder().startObject()
             .field("query", termQuery("field", "value"))
             .endObject().bytes());
 
         assertThat(doc.rootDoc().getFields(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME).length, equalTo(1));
         assertThat(doc.rootDoc().getFields(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME)[0].binaryValue().utf8ToString(), equalTo("field\0value"));
+        assertThat(doc.rootDoc().getFields(PercolatorFieldMapper.QUERY_BUILDER_FULL_FIELD_NAME).length, equalTo(1));
     }
 
+    public void testPercolatorFieldMapperUnMappedField() throws Exception {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> {
+            mapperService.documentMapper(PercolatorFieldMapper.TYPE_NAME).parse("test", PercolatorFieldMapper.TYPE_NAME, "1", XContentFactory.jsonBuilder().startObject()
+                    .field("query", termQuery("unmapped_field", "value"))
+                    .endObject().bytes());
+        });
+        assertThat(exception.getCause(), instanceOf(QueryShardException.class));
+        assertThat(exception.getCause().getMessage(), equalTo("No field mapping can be found for the field with name [unmapped_field]"));
+    }
+
+
     public void testPercolatorFieldMapper_noQuery() throws Exception {
-        ParsedDocument doc = mapperService.documentMapper(PercolatorService.TYPE_NAME).parse("test", PercolatorService.TYPE_NAME, "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = mapperService.documentMapper(PercolatorFieldMapper.TYPE_NAME).parse("test", PercolatorFieldMapper.TYPE_NAME, "1", XContentFactory.jsonBuilder().startObject()
             .endObject().bytes());
         assertThat(doc.rootDoc().getFields(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME).length, equalTo(0));
 
         try {
-            mapperService.documentMapper(PercolatorService.TYPE_NAME).parse("test", PercolatorService.TYPE_NAME, "1", XContentFactory.jsonBuilder().startObject()
+            mapperService.documentMapper(PercolatorFieldMapper.TYPE_NAME).parse("test", PercolatorFieldMapper.TYPE_NAME, "1", XContentFactory.jsonBuilder().startObject()
                 .nullField("query")
                 .endObject().bytes());
         } catch (MapperParsingException e) {
@@ -81,11 +94,11 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test1", Settings.EMPTY);
         MapperService mapperService = indexService.mapperService();
 
-        String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(PercolatorService.TYPE_NAME)
+        String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(PercolatorFieldMapper.TYPE_NAME)
             .startObject("properties").startObject("query").field("type", "percolator").field("index", "no").endObject().endObject()
             .endObject().endObject().string();
         try {
-            mapperService.merge(PercolatorService.TYPE_NAME, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+            mapperService.merge(PercolatorFieldMapper.TYPE_NAME, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
             fail("MapperParsingException expected");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("Mapping definition for [query] has unsupported parameters:  [index : no]"));

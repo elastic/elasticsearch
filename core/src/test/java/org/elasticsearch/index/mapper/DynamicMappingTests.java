@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -211,7 +212,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source);
         assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
         ctx.parser().nextToken();
-        return DocumentParser.parseObject(ctx, mapper.root(), true);
+        DocumentParser.parseObjectOrNested(ctx, mapper.root(), true);
+        Mapping mapping = DocumentParser.createDynamicUpdate(mapper.mapping(), mapper, ctx.getDynamicMappers());
+        return mapping == null ? null : mapping.root();
     }
 
     public void testDynamicMappingsNotNeeded() throws Exception {
@@ -509,7 +512,13 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultFloatingPointMappings() throws IOException {
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperWithAutoCreate("type").getDocumentMapper();
+        MapperService mapperService = createIndex("test").mapperService();
+        String mapping = jsonBuilder().startObject()
+                .startObject("type")
+                    .field("numeric_detection", true)
+                .endObject().endObject().string();
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper mapper = mapperService.documentMapper("type");
         doTestDefaultFloatingPointMappings(mapper, XContentFactory.jsonBuilder());
         doTestDefaultFloatingPointMappings(mapper, XContentFactory.yamlBuilder());
         doTestDefaultFloatingPointMappings(mapper, XContentFactory.smileBuilder());
@@ -521,6 +530,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .field("foo", 3.2f) // float
                 .field("bar", 3.2d) // double
                 .field("baz", (double) 3.2f) // double that can be accurately represented as a float
+                .field("quux", "3.2") // float detected through numeric detection
                 .endObject().bytes();
         ParsedDocument parsedDocument = mapper.parse("index", "type", "id", source);
         Mapping update = parsedDocument.dynamicMappingsUpdate();
@@ -528,5 +538,6 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertThat(update.root().getMapper("foo"), instanceOf(FloatFieldMapper.class));
         assertThat(update.root().getMapper("bar"), instanceOf(FloatFieldMapper.class));
         assertThat(update.root().getMapper("baz"), instanceOf(FloatFieldMapper.class));
+        assertThat(update.root().getMapper("quux"), instanceOf(FloatFieldMapper.class));
     }
 }

@@ -20,7 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Scope;
+import org.elasticsearch.common.settings.Setting.Property;
 
 public final class BootstrapSettings {
 
@@ -29,10 +29,13 @@ public final class BootstrapSettings {
 
     // TODO: remove this hack when insecure defaults are removed from java
     public static final Setting<Boolean> SECURITY_FILTER_BAD_DEFAULTS_SETTING =
-            Setting.boolSetting("security.manager.filter_bad_defaults", true, false, Scope.CLUSTER);
+            Setting.boolSetting("security.manager.filter_bad_defaults", true, Property.NodeScope);
 
-    public static final Setting<Boolean> MLOCKALL_SETTING = Setting.boolSetting("bootstrap.mlockall", false, false, Scope.CLUSTER);
-    public static final Setting<Boolean> SECCOMP_SETTING = Setting.boolSetting("bootstrap.seccomp", true, false, Scope.CLUSTER);
-    public static final Setting<Boolean> CTRLHANDLER_SETTING = Setting.boolSetting("bootstrap.ctrlhandler", true, false, Scope.CLUSTER);
+    public static final Setting<Boolean> MLOCKALL_SETTING =
+        Setting.boolSetting("bootstrap.mlockall", false, Property.NodeScope);
+    public static final Setting<Boolean> SECCOMP_SETTING =
+        Setting.boolSetting("bootstrap.seccomp", true, Property.NodeScope);
+    public static final Setting<Boolean> CTRLHANDLER_SETTING =
+        Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
 
 }

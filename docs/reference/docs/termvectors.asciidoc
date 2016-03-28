@@ -136,13 +136,13 @@ curl -s -XPUT 'http://localhost:9200/twitter/' -d '{
     "tweet": {
       "properties": {
         "text": {
-          "type": "string",
+          "type": "text",
           "term_vector": "with_positions_offsets_payloads",
           "store" : true,
           "analyzer" : "fulltext_analyzer"
          },
          "fullname": {
-          "type": "string",
+          "type": "text",
           "term_vector": "with_positions_offsets_payloads",
           "analyzer" : "fulltext_analyzer"
         }

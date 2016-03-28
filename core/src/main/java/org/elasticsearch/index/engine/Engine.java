@@ -671,7 +671,7 @@ public abstract class Engine implements Closeable {
                     closeNoLock("engine failed on: [" + reason + "]");
                 } finally {
                     if (failedEngine != null) {
-                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
+                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", failure, reason);
                         return;
                     }
                     logger.warn("failed engine [{}]", failure, reason);
@@ -697,7 +697,7 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         } else {
-            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
+            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", failure, reason);
         }
     }
 
@@ -1219,12 +1219,9 @@ public abstract class Engine implements Closeable {
      */
     public interface Warmer {
         /**
-         * Called once a new Searcher is opened.
-         * @param searcher the searcer to warm
-         * @param isTopLevelReader <code>true</code> iff the searcher is build from a top-level reader.
-         *                         Otherwise the searcher might be build from a leaf reader to warm in isolation
+         * Called once a new Searcher is opened on the top-level searcher.
          */
-        void warm(Engine.Searcher searcher, boolean isTopLevelReader);
+        void warm(Engine.Searcher searcher);
     }
 
     /**

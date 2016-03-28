@@ -132,6 +132,9 @@ public class TribeIT extends ESIntegTestCase {
         Settings.Builder tribe1Defaults = Settings.builder();
         Settings.Builder tribe2Defaults = Settings.builder();
         for (Map.Entry<String, String> entry : asMap.entrySet()) {
+            if (entry.getKey().startsWith("path.")) {
+                continue;
+            }
             tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
             tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
         }

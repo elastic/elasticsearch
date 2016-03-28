@@ -99,22 +99,22 @@ public class MockTransportService extends TransportService {
     public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         Transport transport = new LocalTransport(settings, threadPool, version, namedWriteableRegistry);
-        return new MockTransportService(settings, transport, threadPool, namedWriteableRegistry);
+        return new MockTransportService(settings, transport, threadPool);
     }
 
     public static MockTransportService nettyFromThreadPool(Settings settings, Version version, ThreadPool threadPool) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         Transport transport = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
                 version, namedWriteableRegistry);
-        return new MockTransportService(Settings.EMPTY, transport, threadPool, namedWriteableRegistry);
+        return new MockTransportService(Settings.EMPTY, transport, threadPool);
     }
 
 
     private final Transport original;
 
     @Inject
-    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, NamedWriteableRegistry namedWriteableRegistry) {
-        super(settings, new LookupTestTransport(transport), threadPool, namedWriteableRegistry);
+    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+        super(settings, new LookupTestTransport(transport), threadPool);
         this.original = transport;
     }
 

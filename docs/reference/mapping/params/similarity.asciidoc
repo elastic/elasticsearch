@@ -5,8 +5,8 @@ Elasticsearch allows you to configure a scoring algorithm or _similarity_ per
 field. The `similarity` setting provides a simple way of choosing a similarity
 algorithm other than the default TF/IDF, such as `BM25`.
 
-Similarities are mostly useful for <<string,`string`>> fields, especially
-`analyzed` string fields, but can also apply to other field types.
+Similarities are mostly useful for <<text,`text`>> fields, but can also apply
+to other field types.
 
 Custom similarities can be configured by tuning the parameters of the built-in
 similarities. For more details about this expert options, see the
@@ -37,10 +37,10 @@ PUT my_index
     "my_type": {
       "properties": {
         "default_field": { <1>
-          "type": "string"
+          "type": "text"
         },
         "bm25_field": {
-          "type": "string",
+          "type": "text",
           "similarity": "BM25" <2>
         }
       }

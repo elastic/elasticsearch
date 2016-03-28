@@ -22,8 +22,12 @@ package org.elasticsearch.recovery;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -31,6 +35,7 @@ import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -50,7 +55,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
-@TestLogging("_root:DEBUG")
+@TestLogging("_root:DEBUG,index.shard:TRACE")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
 
@@ -268,14 +273,12 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, final int iterations) throws Exception {
         SearchResponse[] iterationResults = new SearchResponse[iterations];
         boolean error = false;
-        SearchResponse lastErroneousResponse = null;
         for (int i = 0; i < iterations; i++) {
             SearchResponse searchResponse = client().prepareSearch().setSize((int) numberOfDocs).setQuery(matchAllQuery()).addSort("id", SortOrder.ASC).get();
             logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
             iterationResults[i] = searchResponse;
             if (searchResponse.getHits().totalHits() != numberOfDocs) {
                 error = true;
-                lastErroneousResponse = searchResponse;
             }
         }
 
@@ -287,12 +290,21 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 logger.info("shard [{}] - count {}, primary {}", shardStats.getShardRouting().id(), docsStats.getCount(), shardStats.getShardRouting().primary());
             }
 
-
-            for (int doc = 1, hit = 0; hit < lastErroneousResponse.getHits().getHits().length; hit++, doc++) {
-                SearchHit searchHit = lastErroneousResponse.getHits().getAt(hit);
-                while (doc < Integer.parseInt(searchHit.id())) {
-                    logger.info("missing doc [{}], indexed to shard [{}]", doc, MathUtils.mod(Murmur3HashFunction.hash(Integer.toString(doc)), numberOfShards));
-                    doc++;
+            ClusterService clusterService = clusterService();
+            final ClusterState state = clusterService.state();
+            for (int shard = 0; shard < numberOfShards; shard++) {
+                // background indexer starts using ids on 1
+                for (int id = 1; id <= numberOfDocs; id++) {
+                    ShardId docShard = clusterService.operationRouting().shardId(state, "test", Long.toString(id), null);
+                    if (docShard.id() == shard) {
+                        for (ShardRouting shardRouting : state.routingTable().shardRoutingTable("test", shard)) {
+                            GetResponse response = client().prepareGet("test", "type", Long.toString(id))
+                                    .setPreference("_only_node:" + shardRouting.currentNodeId()).get();
+                            if (response.isExists()) {
+                                logger.info("missing id [{}] on shard {}", id, shardRouting);
+                            }
+                        }
+                    }
                 }
             }
 

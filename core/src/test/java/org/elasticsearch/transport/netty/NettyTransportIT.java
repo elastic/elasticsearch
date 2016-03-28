@@ -157,7 +157,7 @@ public class NettyTransportIT extends ESIntegTestCase {
                             try {
                                 transportChannel.sendResponse(e);
                             } catch (IOException e1) {
-                                logger.warn("Failed to send error message back to client for action [" + action + "]", e);
+                                logger.warn("Failed to send error message back to client for action [{}]", e, action);
                                 logger.warn("Actual Exception", e1);
                             }
                         }
@@ -194,7 +194,7 @@ public class NettyTransportIT extends ESIntegTestCase {
                                 try {
                                     transportChannel.sendResponse(e);
                                 } catch (Throwable e1) {
-                                    logger.warn("Failed to send error message back to client for action [" + reg.getAction() + "]", e1);
+                                    logger.warn("Failed to send error message back to client for action [{}]", e1, reg.getAction());
                                     logger.warn("Actual Exception", e);
                                 }
                             }                        }

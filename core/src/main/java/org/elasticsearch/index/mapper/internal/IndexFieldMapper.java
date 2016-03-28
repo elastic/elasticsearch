@@ -29,6 +29,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -183,6 +185,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 return null;
             }
             return value.toString();
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            return new IndexIndexFieldData.Builder();
         }
     }
 

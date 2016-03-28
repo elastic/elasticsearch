@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +32,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class BootstrapCheckTests extends ESTestCase {
 
@@ -79,9 +82,9 @@ public class BootstrapCheckTests extends ESTestCase {
 
     public void testFileDescriptorLimitsThrowsOnInvalidLimit() {
         final IllegalArgumentException e =
-                expectThrows(
-                        IllegalArgumentException.class,
-                        () -> new BootstrapCheck.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE)));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new BootstrapCheck.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE)));
         assertThat(e.getMessage(), containsString("limit must be positive but was"));
     }
 
@@ -120,8 +123,8 @@ public class BootstrapCheckTests extends ESTestCase {
                     fail("should have failed due to memory not being locked");
                 } catch (final RuntimeException e) {
                     assertThat(
-                            e.getMessage(),
-                            containsString("memory locking requested for elasticsearch process but memory is not locked"));
+                        e.getMessage(),
+                        containsString("memory locking requested for elasticsearch process but memory is not locked"));
                 }
             } else {
                 // nothing should happen
@@ -157,6 +160,38 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, Collections.singletonList(check));
     }
 
+    public void testMaxSizeVirtualMemory() {
+        final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
+        final AtomicLong maxSizeVirtualMemory = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
+        final BootstrapCheck.MaxSizeVirtualMemoryCheck check = new BootstrapCheck.MaxSizeVirtualMemoryCheck() {
+            @Override
+            long getMaxSizeVirtualMemory() {
+                return maxSizeVirtualMemory.get();
+            }
+
+            @Override
+            long getRlimInfinity() {
+                return rlimInfinity;
+            }
+        };
+
+        try {
+            BootstrapCheck.check(true, Collections.singletonList(check));
+            fail("should have failed due to max size virtual memory too low");
+        } catch (final RuntimeException e) {
+            assertThat(e.getMessage(), containsString("max size virtual memory"));
+        }
+
+        maxSizeVirtualMemory.set(rlimInfinity);
+
+        BootstrapCheck.check(true, Collections.singletonList(check));
+
+        // nothing should happen if max size virtual memory is not
+        // available
+        maxSizeVirtualMemory.set(Long.MIN_VALUE);
+        BootstrapCheck.check(true, Collections.singletonList(check));
+    }
+
     public void testEnforceLimits() {
         final Set<Setting> enforceSettings = BootstrapCheck.enforceSettings();
         final Setting setting = randomFrom(Arrays.asList(enforceSettings.toArray(new Setting[enforceSettings.size()])));
@@ -164,4 +199,12 @@ public class BootstrapCheckTests extends ESTestCase {
         assertTrue(BootstrapCheck.enforceLimits(settings));
     }
 
+    public void testMinMasterNodes() {
+        boolean isSet = randomBoolean();
+        BootstrapCheck.Check check = new BootstrapCheck.MinMasterNodesCheck(isSet);
+        assertThat(check.check(), not(equalTo(isSet)));
+        List<BootstrapCheck.Check> defaultChecks = BootstrapCheck.checks(Settings.EMPTY);
+
+        expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, defaultChecks));
+    }
 }

@@ -68,6 +68,7 @@ move_elasticsearch() {
 
 # Export some useful paths.
 export_elasticsearch_paths() {
+    export ESMODULES="$ESHOME/modules"
     export ESPLUGINS="$ESHOME/plugins"
     export ESCONFIG="$ESHOME/config"
     export ESSCRIPTS="$ESCONFIG/scripts"

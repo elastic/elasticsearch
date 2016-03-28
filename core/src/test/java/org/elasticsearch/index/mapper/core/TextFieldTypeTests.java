@@ -20,10 +20,43 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new TextFieldMapper.TextFieldType();
+    }
+
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("fielddata", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
+                tft.setFielddata(tft.fielddata() == false);
+            }
+        });
+        addModifier(new Modifier("fielddata_frequency_filter.min", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
+                tft.setFielddataMinFrequency(3);
+            }
+        });
+        addModifier(new Modifier("fielddata_frequency_filter.max", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
+                tft.setFielddataMaxFrequency(0.2);
+            }
+        });
+        addModifier(new Modifier("fielddata_frequency_filter.min_segment_size", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
+                tft.setFielddataMinSegmentSize(1000);
+            }
+        });
     }
 }

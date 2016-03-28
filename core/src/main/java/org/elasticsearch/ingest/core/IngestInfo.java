@@ -22,6 +22,7 @@ package org.elasticsearch.ingest.core;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -32,17 +33,22 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
-public class IngestInfo implements Streamable, ToXContent {
+public class IngestInfo implements Writeable<IngestInfo>, ToXContent {
 
-    private Set<ProcessorInfo> processors;
+    private final Set<ProcessorInfo> processors;
 
-    public IngestInfo() {
-        processors = Collections.emptySet();
+    public IngestInfo(StreamInput in) throws IOException {
+        this(Collections.emptyList());
+        final int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            processors.add(new ProcessorInfo(in));
+        }
     }
 
     public IngestInfo(List<ProcessorInfo> processors) {
-        this.processors = new LinkedHashSet<>(processors);
+        this.processors = new TreeSet<>(processors);  // we use a treeset here to have a test-able / predictable order
     }
 
     public Iterable<ProcessorInfo> getProcessors() {
@@ -54,15 +60,8 @@ public class IngestInfo implements Streamable, ToXContent {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Set<ProcessorInfo> processors = new LinkedHashSet<>(size);
-        for (int i = 0; i < size; i++) {
-            ProcessorInfo info = new ProcessorInfo();
-            info.readFrom(in);
-            processors.add(info);
-        }
-        this.processors = processors;
+    public IngestInfo readFrom(StreamInput in) throws IOException {
+        return new IngestInfo(in);
     }
 
     @Override

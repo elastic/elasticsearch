@@ -40,7 +40,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -75,9 +74,9 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     private final CircuitBreakerService breakerService;
 
     public ParentChildIndexFieldData(IndexSettings indexSettings, String fieldName,
-                                     FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
+                                     IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
-        super(indexSettings, fieldName, fieldDataType, cache);
+        super(indexSettings, fieldName, cache);
         this.breakerService = breakerService;
         Set<String> parentTypes = new HashSet<>();
         for (DocumentMapper mapper : mapperService.docMappers(false)) {
@@ -146,7 +145,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                                        MappedFieldType fieldType,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService) {
-            return new ParentChildIndexFieldData(indexSettings, fieldType.name(), fieldType.fieldDataType(), cache,
+            return new ParentChildIndexFieldData(indexSettings, fieldType.name(), cache,
                     mapperService, breakerService);
         }
     }
@@ -322,11 +321,6 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         @Override
         public String getFieldName() {
             return ParentChildIndexFieldData.this.getFieldName();
-        }
-
-        @Override
-        public FieldDataType getFieldDataType() {
-            return ParentChildIndexFieldData.this.getFieldDataType();
         }
 
         @Override

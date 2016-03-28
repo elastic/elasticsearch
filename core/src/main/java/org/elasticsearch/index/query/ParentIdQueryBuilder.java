@@ -19,13 +19,18 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -71,7 +76,12 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
             throw new QueryShardException(context, "[" + NAME + "] _parent field has no parent type configured");
         }
         String fieldName = ParentFieldMapper.joinField(parentFieldMapper.type());
-        return new DocValuesTermsQuery(fieldName, id);
+
+        BooleanQuery.Builder query = new BooleanQuery.Builder();
+        query.add(new DocValuesTermsQuery(fieldName, id), BooleanClause.Occur.MUST);
+        // Need to take child type into account, otherwise a child doc of different type with the same id could match
+        query.add(new TermQuery(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.FILTER);
+        return query.build();
     }
 
     @Override

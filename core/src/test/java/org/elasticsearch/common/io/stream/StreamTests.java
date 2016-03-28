@@ -23,7 +23,10 @@ import org.elasticsearch.common.bytes.ByteBufferBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -92,5 +95,30 @@ public class StreamTests extends ESTestCase {
             assertEquals(list.get(index).v2(), entry.getValue());
             index++;
         }
+    }
+
+    public void testFilterStreamInputDelegatesAvailable() throws IOException {
+        final int length = randomIntBetween(1, 1024);
+        StreamInput delegate = StreamInput.wrap(new byte[length]);
+
+        FilterStreamInput filterInputStream = new FilterStreamInput(delegate) {};
+        assertEquals(filterInputStream.available(), length);
+
+        // read some bytes
+        final int bytesToRead = randomIntBetween(1, length);
+        filterInputStream.readBytes(new byte[bytesToRead], 0, bytesToRead);
+        assertEquals(filterInputStream.available(), length - bytesToRead);
+    }
+
+    public void testInputStreamStreamInputDelegatesAvailable() throws IOException {
+        final int length = randomIntBetween(1, 1024);
+        ByteArrayInputStream is = new ByteArrayInputStream(new byte[length]);
+        InputStreamStreamInput streamInput = new InputStreamStreamInput(is);
+        assertEquals(streamInput.available(), length);
+
+        // read some bytes
+        final int bytesToRead = randomIntBetween(1, length);
+        streamInput.readBytes(new byte[bytesToRead], 0, bytesToRead);
+        assertEquals(streamInput.available(), length - bytesToRead);
     }
 }

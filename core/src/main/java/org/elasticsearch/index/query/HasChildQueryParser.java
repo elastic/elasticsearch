@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryInnerHits;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * A query parser for <tt>has_child</tt> queries.
@@ -104,10 +105,19 @@ public class HasChildQueryParser implements QueryParser<HasChildQueryBuilder> {
             return ScoreMode.Max;
         } else if ("avg".equals(scoreModeString)) {
             return ScoreMode.Avg;
-        } else if ("total".equals(scoreModeString)) {
+        } else if ("sum".equals(scoreModeString)) {
             return ScoreMode.Total;
         }
         throw new IllegalArgumentException("No score mode for child query [" + scoreModeString + "] found");
+    }
+
+    public static String scoreModeAsString(ScoreMode scoreMode) {
+        if (scoreMode == ScoreMode.Total) {
+            // Lucene uses 'total' but 'sum' is more consistent with other elasticsearch APIs
+            return "sum";
+        } else {
+            return scoreMode.name().toLowerCase(Locale.ROOT);
+        }
     }
 
     @Override

@@ -1,4 +1,4 @@
-[[pipe-line]]
+[[pipeline]]
 == Pipeline Definition
 
 A pipeline is a definition of  a series of <<ingest-processors, processors>> that are to be executed
@@ -633,6 +633,9 @@ plugin.mandatory: ingest-attachment,ingest-geoip
 --------------------------------------------------
 
 A node will not start if either of these plugins are not available.
+
+The <<ingest-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
+pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
 
 [[append-procesesor]]
 === Append Processor

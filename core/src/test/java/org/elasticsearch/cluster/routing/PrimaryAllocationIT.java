@@ -163,7 +163,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : storeStatuses) {
             int shardId = shardStoreStatuses.key;
             IndicesShardStoresResponse.StoreStatus storeStatus = randomFrom(shardStoreStatuses.value);
-            logger.info("--> adding allocation command for shard " + shardId);
+            logger.info("--> adding allocation command for shard {}", shardId);
             // force allocation based on node id
             if (useStaleReplica) {
                 rerouteBuilder.add(new AllocateStalePrimaryAllocationCommand("test", shardId, storeStatus.getNode().getId(), true));

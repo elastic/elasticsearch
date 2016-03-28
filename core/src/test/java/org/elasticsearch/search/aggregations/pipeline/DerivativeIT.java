@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -47,7 +48,9 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -612,6 +615,37 @@ public class DerivativeIT extends ESIntegTestCase {
                 throw e;
             }
         }
+    }
+
+    public void testAvgMovavgDerivNPE() throws Exception {
+        createIndex("movavg_npe");
+        ensureYellow("movavg_npe");
+
+        for (int i = 0; i < 10; i++) {
+            Integer value = i;
+            if (i == 1 || i == 3) {
+                value = null;
+            }
+
+            XContentBuilder doc = jsonBuilder()
+                    .startObject()
+                    .field("tick", i)
+                    .field("value", value)
+                    .endObject();
+            client().prepareIndex("movavg_npe", "type").setSource(doc).get();
+        }
+
+        refresh();
+
+        SearchResponse response = client()
+                .prepareSearch("movavg_npe")
+                .addAggregation(
+                        histogram("histo").field("tick").interval(1)
+                                .subAggregation(avg("avg").field("value"))
+                                .subAggregation(movingAvg("movavg", "avg").modelBuilder(new SimpleModel.SimpleModelBuilder()).window(3))
+                                .subAggregation(derivative("deriv", "movavg"))).execute().actionGet();
+
+        assertSearchResponse(response);
     }
 
     private void checkBucketKeyAndDocCount(final String msg, final Histogram.Bucket bucket, final long expectedKey,

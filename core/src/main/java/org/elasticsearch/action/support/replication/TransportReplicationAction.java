@@ -28,10 +28,8 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -43,6 +41,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -103,7 +102,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected final ShardStateAction shardStateAction;
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
     protected final TransportRequestOptions transportOptions;
-    protected final MappingUpdatedAction mappingUpdatedAction;
 
     final String transportReplicaAction;
     final String transportPrimaryAction;
@@ -113,7 +111,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
-                                         MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
+                                         ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                          Supplier<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
@@ -121,7 +119,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
-        this.mappingUpdatedAction = mappingUpdatedAction;
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
@@ -270,7 +267,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     try {
                         channel.sendResponse(e);
                     } catch (Throwable e1) {
-                        logger.warn("Failed to send response for " + actionName, e1);
+                        logger.warn("Failed to send response for {}", e1, actionName);
                     }
                 }
             });
@@ -362,32 +359,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     }
                 });
             } else {
-                try {
-                    failReplicaIfNeeded(t);
-                } catch (Throwable unexpected) {
-                    logger.error("{} unexpected error while failing replica", unexpected, request.shardId().id());
-                } finally {
                     responseWithFailure(t);
-                }
-            }
-        }
-
-        private void failReplicaIfNeeded(Throwable t) {
-            String index = request.shardId().getIndex().getName();
-            int shardId = request.shardId().id();
-            logger.trace("failure on replica [{}][{}], action [{}], request [{}]", t, index, shardId, actionName, request);
-            if (ignoreReplicaException(t) == false) {
-                IndexService indexService = indicesService.indexService(index);
-                if (indexService == null) {
-                    logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
-                    return;
-                }
-                IndexShard indexShard = indexService.getShardOrNull(shardId);
-                if (indexShard == null) {
-                    logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
-                    return;
-                }
-                indexShard.failShard(actionName + " failed on replica", t);
             }
         }
 
@@ -395,7 +367,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             try {
                 channel.sendResponse(t);
             } catch (IOException responseException) {
-                logger.warn("failed to send error message back to client for action [" + transportReplicaAction + "]", responseException);
+                logger.warn("failed to send error message back to client for action [{}]", responseException, transportReplicaAction);
                 logger.warn("actual Exception", t);
             }
         }
@@ -404,7 +376,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         protected void doRun() throws Exception {
             setPhase(task, "replica");
             assert request.shardId() != null : "request shardId must be set";
-            try (Releasable ignored = getIndexShardReferenceOnReplica(request.shardId(), request)) {
+            try (Releasable ignored = getIndexShardReferenceOnReplica(request.shardId(), request.primaryTerm())) {
                 shardOperationOnReplica(request);
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(), request);
@@ -525,7 +497,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         private String concreteIndex(ClusterState state) {
-            return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request) : request.index();
+            return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request).getName() : request.index();
         }
 
         private ShardRouting primary(ClusterState state) {
@@ -710,7 +682,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             indexShardReference = getIndexShardReferenceOnPrimary(shardId, request);
             if (indexShardReference.isRelocated() == false) {
                 executeLocally();
-
             } else {
                 executeRemotely();
             }
@@ -719,6 +690,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private void executeLocally() throws Exception {
             // execute locally
             Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(state.metaData(), request);
+            primaryResponse.v2().primaryTerm(indexShardReference.opPrimaryTerm());
             if (logger.isTraceEnabled()) {
                 logger.trace("action [{}] completed on shard [{}] for request [{}] with cluster state version [{}]", transportPrimaryAction, shardId, request, state.version());
             }
@@ -864,7 +836,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId, Request request) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        IndexShardReference ref = new IndexShardReferenceImpl(indexShard, true);
+        IndexShardReference ref = IndexShardReferenceImpl.createOnPrimary(indexShard);
         assert addShardReference(ref, "primary: " + request.toString() + " " + ref.routingEntry());
         return ref;
     }
@@ -873,11 +845,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
      * returns a new reference to {@link IndexShard} on a node that the request is replicated to. The reference is closed as soon as
      * replication is completed on the node.
      */
-    protected IndexShardReference getIndexShardReferenceOnReplica(ShardId shardId, ReplicaRequest request) {
+    protected IndexShardReference getIndexShardReferenceOnReplica(ShardId shardId, long primaryTerm) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        IndexShardReference ref = new IndexShardReferenceImpl(indexShard, false);
-        assert addShardReference(ref, "replica: " + request.toString() + " " + ref.routingEntry());
+        IndexShardReference ref = IndexShardReferenceImpl.createOnReplica(indexShard, primaryTerm);
+        assert addShardReference(ref, "primary term: " + primaryTerm + " " + ref.routingEntry());
         return ref;
     }
 
@@ -1147,13 +1119,17 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 totalShards,
                                 success.get(),
                                 failuresArray
-
                         )
                 );
+                if (logger.isTraceEnabled()) {
+                    logger.trace("finished replicating action [{}], request [{}], shardInfo [{}]", actionName, replicaRequest,
+                            finalResponse.getShardInfo());
+                }
+
                 try {
                     channel.sendResponse(finalResponse);
                 } catch (IOException responseException) {
-                    logger.warn("failed to send error message back to client for action [" + transportReplicaAction + "]", responseException);
+                    logger.warn("failed to send error message back to client for action [{}]", responseException, transportReplicaAction);
                 }
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on all replicas [{}] for request [{}]", transportReplicaAction, shardId, replicaRequest);
@@ -1176,6 +1152,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         void failShard(String reason, @Nullable Throwable e);
 
         ShardRouting routingEntry();
+
+        /** returns the primary term of the current operation */
+        long opPrimaryTerm();
     }
 
     static final class IndexShardReferenceImpl implements IndexShardReference {
@@ -1183,13 +1162,21 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final IndexShard indexShard;
         private final Releasable operationLock;
 
-        IndexShardReferenceImpl(IndexShard indexShard, boolean primaryAction) {
+        private IndexShardReferenceImpl(IndexShard indexShard, long primaryTerm) {
             this.indexShard = indexShard;
-            if (primaryAction) {
+            if (primaryTerm < 0) {
                 operationLock = indexShard.acquirePrimaryOperationLock();
             } else {
-                operationLock = indexShard.acquireReplicaOperationLock();
+                operationLock = indexShard.acquireReplicaOperationLock(primaryTerm);
             }
+        }
+
+        static IndexShardReferenceImpl createOnPrimary(IndexShard indexShard) {
+            return new IndexShardReferenceImpl(indexShard, -1);
+        }
+
+        static IndexShardReferenceImpl createOnReplica(IndexShard indexShard, long primaryTerm) {
+            return new IndexShardReferenceImpl(indexShard, primaryTerm);
         }
 
         @Override
@@ -1211,6 +1198,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         public ShardRouting routingEntry() {
             return indexShard.routingEntry();
+        }
+
+        @Override
+        public long opPrimaryTerm() {
+            return indexShard.getPrimaryTerm();
         }
     }
 

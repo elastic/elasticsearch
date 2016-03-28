@@ -127,6 +127,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 }
                 streamIn = compressor.streamInput(streamIn);
             }
+            if (version.onOrAfter(Version.CURRENT.minimumCompatibilityVersion()) == false || version.major != Version.CURRENT.major) {
+                throw new IllegalStateException("Received message from unsupported version: [" + version
+                    + "] minimal compatible version is: [" +Version.CURRENT.minimumCompatibilityVersion() + "]");
+            }
             streamIn.setVersion(version);
             if (TransportStatus.isRequest(status)) {
                 threadContext.readHeaders(streamIn);
@@ -274,7 +278,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             try {
                 transportChannel.sendResponse(e);
             } catch (IOException e1) {
-                logger.warn("Failed to send error message back to client for action [" + action + "]", e);
+                logger.warn("Failed to send error message back to client for action [{}]", e, action);
                 logger.warn("Actual Exception", e1);
             }
         }
@@ -336,7 +340,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 try {
                     transportChannel.sendResponse(e);
                 } catch (Throwable e1) {
-                    logger.warn("Failed to send error message back to client for action [" + reg.getAction() + "]", e1);
+                    logger.warn("Failed to send error message back to client for action [{}]", e1, reg.getAction());
                     logger.warn("Actual Exception", e);
                 }
             }

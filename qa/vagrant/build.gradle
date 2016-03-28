@@ -26,8 +26,17 @@ String testScripts = '*.bats'
 String testCommand = "cd \$TESTROOT && sudo bats --tap \$BATS/$testScripts"
 String smokeTestCommand = 'echo I work'
 List<String> representativeBoxes = ['ubuntu-1404', 'centos-7']
-List<String> boxes = representativeBoxes + ['ubuntu-1204', 'ubuntu-1504',
-  'debian-8', 'centos-6', 'oel-7', 'fedora-22', 'opensuse-13', 'sles-12']
+List<String> boxes = representativeBoxes + [
+        'ubuntu-1204',
+        'ubuntu-1504',
+        'debian-8',
+        'centos-6',
+        'oel-6',
+        'oel-7',
+        'fedora-22',
+        'opensuse-13',
+        'sles-12'
+]
 
 /* The version of elasticsearch that we upgrade *from* as part of testing
  * upgrades. */

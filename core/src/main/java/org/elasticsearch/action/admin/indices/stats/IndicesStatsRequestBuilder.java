@@ -152,11 +152,6 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    public IndicesStatsRequestBuilder setSuggest(boolean suggest) {
-        request.suggest(suggest);
-        return this;
-    }
-
     public IndicesStatsRequestBuilder setRequestCache(boolean requestCache) {
         request.requestCache(requestCache);
         return this;

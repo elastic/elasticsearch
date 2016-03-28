@@ -151,8 +151,7 @@ public class RestClient implements Closeable {
 
         HttpRequestBuilder httpRequestBuilder = callApiBuilder(apiName, requestParams, body);
         for (Map.Entry<String, String> header : headers.entrySet()) {
-            logger.error("Adding header " + header.getKey());
-            logger.error(" with value " + header.getValue());
+            logger.error("Adding header {}\n with value {}", header.getKey(), header.getValue());
             httpRequestBuilder.addHeader(header.getKey(), header.getValue());
         }
         logger.debug("calling api [{}]", apiName);

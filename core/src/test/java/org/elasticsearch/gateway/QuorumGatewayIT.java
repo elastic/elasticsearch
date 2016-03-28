@@ -82,7 +82,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                     assertTrue(awaitBusy(() -> {
                         logger.info("--> running cluster_health (wait for the shards to startup)");
                         ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
-                        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+                        logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
                         return (!clusterHealth.isTimedOut()) && clusterHealth.getStatus() == ClusterHealthStatus.YELLOW;
                     }, 30, TimeUnit.SECONDS));
                     logger.info("--> one node is closed -- index 1 document into the remaining nodes");

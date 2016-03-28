@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
+import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -564,7 +565,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
             mapperService.merge("type", new CompressedXContent(updatedMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("different [omit_norms]"));
+            assertThat(e.getMessage(), containsString("different [norms]"));
         }
     }
 
@@ -592,4 +593,88 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testFielddataLoading() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                    .field("type", "string")
+                    .startObject("fielddata")
+                        .field("loading", "eager_global_ordinals")
+                    .endObject()
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        String expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "string")
+                .field("eager_global_ordinals", true)
+            .endObject().endObject()
+            .endObject().endObject().string();
+
+        assertEquals(expectedMapping, mapper.mappingSource().toString());
+        assertTrue(mapper.mappers().getMapper("field").fieldType().eagerGlobalOrdinals());
+    }
+
+    public void testFielddataFilter() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                    .field("type", "string")
+                    .startObject("fielddata")
+                        .startObject("filter")
+                            .startObject("frequency")
+                                .field("min", 2d)
+                                .field("min_segment_size", 1000)
+                            .endObject()
+                            .startObject("regex")
+                                .field("pattern", "^#.*")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        String expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "string")
+                .startObject("fielddata_frequency_filter")
+                    .field("min", 2d)
+                    .field("min_segment_size", 1000)
+                .endObject()
+            .endObject().endObject()
+            .endObject().endObject().string();
+
+        assertEquals(expectedMapping, mapper.mappingSource().toString());
+        StringFieldType fieldType = (StringFieldType) mapper.mappers().getMapper("field").fieldType();
+        assertThat(fieldType.fielddataMinFrequency(), equalTo(2d));
+        assertThat(fieldType.fielddataMaxFrequency(), equalTo((double) Integer.MAX_VALUE));
+        assertThat(fieldType.fielddataMinSegmentSize(), equalTo(1000));
+    }
+
+    public void testDisabledFielddata() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                    .field("type", "string")
+                    .startObject("fielddata")
+                        .field("format", "disabled")
+                    .endObject()
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        String expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "string")
+                .field("fielddata", false)
+            .endObject().endObject()
+            .endObject().endObject().string();
+
+        assertEquals(expectedMapping, mapper.mappingSource().toString());
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> mapper.mappers().getMapper("field").fieldType().fielddataBuilder());
+        assertThat(e.getMessage(), containsString("Fielddata is disabled"));
+    }
 }

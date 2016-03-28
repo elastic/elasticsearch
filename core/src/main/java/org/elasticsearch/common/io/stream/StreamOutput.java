@@ -36,10 +36,13 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.tasks.Task;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -235,6 +238,15 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeVInt(integer);
+        }
+    }
+
+    public void writeOptionalFloat(@Nullable Float floatValue) throws IOException {
+        if (floatValue == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeFloat(floatValue);
         }
     }
 
@@ -520,6 +532,15 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeOptionalWriteable(@Nullable Writeable<?> writeable) throws IOException {
+        if (writeable != null) {
+            writeBoolean(true);
+            writeable.writeTo(this);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
     public void writeThrowable(Throwable throwable) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
@@ -642,7 +663,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
-    void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
+    void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }
@@ -664,8 +685,20 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link QueryBuilder} to the current stream
      */
-    public void writeQuery(QueryBuilder queryBuilder) throws IOException {
+    public void writeQuery(QueryBuilder<?> queryBuilder) throws IOException {
         writeNamedWriteable(queryBuilder);
+    }
+
+    /**
+     * Write an optional {@link QueryBuilder} to the stream.
+     */
+    public void writeOptionalQuery(@Nullable QueryBuilder<?> queryBuilder) throws IOException {
+        if (queryBuilder == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeQuery(queryBuilder);
+        }
     }
 
     /**
@@ -680,6 +713,13 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
         writeNamedWriteable(scoreFunctionBuilder);
+    }
+
+    /**
+     * Writes the given {@link SmoothingModel} to the stream
+     */
+    public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
+        writeNamedWriteable(smoothinModel);
     }
 
     /**
@@ -713,4 +753,19 @@ public abstract class StreamOutput extends OutputStream {
     public void writeRescorer(RescoreBuilder<?> rescorer) throws IOException {
         writeNamedWriteable(rescorer);
     }
+
+    /**
+     * Writes a {@link SuggestionBuilder} to the current stream
+     */
+    public void writeSuggestion(SuggestionBuilder<?> suggestion) throws IOException {
+        writeNamedWriteable(suggestion);
+    }
+
+    /**
+     * Writes a {@link SortBuilder} to the current stream
+     */
+    public void writeSortBuilder(SortBuilder<?> sort) throws IOException {
+        writeNamedWriteable(sort);
+    }
+
 }

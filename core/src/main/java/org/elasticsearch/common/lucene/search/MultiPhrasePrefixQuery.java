@@ -134,7 +134,7 @@ public class MultiPhrasePrefixQuery extends Query {
         if (termArrays.isEmpty()) {
             return new MatchNoDocsQuery();
         }
-        MultiPhraseQuery query = new MultiPhraseQuery();
+        MultiPhraseQuery.Builder query = new MultiPhraseQuery.Builder();
         query.setSlop(slop);
         int sizeMinus1 = termArrays.size() - 1;
         for (int i = 0; i < sizeMinus1; i++) {
@@ -153,7 +153,7 @@ public class MultiPhrasePrefixQuery extends Query {
             return Queries.newMatchNoDocsQuery();
         }
         query.add(terms.toArray(Term.class), position);
-        return query.rewrite(reader);
+        return query.build();
     }
 
     private void getPrefixTerms(ObjectHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {

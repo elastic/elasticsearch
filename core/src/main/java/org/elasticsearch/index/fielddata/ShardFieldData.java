@@ -51,7 +51,7 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
     }
 
     @Override
-    public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
+    public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
         totalMetric.inc(ramUsage.ramBytesUsed());
         CounterMetric total = perFieldTotals.get(fieldName);
         if (total != null) {
@@ -67,7 +67,7 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
     }
 
     @Override
-    public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+    public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
         if (wasEvicted) {
             evictionsMetric.inc();
         }

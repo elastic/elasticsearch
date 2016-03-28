@@ -231,8 +231,7 @@ public class NodeInfo extends BaseNodeResponse {
             plugins.readFrom(in);
         }
         if (in.readBoolean()) {
-            ingest = new IngestInfo();
-            ingest.readFrom(in);
+            ingest = new IngestInfo(in);
         }
     }
 

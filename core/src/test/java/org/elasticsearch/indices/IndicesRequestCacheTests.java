@@ -282,7 +282,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals("foo", value1.toUtf8());
         BytesReference value2 = cache.getOrCompute(secondEntity, secondReader, termQuery.buildAsBytes());
         assertEquals("bar", value2.toUtf8());
-        logger.info(requestCacheStats.stats().getMemorySize().toString());
+        logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
         BytesReference value3 = cache.getOrCompute(thirddEntity, thirdReader, termQuery.buildAsBytes());
         assertEquals("baz", value3.toUtf8());
         assertEquals(2, cache.count());
@@ -319,7 +319,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals("foo", value1.toUtf8());
         BytesReference value2 = cache.getOrCompute(secondEntity, secondReader, termQuery.buildAsBytes());
         assertEquals("bar", value2.toUtf8());
-        logger.info(requestCacheStats.stats().getMemorySize().toString());
+        logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
         BytesReference value3 = cache.getOrCompute(thirddEntity, thirdReader, termQuery.buildAsBytes());
         assertEquals("baz", value3.toUtf8());
         assertEquals(3, cache.count());

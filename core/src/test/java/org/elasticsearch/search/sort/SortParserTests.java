@@ -19,12 +19,14 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 
@@ -47,10 +49,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.field("unit", "km");
         sortBuilder.field("sort_mode", "max");
         sortBuilder.endObject();
-        XContentParser parser = XContentHelper.createParser(sortBuilder.bytes());
-        parser.nextToken();
-        GeoDistanceSortParser geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        parse(context, sortBuilder);
 
         sortBuilder = jsonBuilder();
         sortBuilder.startObject();
@@ -136,9 +135,11 @@ public class SortParserTests extends ESSingleNodeTestCase {
     }
 
     protected void parse(TestSearchContext context, XContentBuilder sortBuilder) throws Exception {
+        QueryParseContext parseContext = context.getQueryShardContext().parseContext();
         XContentParser parser = XContentHelper.createParser(sortBuilder.bytes());
+        parser.setParseFieldMatcher(ParseFieldMatcher.STRICT);
+        parseContext.reset(parser);
         parser.nextToken();
-        GeoDistanceSortParser geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        GeoDistanceSortBuilder.fromXContent(parseContext, null);
     }
 }

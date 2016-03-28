@@ -30,9 +30,9 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +40,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -57,6 +56,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 
 /**
  * The test case for unit testing task manager and related transport actions
@@ -137,14 +139,14 @@ public abstract class TaskManagerTestCase extends ESTestCase {
      * Simulates node-based task that can be used to block node tasks so they are guaranteed to be registered by task manager
      */
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends BaseNodeRequest>
-        extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
+            extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
         AbstractTestNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
                                 ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
                                 Supplier<NodeRequest> nodeRequest) {
             super(settings, actionName, clusterName, threadPool, clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                request, nodeRequest, ThreadPool.Names.GENERIC);
+                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                    request, nodeRequest, ThreadPool.Names.GENERIC);
         }
 
         @Override
@@ -182,8 +184,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             transportService = new TransportService(settings,
-                new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()),
-                threadPool, new NamedWriteableRegistry()) {
+                    new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()),
+                    threadPool) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
@@ -194,19 +196,19 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 }
             };
             transportService.start();
-            clusterService = new TestClusterService(threadPool, transportService);
+            clusterService = createClusterService(threadPool);
             clusterService.add(transportService.getTaskManager());
             discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(), Version.CURRENT);
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
             ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
             transportListTasksAction = new TransportListTasksAction(settings, clusterName, threadPool, clusterService, transportService,
-                actionFilters, indexNameExpressionResolver);
+                    actionFilters, indexNameExpressionResolver);
             transportCancelTasksAction = new TransportCancelTasksAction(settings, clusterName, threadPool, clusterService, transportService,
-                actionFilters, indexNameExpressionResolver);
+                    actionFilters, indexNameExpressionResolver);
             transportService.acceptIncomingRequests();
         }
 
-        public final TestClusterService clusterService;
+        public final ClusterService clusterService;
         public final TransportService transportService;
         public final DiscoveryNode discoveryNode;
         public final TransportListTasksAction transportListTasksAction;
@@ -214,7 +216,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         @Override
         public void close() {
+            clusterService.close();
             transportService.close();
+        }
+
+        public String getNodeId() {
+            return discoveryNode.getId();
         }
     }
 
@@ -225,7 +232,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
         DiscoveryNode master = discoveryNodes[0];
         for (TestNode node : nodes) {
-            node.clusterService.setState(ClusterStateCreationUtils.state(node.discoveryNode, master, discoveryNodes));
+            setState(node.clusterService, ClusterStateCreationUtils.state(node.discoveryNode, master, discoveryNodes));
         }
         for (TestNode nodeA : nodes) {
             for (TestNode nodeB : nodes) {
@@ -238,7 +245,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         RecordingTaskManagerListener[] listeners = new RecordingTaskManagerListener[nodes.length];
         for (int i = 0; i < nodes.length; i++) {
             listeners[i] = new RecordingTaskManagerListener(nodes[i].discoveryNode, actionMasks);
-            ((MockTaskManager) (nodes[i].clusterService.getTaskManager())).addListener(listeners[i]);
+            ((MockTaskManager) (nodes[i].transportService.getTaskManager())).addListener(listeners[i]);
         }
         return listeners;
     }

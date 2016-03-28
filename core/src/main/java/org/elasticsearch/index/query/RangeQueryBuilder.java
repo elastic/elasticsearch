@@ -30,6 +30,7 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fieldstats.FieldStatsProvider;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTimeZone;
@@ -251,6 +252,36 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        FieldStatsProvider fieldStatsProvider = queryRewriteContext.getFieldStatsProvider();
+        // If the fieldStatsProvider is null we are not on the shard and cannot
+        // rewrite so just return without rewriting
+        if (fieldStatsProvider != null) {
+            DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
+            FieldStatsProvider.Relation relation = fieldStatsProvider.isFieldWithinQuery(fieldName, from, to, includeLower, includeUpper,
+                    timeZone, dateMathParser);
+            switch (relation) {
+            case DISJOINT:
+                return new MatchNoneQueryBuilder();
+            case WITHIN:
+                if (from != null || to != null) {
+                    RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
+                    newRangeQuery.from(null);
+                    newRangeQuery.to(null);
+                    newRangeQuery.format = format;
+                    newRangeQuery.timeZone = timeZone;
+                    return newRangeQuery;
+                } else {
+                    return this;
+                }
+            case INTERSECTS:
+                break;
+            }
+        }
+        return this;
     }
 
     @Override

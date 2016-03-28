@@ -39,7 +39,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "text": {
-          "type": "string",
+          "type": "text",
           "index_options": "offsets"
         }
       }

@@ -19,15 +19,16 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
-
 import static org.hamcrest.Matchers.instanceOf;
 
 public class LinearInterpolationModelTests extends SmoothingModelTestCase {
 
     @Override
     protected SmoothingModel createTestModel() {
+        return createRandomModel();
+    }
+
+    static LinearInterpolation createRandomModel() {
         double trigramLambda = randomDoubleBetween(0.0, 10.0, false);
         double bigramLambda = randomDoubleBetween(0.0, 10.0, false);
         double unigramLambda = randomDoubleBetween(0.0, 10.0, false);

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,29 +32,74 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper.DoubleFieldType;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper.Nested;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXContent & SortElementParserTemp<T>> extends ESTestCase {
+public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static ScriptService scriptService;
 
     @BeforeClass
-    public static void init() {
+    public static void init() throws IOException {
+        Path genericConfigFolder = createTempDir();
+        Settings baseSettings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
+                .build();
+        Environment environment = new Environment(baseSettings);
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry
+                .ScriptEngineRegistration(TestEngineService.class, TestEngineService.TYPES)));
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        scriptService = new ScriptService(baseSettings, environment, Collections.singleton(new TestEngineService()),
+                new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
+            @Override
+            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
+                return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
+            }
+        };
+
         namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(GeoDistanceSortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
 
@@ -68,6 +114,9 @@ public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXCont
     /** Returns mutated version of original so the returned sort is different in terms of equals/hashcode */
     protected abstract T mutate(T original) throws IOException;
 
+    /** Parse the sort from xContent. Just delegate to the SortBuilder's static fromXContent method. */
+    protected abstract T fromXContent(QueryParseContext context, String fieldName) throws IOException;
+
     /**
      * Test that creates new sort from a random test sort and checks both for equality
      */
@@ -79,15 +128,12 @@ public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXCont
             if (randomBoolean()) {
                 builder.prettyPrint();
             }
-            builder.startObject();
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-
             XContentParser itemParser = XContentHelper.createParser(builder.bytes());
             itemParser.nextToken();
-            
+
             /*
-             * filter out name of sort, or field name to sort on for element fieldSort 
+             * filter out name of sort, or field name to sort on for element fieldSort
              */
             itemParser.nextToken();
             String elementName = itemParser.currentName();
@@ -95,12 +141,27 @@ public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXCont
 
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             context.reset(itemParser);
-            NamedWriteable<T> parsedItem = testItem.fromXContent(context, elementName);
+            T parsedItem = fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
         }
     }
+
+    /**
+     * test that build() outputs a {@link SortField} that is similar to the one
+     * we would get when parsing the xContent the sort builder is rendering out
+     */
+    public void testBuildSortField() throws IOException {
+        QueryShardContext mockShardContext = createMockShardContext();
+        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
+            T sortBuilder = createTestItem();
+            SortField sortField = sortBuilder.build(mockShardContext);
+            sortFieldAssertions(sortBuilder, sortField);
+        }
+    }
+
+    protected abstract void sortFieldAssertions(T builder, SortField sortField) throws IOException;
 
     /**
      * Test serialization and deserialization of the test sort.
@@ -146,17 +207,55 @@ public abstract class AbstractSortTestCase<T extends NamedWriteable<T> & ToXCont
         }
     }
 
-    protected T copyItem(T original) throws IOException {
+    private QueryShardContext createMockShardContext() {
+        Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+        IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                cache, null, null);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+            }
+
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+            }
+        });
+        return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
+                indicesQueriesRegistry, null) {
+            @Override
+            public MappedFieldType fieldMapper(String name) {
+                return provideMappedFieldType(name);
+            }
+
+            @Override
+            public ObjectMapper getObjectMapper(String name) {
+                BuilderContext context = new BuilderContext(Settings.EMPTY, new ContentPath());
+                return new ObjectMapper.Builder<>(name).nested(Nested.newNested(false, false)).build(context);
+            }
+        };
+    }
+
+    /**
+     * Return a field type. We use {@link DoubleFieldType} by default since it is compatible with all sort modes
+     * Tests that require other field type than double can override this.
+     */
+    protected MappedFieldType provideMappedFieldType(String name) {
+        DoubleFieldType doubleFieldType = new DoubleFieldType();
+        doubleFieldType.setName(name);
+        doubleFieldType.setHasDocValues(true);
+        return doubleFieldType;
+    }
+
+    @SuppressWarnings("unchecked")
+    private T copyItem(T original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                @SuppressWarnings("unchecked")
-                T prototype = (T) namedWriteableRegistry.getPrototype(getPrototype(), original.getWriteableName());
-                T copy = (T) prototype.readFrom(in);
-                return copy;
+                return (T) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()).read(in);
             }
         }
     }
-    
-    protected abstract Class<T> getPrototype();
 }

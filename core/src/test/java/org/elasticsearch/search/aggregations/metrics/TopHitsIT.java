@@ -433,7 +433,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(hits.totalHits(), equalTo(controlHits.totalHits()));
         assertThat(hits.getHits().length, equalTo(controlHits.getHits().length));
         for (int i = 0; i < hits.getHits().length; i++) {
-            logger.info(i + ": top_hits: [" + hits.getAt(i).id() + "][" + hits.getAt(i).sortValues()[0] + "] control: [" + controlHits.getAt(i).id() + "][" + controlHits.getAt(i).sortValues()[0] + "]");
+            logger.info("{}: top_hits: [{}][{}] control: [{}][{}]", i, hits.getAt(i).id(), hits.getAt(i).sortValues()[0], controlHits.getAt(i).id(), controlHits.getAt(i).sortValues()[0]);
             assertThat(hits.getAt(i).id(), equalTo(controlHits.getAt(i).id()));
             assertThat(hits.getAt(i).sortValues()[0], equalTo(controlHits.getAt(i).sortValues()[0]));
         }
@@ -609,7 +609,7 @@ public class TopHitsIT extends ESIntegTestCase {
     public void testTrackScores() throws Exception {
         boolean[] trackScores = new boolean[]{true, false};
         for (boolean trackScore : trackScores) {
-            logger.info("Track score=" + trackScore);
+            logger.info("Track score={}", trackScore);
             SearchResponse response = client().prepareSearch("idx").setTypes("field-collapsing")
                     .setQuery(matchQuery("text", "term rare"))
                     .addAggregation(terms("terms")
@@ -618,7 +618,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             topHits("hits")
                                                     .trackScores(trackScore)
                                                     .size(1)
-                                                    .sort("_id", SortOrder.DESC)
+                                                    .sort("_uid", SortOrder.DESC)
                                     )
                     )
                     .get();

@@ -1,5 +1,5 @@
 [[docs-update-by-query]]
-==== Update By Query API
+== Update By Query API
 
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
@@ -101,8 +101,8 @@ Just as in {ref}/docs-update.html[Update API] you can set `ctx.op = "noop"` if
 your script decides that it doesn't have to make any changes. That will cause
 `_update_by_query` to omit that document from its updates. Setting `ctx.op` to
 anything else is an error. If you want to delete by a query you can use the
-<<plugins-delete-by-query,Delete by Query Plugin>> instead. Setting any other
-field in `ctx` is an error.
+{plugins}/plugins-delete-by-query.html[Delete by Query plugin] instead. Setting any
+other field in `ctx` is an error.
 
 Note that we stopped specifying `conflicts=proceed`. In this case we want a
 version conflict to abort the process so we can handle the failure.
@@ -169,8 +169,14 @@ request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 {ref}/docs-bulk.html[Bulk API].
 
-`timeout` controls how long each batch waits for the target shard to become
-available. It works exactly how it works in the {ref}/docs-bulk.html[Bulk API].
+`requests_per_second` can be set to any decimal number (1.4, 6, 1000, etc) and
+throttle the number of requests per second that the update by query issues. The
+throttling is done waiting between bulk batches so that it can manipulate the
+scroll timeout. The wait time is the difference between the time it took the
+batch to complete and the time `requests_per_second * requests_in_the_batch`.
+Since the batch isn't broken into multiple bulk requests large batch sizes will
+cause Elasticsearch to create many requests and then wait for a while before
+starting the next set. This is "bursty" instead of "smooth".
 
 [float]
 === Response body
@@ -184,6 +190,8 @@ The JSON response looks like this:
   "updated": 0,
   "batches": 1,
   "version_conflicts": 2,
+  "retries": 0,
+  "throttled_millis": 0,
   "failures" : [ ]
 }
 --------------------------------------------------
@@ -203,6 +211,14 @@ The number of scroll responses pulled back by the the update by query.
 `version_conflicts`::
 
 The number of version conflicts that the update by query hit.
+
+`retries`::
+
+The number of retries that the update by query did in response to a full queue.
+
+`throttled_millis`::
+
+Number of milliseconds the request slept to conform to `requests_per_second`.
 
 `failures`::
 
@@ -251,7 +267,9 @@ The responses looks like:
           "deleted" : 0,
           "batches" : 36,
           "version_conflicts" : 0,
-          "noops" : 0
+          "noops" : 0,
+          "retries": 0,
+          "throttled_millis": 0
         },
         "description" : ""
       } ]
@@ -267,11 +285,8 @@ progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
 
 
-[float]
-=== Examples
-
 [[picking-up-a-new-property]]
-==== Pick up a new property
+=== Pick up a new property
 
 Say you created an index without dynamic mapping, filled it with data, and then
 added a mapping value to pick up more fields from the data:
@@ -284,7 +299,7 @@ PUT test
     "test": {
       "dynamic": false,   <1>
       "properties": {
-        "text": {"type": "string"}
+        "text": {"type": "text"}
       }
     }
   }
@@ -303,8 +318,8 @@ POST test/test?refresh
 PUT test/_mapping/test   <2>
 {
   "properties": {
-    "text": {"type": "string"},
-    "flag": {"type": "string", "analyzer": "keyword"}
+    "text": {"type": "text"},
+    "flag": {"type": "text", "analyzer": "keyword"}
   }
 }
 --------------------------------------------------

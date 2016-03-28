@@ -35,19 +35,19 @@ public class TasksRequestBuilder <Request extends BaseTasksRequest<Request>, Res
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setNodesIds(String... nodesIds) {
-        request.nodesIds(nodesIds);
+        request.setNodesIds(nodesIds);
         return (RequestBuilder) this;
     }
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setActions(String... actions) {
-        request.actions(actions);
+        request.setActions(actions);
         return (RequestBuilder) this;
     }
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return (RequestBuilder) this;
     }
 }

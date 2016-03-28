@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -68,7 +69,8 @@ public class GroovyScriptTests extends ESIntegTestCase {
     public void assertScript(String scriptString) {
         Script script = new Script(scriptString, ScriptType.INLINE, "groovy", null);
         SearchResponse resp = client().prepareSearch("test")
-                .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(SortBuilders.scriptSort(script, "number")))
+                .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(SortBuilders.
+                        scriptSort(script, ScriptSortType.NUMBER)))
                 .get();
         assertNoFailures(resp);
     }

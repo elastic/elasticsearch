@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -65,13 +66,17 @@ import java.util.function.Function;
  */
 public final class IndexModule {
 
-    public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>("index.store.type", "", Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_STORE_TYPE_SETTING =
+        new Setting<>("index.store.type", "", Function.identity(), Property.IndexScope, Property.NodeScope);
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
     public static final String INDEX_QUERY_CACHE = "index";
     public static final String NONE_QUERY_CACHE = "none";
-    public static final Setting<String> INDEX_QUERY_CACHE_TYPE_SETTING = new Setting<>("index.queries.cache.type", INDEX_QUERY_CACHE, Function.identity(), false, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_QUERY_CACHE_TYPE_SETTING =
+        new Setting<>("index.queries.cache.type", INDEX_QUERY_CACHE, Function.identity(), Property.IndexScope);
+
     // for test purposes only
-    public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING = Setting.boolSetting("index.queries.cache.everything", false, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING =
+        Setting.boolSetting("index.queries.cache.everything", false, Property.IndexScope);
     private final IndexSettings indexSettings;
     private final IndexStoreConfig indexStoreConfig;
     private final AnalysisRegistry analysisRegistry;
@@ -83,7 +88,7 @@ public final class IndexModule {
     private final Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities = new HashMap<>();
     private final Map<String, BiFunction<IndexSettings, IndexStoreConfig, IndexStore>> storeTypes = new HashMap<>();
     private final Map<String, BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> queryCaches = new HashMap<>();
-
+    private final SetOnce<String> forceQueryCacheType = new SetOnce<>();
 
     public IndexModule(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig, AnalysisRegistry analysisRegistry) {
         this.indexStoreConfig = indexStoreConfig;
@@ -261,11 +266,23 @@ public final class IndexModule {
         }
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING, store::setType);
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, store::setMaxRate);
-        final String queryCacheType = indexSettings.getValue(INDEX_QUERY_CACHE_TYPE_SETTING);
+        final String queryCacheType = forceQueryCacheType.get() != null ? forceQueryCacheType.get() : indexSettings.getValue(INDEX_QUERY_CACHE_TYPE_SETTING);
         final BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
         final QueryCache queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
         return new IndexService(indexSettings, environment, new SimilarityService(indexSettings, similarities), shardStoreDeleter, analysisRegistry, engineFactory.get(),
                 servicesProvider, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry, indicesFieldDataCache, listeners);
+    }
+
+    /**
+     * Forces a certain query cache type. If this is set
+     * the given cache type is overriding the default as well as the type
+     * set on the index level.
+     * NOTE: this can only be set once
+     *
+     * @see #INDEX_QUERY_CACHE_TYPE_SETTING
+     */
+    public void forceQueryCacheType(String type) {
+        this.forceQueryCacheType.set(type);
     }
 
 }

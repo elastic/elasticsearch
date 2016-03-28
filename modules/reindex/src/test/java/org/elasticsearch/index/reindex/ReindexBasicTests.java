@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class ReindexBasicTests extends ReindexTestCase {
@@ -83,41 +81,5 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.size(half); // The real "size" of the request.
         assertThat(copy.get(), responseMatcher().created(half).batches(half, 5));
         assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), half);
-    }
-
-    public void testRefreshIsFalseByDefault() throws Exception {
-        refreshTestCase(null, false);
-    }
-
-    public void testRefreshFalseDoesntMakeVisible() throws Exception {
-        refreshTestCase(false, false);
-    }
-
-    public void testRefreshTrueMakesVisible() throws Exception {
-        refreshTestCase(true, true);
-    }
-
-    /**
-     * Executes a reindex into an index with -1 refresh_interval and checks that
-     * the documents are visible properly.
-     */
-    private void refreshTestCase(Boolean refresh, boolean visible) throws Exception {
-        CreateIndexRequestBuilder create = client().admin().indices().prepareCreate("dest").setSettings("refresh_interval", -1);
-        assertAcked(create);
-        ensureYellow();
-        indexRandom(true, client().prepareIndex("source", "test", "1").setSource("foo", "a"),
-                client().prepareIndex("source", "test", "2").setSource("foo", "a"),
-                client().prepareIndex("source", "test", "3").setSource("foo", "b"),
-                client().prepareIndex("source", "test", "4").setSource("foo", "c"));
-        assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
-
-        // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all");
-        if (refresh != null) {
-            copy.refresh(refresh);
-        }
-        assertThat(copy.get(), responseMatcher().created(4));
-
-        assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), visible ? 4 : 0);
     }
 }

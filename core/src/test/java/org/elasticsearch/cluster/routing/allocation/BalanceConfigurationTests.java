@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -311,28 +310,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     public void testNoRebalanceOnPrimaryOverload() {
         Settings.Builder settings = settingsBuilder();
         AllocationService strategy = new AllocationService(settings.build(), randomAllocationDeciders(settings.build(),
-                new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), getRandom()), new ShardsAllocators(settings.build(),
+                new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), getRandom()),
                 NoopGatewayAllocator.INSTANCE, new ShardsAllocator() {
-
-            @Override
-            public boolean rebalance(RoutingAllocation allocation) {
-                return false;
-            }
-
-            @Override
-            public boolean moveShards(RoutingAllocation allocation) {
-                return false;
-            }
-
-            @Override
-            public void applyStartedShards(StartedRerouteAllocation allocation) {
-
-
-            }
-
-            @Override
-            public void applyFailedShards(FailedRerouteAllocation allocation) {
-            }
 
             /*
              *  // this allocator tries to rebuild this scenario where a rebalance is
@@ -354,9 +333,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 --------[test][2], node[3], [P], s[STARTED]
                 --------[test][3], node[3], [P], s[STARTED]
                 ---- unassigned
-             */
-            @Override
-            public boolean allocateUnassigned(RoutingAllocation allocation) {
+            */
+            public boolean allocate(RoutingAllocation allocation) {
                 RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
                 boolean changed = !unassigned.isEmpty();
                 ShardRouting[] drain = unassigned.drain();
@@ -403,7 +381,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 }
                 return changed;
             }
-        }), EmptyClusterInfoService.INSTANCE);
+        }, EmptyClusterInfoService.INSTANCE);
         MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         IndexMetaData.Builder indexMeta = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1);

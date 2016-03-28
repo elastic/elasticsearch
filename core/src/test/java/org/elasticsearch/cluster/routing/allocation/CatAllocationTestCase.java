@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import java.io.BufferedReader;
@@ -147,12 +146,12 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
             if (initializing.isEmpty()) {
                 break;
             }
-            logger.debug(initializing.toString());
+            logger.debug("Initializing shards: {}", initializing);
             numRelocations += initializing.size();
             routingTable = strategy.applyStartedShards(clusterState, initializing).routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         }
-        logger.debug("--> num relocations to get balance: " + numRelocations);
+        logger.debug("--> num relocations to get balance: {}", numRelocations);
         return clusterState;
     }
 

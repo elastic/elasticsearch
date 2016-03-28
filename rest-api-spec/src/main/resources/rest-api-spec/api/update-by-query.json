@@ -105,6 +105,10 @@
           "options" : ["query_then_fetch", "dfs_query_then_fetch"],
           "description" : "Search operation type"
         },
+        "search_timeout": {
+          "type" : "time",
+          "description" : "Explicit timeout for each search request. Defaults to no timeout."
+        },
         "size": {
           "type" : "number",
           "description" : "Number of hits to return (default: 10)"
@@ -194,6 +198,11 @@
            "type" : "boolean",
            "default": false,
            "description" : "Should the request should block until the reindex is complete."
+        },
+        "requests_per_second": {
+          "type": "float",
+          "default": 0,
+          "description": "The throttle for this request in sub-requests per second. 0 means set no throttle."
         }
       }
     },

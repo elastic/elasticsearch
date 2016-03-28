@@ -19,12 +19,15 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.HashSet;
+import java.util.Set;
 
 public class RandomSortDataGenerator {
     private RandomSortDataGenerator() {
@@ -44,7 +47,7 @@ public class RandomSortDataGenerator {
                 break;
             default:
             case 2:
-                nested = new TermQueryBuilder(ESTestCase.randomAsciiOfLengthBetween(1, 10), ESTestCase.randomAsciiOfLengthBetween(1, 10));
+                nested = new TermQueryBuilder(ESTestCase.randomAsciiOfLengthBetween(1, 10), ESTestCase.randomDouble());
                 break;
             }
             nested.boost((float) ESTestCase.randomDoubleBetween(0, 10, false));
@@ -60,26 +63,26 @@ public class RandomSortDataGenerator {
         return nestedPath;
     }
 
-    public static String mode(String original) {
-        String[] modes = {"min", "max", "avg", "sum"};
-        String mode = ESTestCase.randomFrom(modes);
-        while (mode.equals(original)) {
-            mode = ESTestCase.randomFrom(modes);
+    public static SortMode mode(SortMode original) {
+        Set<SortMode> set = new HashSet<>();
+        set.add(original);
+        return mode(set);
+    }
+
+    public static SortMode mode(Set<SortMode> except) {
+        SortMode mode = ESTestCase.randomFrom(SortMode.values());
+        while (except.contains(mode)) {
+            mode = ESTestCase.randomFrom(SortMode.values());
         }
         return mode;
     }
-    
+
     public static Object missing(Object original) {
         Object missing = null;
-        Object otherMissing = null;
-        if (original instanceof BytesRef) {
-            otherMissing = ((BytesRef) original).utf8ToString();
-        } else {
-            otherMissing = original;
-        }
+        Object otherMissing = original;
 
         while (missing == null || missing.equals(otherMissing)) {
-          int missingId = ESTestCase.randomIntBetween(0, 3);
+          int missingId = ESTestCase.randomIntBetween(0, 4);
           switch (missingId) {
           case 0:
               missing = ("_last");
@@ -91,19 +94,27 @@ public class RandomSortDataGenerator {
               missing = ESTestCase.randomAsciiOfLength(10);
               break;
           case 3:
+              missing = ESTestCase.randomUnicodeOfCodepointLengthBetween(5, 15);
+              break;
+          case 4:
               missing = ESTestCase.randomInt();
               break;
           default:
               throw new IllegalStateException("Unknown missing type.");
-              
+
           }
         }
         return missing;
     }
-    
-    public static SortOrder order(SortOrder original) {
-        SortOrder order = SortOrder.ASC;
-        if (order.equals(original)) {
+
+    /**
+     * return a random {@link SortOrder} settings, except the one provided by parameter if set
+     */
+    public static SortOrder order(@Nullable SortOrder original) {
+        if (original == null) {
+            return ESTestCase.randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
+        }
+        if (original.equals(SortOrder.ASC)) {
             return SortOrder.DESC;
         } else {
             return SortOrder.ASC;

@@ -27,10 +27,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -140,7 +142,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
      */
     public void testDelayedUnassignedScheduleRerouteAfterDelayedReroute() throws Exception {
         final ThreadPool testThreadPool = new ThreadPool(getTestName());
-
+        ClusterService clusterService = createClusterService(testThreadPool);
         try {
             MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
             MetaData metaData = MetaData.builder()
@@ -152,8 +154,8 @@ public class RoutingServiceTests extends ESAllocationTestCase {
             ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData)
                     .routingTable(RoutingTable.builder().addAsNew(metaData.index("short_delay")).addAsNew(metaData.index("long_delay")).build())
                     .nodes(DiscoveryNodes.builder()
-                    .put(newNode("node0", singletonMap("data", Boolean.FALSE.toString()))).localNodeId("node0").masterNodeId("node0")
-                    .put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4"))).build();
+                            .put(newNode("node0", singletonMap("data", Boolean.FALSE.toString()))).localNodeId("node0").masterNodeId("node0")
+                            .put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4"))).build();
             // allocate shards
             clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
             // start primaries
@@ -209,8 +211,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
 
             // manually trigger a clusterChanged event on routingService
             ClusterState newState = clusterState;
-            // create fake cluster service
-            TestClusterService clusterService = new TestClusterService(newState, testThreadPool);
+            setState(clusterService, newState);
             // create routing service, also registers listener on cluster service
             RoutingService routingService = new RoutingService(Settings.EMPTY, testThreadPool, clusterService, allocation);
             routingService.start(); // just so performReroute does not prematurely return
@@ -221,11 +222,12 @@ public class RoutingServiceTests extends ESAllocationTestCase {
             clusterService.addLast(event -> latch.countDown());
             // instead of clusterService calling clusterChanged, we call it directly here
             routingService.clusterChanged(new ClusterChangedEvent("test", newState, prevState));
-             // cluster service should have updated state and called routingService with clusterChanged
+            // cluster service should have updated state and called routingService with clusterChanged
             latch.await();
             // verify the registration has been set to the delay of longDelayReplica/longDelayUnassignedReplica
             assertThat(routingService.getMinDelaySettingAtLastSchedulingNanos(), equalTo(TimeValue.timeValueSeconds(10).nanos()));
         } finally {
+            clusterService.stop();
             terminate(testThreadPool);
         }
     }

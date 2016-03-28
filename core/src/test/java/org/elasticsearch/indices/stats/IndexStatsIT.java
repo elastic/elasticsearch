@@ -58,8 +58,10 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Random;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.PROTO;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -79,13 +81,23 @@ public class IndexStatsIT extends ESIntegTestCase {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
-                .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
-                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), IndexModule.INDEX_QUERY_CACHE)
                 .build();
     }
 
+    @Override
+    public Settings indexSettings() {
+        return Settings.settingsBuilder().put(super.indexSettings())
+            .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
+            .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), IndexModule.INDEX_QUERY_CACHE)
+            .build();
+    }
+
+    private Settings.Builder settingsBuilder() {
+        return Settings.builder().put(indexSettings());
+    }
+
     public void testFieldDataStats() {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
         ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
@@ -130,7 +142,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testClearAllCaches() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
+                .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .execute().actionGet();
         ensureGreen();
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -276,7 +288,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testNonThrottleStats() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder()
+                .setSettings(settingsBuilder()
                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "merge")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
@@ -308,7 +320,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testThrottleStats() throws Exception {
         assertAcked(prepareCreate("test")
-                    .setSettings(Settings.builder()
+                    .setSettings(settingsBuilder()
                                  .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "merge")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
@@ -564,6 +576,10 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         IndicesStatsResponse stats = builder.execute().actionGet();
         for (Flag flag : values) {
+            if (flag == Flag.Suggest) {
+                // suggest flag is unused
+                continue;
+            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
@@ -599,6 +615,10 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
 
         for (Flag flag : EnumSet.complementOf(flags)) { // check the complement
+            if (flag == Flag.Suggest) {
+                // suggest flag is unused
+                continue;
+            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
@@ -650,7 +670,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments,
+                Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.PercolatorCache, Flag.Completion, Flag.Segments,
                 Flag.Translog, Flag.Suggest, Flag.RequestCache, Flag.Recovery};
 
         assertThat(flags.length, equalTo(Flag.values().length));
@@ -891,7 +911,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Warmer:
                 builder.setWarmer(set);
                 break;
-            case Percolate:
+            case PercolatorCache:
                 builder.setPercolate(set);
                 break;
             case Completion:
@@ -903,8 +923,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Translog:
                 builder.setTranslog(set);
                 break;
-            case Suggest:
-                builder.setSuggest(set);
+            case Suggest: // unused
                 break;
             case RequestCache:
                 builder.setRequestCache(set);
@@ -942,16 +961,16 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getStore() != null;
             case Warmer:
                 return response.getWarmer() != null;
-            case Percolate:
-                return response.getPercolate() != null;
+            case PercolatorCache:
+                return response.getPercolatorCache() != null;
             case Completion:
                 return response.getCompletion() != null;
             case Segments:
                 return response.getSegments() != null;
             case Translog:
                 return response.getTranslog() != null;
-            case Suggest:
-                return response.getSuggest() != null;
+            case Suggest: // unused
+                return true;
             case RequestCache:
                 return response.getRequestCache() != null;
             case Recovery:
@@ -988,7 +1007,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testFilterCacheStats() throws Exception {
-        assertAcked(prepareCreate("index").setSettings("number_of_replicas", 0).get());
+        assertAcked(prepareCreate("index").setSettings(Settings.builder().put(indexSettings()).put("number_of_replicas", 0).build()).get());
         indexRandom(true,
                 client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
                 client().prepareIndex("index", "type", "2").setSource("foo", "baz"));

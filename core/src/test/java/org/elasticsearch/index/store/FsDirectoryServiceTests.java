@@ -46,9 +46,9 @@ public class FsDirectoryServiceTests extends ESTestCase {
         IndexSettings settings = IndexSettingsModule.newIndexSettings("foo", build);
         IndexStoreConfig config = new IndexStoreConfig(build);
         IndexStore store = new IndexStore(settings, config);
-        Path tempDir = createTempDir().resolve("foo").resolve("0");
+        Path tempDir = createTempDir().resolve(settings.getUUID()).resolve("0");
         Files.createDirectories(tempDir);
-        ShardPath path = new ShardPath(false, tempDir, tempDir, settings.getUUID(), new ShardId(settings.getIndex(), 0));
+        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(settings.getIndex(), 0));
         FsDirectoryService fsDirectoryService = new FsDirectoryService(settings, store, path);
         Directory directory = fsDirectoryService.newDirectory();
         assertTrue(directory instanceof RateLimitedFSDirectory);
@@ -62,9 +62,9 @@ public class FsDirectoryServiceTests extends ESTestCase {
         IndexSettings settings = IndexSettingsModule.newIndexSettings("foo", build);
         IndexStoreConfig config = new IndexStoreConfig(build);
         IndexStore store = new IndexStore(settings, config);
-        Path tempDir = createTempDir().resolve("foo").resolve("0");
+        Path tempDir = createTempDir().resolve(settings.getUUID()).resolve("0");
         Files.createDirectories(tempDir);
-        ShardPath path = new ShardPath(false, tempDir, tempDir, settings.getUUID(), new ShardId(settings.getIndex(), 0));
+        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(settings.getIndex(), 0));
         FsDirectoryService fsDirectoryService = new FsDirectoryService(settings, store, path);
         Directory directory = fsDirectoryService.newDirectory();
         assertTrue(directory instanceof RateLimitedFSDirectory);

@@ -81,6 +81,10 @@ JAVA_OPTS="$JAVA_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 # Disables explicit GC
 JAVA_OPTS="$JAVA_OPTS -XX:+DisableExplicitGC"
 
+# Enable pre-touching of memory pages used by the JVM during hotspot
+# initialization
+JAVA_OPTS="$JAVA_OPTS -XX:+AlwaysPreTouch"
+
 # Ensure UTF-8 encoding by default (e.g. filenames)
 JAVA_OPTS="$JAVA_OPTS -Dfile.encoding=UTF-8"
 

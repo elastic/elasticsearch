@@ -63,7 +63,6 @@ import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
-import org.elasticsearch.percolator.PercolateException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException;
@@ -380,19 +379,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         long id = randomLong();
         SearchContextMissingException ex = serialize(new SearchContextMissingException(id));
         assertEquals(id, ex.id());
-    }
-
-    public void testPercolateException() throws IOException {
-        ShardId id = new ShardId("foo", "_na_", 1);
-        PercolateException ex = serialize(new PercolateException(id, "percolate my ass", null));
-        assertEquals(id, ex.getShardId());
-        assertEquals("percolate my ass", ex.getMessage());
-        assertNull(ex.getCause());
-
-        ex = serialize(new PercolateException(id, "percolate my ass", new NullPointerException()));
-        assertEquals(id, ex.getShardId());
-        assertEquals("percolate my ass", ex.getMessage());
-        assertTrue(ex.getCause() instanceof NullPointerException);
     }
 
     public void testRoutingValidationException() throws IOException {
@@ -746,7 +732,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(85, org.elasticsearch.index.AlreadyExpiredException.class);
         ids.put(86, org.elasticsearch.search.aggregations.AggregationExecutionException.class);
         ids.put(88, org.elasticsearch.indices.InvalidIndexTemplateException.class);
-        ids.put(89, org.elasticsearch.percolator.PercolateException.class);
         ids.put(90, org.elasticsearch.index.engine.RefreshFailedEngineException.class);
         ids.put(91, org.elasticsearch.search.aggregations.AggregationInitializationException.class);
         ids.put(92, org.elasticsearch.indices.recovery.DelayRecoveryException.class);

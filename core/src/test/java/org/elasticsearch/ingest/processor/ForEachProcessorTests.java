@@ -20,9 +20,12 @@
 package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.ingest.core.TemplateService;
+import org.elasticsearch.ingest.core.ValueSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -118,6 +121,42 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("values.1.index", String.class), equalTo("_index"));
         assertThat(ingestDocument.getFieldValue("values.1.type", String.class), equalTo("_type"));
         assertThat(ingestDocument.getFieldValue("values.1.id", String.class), equalTo("_id"));
+    }
+
+    public void testRestOfTheDocumentIsAvailable() throws Exception {
+        List<Map<String, Object>> values = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            Map<String, Object> object = new HashMap<>();
+            object.put("field", "value");
+            values.add(object);
+        }
+        Map<String, Object> document = new HashMap<>();
+        document.put("values", values);
+        document.put("flat_values", new ArrayList<>());
+        document.put("other", "value");
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, null, document);
+
+        TemplateService ts = TestTemplateService.instance();
+        ForEachProcessor processor = new ForEachProcessor(
+                "_tag", "values", Arrays.asList(
+                new AppendProcessor("_tag", ts.compile("flat_values"), ValueSource.wrap("value", ts)),
+                new SetProcessor("_tag", ts.compile("_value.new_field"), (model) -> model.get("other")))
+        );
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getFieldValue("values.0.new_field", String.class), equalTo("value"));
+        assertThat(ingestDocument.getFieldValue("values.1.new_field", String.class), equalTo("value"));
+        assertThat(ingestDocument.getFieldValue("values.2.new_field", String.class), equalTo("value"));
+        assertThat(ingestDocument.getFieldValue("values.3.new_field", String.class), equalTo("value"));
+        assertThat(ingestDocument.getFieldValue("values.4.new_field", String.class), equalTo("value"));
+
+        List<String> flatValues = ingestDocument.getFieldValue("flat_values", List.class);
+        assertThat(flatValues.size(), equalTo(5));
+        assertThat(flatValues.get(0), equalTo("value"));
+        assertThat(flatValues.get(1), equalTo("value"));
+        assertThat(flatValues.get(2), equalTo("value"));
+        assertThat(flatValues.get(3), equalTo("value"));
+        assertThat(flatValues.get(4), equalTo("value"));
     }
 
     public void testRandom() throws Exception {

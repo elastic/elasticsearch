@@ -112,7 +112,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
                 logger.error("failed to execute pipeline for a bulk request", throwable);
                 listener.onFailure(throwable);
             } else {
-                long ingestTookInMillis = TimeUnit.MILLISECONDS.convert(System.nanoTime() - ingestStartTimeInNanos, TimeUnit.NANOSECONDS);
+                long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
                 BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
                 ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, listener);
                 if (bulkRequest.requests().isEmpty()) {

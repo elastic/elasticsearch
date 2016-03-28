@@ -49,7 +49,7 @@ import java.util.Map;
  * be stored as payloads to numeric doc values.
  */
 public final class ElasticsearchMergePolicy extends MergePolicy {
-    
+
     private static ESLogger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
 
     private final MergePolicy delegate;
@@ -69,7 +69,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
     /** Return an "upgraded" view of the reader. */
     static CodecReader filter(CodecReader reader) throws IOException {
-        // TODO: remove 0.90.x/1.x freqs/prox/payloads from _uid? 
+        // TODO: remove 0.90.x/1.x freqs/prox/payloads from _uid?
         // the previous code never did this, so some indexes carry around trash.
         return reader;
     }
@@ -155,7 +155,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
                     // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
                     // for now we just assume every minor upgrade has a new format.
-                    logger.debug("Adding segment " + info.info.name + " to be upgraded");
+                    logger.debug("Adding segment {} to be upgraded", info.info.name);
                     spec.add(new OneMerge(Collections.singletonList(info)));
                 }
 
@@ -163,14 +163,14 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
                 if (spec.merges.size() == MAX_CONCURRENT_UPGRADE_MERGES) {
                     // hit our max upgrades, so return the spec.  we will get a cascaded call to continue.
-                    logger.debug("Returning " + spec.merges.size() + " merges for upgrade");
+                    logger.debug("Returning {} merges for upgrade", spec.merges.size());
                     return spec;
                 }
             }
 
             // We must have less than our max upgrade merges, so the next return will be our last in upgrading mode.
             if (spec.merges.isEmpty() == false) {
-                logger.debug("Returning " + spec.merges.size() + " merges for end of upgrade");
+                logger.debug("Returning {} merges for end of upgrade", spec.merges.size());
                 return spec;
             }
 

@@ -172,6 +172,9 @@ public final class InternalTestCluster extends TestCluster {
     public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
 
 
+    static final int DEFAULT_MIN_NUM_MASTER_NODES = 1;
+    static final int DEFAULT_MAX_NUM_MASTER_NODES = 3;
+
     static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
     static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
 
@@ -199,7 +202,11 @@ public final class InternalTestCluster extends TestCluster {
      * fully shared cluster to be more reproducible */
     private final long[] sharedNodesSeeds;
 
-    private final int numSharedAllRolesNodes;
+
+    // if set to 0, data nodes will also assume the master role
+    private final int numSharedMasterNodes;
+
+    private final int numSharedDataNodes;
 
     private final int numShareCoordOnlyNodes;
 
@@ -220,6 +227,7 @@ public final class InternalTestCluster extends TestCluster {
     private Function<Client, Client> clientWrapper;
 
     public InternalTestCluster(String nodeMode, long clusterSeed, Path baseDir,
+                               int numMasterNodes,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
                                boolean enableHttpPipelining, String nodePrefix, Collection<Class<? extends Plugin>> mockPlugins, Function<Client, Client> clientWrapper) {
         super(clusterSeed);
@@ -240,13 +248,23 @@ public final class InternalTestCluster extends TestCluster {
 
         Random random = new Random(clusterSeed);
 
-        this.numSharedAllRolesNodes = RandomInts.randomIntBetween(random, minNumDataNodes, maxNumDataNodes);
-        assert this.numSharedAllRolesNodes >= 0;
+        this.numSharedDataNodes = RandomInts.randomIntBetween(random, minNumDataNodes, maxNumDataNodes);
+        assert this.numSharedDataNodes >= 0;
 
-        //for now all shared data nodes are also master eligible
-        if (numSharedAllRolesNodes == 0) {
+        if (numSharedDataNodes == 0) {
             this.numShareCoordOnlyNodes = 0;
+            this.numSharedMasterNodes = 0;
         } else {
+            if (numMasterNodes < 0) {
+                if (random.nextBoolean()) {
+                    this.numSharedMasterNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_MASTER_NODES, DEFAULT_MAX_NUM_MASTER_NODES);
+                } else {
+                    // data nodes will assume the master role
+                    this.numSharedMasterNodes = 0;
+                }
+            } else {
+                this.numSharedMasterNodes = numMasterNodes;
+            }
             if (numClientNodes < 0) {
                 this.numShareCoordOnlyNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_CLIENT_NODES, DEFAULT_MAX_NUM_CLIENT_NODES);
             } else {
@@ -260,19 +278,15 @@ public final class InternalTestCluster extends TestCluster {
         assert nodePrefix != null;
         this.mockPlugins = mockPlugins;
 
-        /*
-         *  TODO
-         *  - we might want start some master only nodes?
-         *  - we could add a flag that returns a client to the master all the time?
-         *  - we could add a flag that never returns a client to the master
-         *  - along those lines use a dedicated node that is master eligible and let all other nodes be only data nodes
-         */
-        sharedNodesSeeds = new long[numSharedAllRolesNodes + numShareCoordOnlyNodes];
+        sharedNodesSeeds = new long[numSharedMasterNodes + numSharedDataNodes + numShareCoordOnlyNodes];
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
             sharedNodesSeeds[i] = random.nextLong();
         }
 
-        logger.info("Setup InternalTestCluster [{}] with seed [{}] using [{}] data nodes and [{}] client nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedAllRolesNodes, numShareCoordOnlyNodes);
+        logger.info("Setup InternalTestCluster [{}] with seed [{}] using [{}] dedicated masters, " +
+                "[{}] (data) nodes and [{}] coord nodes",
+            clusterName, SeedUtils.formatSeed(clusterSeed),
+            numSharedMasterNodes, numSharedDataNodes, numShareCoordOnlyNodes);
         this.nodeConfigurationSource = nodeConfigurationSource;
         Builder builder = Settings.builder();
         if (random.nextInt(5) == 0) { // sometimes set this
@@ -559,21 +573,26 @@ public final class InternalTestCluster extends TestCluster {
 
     private NodeAndClient buildNode(Settings settings, Version version) {
         int ord = nextNodeId.getAndIncrement();
-        return buildNode(ord, random.nextLong(), settings, version);
+        return buildNode(ord, random.nextLong(), settings, version, false);
     }
 
     private NodeAndClient buildNode() {
         int ord = nextNodeId.getAndIncrement();
-        return buildNode(ord, random.nextLong(), null, Version.CURRENT);
+        return buildNode(ord, random.nextLong(), null, Version.CURRENT, false);
     }
 
-    private NodeAndClient buildNode(int nodeId, long seed, Settings settings, Version version) {
+    private NodeAndClient buildNode(int nodeId, long seed, Settings settings, Version version, boolean reuseExisting) {
         assert Thread.holdsLock(this);
         ensureOpen();
         settings = getSettings(nodeId, seed, settings);
         Collection<Class<? extends Plugin>> plugins = getPlugins();
-        String name = buildNodeName(nodeId);
-        assert !nodes.containsKey(name);
+        String name = buildNodeName(nodeId, settings);
+        if (reuseExisting && nodes.containsKey(name)) {
+            return nodes.get(name);
+        } else {
+            assert reuseExisting == true || nodes.containsKey(name) == false :
+                "node name [" + name + "] already exists but not allowed to use it";
+        }
         Settings finalSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
                 .put(settings)
@@ -584,8 +603,20 @@ public final class InternalTestCluster extends TestCluster {
         return new NodeAndClient(name, node);
     }
 
-    private String buildNodeName(int id) {
-        return nodePrefix + id;
+    private String buildNodeName(int id, Settings settings) {
+        String prefix = nodePrefix;
+        if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings)) {
+            prefix = prefix + "m";
+        }
+        if (Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings)) {
+            prefix = prefix + "d";
+        }
+        if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings) == false &&
+            Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings) == false
+            ) {
+            prefix = prefix + "c";
+        }
+        return prefix + id;
     }
 
     /**
@@ -923,39 +954,35 @@ public final class InternalTestCluster extends TestCluster {
 
 
         Set<NodeAndClient> sharedNodes = new HashSet<>();
-        assert sharedNodesSeeds.length == numSharedAllRolesNodes + numShareCoordOnlyNodes;
-        boolean changed = false;
-        for (int i = 0; i < numSharedAllRolesNodes; i++) {
-            String buildNodeName = buildNodeName(i);
-            NodeAndClient nodeAndClient = nodes.get(buildNodeName);
-            if (nodeAndClient == null) {
-                changed = true;
-                nodeAndClient = buildNode(i, sharedNodesSeeds[i], null, Version.CURRENT);
-                nodeAndClient.node.start();
-                logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
-            }
+        assert sharedNodesSeeds.length == numSharedMasterNodes + numSharedDataNodes + numShareCoordOnlyNodes;
+        for (int i = 0; i < numSharedMasterNodes; i++) {
+            final Settings.Builder settings = Settings.builder();
+            settings.put(Node.NODE_MASTER_SETTING.getKey(), true).build();
+            settings.put(Node.NODE_DATA_SETTING.getKey(), false).build();
+            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), Version.CURRENT, true);
+            nodeAndClient.node().start();
             sharedNodes.add(nodeAndClient);
         }
-        for (int i = numSharedAllRolesNodes; i < numSharedAllRolesNodes + numShareCoordOnlyNodes; i++) {
-            String buildNodeName = buildNodeName(i);
-            NodeAndClient nodeAndClient = nodes.get(buildNodeName);
-            if (nodeAndClient == null) {
-                changed = true;
-                Builder clientSettingsBuilder = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
-                    .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
-                nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
-                nodeAndClient.node.start();
-                logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
+        for (int i = numSharedMasterNodes; i < numSharedMasterNodes + numSharedDataNodes; i++) {
+            final Settings.Builder settings = Settings.builder();
+            if (numSharedMasterNodes > 0) {
+                // if we don't have dedicated master nodes, keep things default
+                settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
+                settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
             }
+            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), Version.CURRENT, true);
+            nodeAndClient.node().start();
             sharedNodes.add(nodeAndClient);
         }
-        if (!changed && sharedNodes.size() == nodes.size()) {
-            logger.debug("Cluster is consistent - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
-            if (size() > 0) {
-                client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(sharedNodesSeeds.length)).get();
-            }
-            return; // we are consistent - return
+        for (int i = numSharedMasterNodes + numSharedDataNodes;
+             i < numSharedMasterNodes + numSharedDataNodes + numShareCoordOnlyNodes; i++) {
+            final Builder settings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
+            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), Version.CURRENT, true);
+            nodeAndClient.node().start();
+            sharedNodes.add(nodeAndClient);
         }
+
         for (NodeAndClient nodeAndClient : sharedNodes) {
             nodes.remove(nodeAndClient.name);
         }

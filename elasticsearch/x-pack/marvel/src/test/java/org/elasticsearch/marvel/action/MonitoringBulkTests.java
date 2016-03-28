@@ -17,6 +17,7 @@ import org.elasticsearch.search.SearchHit;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -64,7 +65,9 @@ public class MonitoringBulkTests extends MarvelIntegTestCase {
      * This test creates N threads that execute a random number of monitoring bulk requests.
      */
     public void testConcurrentRequests() throws Exception {
-        final Thread[] threads = new Thread[3 + randomInt(7)];
+        final int numberThreads = randomIntBetween(3, 10);
+        final Thread[] threads = new Thread[numberThreads];
+        final CountDownLatch latch = new CountDownLatch(numberThreads + 1);
         final List<Throwable> exceptions = new CopyOnWriteArrayList<>();
 
         AtomicInteger total = new AtomicInteger(0);
@@ -82,6 +85,8 @@ public class MonitoringBulkTests extends MarvelIntegTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
+                    latch.countDown();
+                    latch.await();
                     for (int j = 0; j < nbRequests; j++) {
                         MonitoringBulkRequestBuilder requestBuilder = monitoringClient().prepareMonitoringBulk();
 
@@ -102,6 +107,11 @@ public class MonitoringBulkTests extends MarvelIntegTestCase {
             threads[i].start();
         }
 
+        // wait for all threads to be ready
+        latch.countDown();
+        latch.await();
+
+        // wait for all threads to finish
         for (Thread thread : threads) {
             thread.join();
         }

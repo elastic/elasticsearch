@@ -65,14 +65,20 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() +
-                "role1:user1,user3\n" +
-                "role2:user2,user3\n";
+                "role1:user1,user2,user3\n" +
+                "role2:user1,user3\n" +
+                "role3:user2,user3\n";
     }
 
     @Override
     protected String configRoles() {
         return super.configRoles() +
                 "\nrole1:\n" +
+                "  cluster: [ none ]\n" +
+                "  indices:\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ none ]\n" +
+                "\nrole2:\n" +
                 "  cluster:\n" +
                 "    - all\n" +
                 "  indices:\n" +
@@ -82,7 +88,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 "      query: \n" +
                 "        term: \n" +
                 "          field1: value1\n" +
-                "role2:\n" +
+                "role3:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +

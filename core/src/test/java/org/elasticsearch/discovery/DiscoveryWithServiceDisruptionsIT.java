@@ -893,10 +893,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertNoMaster(nonMasterNode);
 
         logger.info("blocking cluster state publishing from master [{}] to non master [{}]", masterNode, nonMasterNode);
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class,
-                masterNode);
-        TransportService localTransportService = internalCluster().getInstance(TransportService.class, discoveryNodes.localNode().getName
-                ());
+        MockTransportService masterTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
+        TransportService localTransportService =
+            internalCluster().getInstance(TransportService.class, discoveryNodes.localNode().getName());
         if (randomBoolean()) {
             masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME);
         } else {

@@ -668,19 +668,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         final ClusterState finalState = states.get(numOfStates - 1);
-        Collections.shuffle(states, random());
-
-        List<ClusterState> orderedSubsequence = new ArrayList<>();
-        long version = 0;
-        for (ClusterState state : states) {
-            if (state.version() >= version) {
-                orderedSubsequence.add(state);
-                version = state.version();
-            }
-        }
 
         logger.info("--> publishing states");
-        for (ClusterState state : orderedSubsequence) {
+        for (ClusterState state : states) {
             node.action.handleIncomingClusterStateRequest(
                     new BytesTransportRequest(PublishClusterStateAction.serializeFullClusterState(state, Version.CURRENT), Version.CURRENT),
                     channel);
@@ -691,8 +681,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         logger.info("--> committing states");
 
-        Randomness.shuffle(orderedSubsequence);
-        for (ClusterState state : orderedSubsequence) {
+        Randomness.shuffle(states);
+        for (ClusterState state : states) {
             node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state.stateUUID()), channel);
             assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
             if (channel.error.get() != null) {

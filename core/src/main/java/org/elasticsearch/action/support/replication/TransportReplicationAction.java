@@ -1055,6 +1055,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                                     }
                                                     forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
                                                 } else {
+                                                    // these can occur if the node is shutting down and are okay
+                                                    // any other exception here is not expected and merits investigation
                                                     assert shardFailedError instanceof TransportException ||
                                                             shardFailedError instanceof NodeClosedException : shardFailedError;
                                                     onReplicaFailure(nodeId, exp);

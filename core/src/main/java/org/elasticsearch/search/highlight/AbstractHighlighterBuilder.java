@@ -26,6 +26,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,11 +34,12 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.highlight.HighlightBuilder.Order;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+
+import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 
 /**
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
@@ -49,7 +51,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final ParseField ORDER_FIELD = new ParseField("order");
-    public static final ParseField TAGS_SCHEMA_FIELD = new ParseField("tags_schema");
     public static final ParseField HIGHLIGHT_FILTER_FIELD = new ParseField("highlight_filter");
     public static final ParseField FRAGMENT_SIZE_FIELD = new ParseField("fragment_size");
     public static final ParseField FRAGMENT_OFFSET_FIELD = new ParseField("fragment_offset");
@@ -444,99 +445,49 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
     }
 
-    /**
-     * Creates a new {@link HighlightBuilder} from the highlighter held by the {@link QueryParseContext}
-     * in {@link org.elasticsearch.common.xcontent.XContent} format
-     *
-     * @param parseContext containing the parser positioned at the structure to be parsed from.
-     * the state on the parser contained in this context will be changed as a side effect of this
-     * method call
-     * @return the new {@link AbstractHighlighterBuilder}
-     */
-    public HB fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-        XContentParser.Token token = parser.currentToken();
-        String currentFieldName = null;
-        HB highlightBuilder = createInstance(parser);
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, PRE_TAGS_FIELD)) {
-                    List<String> preTagsList = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        preTagsList.add(parser.text());
-                    }
-                    highlightBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, POST_TAGS_FIELD)) {
-                    List<String> postTagsList = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        postTagsList.add(parser.text());
-                    }
-                    highlightBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
-                } else if (false == highlightBuilder.doFromXContent(parseContext, currentFieldName, token)) {
-                    throw new ParsingException(parser.getTokenLocation(), "cannot parse array with name [{}]", currentFieldName);
-                }
-            } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, ORDER_FIELD)) {
-                    highlightBuilder.order(Order.fromString(parser.text()));
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FILTER_FIELD)) {
-                    highlightBuilder.highlightFilter(parser.booleanValue());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_SIZE_FIELD)) {
-                    highlightBuilder.fragmentSize(parser.intValue());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NUMBER_OF_FRAGMENTS_FIELD)) {
-                    highlightBuilder.numOfFragments(parser.intValue());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, REQUIRE_FIELD_MATCH_FIELD)) {
-                    highlightBuilder.requireFieldMatch(parser.booleanValue());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_MAX_SCAN_FIELD)) {
-                    highlightBuilder.boundaryMaxScan(parser.intValue());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_CHARS_FIELD)) {
-                    highlightBuilder.boundaryChars(parser.text().toCharArray());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
-                    highlightBuilder.highlighterType(parser.text());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENTER_FIELD)) {
-                    highlightBuilder.fragmenter(parser.text());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_SIZE_FIELD)) {
-                    highlightBuilder.noMatchSize(parser.intValue());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FORCE_SOURCE_FIELD)) {
-                    highlightBuilder.forceSource(parser.booleanValue());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PHRASE_LIMIT_FIELD)) {
-                    highlightBuilder.phraseLimit(parser.intValue());
-                } else if (false == highlightBuilder.doFromXContent(parseContext, currentFieldName, token)) {
-                    throw new ParsingException(parser.getTokenLocation(), "unexpected fieldname [{}]", currentFieldName);
-                }
-            } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIONS_FIELD)) {
-                    highlightBuilder.options(parser.map());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_QUERY_FIELD)) {
-                    highlightBuilder.highlightQuery(parseContext.parseInnerQueryBuilder());
-                } else if (false == highlightBuilder.doFromXContent(parseContext, currentFieldName, token)) {
-                    throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", currentFieldName);
-                }
-            } else if (currentFieldName != null) {
-                throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] after [{}]", token, currentFieldName);
+    static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<QueryParseContext, HB, HB> setupParser(
+            ObjectParser<HB, QueryParseContext> parser) {
+        parser.declareStringArray(fromList(String.class, HB::preTags), PRE_TAGS_FIELD);
+        parser.declareStringArray(fromList(String.class, HB::postTags), POST_TAGS_FIELD);
+        parser.declareString(HB::order, ORDER_FIELD);
+        parser.declareBoolean(HB::highlightFilter, HIGHLIGHT_FILTER_FIELD);
+        parser.declareInt(HB::fragmentSize, FRAGMENT_SIZE_FIELD);
+        parser.declareInt(HB::numOfFragments, NUMBER_OF_FRAGMENTS_FIELD);
+        parser.declareBoolean(HB::requireFieldMatch, REQUIRE_FIELD_MATCH_FIELD);
+        parser.declareInt(HB::boundaryMaxScan, BOUNDARY_MAX_SCAN_FIELD);
+        parser.declareString((HB hb, String bc) -> hb.boundaryChars(bc.toCharArray()) , BOUNDARY_CHARS_FIELD);
+        parser.declareString(HB::highlighterType, TYPE_FIELD);
+        parser.declareString(HB::fragmenter, FRAGMENTER_FIELD);
+        parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
+        parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
+        parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
+        parser.declareObject(HB::options, (XContentParser p, QueryParseContext c) -> {
+            try {
+                return p.map();
+            } catch (IOException e) {
+                throw new RuntimeException("Error parsing options", e);
             }
-        }
-
-        if (highlightBuilder.preTags() != null && highlightBuilder.postTags() == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Highlighter global preTags are set, but global postTags are not set");
-        }
-        return highlightBuilder;
+        }, OPTIONS_FIELD);
+        parser.declareObject(HB::highlightQuery, (XContentParser p, QueryParseContext c) -> {
+            try {
+                return c.parseInnerQueryBuilder();
+            } catch (IOException e) {
+                throw new RuntimeException("Error parsing query", e);
+            }
+        }, HIGHLIGHT_QUERY_FIELD);
+        return (QueryParseContext c, HB hb) -> {
+            try {
+                parser.parse(c.parser(), hb, c);
+                if (hb.preTags() != null && hb.postTags() == null) {
+                    throw new ParsingException(c.parser().getTokenLocation(),
+                            "pre_tags are set but post_tags are not set");
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return hb;
+        };
     }
-
-    /**
-     * @param parser the input parser. Implementing classes might advance the parser depending on the
-     * information they need to instantiate a new instance
-     * @return a new instance
-     */
-    protected abstract HB createInstance(XContentParser parser) throws IOException;
-
-    /**
-     * Implementing subclasses can handle parsing special options depending on the
-     * current token, field name and the parse context.
-     * @return <tt>true</tt> if an option was found and successfully parsed, otherwise <tt>false</tt>
-     */
-    protected abstract boolean doFromXContent(QueryParseContext parseContext, String currentFieldName, XContentParser.Token endMarkerToken) throws IOException;
 
     @Override
     public final int hashCode() {

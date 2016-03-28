@@ -25,9 +25,16 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -43,6 +50,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
+
+import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 
 /**
  * A builder for search highlighting. Settings can control how large fields
@@ -157,6 +167,10 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return this;
     }
 
+    void fields(List<Field> fields) {
+        this.fields.addAll(fields);
+    }
+
     public List<Field> fields() {
         return this.fields;
     }
@@ -217,46 +231,25 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return this.useExplicitFieldOrder;
     }
 
-    /**
-     * parse options only present in top level highlight builder (`tags_schema`, `encoder` and nested `fields`)
-     */
     @Override
-    protected boolean doFromXContent(QueryParseContext parseContext, String currentFieldName, Token currentToken) throws IOException {
-        XContentParser parser = parseContext.parser();
-        XContentParser.Token token;
-        boolean foundCurrentFieldMatch = false;
-        if (currentToken.isValue()) {
-            if (parseContext.parseFieldMatcher().match(currentFieldName, TAGS_SCHEMA_FIELD)) {
-                tagsSchema(parser.text());
-                foundCurrentFieldMatch = true;
-            } else if (parseContext.parseFieldMatcher().match(currentFieldName, ENCODER_FIELD)) {
-                encoder(parser.text());
-                foundCurrentFieldMatch = true;
-            }
-        } else if (currentToken == Token.START_ARRAY && parseContext.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
-            useExplicitFieldOrder(true);
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            field(HighlightBuilder.Field.PROTOTYPE.fromXContent(parseContext));
-                        }
-                    }
-                    foundCurrentFieldMatch = true;
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "If highlighter fields is an array it must contain objects containing a single field");
-                }
-            }
-        } else if (currentToken == Token.START_OBJECT && parseContext.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    field(HighlightBuilder.Field.PROTOTYPE.fromXContent(parseContext));
-                }
-            }
-            foundCurrentFieldMatch = true;
-        }
-        return foundCurrentFieldMatch;
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerXContent(builder);
+        builder.endObject();
+        return builder;
+    }
+
+    private static final BiFunction<QueryParseContext, HighlightBuilder, HighlightBuilder> PARSER;
+    static {
+        ObjectParser<HighlightBuilder, QueryParseContext> parser = new ObjectParser<>("highlight");
+        parser.declareString(HighlightBuilder::tagsSchema, new ParseField("tags_schema"));
+        parser.declareString(HighlightBuilder::encoder, ENCODER_FIELD);
+        parser.declareNamedObjects(HighlightBuilder::fields, Field.PARSER, (HighlightBuilder hb) -> hb.useExplicitFieldOrder(true),
+                FIELDS_FIELD);
+        PARSER = setupParser(parser);
+    }
+    public static HighlightBuilder fromXContent(QueryParseContext c) {
+        return PARSER.apply(c, new HighlightBuilder());
     }
 
     public SearchContextHighlight build(QueryShardContext context) throws IOException {
@@ -389,11 +382,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     }
 
     @Override
-    protected HighlightBuilder createInstance(XContentParser parser) {
-        return new HighlightBuilder();
-    }
-
-    @Override
     protected int doHashCode() {
         return Objects.hash(encoder, useExplicitFieldOrder, fields);
     }
@@ -431,6 +419,14 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     public static class Field extends AbstractHighlighterBuilder<Field> implements Writeable<Field> {
         static final Field PROTOTYPE = new Field("_na_");
+        static final NamedObjectParser<Field, QueryParseContext> PARSER;
+        static {
+            ObjectParser<Field, QueryParseContext> parser = new ObjectParser<>("highlight_field");
+            parser.declareInt(Field::fragmentOffset, FRAGMENT_OFFSET_FIELD);
+            parser.declareStringArray(fromList(String.class, Field::matchedFields), MATCHED_FIELDS_FIELD);
+            BiFunction<QueryParseContext, Field, Field> decoratedParser = setupParser(parser);
+            PARSER = (XContentParser p, QueryParseContext c, String name) -> decoratedParser.apply(c, new Field(name));
+        }
 
         private final String name;
 
@@ -474,39 +470,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 builder.field(MATCHED_FIELDS_FIELD.getPreferredName(), matchedFields);
             }
             builder.endObject();
-        }
-
-        /**
-         * parse options only present in field highlight builder (`fragment_offset`, `matched_fields`)
-         */
-        @Override
-        protected boolean doFromXContent(QueryParseContext parseContext, String currentFieldName, Token currentToken) throws IOException {
-            XContentParser parser = parseContext.parser();
-            boolean foundCurrentFieldMatch = false;
-            if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_OFFSET_FIELD) && currentToken.isValue()) {
-                fragmentOffset(parser.intValue());
-                foundCurrentFieldMatch = true;
-            } else if (parseContext.parseFieldMatcher().match(currentFieldName, MATCHED_FIELDS_FIELD)
-                    && currentToken == XContentParser.Token.START_ARRAY) {
-                List<String> matchedFields = new ArrayList<>();
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    matchedFields.add(parser.text());
-                }
-                matchedFields(matchedFields.toArray(new String[matchedFields.size()]));
-                foundCurrentFieldMatch = true;
-            }
-            return foundCurrentFieldMatch;
-        }
-
-        @Override
-        protected Field createInstance(XContentParser parser) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                String fieldname = parser.currentName();
-                return new Field(fieldname);
-            } else {
-                throw new ParsingException(parser.getTokenLocation(), "unknown token type [{}], expected field name",
-                        parser.currentToken());
-            }
         }
 
         @Override

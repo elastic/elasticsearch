@@ -66,15 +66,15 @@ public class ShieldLicenseeTests extends AbstractLicenseeTestCase {
         assertEmptyAck(randomMode(), randomTrialOrPlatinumMode(), this::buildLicensee);
     }
 
-    public void testAcknowledgementMessagesFromTrialGoldOrPlatinumToBasicNotesLimits() {
-        String[] messages = ackLicenseChange(randomTrialGoldOrPlatinumMode(), OperationMode.BASIC, this::buildLicensee);
+    public void testAcknowledgementMessagesFromTrialStandardGoldOrPlatinumToBasicNotesLimits() {
+        String[] messages = ackLicenseChange(randomTrialStandardGoldOrPlatinumMode(), OperationMode.BASIC, this::buildLicensee);
 
         // leaving messages up to inspection
         assertThat(messages.length, equalTo(3));
     }
 
-    public void testAcknowledgementMessagesFromTrialOrPlatinumToGoldNotesLimits() {
-        String[] messages = ackLicenseChange(randomTrialOrPlatinumMode(), OperationMode.GOLD, this::buildLicensee);
+    public void testAcknowledgementMessagesFromBasicStandardTrialOrPlatinumToGoldNotesLimits() {
+        String[] messages = ackLicenseChange(randomModeExcept(OperationMode.GOLD), OperationMode.GOLD, this::buildLicensee);
 
         // leaving messages up to inspection
         assertThat(messages.length, equalTo(2));

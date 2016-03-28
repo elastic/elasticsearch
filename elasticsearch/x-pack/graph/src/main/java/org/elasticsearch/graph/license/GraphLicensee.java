@@ -35,6 +35,7 @@ public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
     public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
         switch (newLicense.operationMode()) {
             case BASIC:
+            case STANDARD:
             case GOLD:
                 if (currentLicense != null) {
                     switch (currentLicense.operationMode()) {

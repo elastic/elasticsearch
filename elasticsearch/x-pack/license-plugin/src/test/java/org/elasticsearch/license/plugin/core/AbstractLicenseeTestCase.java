@@ -107,12 +107,13 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
     }
 
     /**
-     * Randomly get {@link OperationMode#TRIAL}, {@link OperationMode#GOLD}, or {@link OperationMode#PLATINUM}.
+     * Randomly get {@link OperationMode#TRIAL}, {@link OperationMode#STANDARD}, {@link OperationMode#GOLD}, or
+     * {@link OperationMode#PLATINUM}.
      *
      * @return Never {@code null}.
      */
-    public static OperationMode randomTrialGoldOrPlatinumMode() {
-        return randomFrom(OperationMode.TRIAL, OperationMode.GOLD, OperationMode.PLATINUM);
+    public static OperationMode randomTrialStandardGoldOrPlatinumMode() {
+        return randomFrom(OperationMode.TRIAL, OperationMode.STANDARD, OperationMode.GOLD, OperationMode.PLATINUM);
     }
 
     /**

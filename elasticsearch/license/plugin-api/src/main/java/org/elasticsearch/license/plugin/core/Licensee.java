@@ -45,7 +45,8 @@ public interface Licensee {
      * whenever checking different parts of the {@code Status}:
      * <pre>
      * Status status = this.status;
-     * return status.getLicenseState().isActive() &amp;&amp; status.getMode().isPaid();
+     * return status.getLicenseState() != LicenseState.DISABLED &amp;&amp;
+     *        (status.getMode() == OperationMode.TRAIL || status.getMode == OperationMode.PLATINUM);
      * </pre>
      * Otherwise the license has the potential to change in-between both checks.
      */

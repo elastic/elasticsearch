@@ -54,6 +54,7 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
                 if (currentLicense != null) {
                     switch (currentLicense.operationMode()) {
                         case TRIAL:
+                        case STANDARD:
                         case GOLD:
                         case PLATINUM:
                             return new String[] {
@@ -101,12 +102,8 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
     /**
      * Determine if the current license allows the retention of indices to be modified.
      * <p>
-     * Only users with the following license types can update the retention period:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM}</li>
-     * <li>{@link OperationMode#GOLD}</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
+     * Only users with a non-{@link OperationMode#BASIC} license can update the retention period.
+     * <p>
      * Note: This does not consider the <em>state</em> of the license so that any change is remembered for when they fix their license.
      *
      * @return {@code true} if the user is allowed to modify the retention. Otherwise {@code false}.

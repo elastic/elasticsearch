@@ -44,6 +44,7 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
                 if (currentLicense != null) {
                     switch (currentLicense.operationMode()) {
                         case TRIAL:
+                        case STANDARD:
                         case GOLD:
                         case PLATINUM:
                             return new String[] { "Watcher will be disabled" };
@@ -73,6 +74,7 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
      * <ul>
      * <li>{@link OperationMode#PLATINUM}</li>
      * <li>{@link OperationMode#GOLD}</li>
+     * <li>{@link OperationMode#STANDARD}</li>
      * <li>{@link OperationMode#TRIAL}</li>
      * </ul>
      *
@@ -82,9 +84,6 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
         // status is volatile, so a local variable is used for a consistent view
         Status localStatus = status;
 
-        OperationMode operationMode = localStatus.getMode();
-        boolean licensed = operationMode == TRIAL || operationMode == GOLD || operationMode == PLATINUM;
-
-        return licensed && localStatus.getLicenseState() != LicenseState.DISABLED;
+        return localStatus.getLicenseState() != LicenseState.DISABLED && localStatus.getMode() != OperationMode.BASIC;
     }
 }

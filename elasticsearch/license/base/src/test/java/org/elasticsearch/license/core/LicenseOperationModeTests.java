@@ -28,6 +28,11 @@ public class LicenseOperationModeTests extends ESTestCase {
         assertResolve(OperationMode.BASIC, "bAsIc", "basic");
     }
 
+    public void testResolveStandard() {
+        // assert expected (2.x+) variant (note: no 1.x variant of STANDARD)
+        assertResolve(OperationMode.STANDARD, "StAnDARd", "standard");
+    }
+
     public void testResolveGold() {
         // assert expected (2.x+) variant (note: no different 1.x variant of GOLD)
         assertResolve(OperationMode.GOLD, "SiLvEr", "gOlD", "silver", "gold");
@@ -41,8 +46,7 @@ public class LicenseOperationModeTests extends ESTestCase {
     }
 
     public void testResolveUnknown() {
-        // standard will hopefully trip the upcoming standard license to add the test here for FWC
-        String[] types = { "standard", "unknown", "fake" };
+        String[] types = { "unknown", "fake" };
 
         for (String type : types) {
             try {

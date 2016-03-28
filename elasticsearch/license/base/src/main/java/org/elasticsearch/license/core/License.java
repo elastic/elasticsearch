@@ -80,6 +80,7 @@ public class License implements ToXContent {
     public enum OperationMode {
         TRIAL,
         BASIC,
+        STANDARD,
         GOLD,
         PLATINUM;
 
@@ -92,6 +93,8 @@ public class License implements ToXContent {
                     return TRIAL;
                 case "basic":
                     return BASIC;
+                case "standard":
+                    return STANDARD;
                 case "silver":
                 case "gold":
                     return GOLD;

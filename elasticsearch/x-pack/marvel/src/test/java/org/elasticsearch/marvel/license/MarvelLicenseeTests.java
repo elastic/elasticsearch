@@ -6,7 +6,6 @@
 package org.elasticsearch.marvel.license;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeTestCase;
 import org.elasticsearch.license.plugin.core.LicenseState;
@@ -35,7 +34,7 @@ public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
     }
 
     public void testAcknowledgementMessagesToTrialGoldOrPlatinumFromAnyIsNoOp() {
-        assertEmptyAck(randomMode(), randomTrialGoldOrPlatinumMode(), licensee);
+        assertEmptyAck(randomMode(), randomTrialStandardGoldOrPlatinumMode(), licensee);
     }
 
     public void testAcknowledgementMessagesToBasicFromNotBasicNotesLimits() {

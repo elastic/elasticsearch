@@ -51,27 +51,30 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
                 if (currentLicense != null) {
                     switch (currentLicense.operationMode()) {
                         case TRIAL:
+                        case STANDARD:
                         case GOLD:
                         case PLATINUM:
-                           return new String[] {
+                            return new String[] {
                                 "The following Shield functionality will be disabled: authentication, authorization, ip filtering, " +
                                 "auditing, SSL will be disabled on node restart. Please restart your node after applying the license.",
                                 "Field and document level access control will be disabled",
                                 "Custom realms will be ignored"
-                        };
+                            };
                     }
                 }
                 break;
             case GOLD:
                 if (currentLicense != null) {
                     switch (currentLicense.operationMode()) {
-                        case BASIC: // though technically it was already disabled, it's not bad to remind them
+                        case BASIC:
+                        case STANDARD:
+                        // ^^ though technically it was already disabled, it's not bad to remind them
                         case TRIAL:
                         case PLATINUM:
                             return new String[] {
                                 "Field and document level access control will be disabled",
                                 "Custom realms will be ignored"
-                        };
+                            };
                     }
                 }
                 break;
@@ -84,7 +87,7 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
         // we rely on the initial licensee state to be enabled with trial operation mode
         // to ensure no operation is blocked due to not registering the licensee on a
         // tribe node
-        if (!isTribeNode) {
+        if (isTribeNode == false) {
             super.doStart();
         }
     }

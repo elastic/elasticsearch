@@ -638,7 +638,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 expectThrows(IllegalStateException.class, () -> node.action.validateIncomingState(incomingState, node.clusterState));
         final String message = String.format(
                 Locale.ROOT,
-                "received older cluster state version [%s] with uuid [%s] than last seen cluster state [%s] with uuid [%s]",
+                "received older cluster state version [%s] from current master with uuid [%s] than last seen cluster state [%s] from current master with uuid [%s]",
                 incomingState.version(),
                 incomingState.stateUUID(),
                 node.clusterState.version(),

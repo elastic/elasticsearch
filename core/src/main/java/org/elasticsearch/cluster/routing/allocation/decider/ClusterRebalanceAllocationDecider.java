@@ -78,7 +78,8 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             } else if ("indices_all_active".equalsIgnoreCase(typeString) || "indicesAllActive".equalsIgnoreCase(typeString)) {
                 return ClusterRebalanceType.INDICES_ALL_ACTIVE;
             }
-            throw new IllegalArgumentException("Illegal value for " + CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING + ": " + typeString);
+            throw new IllegalArgumentException("Illegal value for " +
+                            CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING + ": " + typeString);
         }
     }
 
@@ -90,10 +91,13 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         try {
             type = CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.get(settings);
         } catch (IllegalStateException e) {
-            logger.warn("[{}] has a wrong value {}, defaulting to 'indices_all_active'", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getRaw(settings));
+            logger.warn("[{}] has a wrong value {}, defaulting to 'indices_all_active'",
+                    CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
+                    CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getRaw(settings));
             type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
         }
-        logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), type.toString().toLowerCase(Locale.ROOT));
+        logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                type.toString().toLowerCase(Locale.ROOT));
 
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, this::setType);
     }
@@ -112,11 +116,13 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
             // check if there are unassigned primaries.
             if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
-                return allocation.decision(Decision.NO, NAME, "cluster has unassigned primary shards");
+                return allocation.decision(Decision.NO, NAME,
+                        "the cluster has unassigned primary shards and rebalance type is set to [%s]", type);
             }
             // check if there are initializing primaries that don't have a relocatingNodeId entry.
             if ( allocation.routingNodes().hasInactivePrimaries() ) {
-                return allocation.decision(Decision.NO, NAME, "cluster has inactive primary shards");
+                return allocation.decision(Decision.NO, NAME,
+                        "the cluster has inactive primary shards and rebalance type is set to [%s]", type);
             }
 
             return allocation.decision(Decision.YES, NAME, "all primary shards are active");
@@ -124,15 +130,17 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         if (type == ClusterRebalanceType.INDICES_ALL_ACTIVE) {
             // check if there are unassigned shards.
             if (allocation.routingNodes().hasUnassignedShards() ) {
-                return allocation.decision(Decision.NO, NAME, "cluster has unassigned shards");
+                return allocation.decision(Decision.NO, NAME,
+                        "the cluster has unassigned shards and rebalance type is set to [%s]", type);
             }
             // in case all indices are assigned, are there initializing shards which
             // are not relocating?
             if ( allocation.routingNodes().hasInactiveShards() ) {
-                return allocation.decision(Decision.NO, NAME, "cluster has inactive shards");
+                return allocation.decision(Decision.NO, NAME,
+                        "the cluster has inactive shards and rebalance type is set to [%s]", type);
             }
         }
         // type == Type.ALWAYS
-        return allocation.decision(Decision.YES, NAME, "all shards are active");
+        return allocation.decision(Decision.YES, NAME, "all shards are active, rebalance type is [%s]", type);
     }
 }

@@ -48,7 +48,7 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("took", getTook());
+        builder.field("took", getTook().millis());
         builder.field("timed_out", isTimedOut());
         getStatus().innerXContent(builder, params, true, false);
         builder.startArray("failures");

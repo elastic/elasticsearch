@@ -21,7 +21,7 @@
   - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {failures: []}
-  - is_true: took
+  - gte: { took: 0 }
   - is_false: task
 
 ---
@@ -53,7 +53,7 @@
   - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {failures: []}
-  - is_true: took
+  - gte: { took: 0 }
   - is_false: task
 
 ---
@@ -129,7 +129,7 @@
   - match: {failures.0.cause.reason: "[foo][1]: document already exists"}
   - match: {failures.0.cause.shard:  /\d+/}
   - match: {failures.0.cause.index:  dest}
-  - is_true: took
+  - gte: { took: 0 }
 
 ---
 "Response format for version conflict with conflicts=proceed":
@@ -162,7 +162,7 @@
   - match: {version_conflicts: 1}
   - match: {batches: 1}
   - match: {failures: []}
-  - is_true: took
+  - gte: { took: 0 }
 
 ---
 "Simplest example in docs":

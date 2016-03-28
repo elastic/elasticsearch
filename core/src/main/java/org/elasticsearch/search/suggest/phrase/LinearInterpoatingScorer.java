@@ -33,8 +33,8 @@ public final class LinearInterpoatingScorer extends WordScorer {
     private final double bigramLambda;
     private final double trigramLambda;
 
-    public LinearInterpoatingScorer(IndexReader reader, Terms terms, String field,  double realWordLikelyhood, BytesRef separator, double trigramLambda, double bigramLambda, double unigramLambda)
-            throws IOException {
+    public LinearInterpoatingScorer(IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator,
+            double trigramLambda, double bigramLambda, double unigramLambda) throws IOException {
         super(reader, terms, field, realWordLikelyhood, separator);
         double sum = unigramLambda + bigramLambda + trigramLambda;
         this.unigramLambda = unigramLambda / sum;

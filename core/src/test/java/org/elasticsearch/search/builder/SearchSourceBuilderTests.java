@@ -213,6 +213,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         injector = null;
         index = null;
         aggParsers = null;
+        suggesters = null;
         currentTypes = null;
         namedWriteableRegistry = null;
     }

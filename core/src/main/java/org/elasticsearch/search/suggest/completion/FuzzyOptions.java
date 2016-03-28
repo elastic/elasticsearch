@@ -89,7 +89,26 @@ public class FuzzyOptions implements ToXContent, Writeable<FuzzyOptions> {
         this.maxDeterminizedStates = maxDeterminizedStates;
     }
 
-    private FuzzyOptions() {
+    /**
+     * Read from a stream.
+     */
+    FuzzyOptions(StreamInput in) throws IOException {
+        transpositions = in.readBoolean();
+        unicodeAware = in.readBoolean();
+        editDistance = in.readVInt();
+        fuzzyMinLength = in.readVInt();
+        fuzzyPrefixLength = in.readVInt();
+        maxDeterminizedStates = in.readVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(transpositions);
+        out.writeBoolean(unicodeAware);
+        out.writeVInt(editDistance);
+        out.writeVInt(fuzzyMinLength);
+        out.writeVInt(fuzzyPrefixLength);
+        out.writeVInt(maxDeterminizedStates);
     }
 
     static FuzzyOptions parse(XContentParser parser) throws IOException {
@@ -183,33 +202,6 @@ public class FuzzyOptions implements ToXContent, Writeable<FuzzyOptions> {
         builder.field(MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), maxDeterminizedStates);
         builder.endObject();
         return builder;
-    }
-
-    public static FuzzyOptions readFuzzyOptions(StreamInput in) throws IOException {
-        FuzzyOptions fuzzyOptions = new FuzzyOptions();
-        fuzzyOptions.readFrom(in);
-        return fuzzyOptions;
-    }
-
-    @Override
-    public FuzzyOptions readFrom(StreamInput in) throws IOException {
-        this.transpositions = in.readBoolean();
-        this.unicodeAware = in.readBoolean();
-        this.editDistance = in.readVInt();
-        this.fuzzyMinLength = in.readVInt();
-        this.fuzzyPrefixLength = in.readVInt();
-        this.maxDeterminizedStates = in.readVInt();
-        return this;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(transpositions);
-        out.writeBoolean(unicodeAware);
-        out.writeVInt(editDistance);
-        out.writeVInt(fuzzyMinLength);
-        out.writeVInt(fuzzyPrefixLength);
-        out.writeVInt(maxDeterminizedStates);
     }
 
     /**

@@ -20,21 +20,14 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
-import org.elasticsearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.search.suggest.completion.context.ContextMappings;
-import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
-import org.elasticsearch.search.suggest.completion.context.QueryContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,9 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTestCase<CompletionSuggestionBuilder> {
@@ -86,7 +77,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         List<String> payloads = new ArrayList<>();
         Collections.addAll(payloads, generateRandomStringArray(5, 10, false, false));
         maybeSet(testBuilder::payload, payloads);
-        Map<String, List<? extends QueryContext>> contextMap = new HashMap<>();
+        Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
         if (randomBoolean()) {
             int numContext = randomIntBetween(1, 5);
             List<CategoryQueryContext> contexts = new ArrayList<>(numContext);

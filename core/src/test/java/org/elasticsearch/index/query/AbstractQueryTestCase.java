@@ -255,11 +255,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     protected void configureSearch() {
                         // Skip me
                     }
-
-                    @Override
-                    protected void configureSuggesters() {
-                        // Skip me
-                    }
                 },
                 new AbstractModule() {
                     @Override

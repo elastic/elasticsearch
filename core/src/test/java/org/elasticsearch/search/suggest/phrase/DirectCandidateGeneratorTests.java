@@ -36,7 +36,6 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCan
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -125,8 +124,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
             XContentParser parser = XContentHelper.createParser(builder.bytes());
             context.reset(parser);
             parser.nextToken();
-            DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.PROTOTYPE
-                    .fromXContent(context);
+            DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.fromXContent(context);
             assertNotSame(generator, secondGenerator);
             assertEquals(generator, secondGenerator);
             assertEquals(generator.hashCode(), secondGenerator.hashCode());
@@ -161,62 +159,37 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
         // test missing fieldname
         String directGenerator = "{ }";
         XContentParser parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-
         context.reset(parser);
-        try {
-            DirectCandidateGeneratorBuilder.PROTOTYPE.fromXContent(context);
-            fail("expected an exception");
-        } catch (IllegalArgumentException e) {
-            assertEquals("[direct_generator] expects exactly one field parameter, but found []", e.getMessage());
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
+        assertEquals("[direct_generator] expects exactly one field parameter, but found []", e.getMessage());
 
         // test two fieldnames
         directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
         parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-
         context.reset(parser);
-        try {
-            DirectCandidateGeneratorBuilder.PROTOTYPE.fromXContent(context);
-            fail("expected an exception");
-        } catch (IllegalArgumentException e) {
-            assertEquals("[direct_generator] expects exactly one field parameter, but found [f2, f1]", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
+        assertEquals("[direct_generator] expects exactly one field parameter, but found [f2, f1]", e.getMessage());
 
         // test unknown field
         directGenerator = "{ \"unknown_param\" : \"f1\" }";
         parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-
         context.reset(parser);
-        try {
-            DirectCandidateGeneratorBuilder.PROTOTYPE.fromXContent(context);
-            fail("expected an exception");
-        } catch (IllegalArgumentException e) {
-            assertEquals("[direct_generator] unknown field [unknown_param], parser not found", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
+        assertEquals("[direct_generator] unknown field [unknown_param], parser not found", e.getMessage());
 
         // test bad value for field (e.g. size expects an int)
         directGenerator = "{ \"size\" : \"xxl\" }";
         parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-
         context.reset(parser);
-        try {
-            DirectCandidateGeneratorBuilder.PROTOTYPE.fromXContent(context);
-            fail("expected an exception");
-        } catch (ParsingException e) {
-            assertEquals("[direct_generator] failed to parse field [size]", e.getMessage());
-        }
+        e = expectThrows(ParsingException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
+        assertEquals("[direct_generator] failed to parse field [size]", e.getMessage());
 
         // test unexpected token
         directGenerator = "{ \"size\" : [ \"xxl\" ] }";
         parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-
         context.reset(parser);
-        try {
-            DirectCandidateGeneratorBuilder.PROTOTYPE.fromXContent(context);
-            fail("expected an exception");
-        } catch (IllegalArgumentException e) {
-            assertEquals("[direct_generator] size doesn't support values of type: START_ARRAY", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
+        assertEquals("[direct_generator] size doesn't support values of type: START_ARRAY", e.getMessage());
     }
 
     /**
@@ -234,9 +207,9 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
         maybeSet(generator::preFilter, randomAsciiOfLengthBetween(1, 20));
         maybeSet(generator::postFilter, randomAsciiOfLengthBetween(1, 20));
         maybeSet(generator::size, randomIntBetween(1, 20));
-        maybeSet(generator::sort, randomFrom(Arrays.asList(new String[]{ "score", "frequency" })));
-        maybeSet(generator::stringDistance, randomFrom(Arrays.asList(new String[]{ "internal", "damerau_levenshtein", "levenstein", "jarowinkler", "ngram"})));
-        maybeSet(generator::suggestMode, randomFrom(Arrays.asList(new String[]{ "missing", "popular", "always"})));
+        maybeSet(generator::sort, randomFrom("score", "frequency"));
+        maybeSet(generator::stringDistance, randomFrom("internal", "damerau_levenshtein", "levenstein", "jarowinkler", "ngram"));
+        maybeSet(generator::suggestMode, randomFrom("missing", "popular", "always"));
         return generator;
     }
 
@@ -244,7 +217,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = StreamInput.wrap(output.bytes())) {
-                return DirectCandidateGeneratorBuilder.PROTOTYPE.readFrom(in);
+                return new DirectCandidateGeneratorBuilder(in);
             }
         }
     }

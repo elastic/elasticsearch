@@ -51,25 +51,21 @@ import java.util.Map.Entry;
 public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
 
     private static NamedWriteableRegistry namedWriteableRegistry;
+    private static Suggesters suggesters;
 
     /**
      * Setup for the whole base test class.
      */
     @BeforeClass
     public static void init() {
-        NamedWriteableRegistry nwRegistry = new NamedWriteableRegistry();
-        nwRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
-        nwRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
-        nwRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
-        nwRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-        nwRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-        nwRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
-        namedWriteableRegistry = nwRegistry;
+        namedWriteableRegistry = new NamedWriteableRegistry();
+        suggesters = new Suggesters(namedWriteableRegistry);
     }
 
     @AfterClass
     public static void afterClass() {
         namedWriteableRegistry = null;
+        suggesters = null;
     }
 
     @Override
@@ -81,7 +77,6 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
      *  creates random suggestion builder, renders it to xContent and back to new instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
-        Suggesters suggesters = new Suggesters(Collections.emptyMap());
         QueryParseContext context = new QueryParseContext(null);
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {

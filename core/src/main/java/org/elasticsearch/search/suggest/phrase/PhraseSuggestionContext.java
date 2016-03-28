@@ -19,6 +19,8 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
@@ -38,6 +40,8 @@ class PhraseSuggestionContext extends SuggestionContext {
     static final float DEFAULT_RWE_ERRORLIKELIHOOD = 0.95f;
     static final float DEFAULT_MAX_ERRORS = 0.5f;
     static final String DEFAULT_SEPARATOR = " ";
+    static final WordScorer.WordScorerFactory DEFAULT_SCORER = (IndexReader reader, Terms terms, String field, double realWordLikelyhood,
+            BytesRef separator) -> new StupidBackoffScorer(reader, terms, field, realWordLikelyhood, separator, 0.4f);
 
     private float maxErrors = DEFAULT_MAX_ERRORS;
     private BytesRef separator = new BytesRef(DEFAULT_SEPARATOR);
@@ -52,10 +56,10 @@ class PhraseSuggestionContext extends SuggestionContext {
     private boolean prune = DEFAULT_COLLATE_PRUNE;
     private List<DirectCandidateGenerator> generators = new ArrayList<>();
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
-    private WordScorer.WordScorerFactory scorer;
+    private WordScorer.WordScorerFactory scorer = DEFAULT_SCORER;
 
     public PhraseSuggestionContext(QueryShardContext shardContext) {
-        super(PhraseSuggester.PROTOTYPE, shardContext);
+        super(PhraseSuggester.INSTANCE, shardContext);
     }
 
     public float maxErrors() {

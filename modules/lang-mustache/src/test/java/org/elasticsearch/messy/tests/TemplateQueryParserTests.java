@@ -116,10 +116,6 @@ public class TemplateQueryParserTests extends ESTestCase {
                     protected void configureSearch() {
                         // skip so we don't need transport
                     }
-                    @Override
-                    protected void configureSuggesters() {
-                        // skip so we don't need IndicesService
-                    }
                 },
                 scriptModule,
                 new IndexSettingsModule(index, settings),

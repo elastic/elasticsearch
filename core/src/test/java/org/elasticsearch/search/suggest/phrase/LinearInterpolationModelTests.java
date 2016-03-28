@@ -19,6 +19,10 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.elasticsearch.index.query.QueryParseContext;
+
+import java.io.IOException;
+
 import static org.hamcrest.Matchers.instanceOf;
 
 public class LinearInterpolationModelTests extends SmoothingModelTestCase {
@@ -66,5 +70,10 @@ public class LinearInterpolationModelTests extends SmoothingModelTestCase {
         assertEquals(testModel.getTrigramLambda(), (testScorer).trigramLambda(), 1e-15);
         assertEquals(testModel.getBigramLambda(), (testScorer).bigramLambda(), 1e-15);
         assertEquals(testModel.getUnigramLambda(), (testScorer).unigramLambda(), 1e-15);
+    }
+
+    @Override
+    protected SmoothingModel fromXContent(QueryParseContext context) throws IOException {
+        return LinearInterpolation.innerFromXContent(context);
     }
 }

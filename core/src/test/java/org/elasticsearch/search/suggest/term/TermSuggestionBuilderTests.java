@@ -20,11 +20,11 @@
 package org.elasticsearch.search.suggest.term;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
@@ -143,131 +143,52 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
 
     public void testInvalidParameters() throws IOException {
         // test missing field name
-        try {
-            new TermSuggestionBuilder(null);
-            fail("Should not allow null as field name");
-        } catch (NullPointerException e) {
-            assertEquals("suggestion requires a field name", e.getMessage());
-        }
+        Exception e = expectThrows(NullPointerException.class, () -> new TermSuggestionBuilder((String) null));
+        assertEquals("suggestion requires a field name", e.getMessage());
 
-        // test emtpy field name
-        try {
-            new TermSuggestionBuilder("");
-            fail("Should not allow empty string as field name");
-        } catch (IllegalArgumentException e) {
-            assertEquals("suggestion field name is empty", e.getMessage());
-        }
+        // test empty field name
+        e = expectThrows(IllegalArgumentException.class, () -> new TermSuggestionBuilder(""));
+        assertEquals("suggestion field name is empty", e.getMessage());
 
         TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        
         // test invalid accuracy values
-        try {
-            builder.accuracy(-0.5f);
-            fail("Should not allow accuracy to be set to a negative value.");
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            builder.accuracy(1.1f);
-            fail("Should not allow accuracy to be greater than 1.0.");
-        } catch (IllegalArgumentException e) {
-        }
+        expectThrows(IllegalArgumentException.class, () -> builder.accuracy(-0.5f));
+        expectThrows(IllegalArgumentException.class, () -> builder.accuracy(1.1f));
+
         // test invalid max edit distance values
-        try {
-            builder.maxEdits(0);
-            fail("Should not allow maxEdits to be less than 1.");
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            builder.maxEdits(-1);
-            fail("Should not allow maxEdits to be a negative value.");
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            builder.maxEdits(3);
-            fail("Should not allow maxEdits to be greater than 2.");
-        } catch (IllegalArgumentException e) {
-        }
+        expectThrows(IllegalArgumentException.class, () -> builder.maxEdits(0));
+        expectThrows(IllegalArgumentException.class, () -> builder.maxEdits(-1));
+        expectThrows(IllegalArgumentException.class, () -> builder.maxEdits(3));
+
         // test invalid max inspections values
-        try {
-            builder.maxInspections(-1);
-            fail("Should not allow maxInspections to be a negative value.");
-        } catch (IllegalArgumentException e) {
-        }
+        expectThrows(IllegalArgumentException.class, () -> builder.maxInspections(-1));
+
         // test invalid max term freq values
-        try {
-            builder.maxTermFreq(-0.5f);
-            fail("Should not allow max term freq to be a negative value.");
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            builder.maxTermFreq(1.5f);
-            fail("If max term freq is greater than 1, it must be a whole number.");
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            builder.maxTermFreq(2.0f); // this should be allowed
-        } catch (IllegalArgumentException e) {
-            fail("A max term freq greater than 1 that is a whole number should be allowed.");
-        }
+        expectThrows(IllegalArgumentException.class, () -> builder.maxTermFreq(-0.5f));
+        expectThrows(IllegalArgumentException.class, () -> builder.maxTermFreq(1.5f));
+        builder.maxTermFreq(2.0f);
+
         // test invalid min doc freq values
-        try {
-            builder.minDocFreq(-0.5f);
-            fail("Should not allow min doc freq to be a negative value.");
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            builder.minDocFreq(1.5f);
-            fail("If min doc freq is greater than 1, it must be a whole number.");
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            builder.minDocFreq(2.0f); // this should be allowed
-        } catch (IllegalArgumentException e) {
-            fail("A min doc freq greater than 1 that is a whole number should be allowed.");
-        }
+        expectThrows(IllegalArgumentException.class, () -> builder.minDocFreq(-0.5f));
+        expectThrows(IllegalArgumentException.class, () -> builder.minDocFreq(1.5f));
+        builder.minDocFreq(2.0f);
+
         // test invalid min word length values
-        try {
-            builder.minWordLength(0);
-            fail("A min word length < 1 should not be allowed.");
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            builder.minWordLength(-1);
-            fail("Should not allow min word length to be a negative value.");
-        } catch (IllegalArgumentException e) {
-        }
+        expectThrows(IllegalArgumentException.class, () -> builder.minWordLength(0));
+        expectThrows(IllegalArgumentException.class, () -> builder.minWordLength(-1));
+
         // test invalid prefix length values
-        try {
-            builder.prefixLength(-1);
-            fail("Should not allow prefix length to be a negative value.");
-        } catch (IllegalArgumentException e) {
-        }
+        expectThrows(IllegalArgumentException.class, () -> builder.prefixLength(-1));
+
         // test invalid size values
-        try {
-            builder.size(0);
-            fail("Size must be a positive value.");
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            builder.size(-1);
-            fail("Size must be a positive value.");
-        } catch (IllegalArgumentException e) {
-        }
+        expectThrows(IllegalArgumentException.class, () -> builder.size(0));
+        expectThrows(IllegalArgumentException.class, () -> builder.size(-1));
+
         // null values not allowed for enums
-        try {
-            builder.sort(null);
-            fail("Should not allow setting a null sort value.");
-        } catch (NullPointerException e) {
-        }
-        try {
-            builder.stringDistance(null);
-            fail("Should not allow setting a null string distance value.");
-        } catch (NullPointerException e) {
-        }
-        try {
-            builder.suggestMode(null);
-            fail("Should not allow setting a null suggest mode value.");
-        } catch (NullPointerException e) {
-        }
+        expectThrows(NullPointerException.class, () -> builder.sort(null));
+        expectThrows(NullPointerException.class, () -> builder.stringDistance(null));
+        expectThrows(NullPointerException.class, () -> builder.suggestMode(null));
     }
 
     public void testDefaultValuesSet() {

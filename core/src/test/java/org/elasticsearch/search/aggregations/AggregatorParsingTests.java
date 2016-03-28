@@ -159,11 +159,6 @@ public class AggregatorParsingTests extends ESTestCase {
                     protected void configureSearch() {
                         // Skip me
                     }
-
-                    @Override
-                    protected void configureSuggesters() {
-                        // Skip me
-                    }
                 }, new IndexSettingsModule(index, settings),
 
                 new AbstractModule() {

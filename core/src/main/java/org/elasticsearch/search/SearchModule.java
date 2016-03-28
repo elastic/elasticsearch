@@ -249,7 +249,7 @@ public class SearchModule extends AbstractModule {
     private final Set<Aggregator.Parser> aggParsers = new HashSet<>();
     private final Set<PipelineAggregator.Parser> pipelineAggParsers = new HashSet<>();
     private final Highlighters highlighters = new Highlighters();
-    private final Suggesters suggesters = new Suggesters();
+    private final Suggesters suggesters;
     /**
      * Function score parsers constructed on registration. This is ok because
      * they don't have any dependencies.
@@ -274,6 +274,7 @@ public class SearchModule extends AbstractModule {
     public SearchModule(Settings settings, NamedWriteableRegistry namedWriteableRegistry) {
         this.settings = settings;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        suggesters = new Suggesters(namedWriteableRegistry);
 
         registerBuiltinFunctionScoreParsers();
         registerBuiltinQueryParsers();
@@ -286,8 +287,7 @@ public class SearchModule extends AbstractModule {
     }
 
     public void registerSuggester(String key, Suggester<?> suggester) {
-        suggesters.registerExtension(key, suggester.getClass());
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, suggester.getBuilderPrototype());
+        suggesters.register(key, suggester);
     }
 
     /**
@@ -337,10 +337,10 @@ public class SearchModule extends AbstractModule {
     protected void configure() {
         IndicesQueriesRegistry indicesQueriesRegistry = buildQueryParserRegistry();
         bind(IndicesQueriesRegistry.class).toInstance(indicesQueriesRegistry);
+        bind(Suggesters.class).toInstance(suggesters);
         configureSearch();
         configureAggs(indicesQueriesRegistry);
         configureHighlighters();
-        configureSuggesters();
         configureFetchSubPhase();
         configureShapes();
     }
@@ -376,16 +376,6 @@ public class SearchModule extends AbstractModule {
             namedWriteableRegistry.registerPrototype(QueryBuilder.class, qb);
         }
         return new IndicesQueriesRegistry(settings, queryParsersMap);
-    }
-
-    protected void configureSuggesters() {
-        suggesters.bind(binder());
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
     }
 
     protected void configureHighlighters() {
@@ -614,5 +604,9 @@ public class SearchModule extends AbstractModule {
         BucketScriptPipelineAggregator.registerStreams();
         BucketSelectorPipelineAggregator.registerStreams();
         SerialDiffPipelineAggregator.registerStreams();
+    }
+
+    public Suggesters getSuggesters() {
+        return suggesters;
     }
 }

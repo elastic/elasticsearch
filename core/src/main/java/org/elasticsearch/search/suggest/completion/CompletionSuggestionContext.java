@@ -36,7 +36,7 @@ import java.util.Map;
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
     protected CompletionSuggestionContext(QueryShardContext shardContext) {
-        super(CompletionSuggester.PROTOTYPE, shardContext);
+        super(CompletionSuggester.INSTANCE, shardContext);
     }
 
     private CompletionFieldMapper.CompletionFieldType fieldType;

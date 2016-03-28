@@ -20,12 +20,14 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -275,6 +277,9 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeString("hello");
         out.writeString("goodbye");
         out.writeGenericValue(BytesRefs.toBytesRef("bytesref"));
+        out.writeStringArray(new String[] {"a", "b", "cat"});
+        out.writeBytesReference(new BytesArray("test"));
+        out.writeOptionalBytesReference(new BytesArray("test"));
         final byte[] bytes = out.bytes().toBytes();
         StreamInput in = StreamInput.wrap(out.bytes().toBytes());
         assertEquals(in.available(), bytes.length);
@@ -296,6 +301,10 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readString(), equalTo("hello"));
         assertThat(in.readString(), equalTo("goodbye"));
         assertThat(in.readGenericValue(), equalTo((Object)BytesRefs.toBytesRef("bytesref")));
+        assertThat(in.readStringArray(), equalTo(new String[] {"a", "b", "cat"}));
+        assertThat(in.readBytesReference(), equalTo(new BytesArray("test")));
+        assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
+        assertEquals(0, in.available());
         in.close();
         out.close();
     }

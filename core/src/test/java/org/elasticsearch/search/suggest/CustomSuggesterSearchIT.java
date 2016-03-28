@@ -102,6 +102,19 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
             this.randomSuffix = randomSuffix;
         }
 
+        /**
+         * Read from a stream.
+         */
+        public CustomSuggestionBuilder(StreamInput in) throws IOException {
+            super(in);
+            this.randomSuffix = in.readString();
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            out.writeString(randomSuffix);
+        }
+
         @Override
         protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RANDOM_SUFFIX_FIELD.getPreferredName(), randomSuffix);
@@ -114,16 +127,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            out.writeString(randomSuffix);
-        }
-
-        @Override
-        public CustomSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
-            return new CustomSuggestionBuilder(field, in.readString());
-        }
-
-        @Override
         protected boolean doEquals(CustomSuggestionBuilder other) {
             return Objects.equals(randomSuffix, other.randomSuffix);
         }
@@ -133,8 +136,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
             return Objects.hash(randomSuffix);
         }
 
-        @Override
-        protected CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+        static CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
             ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
             XContentParser.Token token;

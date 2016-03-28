@@ -174,11 +174,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
                     protected void configureSearch() {
                         // Skip me
                     }
-
-                    @Override
-                    protected void configureSuggesters() {
-                        // Skip me
-                    }
                 },
                 new IndexSettingsModule(index, settings),
                 new AbstractModule() {

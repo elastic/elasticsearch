@@ -448,6 +448,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             + "indices.recovery:TRACE,indices.cluster:TRACE")
     @AwaitsFix(bugUrl = "needs primary terms")
     public void testAckedIndexing() throws Exception {
+
+        final String timeout = !(TEST_NIGHTLY && rarely()) ? "1s" : "5s";
+
         // TODO: add node count randomizaion
         final List<String> nodes = startCluster(3);
 
@@ -490,7 +493,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                                 id = Integer.toString(idGenerator.incrementAndGet());
                                 int shard = MathUtils.mod(Murmur3HashFunction.hash(id), numPrimaries);
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get("1s");
+                                IndexResponse response =
+                                    client.prepareIndex("test", "type", id).setSource("{}").setTimeout(timeout).get(timeout);
                                 assertThat(response.getVersion(), equalTo(1L));
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);

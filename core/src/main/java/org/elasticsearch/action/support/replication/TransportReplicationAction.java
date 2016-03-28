@@ -818,17 +818,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         assert setupShardReferenceAssertions();
     }
 
-    static public void assertAllShardReferencesAreCleaned() {
-        if (openShardReferences == null || openShardReferences.isEmpty()) {
-            return;
-        }
-        StringBuilder sb = new StringBuilder();
-        for (String desc : openShardReferences.values()) {
-            sb.append(desc).append("\n");
-        }
-        assert sb.length() == 0 : "Found unclosed shard references:\n" + sb;
-    }
-
     /**
      * returns a new reference to {@link IndexShard} to perform a primary operation. Released after performing primary operation locally
      * and replication of the operation to all replica shards is completed / failed (see {@link ReplicationPhase}).

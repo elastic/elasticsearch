@@ -141,12 +141,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     @Override
     protected void beforeIndexDeletion() {
         // some test may leave operations in flight
-//        try {
-////            assertBusy(() -> TransportReplicationAction.assertAllShardReferencesAreCleaned());
-////            assertBusy(() -> super.beforeIndexDeletion());
-//        } catch (Exception e) {
-//            throw new AssertionError(e);
-//        }
+        // this is because the disruption schemes swallow requests by design
+        // as such, these operations will never be marked as finished
     }
 
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {

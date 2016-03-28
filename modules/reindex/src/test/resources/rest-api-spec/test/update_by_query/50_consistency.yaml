@@ -21,14 +21,14 @@
 
   - do:
       catch: unavailable
-      update-by-query:
+      update_by_query:
         index: test
         timeout: 1s
   - match:
       failures.0.cause.reason: /Not.enough.active.copies.to.meet.write.consistency.of.\[QUORUM\].\(have.1,.needed.4\)..Timeout\:.\[1s\],.request:.\[BulkShardRequest.to.\[test\].containing.\[1\].requests\]/
 
   - do:
-      update-by-query:
+      update_by_query:
         index: test
         consistency: one
   - match: {failures: []}

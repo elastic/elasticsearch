@@ -1,5 +1,5 @@
 {
-  "update-by-query": {
+  "update_by_query": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-reindex.html",
     "methods": ["POST"],
     "url": {

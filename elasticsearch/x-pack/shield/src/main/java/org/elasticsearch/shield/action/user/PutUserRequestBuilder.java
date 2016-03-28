@@ -91,11 +91,6 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.USERNAME)) {
-                    if (username.equals(parser.text()) == false) {
-                        throw new ElasticsearchParseException("failed to parse user [{}]. username doesn't match user id [{}]",
-                                username, parser.text());
-                    }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.PASSWORD)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();

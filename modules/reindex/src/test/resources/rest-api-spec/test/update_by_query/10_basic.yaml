@@ -18,7 +18,7 @@
   - match: {batches: 1}
   - match: {failures: []}
   - match: {noops: 0}
-  - is_true: took
+  - gte: { took: 0 }
   # Update by query can't create
   - is_false: created
   - is_false: task

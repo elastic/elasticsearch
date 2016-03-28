@@ -43,7 +43,7 @@
   - match: { hits.total: 0 }
 
   - do:
-      update-by-query:
+      update_by_query:
         index: test
   - do:
       indices.refresh: {}

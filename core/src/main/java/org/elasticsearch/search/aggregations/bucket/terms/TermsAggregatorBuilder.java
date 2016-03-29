@@ -78,7 +78,7 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(valueType());
+        out.writeOptionalWriteable(getTargetValueType());
         super.writeTo(out);
         bucketCountThresholds.writeTo(out);
         collectMode.writeTo(out);

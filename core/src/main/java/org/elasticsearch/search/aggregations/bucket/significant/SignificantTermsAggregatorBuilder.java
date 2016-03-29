@@ -25,8 +25,8 @@ import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuild
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.Objects;
 
@@ -67,12 +68,35 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private SignificanceHeuristic significanceHeuristic = JLHScore.PROTOTYPE;
 
-    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
-    }
-
     public SignificantTermsAggregatorBuilder(String name, ValueType valueType) {
         super(name, SignificantStringTerms.TYPE, ValuesSourceType.ANY, valueType);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected SignificantTermsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, SignificantStringTerms.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
+        bucketCountThresholds = BucketCountThresholds.readFromStream(in);
+        executionHint = in.readOptionalString();
+        filterBuilder = in.readOptionalQuery();
+        includeExclude = in.readOptionalWriteable(IncludeExclude::readFromStream);
+        significanceHeuristic = SignificanceHeuristicStreams.read(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(getTargetValueType());
+        super.writeTo(out);
+        bucketCountThresholds.writeTo(out);
+        out.writeOptionalString(executionHint);
+        out.writeOptionalQuery(filterBuilder);
+        out.writeOptionalWriteable(includeExclude);
+        SignificanceHeuristicStreams.writeTo(significanceHeuristic, out);
+    }
+
+    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
+        return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }
 
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
@@ -215,39 +239,6 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         }
         significanceHeuristic.toXContent(builder, params);
         return builder;
-    }
-
-    @Override
-    protected SignificantTermsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        SignificantTermsAggregatorBuilder factory = new SignificantTermsAggregatorBuilder(name, targetValueType);
-        factory.bucketCountThresholds = BucketCountThresholds.readFromStream(in);
-        factory.executionHint = in.readOptionalString();
-        if (in.readBoolean()) {
-            factory.filterBuilder = in.readQuery();
-        }
-        if (in.readBoolean()) {
-            factory.includeExclude = IncludeExclude.readFromStream(in);
-        }
-        factory.significanceHeuristic = SignificanceHeuristicStreams.read(in);
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        bucketCountThresholds.writeTo(out);
-        out.writeOptionalString(executionHint);
-        boolean hasfilterBuilder = filterBuilder != null;
-        out.writeBoolean(hasfilterBuilder);
-        if (hasfilterBuilder) {
-            out.writeQuery(filterBuilder);
-        }
-        boolean hasIncExc = includeExclude != null;
-        out.writeBoolean(hasIncExc);
-        if (hasIncExc) {
-            includeExclude.writeTo(out);
-        }
-        SignificanceHeuristicStreams.writeTo(significanceHeuristic, out);
     }
 
     @Override

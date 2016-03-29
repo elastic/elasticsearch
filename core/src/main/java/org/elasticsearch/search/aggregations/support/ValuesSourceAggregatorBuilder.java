@@ -247,6 +247,10 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         return timeZone;
     }
 
+    public ValueType getTargetValueType() {
+        return targetValueType;
+    }
+
     @Override
     protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {

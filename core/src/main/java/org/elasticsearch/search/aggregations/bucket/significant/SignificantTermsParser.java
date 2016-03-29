@@ -21,11 +21,13 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
@@ -107,8 +109,8 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public SignificantTermsAggregatorBuilder getFactoryPrototypes() {
-        return SignificantTermsAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new SignificantTermsAggregatorBuilder(in);
     }
 
     @Override

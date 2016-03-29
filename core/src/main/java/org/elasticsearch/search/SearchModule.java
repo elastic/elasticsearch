@@ -430,7 +430,7 @@ public class SearchModule extends AbstractModule {
 //        registerAggregatorParser(new SamplerParser());
 //        registerAggregatorParser(new DiversifiedSamplerParser());
         registerAggregatorParser(new TermsParser());
-//        registerAggregatorParser(new SignificantTermsParser(significanceHeuristicParserMapper, indicesQueriesRegistry));
+        registerAggregatorParser(new SignificantTermsParser(significanceHeuristicParserMapper, indicesQueriesRegistry));
 //        registerAggregatorParser(new RangeParser());
 //        registerAggregatorParser(new DateRangeParser());
 //        registerAggregatorParser(new IpRangeParser());

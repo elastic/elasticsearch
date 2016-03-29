@@ -19,7 +19,6 @@
 
 package org.elasticsearch.tribe;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -352,7 +351,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             // -- merge nodes
             // go over existing nodes, and see if they need to be removed
             for (DiscoveryNode discoNode : currentState.nodes()) {
-                String markedTribeName = discoNode.attributes().get(TRIBE_NAME_SETTING.getKey());
+                String markedTribeName = discoNode.getAttributes().get(TRIBE_NAME_SETTING.getKey());
                 if (markedTribeName != null && markedTribeName.equals(tribeName)) {
                     if (tribeState.nodes().get(discoNode.id()) == null) {
                         clusterStateChanged = true;
@@ -366,8 +365,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                 if (currentState.nodes().get(tribe.id()) == null) {
                     // a new node, add it, but also add the tribe name to the attributes
                     Map<String, String> tribeAttr = new HashMap<>();
-                    for (ObjectObjectCursor<String, String> attr : tribe.attributes()) {
-                        tribeAttr.put(attr.key, attr.value);
+                    for (Map.Entry<String, String> entry : tribe.getAttributes().entrySet()) {
+                        tribeAttr.put(entry.getKey(), entry.getValue());
                     }
                     tribeAttr.put(TRIBE_NAME_SETTING.getKey(), tribeName);
                     DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(),

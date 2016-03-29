@@ -141,7 +141,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     DiscoveryNode node2 = clusterStateFromDiffs.nodes().get(node.value);
                     assertThat(node1.version(), equalTo(node2.version()));
                     assertThat(node1.address(), equalTo(node2.address()));
-                    assertThat(node1.attributes(), equalTo(node2.attributes()));
+                    assertThat(node1.getAttributes(), equalTo(node2.getAttributes()));
                 }
 
                 // Check routing table

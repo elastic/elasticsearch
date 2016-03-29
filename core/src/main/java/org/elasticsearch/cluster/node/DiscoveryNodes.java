@@ -396,9 +396,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             }
                         } else {
                             for (DiscoveryNode node : this) {
-                                for (ObjectObjectCursor<String, String> entry : node.attributes()) {
-                                    String attrName = entry.key;
-                                    String attrValue = entry.value;
+                                for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
+                                    String attrName = entry.getKey();
+                                    String attrValue = entry.getValue();
                                     if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
                                         resolvedNodesIds.add(node.id());
                                     }

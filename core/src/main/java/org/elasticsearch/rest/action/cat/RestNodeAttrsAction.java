@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -40,6 +39,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
+
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -102,7 +103,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
 
         for (DiscoveryNode node : nodes) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
-            for(ObjectObjectCursor<String, String> att : node.attributes()) {
+            for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
                 table.startRow();
                 table.addCell(node.name());
                 table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
@@ -114,8 +115,8 @@ public class RestNodeAttrsAction extends AbstractCatAction {
                 } else {
                     table.addCell("-");
                 }
-                table.addCell(att.key);
-                table.addCell(att.value);
+                table.addCell(attrEntry.getKey());
+                table.addCell(attrEntry.getValue());
                 table.endRow();
             }
         }

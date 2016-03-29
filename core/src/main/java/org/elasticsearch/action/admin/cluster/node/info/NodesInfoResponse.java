@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -91,10 +90,10 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
             builder.endArray();
 
-            if (!nodeInfo.getNode().attributes().isEmpty()) {
+            if (!nodeInfo.getNode().getAttributes().isEmpty()) {
                 builder.startObject("attributes");
-                for (ObjectObjectCursor<String, String> attr : nodeInfo.getNode().attributes()) {
-                    builder.field(attr.key, attr.value, XContentBuilder.FieldCaseConversion.NONE);
+                for (Map.Entry<String, String> entry : nodeInfo.getNode().getAttributes().entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
                 }
                 builder.endObject();
             }

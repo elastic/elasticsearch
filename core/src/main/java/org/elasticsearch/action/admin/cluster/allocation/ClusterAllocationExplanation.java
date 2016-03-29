@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -149,8 +148,8 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
                 builder.startObject(node.getId()); {
                     builder.field("node_name", node.getName());
                     builder.startObject("node_attributes"); {
-                        for (ObjectObjectCursor<String, String> attrKV : node.attributes()) {
-                            builder.field(attrKV.key, attrKV.value);
+                        for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
+                            builder.field(attrEntry.getKey(), attrEntry.getValue());
                         }
                     }
                     builder.endObject(); // end attributes

@@ -19,10 +19,8 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,6 +33,7 @@ import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +86,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     private final String hostName;
     private final String hostAddress;
     private final TransportAddress address;
-    private final ImmutableOpenMap<String, String> attributes;
+    private final Map<String, String> attributes;
     private final Version version;
     private final Set<Role> roles;
 
@@ -103,11 +102,10 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         this.hostAddress = in.readString().intern();
         this.address = TransportAddressSerializers.addressFromStream(in);
         int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, String> attributesBuilder = ImmutableOpenMap.builder(size);
+        this.attributes = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            attributesBuilder.put(in.readString().intern(), in.readString().intern());
+            this.attributes.put(in.readString(), in.readString());
         }
-        this.attributes = attributesBuilder.build();
         int rolesSize = in.readVInt();
         this.roles = new HashSet<>(rolesSize);
         for (int i = 0; i < rolesSize; i++) {
@@ -170,17 +168,11 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
      * </p>
      *
      * @param nodeName    the nodes name
-     * @param nodeId      the nodes unique id.
-     * @param hostName    the nodes hostname
-     * @param hostAddress the nodes host address
-     * @param address     the nodes transport address
-     * @param attributes  node attributes
-     * @param roles       node roles
-     * @param version     the version of the node.
+     * @param nodeId      the nodes unique id
+     * @param node        the original node to copy all the information from
      */
-    public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address,
-                         Map<String, String> attributes, Set<Role> roles, Version version) {
-        this(nodeName, nodeId, hostName, hostAddress, address, copyAttributes(attributes), roles, version);
+    public DiscoveryNode(String nodeName, String nodeId, DiscoveryNode node) {
+        this(nodeName, nodeId, node.hostName, node.hostAddress, node.address, node.attributes, node.roles, node.version);
     }
 
     /**
@@ -193,15 +185,16 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
      * </p>
      *
      * @param nodeName    the nodes name
-     * @param nodeId      the nodes unique id
-     * @param node        the original node to copy all the information from
+     * @param nodeId      the nodes unique id.
+     * @param hostName    the nodes hostname
+     * @param hostAddress the nodes host address
+     * @param address     the nodes transport address
+     * @param attributes  node attributes
+     * @param roles       node roles
+     * @param version     the version of the node.
      */
-    public DiscoveryNode(String nodeName, String nodeId, DiscoveryNode node) {
-        this(nodeName, nodeId, node.hostName, node.hostAddress, node.address, copyAttributes(node.attributes), node.roles, node.version);
-    }
-
-    private DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address,
-                          ImmutableOpenMap.Builder<String, String> attributesBuilder, Set<Role> roles, Version version) {
+    public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address,
+                         Map<String, String> attributes, Set<Role> roles, Version version) {
         if (nodeName != null) {
             this.nodeName = nodeName.intern();
         } else {
@@ -216,32 +209,16 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         } else {
             this.version = version;
         }
-        this.attributes = attributesBuilder.build();
+        this.attributes = Collections.unmodifiableMap(attributes);
         //verify that no node roles are being provided as attributes
         boolean assertEnabled = false;
         assert assertEnabled = true;
         if (assertEnabled) {
             for (Role role : Role.values()) {
-                assert attributes.containsKey(role.getRoleName()) == false;
+                assert attributes.containsKey(role.getRoleName()) == false : "role name [" + role.getRoleName() + "] found in attributes";
             }
         }
         this.roles = roles;
-    }
-
-    private static ImmutableOpenMap.Builder<String, String> copyAttributes(ImmutableOpenMap<String, String> attributes) {
-        ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
-        for (ObjectObjectCursor<String, String> entry : attributes) {
-            builder.put(entry.key.intern(), entry.value.intern());
-        }
-        return builder;
-    }
-
-    private static ImmutableOpenMap.Builder<String, String> copyAttributes(Map<String, String> attributes) {
-        ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            builder.put(entry.getKey().intern(), entry.getValue().intern());
-        }
-        return builder;
     }
 
     /**
@@ -289,15 +266,8 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     /**
      * The node attributes.
      */
-    public ImmutableOpenMap<String, String> attributes() {
+    public Map<String, String> getAttributes() {
         return this.attributes;
-    }
-
-    /**
-     * The node attributes.
-     */
-    public ImmutableOpenMap<String, String> getAttributes() {
-        return attributes();
     }
 
     /**
@@ -368,9 +338,9 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         out.writeString(hostAddress);
         addressToStream(out, address);
         out.writeVInt(attributes.size());
-        for (ObjectObjectCursor<String, String> entry : attributes) {
-            out.writeString(entry.key);
-            out.writeString(entry.value);
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeString(entry.getValue());
         }
         out.writeVInt(roles.size());
         for (Role role : roles) {
@@ -422,8 +392,8 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         builder.field("transport_address", address().toString());
 
         builder.startObject("attributes");
-        for (ObjectObjectCursor<String, String> attr : attributes) {
-            builder.field(attr.key, attr.value);
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
 

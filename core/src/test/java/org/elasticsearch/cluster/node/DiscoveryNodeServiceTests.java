@@ -19,9 +19,7 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -70,7 +68,7 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
         DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build(), Version.CURRENT);
         DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(DummyTransportAddress.INSTANCE);
         assertThat(discoveryNode.getRoles(), equalTo(selectedRoles));
-        assertThat(copyAttributes(discoveryNode.getAttributes()), equalTo(expectedAttributes));
+        assertThat(discoveryNode.getAttributes(), equalTo(expectedAttributes));
     }
 
     public void testBuildAttributesWithCustomAttributeServiceProvider() {
@@ -91,14 +89,6 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
         discoveryNodeService.addCustomAttributeProvider(() -> customAttributes);
 
         DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(DummyTransportAddress.INSTANCE);
-        assertThat(copyAttributes(discoveryNode.getAttributes()), equalTo(expectedAttributes));
-    }
-
-    private static Map<String, String> copyAttributes(ImmutableOpenMap<String, String> attributes) {
-        Map<String, String> finalAttributes = new HashMap<>();
-        for (ObjectObjectCursor<String, String> cursor : attributes) {
-            finalAttributes.put(cursor.key, cursor.value);
-        }
-        return finalAttributes;
+        assertThat(discoveryNode.getAttributes(), equalTo(expectedAttributes));
     }
 }

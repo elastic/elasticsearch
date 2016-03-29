@@ -178,7 +178,7 @@ public class DiscoveryNodeFilters {
                     }
                 }
             } else {
-                String nodeAttributeValue = node.attributes().get(attr);
+                String nodeAttributeValue = node.getAttributes().get(attr);
                 if (nodeAttributeValue == null) {
                     if (opType == OpType.AND) {
                         return false;

@@ -48,8 +48,8 @@ public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(CreateIndexAction.NAME);
     private static final Automaton DELETE_INDEX_AUTOMATON = patterns(DeleteIndexAction.NAME);
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, AliasesExistAction.NAME,
-            GetIndexAction.NAME, IndicesExistsAction.NAME, GetFieldMappingsAction.NAME, GetMappingsAction.NAME,
-            ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME, GetSettingsAction.NAME);
+            GetIndexAction.NAME, IndicesExistsAction.NAME, GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME,
+            ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME);
 
     public static final IndexPrivilege NONE =                new IndexPrivilege(Name.NONE,             Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege(Name.ALL,              ALL_AUTOMATON);

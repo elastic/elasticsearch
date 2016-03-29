@@ -96,7 +96,10 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return valuesSource == null ? Double.NEGATIVE_INFINITY : maxes.get(owningBucketOrd);
+        if (valuesSource == null || owningBucketOrd >= maxes.size()) {
+            return Double.NEGATIVE_INFINITY;
+        }
+        return maxes.get(owningBucketOrd);
     }
 
     @Override

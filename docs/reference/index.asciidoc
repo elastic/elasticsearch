@@ -1,13 +1,13 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:       2.2.0
-:branch:        2.x
-:major-version: 2.x
-:jdk:           1.8.0_25
+:version:       2.3.0
+:branch:        2.3
+:major-version: 2.3
+:jdk:           1.8.0_73
 :defguide:      https://www.elastic.co/guide/en/elasticsearch/guide/current
-:plugins:       https://www.elastic.co/guide/en/elasticsearch/plugins/2.x
-:javaclient:    https://www.elastic.co/guide/en/elasticsearch/client/java-api/2.x/
+:plugins:       https://www.elastic.co/guide/en/elasticsearch/plugins/2.3
+:javaclient:    https://www.elastic.co/guide/en/elasticsearch/client/java-api/2.3/
 :issue:         https://github.com/elastic/elasticsearch/issues/
 :pull:          https://github.com/elastic/elasticsearch/pull/
 

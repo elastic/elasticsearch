@@ -61,9 +61,6 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     }
 
     public static class Range extends RangeAggregator.Range {
-
-        static final Range PROTOTYPE = new Range(null, null, null);
-
         public Range(String key, Double from, Double to) {
             super(key(key, from, to), from == null ? 0 : from, to);
         }
@@ -79,21 +76,12 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
             return sb.toString();
         }
 
-        @Override
-        public Range readFrom(StreamInput in) throws IOException {
-            String key = in.readOptionalString();
-            double from = in.readDouble();
-            double to = in.readDouble();
-            return new Range(key, from, to);
+        /**
+         * Read from a stream.
+         */
+        Range(StreamInput in) throws IOException {
+            super(in);
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(key);
-            out.writeDouble(from);
-            out.writeDouble(to);
-        }
-
     }
 
     @Override

@@ -44,9 +44,6 @@ import java.util.List;
 import java.util.Objects;
 
 public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoDistanceAggregatorBuilder> {
-
-    static final GeoDistanceAggregatorBuilder PROTOTYPE = new GeoDistanceAggregatorBuilder("", new GeoPoint());
-
     private final GeoPoint origin;
     private List<Range> ranges = new ArrayList<>();
     private DistanceUnit unit = DistanceUnit.DEFAULT;
@@ -74,7 +71,7 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
         origin = new GeoPoint(in.readDouble(), in.readDouble());
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            addRange(Range.PROTOTYPE.readFrom(in));
+            addRange(new Range(in));
         }
         keyed = in.readBoolean();
         distanceType = GeoDistance.readGeoDistanceFrom(in);

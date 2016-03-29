@@ -30,9 +30,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 
 public class RangeAggregatorBuilder extends AbstractRangeBuilder<RangeAggregatorBuilder, Range> {
-
-    static final RangeAggregatorBuilder PROTOTYPE = new RangeAggregatorBuilder("");
-
     public RangeAggregatorBuilder(String name) {
         super(name, InternalRange.TYPE, InternalRange.FACTORY);
     }

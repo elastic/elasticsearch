@@ -31,9 +31,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregatorBuilder> {
-
-    static final SamplerAggregatorBuilder PROTOTYPE = new SamplerAggregatorBuilder("");
-
     public static final int DEFAULT_SHARD_SAMPLE_SIZE = 100;
 
     private int shardSize = DEFAULT_SHARD_SAMPLE_SIZE;

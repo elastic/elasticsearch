@@ -40,8 +40,6 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
 
     public static final Type TYPE = new Type("diversified_sampler");
 
-    static final DiversifiedAggregatorBuilder PROTOTYPE = new DiversifiedAggregatorBuilder("");
-
     public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
 
     private int shardSize = SamplerAggregatorBuilder.DEFAULT_SHARD_SAMPLE_SIZE;

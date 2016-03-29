@@ -40,9 +40,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAggregatorBuilder, IPv4RangeAggregatorBuilder.Range> {
-
-    static final IPv4RangeAggregatorBuilder PROTOTYPE = new IPv4RangeAggregatorBuilder("");
-
     public IPv4RangeAggregatorBuilder(String name) {
         super(name, InternalIPv4Range.TYPE, InternalIPv4Range.FACTORY);
     }

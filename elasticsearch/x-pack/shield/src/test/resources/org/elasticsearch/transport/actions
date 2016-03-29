@@ -11,6 +11,7 @@ cluster:admin/snapshot/get
 cluster:admin/snapshot/restore
 cluster:admin/snapshot/status
 cluster:admin/tasks/cancel
+cluster:monitor/allocation/explain
 cluster:monitor/health
 cluster:monitor/nodes/hot_threads
 cluster:monitor/nodes/info

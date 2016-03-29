@@ -27,6 +27,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -62,6 +63,7 @@ public class ScriptSortParser implements SortParser {
 
     private static final String STRING_SORT_TYPE = "string";
     private static final String NUMBER_SORT_TYPE = "number";
+    private static final ParseField REVERSE_FIELD = new ParseField("reverse").withAllDeprecated("order");
 
     @Override
     public String[] names() {
@@ -95,7 +97,7 @@ public class ScriptSortParser implements SortParser {
                     nestedHelper.filter();
                 }
             } else if (token.isValue()) {
-                if ("reverse".equals(currentName)) {
+                if (context.parseFieldMatcher().match(currentName, REVERSE_FIELD)) {
                     reverse = parser.booleanValue();
                 } else if ("order".equals(currentName)) {
                     reverse = "desc".equals(parser.text());

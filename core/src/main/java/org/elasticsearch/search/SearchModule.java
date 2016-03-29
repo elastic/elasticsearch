@@ -436,7 +436,7 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new IpRangeParser());
         registerAggregatorParser(new HistogramParser());
         registerAggregatorParser(new DateHistogramParser());
-//        registerAggregatorParser(new GeoDistanceParser());
+        registerAggregatorParser(new GeoDistanceParser());
 //        registerAggregatorParser(new GeoHashGridParser());
 //        registerAggregatorParser(new NestedParser());
 //        registerAggregatorParser(new ReverseNestedParser());

@@ -66,6 +66,35 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
         this.origin = origin;
     }
 
+    /**
+     * Read from a stream.
+     */
+    GeoDistanceAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalGeoDistance.TYPE, InternalGeoDistance.FACTORY.getValueSourceType(), InternalGeoDistance.FACTORY.getValueType());
+        origin = new GeoPoint(in.readDouble(), in.readDouble());
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            addRange(Range.PROTOTYPE.readFrom(in));
+        }
+        keyed = in.readBoolean();
+        distanceType = GeoDistance.readGeoDistanceFrom(in);
+        unit = DistanceUnit.readFromStream(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeDouble(origin.lat());
+        out.writeDouble(origin.lon());
+        out.writeVInt(ranges.size());
+        for (Range range : ranges) {
+            range.writeTo(out);
+        }
+        out.writeBoolean(keyed);
+        distanceType.writeTo(out);
+        unit.writeTo(out);
+    }
+
     public GeoDistanceAggregatorBuilder addRange(Range range) {
         if (range == null) {
             throw new IllegalArgumentException("[range] must not be null: [" + name + "]");
@@ -193,34 +222,6 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
         builder.field(GeoDistanceParser.UNIT_FIELD.getPreferredName(), unit);
         builder.field(GeoDistanceParser.DISTANCE_TYPE_FIELD.getPreferredName(), distanceType);
         return builder;
-    }
-
-    @Override
-    protected GeoDistanceAggregatorBuilder innerReadFrom(
-            String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) throws IOException {
-        GeoPoint origin = new GeoPoint(in.readDouble(), in.readDouble());
-        int size = in.readVInt();
-        GeoDistanceAggregatorBuilder factory = new GeoDistanceAggregatorBuilder(name, origin);
-        for (int i = 0; i < size; i++) {
-            factory.addRange(Range.PROTOTYPE.readFrom(in));
-        }
-        factory.keyed = in.readBoolean();
-        factory.distanceType = GeoDistance.readGeoDistanceFrom(in);
-        factory.unit = DistanceUnit.readFromStream(in);
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        out.writeDouble(origin.lat());
-        out.writeDouble(origin.lon());
-        out.writeVInt(ranges.size());
-        for (Range range : ranges) {
-            range.writeTo(out);
-        }
-        out.writeBoolean(keyed);
-        distanceType.writeTo(out);
-        unit.writeTo(out);
     }
 
     @Override

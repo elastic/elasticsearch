@@ -35,7 +35,7 @@ import java.util.List;
 /**
  *
  */
-public class FiltersParser implements Aggregator.Parser {
+public class FiltersParser extends Aggregator.Parser {
 
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");

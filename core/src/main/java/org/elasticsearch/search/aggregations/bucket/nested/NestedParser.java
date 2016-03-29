@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  *
  */
-public class NestedParser implements Aggregator.Parser {
+public class NestedParser extends Aggregator.Parser {
 
     @Override
     public String type() {

@@ -37,7 +37,7 @@ import java.util.Map;
  *
  */
 public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
-        implements Aggregator.Parser {
+        extends Aggregator.Parser {
     static final ParseField TIME_ZONE = new ParseField("time_zone");
 
     public abstract static class AnyValuesSourceParser extends AbstractValuesSourceParser<ValuesSource> {

@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SamplerParser implements Aggregator.Parser {
+public class SamplerParser extends Aggregator.Parser {
 
     @Override
     public String type() {

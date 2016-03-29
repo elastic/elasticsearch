@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FilterParser implements Aggregator.Parser {
+public class FilterParser extends Aggregator.Parser {
 
     @Override
     public String type() {

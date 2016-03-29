@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ChildrenParser implements Aggregator.Parser {
+public class ChildrenParser extends Aggregator.Parser {
 
     @Override
     public String type() {

@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ReverseNestedParser implements Aggregator.Parser {
+public class ReverseNestedParser extends Aggregator.Parser {
 
     @Override
     public String type() {

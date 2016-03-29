@@ -36,7 +36,7 @@ import java.util.List;
 /**
  *
  */
-public class TopHitsParser implements Aggregator.Parser {
+public class TopHitsParser extends Aggregator.Parser {
 
     @Override
     public String type() {

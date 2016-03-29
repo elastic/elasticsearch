@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  *
  */
-public class GlobalParser implements Aggregator.Parser {
+public class GlobalParser extends Aggregator.Parser {
 
     @Override
     public String type() {

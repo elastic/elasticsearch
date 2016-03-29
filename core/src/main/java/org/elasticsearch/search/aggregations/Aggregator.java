@@ -45,12 +45,12 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      *
      * @see AggregatorBuilder
     */
-    public interface Parser {
+    public static abstract class Parser {
 
         /**
          * @return The aggregation type this parser is associated with.
          */
-        String type();
+        public abstract String type();
 
         /**
          * Returns the aggregator factory with which this parser is associated, may return {@code null} indicating the
@@ -62,13 +62,13 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @return                  The resolved aggregator factory or {@code null} in case the aggregation should be skipped
          * @throws java.io.IOException      When parsing fails
          */
-        AggregatorBuilder<?> parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException;
+        public abstract AggregatorBuilder<?> parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException;
 
         /**
          * @return an empty {@link AggregatorBuilder} instance for this parser
          *         that can be used for deserialization
          */
-        AggregatorBuilder<?> getFactoryPrototypes();
+        public abstract AggregatorBuilder<?> getFactoryPrototypes();
     }
 
     /**

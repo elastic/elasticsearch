@@ -84,4 +84,18 @@ public class GsubProcessorFactoryTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("[replacement] required property is missing"));
         }
     }
+
+    public void testCreateInvalidPattern() throws Exception {
+        GsubProcessor.Factory factory = new GsubProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("pattern", "[");
+        config.put("replacement", "-");
+        try {
+            factory.create(config);
+            fail("factory create should have failed");
+        } catch(ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[pattern] Invalid regex pattern. Unclosed character class near index 0\n[\n^"));
+        }
+    }
 }

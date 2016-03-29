@@ -31,8 +31,11 @@ import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -47,9 +50,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -315,6 +321,36 @@ public class AvgIT extends AbstractNumericTestCase {
         assertThat(avg, notNullValue());
         assertThat(avg.getName(), equalTo("avg"));
         assertThat(avg.getValue(), equalTo((double) (3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12+12+13) / 20));
+    }
+
+    @Override
+    public void testOrderByEmptyAggregation() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(terms("terms").field("value").order(Order.compound(Order.aggregation("filter>avg", true)))
+                        .subAggregation(filter("filter", termQuery("value", 100)).subAggregation(avg("avg").field("value"))))
+                .get();
+
+        assertHitCount(searchResponse, 10);
+
+        Terms terms = searchResponse.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        List<Terms.Bucket> buckets = terms.getBuckets();
+        assertThat(buckets, notNullValue());
+        assertThat(buckets.size(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            Terms.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsNumber(), equalTo((long) i + 1));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+            Filter filter = bucket.getAggregations().get("filter");
+            assertThat(filter, notNullValue());
+            assertThat(filter.getDocCount(), equalTo(0L));
+            Avg avg = filter.getAggregations().get("avg");
+            assertThat(avg, notNullValue());
+            assertThat(avg.value(), equalTo(Double.NaN));
+
+        }
     }
 
     /**

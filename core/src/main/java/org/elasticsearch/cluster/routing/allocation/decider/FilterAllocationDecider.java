@@ -50,11 +50,14 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
  * would disallow the allocation. Filters are applied in the following order:
  * <ol>
  * <li><tt>required</tt> - filters required allocations.
- * If any <tt>required</tt> filters are set the allocation is denied if the index is <b>not</b> in the set of <tt>required</tt> to allocate on the filtered node</li>
+ * If any <tt>required</tt> filters are set the allocation is denied if the index is <b>not</b> in the set of <tt>required</tt> to allocate
+ * on the filtered node</li>
  * <li><tt>include</tt> - filters "allowed" allocations.
- * If any <tt>include</tt> filters are set the allocation is denied if the index is <b>not</b> in the set of <tt>include</tt> filters for the filtered node</li>
+ * If any <tt>include</tt> filters are set the allocation is denied if the index is <b>not</b> in the set of <tt>include</tt> filters for
+ * the filtered node</li>
  * <li><tt>exclude</tt> - filters "prohibited" allocations.
- * If any <tt>exclude</tt> filters are set the allocation is denied if the index is in the set of <tt>exclude</tt> filters for the filtered node</li>
+ * If any <tt>exclude</tt> filters are set the allocation is denied if the index is in the set of <tt>exclude</tt> filters for the
+ * filtered node</li>
  * </ol>
  */
 public class FilterAllocationDecider extends AllocationDecider {

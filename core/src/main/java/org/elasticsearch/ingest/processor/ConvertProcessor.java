@@ -73,6 +73,23 @@ public final class ConvertProcessor extends AbstractProcessor {
             public Object convert(Object value) {
                 return value.toString();
             }
+        }, AUTO {
+            @Override
+            public Object convert(Object value) {
+                if (!(value instanceof String)) {
+                   return value;
+                }
+                try {
+                    return BOOLEAN.convert(value);
+                } catch (IllegalArgumentException e) { }
+                try {
+                    return INTEGER.convert(value);
+                } catch (IllegalArgumentException e) {}
+                try {
+                    return FLOAT.convert(value);
+                } catch (IllegalArgumentException e) {}
+                return value;
+            }
         };
 
         @Override
@@ -94,16 +111,22 @@ public final class ConvertProcessor extends AbstractProcessor {
     public static final String TYPE = "convert";
 
     private final String field;
+    private final String targetField;
     private final Type convertType;
 
-    ConvertProcessor(String tag, String field, Type convertType) {
+    ConvertProcessor(String tag, String field, String targetField, Type convertType) {
         super(tag);
         this.field = field;
+        this.targetField = targetField;
         this.convertType = convertType;
     }
 
     String getField() {
         return field;
+    }
+
+    String getTargetField() {
+        return targetField;
     }
 
     Type getConvertType() {
@@ -128,7 +151,7 @@ public final class ConvertProcessor extends AbstractProcessor {
         } else {
             newValue = convertType.convert(oldValue);
         }
-        document.setFieldValue(field, newValue);
+        document.setFieldValue(targetField, newValue);
     }
 
     @Override
@@ -141,8 +164,9 @@ public final class ConvertProcessor extends AbstractProcessor {
         public ConvertProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String typeProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type");
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             Type convertType = Type.fromString(processorTag, "type", typeProperty);
-            return new ConvertProcessor(processorTag, field, convertType);
+            return new ConvertProcessor(processorTag, field, targetField, convertType);
         }
     }
 }

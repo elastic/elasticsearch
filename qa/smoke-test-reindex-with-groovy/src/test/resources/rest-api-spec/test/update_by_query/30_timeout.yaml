@@ -11,7 +11,7 @@
 
   - do:
       catch: request_timeout
-      update-by-query:
+      update_by_query:
         index:   twitter
         refresh: true
         search_timeout: 10ms

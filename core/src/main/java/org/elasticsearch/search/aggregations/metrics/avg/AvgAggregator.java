@@ -94,7 +94,10 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return valuesSource == null ? Double.NaN : sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+        if (valuesSource == null || owningBucketOrd >= sums.size()) {
+            return Double.NaN;
+        }
+        return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
     }
 
     @Override

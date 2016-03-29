@@ -1,0 +1,49 @@
+[[nodes-task]]
+== Nodes Task API
+
+The nodes task management API retrieves information about the tasks currently
+executing on one or more nodes in the cluster.
+
+[source,js]
+--------------------------------------------------
+GET /_tasks <1>
+GET /_tasks/nodeId1,nodeId2 <2>
+GET /_tasks/nodeId1,nodeId2/cluster:* <3>
+--------------------------------------------------
+// AUTOSENSE
+
+<1> Retrieves all tasks currently running on all nodes in the cluster.
+<2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`.  See <<cluster-nodes>> for more info about how to select individual nodes.
+<3> Retrieves all cluster-related tasks running on nodes `nodeId1` and `nodeId2`.
+
+The result will look similar to the following:
+
+[source,js]
+--------------------------------------------------
+{
+  "nodes": {
+    "fDlEl7PrQi6F-awHZ3aaDw": {
+      "name": "Gazer",
+      "transport_address": "127.0.0.1:9300",
+      "host": "127.0.0.1",
+      "ip": "127.0.0.1:9300",
+      "tasks": [
+        {
+          "node": "fDlEl7PrQi6F-awHZ3aaDw",
+          "id": 105,
+          "type": "transport",
+          "action": "cluster:monitor/nodes/tasks"
+        },
+        {
+          "node": "fDlEl7PrQi6F-awHZ3aaDw",
+          "id": 106,
+          "type": "direct",
+          "action": "cluster:monitor/nodes/tasks[n]",
+          "parent_node": "fDlEl7PrQi6F-awHZ3aaDw",
+          "parent_id": 105
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------

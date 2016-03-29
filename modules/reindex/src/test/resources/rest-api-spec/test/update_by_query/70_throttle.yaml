@@ -29,7 +29,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index: test
         scroll_size: 1
         requests_per_second: 1

@@ -10,7 +10,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index: test
   - is_false: timed_out
   - match: {updated: 1}
@@ -19,8 +19,9 @@
   - match: {failures: []}
   - match: {noops: 0}
   - match: {throttled_millis: 0}
-  - is_true: took
-  - is_false: created # Update by query can't create
+  - gte: { took: 0 }
+  # Update by query can't create
+  - is_false: created
   - is_false: task
 
 ---
@@ -35,7 +36,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         wait_for_completion: false
         index: test
   - match: {task: '/.+:\d+/'}
@@ -70,7 +71,8 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
-  - do: # Creates a new version for reindex to miss on scan.
+  # Creates a new version for reindex to miss on scan.
+  - do:
       index:
         index:   test
         type:    foo
@@ -79,7 +81,7 @@
 
   - do:
       catch: conflict
-      update-by-query:
+      update_by_query:
         index: test
   - match: {updated: 0}
   - match: {version_conflicts: 1}
@@ -93,7 +95,7 @@
   - match: {failures.0.cause.reason: "/\\[foo\\]\\[1\\]:.version.conflict,.current.version.\\[\\d+\\].is.different.than.the.one.provided.\\[\\d+\\]/"}
   - match: {failures.0.cause.shard:  /\d+/}
   - match: {failures.0.cause.index:  test}
-  - is_true: took
+  - gte: { took: 0 }
 
 ---
 "Response for version conflict with conflicts=proceed":
@@ -111,7 +113,8 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
-  - do: # Creates a new version for reindex to miss on scan.
+  # Creates a new version for reindex to miss on scan.
+  - do:
       index:
         index:   test
         type:    foo
@@ -119,7 +122,7 @@
         body:    { "text": "test2" }
 
   - do:
-      update-by-query:
+      update_by_query:
         index: test
         conflicts: proceed
   - match: {updated: 0}
@@ -128,7 +131,7 @@
   - match: {noops: 0}
   - match: {failures: []}
   - match: {throttled_millis: 0}
-  - is_true: took
+  - gte: { took: 0 }
 
 ---
 "Limit by query":
@@ -148,7 +151,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index: twitter
         body:
           query:
@@ -158,7 +161,7 @@
   - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {failures: []}
-  - is_true: took
+  - gte: { took: 0 }
 
 ---
 "Limit by size":
@@ -178,7 +181,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index: twitter
         size: 1
   - match: {updated: 1}
@@ -186,7 +189,7 @@
   - match: {batches: 1}
   - match: {failures: []}
   - match: {throttled_millis: 0}
-  - is_true: took
+  - gte: { took: 0 }
 
 ---
 "Can override scroll_size":
@@ -218,7 +221,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index: test
         scroll_size: 1
   - match: {batches: 3}

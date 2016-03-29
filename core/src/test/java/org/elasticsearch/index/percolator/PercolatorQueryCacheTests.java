@@ -125,6 +125,8 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         IndexWriter indexWriter = new IndexWriter(
                 directory,
                 newIndexWriterConfig(new MockAnalyzer(random()))
+                        .setMergePolicy(NoMergePolicy.INSTANCE)
+                        .setMaxBufferedDocs(16)
         );
 
         boolean legacyFormat = randomBoolean();

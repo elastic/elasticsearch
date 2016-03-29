@@ -25,6 +25,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -1244,6 +1248,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
             return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
+        }
+
+        @Override
+        public void allocationExplain(ClusterAllocationExplainRequest request, ActionListener<ClusterAllocationExplainResponse> listener) {
+            execute(ClusterAllocationExplainAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<ClusterAllocationExplainResponse> allocationExplain(ClusterAllocationExplainRequest request) {
+            return execute(ClusterAllocationExplainAction.INSTANCE, request);
+        }
+
+        @Override
+        public ClusterAllocationExplainRequestBuilder prepareAllocationExplain() {
+            return new ClusterAllocationExplainRequestBuilder(this, ClusterAllocationExplainAction.INSTANCE);
         }
     }
 

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.metrics.stats;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -57,7 +58,7 @@ public class StatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
-        return StatsAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new StatsAggregatorBuilder(in);
     }
 }

@@ -415,9 +415,9 @@ public class SearchModule extends AbstractModule {
 
         registerAggregatorParser(new AvgParser());
         registerAggregatorParser(new SumParser());
-//        registerAggregatorParser(new MinParser());
-//        registerAggregatorParser(new MaxParser());
-//        registerAggregatorParser(new StatsParser());
+        registerAggregatorParser(new MinParser());
+        registerAggregatorParser(new MaxParser());
+        registerAggregatorParser(new StatsParser());
 //        registerAggregatorParser(new ExtendedStatsParser());
 //        registerAggregatorParser(new ValueCountParser());
 //        registerAggregatorParser(new PercentilesParser());

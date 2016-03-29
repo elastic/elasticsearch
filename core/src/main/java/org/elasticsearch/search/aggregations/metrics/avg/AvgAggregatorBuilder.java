@@ -20,44 +20,36 @@
 package org.elasticsearch.search.aggregations.metrics.avg;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 import java.io.IOException;
 
 public class AvgAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregatorBuilder> {
 
-    static final AvgAggregatorBuilder PROTOTYPE = new AvgAggregatorBuilder("");
-
     public AvgAggregatorBuilder(String name) {
         super(name, InternalAvg.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    AvgAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalAvg.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override
     protected AvgAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new AvgAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected AvgAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) {
-        return new AvgAggregatorBuilder(name);
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
     }
 
     @Override

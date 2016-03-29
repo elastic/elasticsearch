@@ -20,7 +20,9 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -56,8 +58,7 @@ public class AvgParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AvgAggregatorBuilder getFactoryPrototypes() {
-        return AvgAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new AvgAggregatorBuilder(in);
     }
-
 }

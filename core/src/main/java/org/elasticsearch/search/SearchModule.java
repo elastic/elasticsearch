@@ -413,7 +413,7 @@ public class SearchModule extends AbstractModule {
 
         SignificanceHeuristicParserMapper significanceHeuristicParserMapper = new SignificanceHeuristicParserMapper(heuristicParsers);
 
-//        registerAggregatorParser(new AvgParser());
+        registerAggregatorParser(new AvgParser());
         registerAggregatorParser(new SumParser());
 //        registerAggregatorParser(new MinParser());
 //        registerAggregatorParser(new MaxParser());
@@ -423,7 +423,7 @@ public class SearchModule extends AbstractModule {
 //        registerAggregatorParser(new PercentilesParser());
 //        registerAggregatorParser(new PercentileRanksParser());
 //        registerAggregatorParser(new CardinalityParser());
-//        registerAggregatorParser(new GlobalParser());
+        registerAggregatorParser(new GlobalParser());
 //        registerAggregatorParser(new MissingParser());
         registerAggregatorParser(new FilterParser());
 //        registerAggregatorParser(new FiltersParser(indicesQueriesRegistry));
@@ -434,8 +434,8 @@ public class SearchModule extends AbstractModule {
 //        registerAggregatorParser(new RangeParser());
 //        registerAggregatorParser(new DateRangeParser());
 //        registerAggregatorParser(new IpRangeParser());
-//        registerAggregatorParser(new HistogramParser());
-//        registerAggregatorParser(new DateHistogramParser());
+        registerAggregatorParser(new HistogramParser());
+        registerAggregatorParser(new DateHistogramParser());
 //        registerAggregatorParser(new GeoDistanceParser());
 //        registerAggregatorParser(new GeoHashGridParser());
 //        registerAggregatorParser(new NestedParser());

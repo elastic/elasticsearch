@@ -45,6 +45,42 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
         super(name, type, ValuesSourceType.NUMERIC, histogramFactory.valueType());
     }
 
+    /**
+     * Read from a stream.
+     */
+    AbstractHistogramBuilder(StreamInput in, InternalAggregation.Type type, InternalHistogram.Factory<?> histogramFactory) throws IOException {
+        super(in, type, ValuesSourceType.NUMERIC, histogramFactory.valueType());
+        interval = in.readVLong();
+        offset = in.readLong();
+        if (in.readBoolean()) {
+            order = InternalOrder.Streams.readOrder(in);
+        }
+        keyed = in.readBoolean();
+        minDocCount = in.readVLong();
+        if (in.readBoolean()) {
+            extendedBounds = ExtendedBounds.readFrom(in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVLong(interval);
+        out.writeLong(offset);
+        boolean hasOrder = order != null;
+        out.writeBoolean(hasOrder);
+        if (hasOrder) {
+            InternalOrder.Streams.writeOrder(order, out);
+        }
+        out.writeBoolean(keyed);
+        out.writeVLong(minDocCount);
+        boolean hasExtendedBounds = extendedBounds != null;
+        out.writeBoolean(hasExtendedBounds);
+        if (hasExtendedBounds) {
+            extendedBounds.writeTo(out);
+        }
+    }
+
     public long interval() {
         return interval;
     }
@@ -146,53 +182,10 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
         return builder;
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    protected AB innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in)
-            throws IOException {
-        AbstractHistogramBuilder<AB> factory = createFactoryFromStream(name, in);
-        factory.interval = in.readVLong();
-        factory.offset = in.readLong();
-        if (in.readBoolean()) {
-            factory.order = InternalOrder.Streams.readOrder(in);
-        }
-        factory.keyed = in.readBoolean();
-        factory.minDocCount = in.readVLong();
-        if (in.readBoolean()) {
-            factory.extendedBounds = ExtendedBounds.readFrom(in);
-        }
-        return (AB) factory;
-    }
-
-    protected abstract AB createFactoryFromStream(String name, StreamInput in) throws IOException;
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        writeFactoryToStream(out);
-        out.writeVLong(interval);
-        out.writeLong(offset);
-        boolean hasOrder = order != null;
-        out.writeBoolean(hasOrder);
-        if (hasOrder) {
-            InternalOrder.Streams.writeOrder(order, out);
-        }
-        out.writeBoolean(keyed);
-        out.writeVLong(minDocCount);
-        boolean hasExtendedBounds = extendedBounds != null;
-        out.writeBoolean(hasExtendedBounds);
-        if (hasExtendedBounds) {
-            extendedBounds.writeTo(out);
-        }
-    }
-
-    protected void writeFactoryToStream(StreamOutput out) throws IOException {
-        // Default impl does nothing
-}
-
     @Override
     protected int innerHashCode() {
         return Objects.hash(interval, offset, order, keyed, minDocCount, extendedBounds);
-}
+    }
 
     @Override
     protected boolean innerEquals(Object obj) {

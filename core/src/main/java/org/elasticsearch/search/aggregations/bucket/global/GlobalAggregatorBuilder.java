@@ -37,20 +37,17 @@ public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorB
         super(name, InternalGlobal.TYPE);
     }
 
+    /**
+     * Read from a stream.
+     */
+    GlobalAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalGlobal.TYPE);
+    }
+
     @Override
     protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
         return new GlobalAggregatorFactory(name, type, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected GlobalAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        return new GlobalAggregatorBuilder(name);
-    }
-
-    @Override
-    protected void writeEnd(StreamOutput out) throws IOException {
-        // Nothing to write
     }
 
     @Override

@@ -35,9 +35,11 @@ public class HistogramAggregatorBuilder extends AbstractHistogramBuilder<Histogr
         super(name, InternalHistogram.TYPE, InternalHistogram.HISTOGRAM_FACTORY);
     }
 
-    @Override
-    protected HistogramAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        return new HistogramAggregatorBuilder(name);
+    /**
+     * Read from a stream.
+     */
+    HistogramAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalHistogram.TYPE, InternalHistogram.HISTOGRAM_FACTORY);
     }
 
     @Override

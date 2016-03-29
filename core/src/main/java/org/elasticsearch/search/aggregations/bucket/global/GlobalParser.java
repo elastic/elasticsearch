@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.global;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
@@ -47,4 +49,8 @@ public class GlobalParser extends Aggregator.Parser {
         return GlobalAggregatorBuilder.PROTOTYPE;
     }
 
+    @Override
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new GlobalAggregatorBuilder(in);
+    }
 }

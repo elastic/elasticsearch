@@ -33,13 +33,30 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class DateHistogramAggregatorBuilder extends AbstractHistogramBuilder<DateHistogramAggregatorBuilder> {
-
-    public static final DateHistogramAggregatorBuilder PROTOTYPE = new DateHistogramAggregatorBuilder("");
-
     private DateHistogramInterval dateHistogramInterval;
 
     public DateHistogramAggregatorBuilder(String name) {
         super(name, InternalDateHistogram.TYPE, InternalDateHistogram.HISTOGRAM_FACTORY);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    DateHistogramAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalDateHistogram.TYPE, InternalDateHistogram.HISTOGRAM_FACTORY);
+        if (in.readBoolean()) {
+            dateHistogramInterval = DateHistogramInterval.readFromStream(in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        boolean hasDateInterval = dateHistogramInterval != null;
+        out.writeBoolean(hasDateInterval);
+        if (hasDateInterval) {
+            dateHistogramInterval.writeTo(out);
+        }
     }
 
     /**
@@ -91,24 +108,6 @@ public class DateHistogramAggregatorBuilder extends AbstractHistogramBuilder<Dat
             builder.value(dateHistogramInterval.toString());
         }
         return builder;
-    }
-
-    @Override
-    protected DateHistogramAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        DateHistogramAggregatorBuilder factory = new DateHistogramAggregatorBuilder(name);
-        if (in.readBoolean()) {
-            factory.dateHistogramInterval = DateHistogramInterval.readFromStream(in);
-        }
-        return factory;
-    }
-
-    @Override
-    protected void writeFactoryToStream(StreamOutput out) throws IOException {
-        boolean hasDateInterval = dateHistogramInterval != null;
-        out.writeBoolean(hasDateInterval);
-        if (hasDateInterval) {
-            dateHistogramInterval.writeTo(out);
-        }
     }
 
     @Override

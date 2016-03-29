@@ -22,12 +22,14 @@ package org.elasticsearch.search.aggregations.bucket.filters;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
@@ -44,7 +46,6 @@ public class FiltersParser extends Aggregator.Parser {
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
     private final IndicesQueriesRegistry queriesRegistry;
 
-    @Inject
     public FiltersParser(IndicesQueriesRegistry queriesRegistry) {
         this.queriesRegistry = queriesRegistry;
     }
@@ -144,8 +145,7 @@ public class FiltersParser extends Aggregator.Parser {
     }
 
     @Override
-    public FiltersAggregatorBuilder getFactoryPrototypes() {
-        return FiltersAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new FiltersAggregatorBuilder(in);
     }
-
 }

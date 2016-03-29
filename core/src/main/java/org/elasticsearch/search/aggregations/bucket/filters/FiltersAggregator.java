@@ -57,8 +57,6 @@ public class FiltersAggregator extends BucketsAggregator {
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
 
     public static class KeyedFilter implements Writeable<KeyedFilter>, ToXContent {
-
-        static final KeyedFilter PROTOTYPE = new KeyedFilter("", EmptyQueryBuilder.PROTOTYPE);
         private final String key;
         private final QueryBuilder<?> filter;
 
@@ -73,6 +71,20 @@ public class FiltersAggregator extends BucketsAggregator {
             this.filter = filter;
         }
 
+        /**
+         * Read from a stream.
+         */
+        KeyedFilter(StreamInput in) throws IOException {
+            key = in.readString();
+            filter = in.readQuery();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeQuery(filter);
+        }
+
         public String key() {
             return key;
         }
@@ -85,19 +97,6 @@ public class FiltersAggregator extends BucketsAggregator {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(key, filter);
             return builder;
-        }
-
-        @Override
-        public KeyedFilter readFrom(StreamInput in) throws IOException {
-            String key = in.readString();
-            QueryBuilder<?> filter = in.readQuery();
-            return new KeyedFilter(key, filter);
-    }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
-            out.writeQuery(filter);
         }
 
         @Override

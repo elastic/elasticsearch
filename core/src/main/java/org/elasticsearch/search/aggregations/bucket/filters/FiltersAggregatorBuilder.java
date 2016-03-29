@@ -78,6 +78,46 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
     }
 
     /**
+     * Read from a stream.
+     */
+    FiltersAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalFilters.TYPE);
+        keyed = in.readBoolean();
+        int size = in.readVInt();
+        filters = new ArrayList<>(size);
+        if (keyed) {
+            for (int i = 0; i < size; i++) {
+                filters.add(new KeyedFilter(in));
+            }
+        } else {
+            for (int i = 0; i < size; i++) {
+                filters.add(new KeyedFilter(String.valueOf(i), in.readQuery()));
+            }
+        }
+        otherBucket = in.readBoolean();
+        otherBucketKey = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(keyed);
+        if (keyed) {
+            out.writeVInt(filters.size());
+            for (KeyedFilter keyedFilter : filters) {
+                keyedFilter.writeTo(out);
+            }
+        } else {
+            out.writeVInt(filters.size());
+            for (KeyedFilter keyedFilter : filters) {
+                out.writeQuery(keyedFilter.filter());
+            }
+        }
+        out.writeBoolean(otherBucket);
+        out.writeString(otherBucketKey);
+    }
+
+    /**
      * Set whether to include a bucket for documents not matching any filter
      */
     public FiltersAggregatorBuilder otherBucket(boolean otherBucket) {
@@ -139,47 +179,6 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
         builder.field(FiltersAggregator.OTHER_BUCKET_KEY_FIELD.getPreferredName(), otherBucketKey);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    protected FiltersAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        FiltersAggregatorBuilder factory;
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<KeyedFilter> filters = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                filters.add(KeyedFilter.PROTOTYPE.readFrom(in));
-            }
-            factory = new FiltersAggregatorBuilder(name, filters);
-        } else {
-            int size = in.readVInt();
-            QueryBuilder<?>[] filters = new QueryBuilder<?>[size];
-            for (int i = 0; i < size; i++) {
-                filters[i] = in.readQuery();
-            }
-            factory = new FiltersAggregatorBuilder(name, filters);
-        }
-        factory.otherBucket = in.readBoolean();
-        factory.otherBucketKey = in.readString();
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd(StreamOutput out) throws IOException {
-        out.writeBoolean(keyed);
-        if (keyed) {
-            out.writeVInt(filters.size());
-            for (KeyedFilter keyedFilter : filters) {
-                keyedFilter.writeTo(out);
-            }
-        } else {
-            out.writeVInt(filters.size());
-            for (KeyedFilter keyedFilter : filters) {
-                out.writeQuery(keyedFilter.filter());
-            }
-        }
-        out.writeBoolean(otherBucket);
-        out.writeString(otherBucketKey);
     }
 
     @Override

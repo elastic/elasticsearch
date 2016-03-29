@@ -38,6 +38,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregatorBuild
                 // NORELEASE make RandomQueryBuilder work outside of the
                 // AbstractQueryTestCase
                 // builder.query(RandomQueryBuilder.createQuery(getRandom()));
+                // TODO this
                 filters[i] = new KeyedFilter(randomAsciiOfLengthBetween(1, 20),
                         QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
             }
@@ -48,6 +49,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregatorBuild
                 // NORELEASE make RandomQueryBuilder work outside of the
                 // AbstractQueryTestCase
                 // builder.query(RandomQueryBuilder.createQuery(getRandom()));
+                // TODO this
                 filters[i] = QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
             }
             factory = new FiltersAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), filters);

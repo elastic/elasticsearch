@@ -35,15 +35,33 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, CardinalityAggregatorBuilder> {
-
-    static final CardinalityAggregatorBuilder PROTOTYPE = new CardinalityAggregatorBuilder("", null);
-
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
     private Long precisionThreshold = null;
 
     public CardinalityAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalCardinality.TYPE, ValuesSourceType.ANY, targetValueType);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    CardinalityAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalCardinality.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
+        if (in.readBoolean()) {
+            precisionThreshold = in.readLong();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(getTargetValueType());
+        super.writeTo(out);
+        boolean hasPrecisionThreshold = precisionThreshold != null;
+        out.writeBoolean(hasPrecisionThreshold);
+        if (hasPrecisionThreshold) {
+            out.writeLong(precisionThreshold);
+        }
     }
 
     /**
@@ -80,25 +98,6 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
     protected CardinalityAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new CardinalityAggregatorFactory(name, type, config, precisionThreshold, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected CardinalityAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        CardinalityAggregatorBuilder factory = new CardinalityAggregatorBuilder(name, targetValueType);
-        if (in.readBoolean()) {
-            factory.precisionThreshold = in.readLong();
-        }
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        boolean hasPrecisionThreshold = precisionThreshold != null;
-        out.writeBoolean(hasPrecisionThreshold);
-        if (hasPrecisionThreshold) {
-            out.writeLong(precisionThreshold);
-        }
     }
 
     @Override

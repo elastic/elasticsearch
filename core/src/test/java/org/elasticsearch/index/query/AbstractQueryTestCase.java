@@ -524,9 +524,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private QueryBuilder<?> parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
-        QueryParseContext context = createParseContext();
-        context.reset(parser);
-        context.parseFieldMatcher(matcher);
+        QueryParseContext context = createParseContext(parser, matcher);
         QueryBuilder<?> parseInnerQueryBuilder = context.parseInnerQueryBuilder();
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
@@ -728,19 +726,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryShardContext} based on the base test index and queryParserService
      */
     protected static QueryShardContext createShardContext() {
-        QueryShardContext queryCreationContext = new QueryShardContext(queryShardContext);
-        queryCreationContext.reset();
-        queryCreationContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
-        return queryCreationContext;
+        return new QueryShardContext(queryShardContext);
     }
 
     /**
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
-    protected static QueryParseContext createParseContext() {
-        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
-        queryParseContext.reset(null);
-        queryParseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+    protected static QueryParseContext createParseContext(XContentParser parser, ParseFieldMatcher matcher) {
+        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry, parser, matcher);
         return queryParseContext;
     }
 

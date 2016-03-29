@@ -78,8 +78,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             parser = parser.contentType().xContent().createParser(builder.bytes());
-            context.queryParseContext.reset(parser);
-            search.source().parseXContent(context.queryParseContext, context.aggParsers, context.suggesters);
+            search.source().parseXContent(context.queryParseContext(parser), context.aggParsers, context.suggesters);
         };
 
         ObjectParser<IndexRequest, ParseFieldMatcherSupplier> destParser = new ObjectParser<>("dest");
@@ -98,7 +97,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSearchRequest(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
-        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.queryParseContext.getParseFieldMatcher())), new ParseField("script"),
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.getParseFieldMatcher())), new ParseField("script"),
                 ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
@@ -121,8 +120,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         ReindexRequest internalRequest = new ReindexRequest(new SearchRequest(), new IndexRequest());
 
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
-            PARSER.parse(xcontent, internalRequest, new ReindexParseContext(new QueryParseContext(indicesQueriesRegistry), aggParsers,
-                    suggesters));
+            PARSER.parse(xcontent, internalRequest, new ReindexParseContext(indicesQueriesRegistry, aggParsers,
+                    suggesters, parseFieldMatcher));
         } catch (ParsingException e) {
             logger.warn("Bad request", e);
             badRequest(channel, e.getDetailedMessage());
@@ -171,21 +170,27 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
     }
 
-    private class ReindexParseContext implements ParseFieldMatcherSupplier{
-        private final QueryParseContext queryParseContext;
+    private class ReindexParseContext implements ParseFieldMatcherSupplier {
+        private final IndicesQueriesRegistry indicesQueryRegistry;
+        private final ParseFieldMatcher parseFieldMatcher;
         private final AggregatorParsers aggParsers;
         private final Suggesters suggesters;
 
-        public ReindexParseContext(QueryParseContext queryParseContext, AggregatorParsers aggParsers,
-            Suggesters suggesters) {
-            this.queryParseContext = queryParseContext;
+        public ReindexParseContext(IndicesQueriesRegistry indicesQueryRegistry, AggregatorParsers aggParsers,
+            Suggesters suggesters, ParseFieldMatcher parseFieldMatcher) {
+            this.indicesQueryRegistry = indicesQueryRegistry;
             this.aggParsers = aggParsers;
             this.suggesters = suggesters;
+            this.parseFieldMatcher = parseFieldMatcher;
+        }
+
+        public QueryParseContext queryParseContext(XContentParser parser) {
+            return new QueryParseContext(indicesQueryRegistry, parser, parseFieldMatcher);
         }
 
         @Override
         public ParseFieldMatcher getParseFieldMatcher() {
-            return queryParseContext.getParseFieldMatcher();
+            return this.parseFieldMatcher;
         }
     }
 }

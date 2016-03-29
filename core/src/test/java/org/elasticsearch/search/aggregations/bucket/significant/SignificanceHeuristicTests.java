@@ -249,9 +249,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         try {
             XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
-            QueryParseContext parseContext = new QueryParseContext(registry);
-            parseContext.reset(stParser);
-            parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+            QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
             stParser.nextToken();
             new SignificantTermsParser(heuristicParserMapper, registry).parse("testagg", parseContext);
             fail();
@@ -272,9 +270,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper,
             SearchContext searchContext, XContentParser stParser) throws IOException {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
-        QueryParseContext parseContext = new QueryParseContext(registry);
-        parseContext.reset(stParser);
-        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
         stParser.nextToken();
         SignificantTermsAggregatorBuilder aggregatorFactory = (SignificantTermsAggregatorBuilder) new SignificantTermsParser(
                 heuristicParserMapper, registry).parse("testagg", parseContext);

@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.action.percolate;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
@@ -51,9 +54,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
-import java.util.Arrays;
 
 public class TransportPercolateAction extends HandledTransportAction<PercolateRequest, PercolateResponse> {
 
@@ -196,9 +196,8 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
 
         PercolatorQueryBuilder percolatorQueryBuilder = new PercolatorQueryBuilder(percolateRequest.documentType(), documentSource);
         if (querySource != null) {
-            QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
-            queryParseContext.reset(XContentHelper.createParser(querySource));
-            queryParseContext.parseFieldMatcher(parseFieldMatcher);
+            QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, XContentHelper.createParser(querySource),
+                    parseFieldMatcher);
             QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
             boolQueryBuilder.must(queryBuilder);
@@ -215,10 +214,8 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         searchSource.flush();
         BytesReference source = searchSource.bytes();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        QueryParseContext context = new QueryParseContext(queryRegistry);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(source)) {
-            context.reset(parser);
-            context.parseFieldMatcher(parseFieldMatcher);
+            QueryParseContext context = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
             searchSourceBuilder.parseXContent(context, aggParsers, null);
             searchRequest.source(searchSourceBuilder);
             return searchRequest;

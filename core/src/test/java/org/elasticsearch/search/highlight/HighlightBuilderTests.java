@@ -143,8 +143,6 @@ public class HighlightBuilderTests extends ESTestCase {
      *  creates random highlighter, renders it to xContent and back to new instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -155,7 +153,7 @@ public class HighlightBuilderTests extends ESTestCase {
             XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
 
             XContentParser parser = XContentHelper.createParser(shuffled.bytes());
-            context.reset(parser);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             parser.nextToken();
             HighlightBuilder secondHighlightBuilder;
             try {
@@ -194,10 +192,9 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
-    private <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
+    private static <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
         XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(context));
     }
 
@@ -401,14 +398,13 @@ public class HighlightBuilderTests extends ESTestCase {
      * adds a simple json test for this.
      */
     public void testParsingTagsSchema() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+
         String highlightElement = "{\n" +
                 "    \"tags_schema\" : \"styled\"\n" +
                 "}\n";
         XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 highlightBuilder.preTags());
@@ -420,7 +416,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 "}\n";
         parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
 
-        context.reset(parser);
+        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
                 highlightBuilder.preTags());
@@ -438,26 +434,24 @@ public class HighlightBuilderTests extends ESTestCase {
      * test parsing empty highlight or empty fields blocks
      */
     public void testParsingEmptyStructure() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         String highlightElement = "{ }";
         XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { } }";
         parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
 
-        context.reset(parser);
+        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
         parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
 
-        context.reset(parser);
+        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
     }

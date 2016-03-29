@@ -256,12 +256,12 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             // do this until we get one without a shape
         } while (sqb.shape() != null);
         try {
-            sqb.toQuery(queryShardContext());
+            sqb.toQuery(createShardContext());
             fail();
         } catch (UnsupportedOperationException e) {
             assertEquals("query must be rewritten first", e.getMessage());
         }
-        QueryBuilder<?> rewrite = sqb.rewrite(queryShardContext());
+        QueryBuilder<?> rewrite = sqb.rewrite(createShardContext());
         GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, indexedShapeToReturn);
         geoShapeQueryBuilder.strategy(sqb.strategy());
         geoShapeQueryBuilder.relation(sqb.relation());

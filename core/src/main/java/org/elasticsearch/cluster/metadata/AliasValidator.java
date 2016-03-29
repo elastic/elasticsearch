@@ -26,7 +26,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -144,12 +143,12 @@ public class AliasValidator extends AbstractComponent {
 
     private void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         try {
-            queryShardContext.reset(parser);
-            QueryParseContext queryParseContext = queryShardContext.parseContext();
+            queryShardContext.reset();
+            QueryParseContext queryParseContext = queryShardContext.newParseContext(parser);
             QueryBuilder<?> queryBuilder = QueryBuilder.rewriteQuery(queryParseContext.parseInnerQueryBuilder(), queryShardContext);
             queryBuilder.toFilter(queryShardContext);
         } finally {
-            queryShardContext.reset(null);
+            queryShardContext.reset();
             parser.close();
         }
     }

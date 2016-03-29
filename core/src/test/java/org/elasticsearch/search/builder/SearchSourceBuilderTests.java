@@ -450,7 +450,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
     private void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes) throws IOException {
         XContentParser parser = XContentFactory.xContent(searchSourceAsBytes).createParser(searchSourceAsBytes);
         QueryParseContext parseContext = createParseContext(parser);
-        parseContext.reset(parser);
         if (randomBoolean()) {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to test the embedded case
         }
@@ -461,9 +460,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     }
 
     private static QueryParseContext createParseContext(XContentParser parser) {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.reset(parser);
-        context.parseFieldMatcher(parseFieldMatcher);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
         return context;
     }
 

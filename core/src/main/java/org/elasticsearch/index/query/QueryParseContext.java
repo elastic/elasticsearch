@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import java.io.IOException;
+import java.util.Objects;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
@@ -26,40 +29,27 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
-import java.io.IOException;
-
 public class QueryParseContext implements ParseFieldMatcherSupplier {
 
     private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
 
-    private XContentParser parser;
-    private ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
+    private final XContentParser parser;
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+    private final ParseFieldMatcher parseFieldMatcher;
 
-    private IndicesQueriesRegistry indicesQueriesRegistry;
-
-    public QueryParseContext(IndicesQueriesRegistry registry) {
-        this.indicesQueriesRegistry = registry;
-    }
-
-    public void reset(XContentParser jp) {
-        this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
-        this.parser = jp;
+    public QueryParseContext(IndicesQueriesRegistry registry, XContentParser parser, ParseFieldMatcher parseFieldMatcher) {
+        this.indicesQueriesRegistry = Objects.requireNonNull(registry, "indices queries registry cannot be null");
+        this.parser = Objects.requireNonNull(parser, "parser cannot be null");
+        this.parseFieldMatcher = Objects.requireNonNull(parseFieldMatcher, "parse field matcher cannot be null");
     }
 
     public XContentParser parser() {
         return this.parser;
     }
 
-    public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
-        if (parseFieldMatcher == null) {
-            throw new IllegalArgumentException("parseFieldMatcher must not be null");
-        }
-        this.parseFieldMatcher = parseFieldMatcher;
-    }
-
     public boolean isDeprecatedSetting(String setting) {
-        return parseFieldMatcher.match(setting, CACHE) || parseFieldMatcher.match(setting, CACHE_KEY);
+        return this.parseFieldMatcher.match(setting, CACHE) || this.parseFieldMatcher.match(setting, CACHE_KEY);
     }
 
     /**
@@ -126,9 +116,5 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     @Override
     public ParseFieldMatcher getParseFieldMatcher() {
         return parseFieldMatcher;
-    }
-
-    public void parser(XContentParser innerParser) {
-        this.parser = innerParser;
     }
 }

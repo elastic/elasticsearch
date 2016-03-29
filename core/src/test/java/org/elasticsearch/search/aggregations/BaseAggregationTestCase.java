@@ -225,9 +225,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
         XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(parser);
-        parseContext.parseFieldMatcher(parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.name, parser.currentName());

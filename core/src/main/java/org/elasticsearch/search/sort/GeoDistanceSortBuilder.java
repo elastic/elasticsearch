@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -433,6 +434,13 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
+                    if (fieldName != null) {
+                        throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "Trying to reset fieldName to [{}], already set to [{}].",
+                                currentName,
+                                fieldName);
+                    }
                     fieldName = currentName;
                     GeoPoint point = new GeoPoint();
                     GeoUtils.parseGeoPoint(parser, point);
@@ -459,19 +467,24 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     sortMode = SortMode.fromString(parser.text());
                 } else if (parseFieldMatcher.match(currentName, NESTED_PATH_FIELD)) {
                     nestedPath = parser.text();
-                } else if (parseFieldMatcher.match(currentName, REVERSE_FORBIDDEN)) {
-                    // explicitly filter for reverse in json: used to be a valid sort option, forbidden now,
-                    // if not filtered here it will be treated as a reference to a field in the index with
-                    // geo coordinates given as geohash string
-                    throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "Sort option [{}] no longer supported.",
-                            REVERSE_FORBIDDEN.getPreferredName());
-                } else {
+                } else if (token == Token.VALUE_STRING){
+                    if (fieldName != null) {
+                        throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "Trying to reset fieldName to [{}], already set to [{}].",
+                                currentName,
+                                fieldName);
+                    }
+
                     GeoPoint point = new GeoPoint();
                     point.resetFromString(parser.text());
                     geoPoints.add(point);
                     fieldName = currentName;
+                } else {
+                    throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Only geohashes of type string supported for field [{}]",
+                            currentName);
                 }
             }
         }
@@ -502,10 +515,16 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
             for (GeoPoint point : localPoints) {
                 if (GeoUtils.isValidLatitude(point.lat()) == false) {
-                    throw new ElasticsearchParseException("illegal latitude value [{}] for [GeoDistanceSort]", point.lat());
+                    throw new ElasticsearchParseException(
+                            "illegal latitude value [{}] for [GeoDistanceSort] for field [{}].", 
+                            point.lat(),
+                            fieldName);
                 }
                 if (GeoUtils.isValidLongitude(point.lon()) == false) {
-                    throw new ElasticsearchParseException("illegal longitude value [{}] for [GeoDistanceSort]", point.lon());
+                    throw new ElasticsearchParseException(
+                            "illegal longitude value [{}] for [GeoDistanceSort] for field [{}].",
+                            point.lon(),
+                            fieldName);
                 }
             }
         }

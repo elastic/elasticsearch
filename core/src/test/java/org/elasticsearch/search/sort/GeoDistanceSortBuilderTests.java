@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -203,7 +204,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
           }
     }
 
-    public void testReverseOptionFails() throws IOException {
+    public void testReverseOptionFailsWhenNonStringField() throws IOException {
         String json = "{\n" +
                 "  \"testname\" : [ {\n" +
                 "    \"lat\" : -6.046997540714173,\n" +
@@ -221,10 +222,53 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
           GeoDistanceSortBuilder.fromXContent(context, "");
           fail("adding reverse sorting option should fail with an exception");
         } catch (ParsingException e) {
-            assertEquals("Sort option [reverse] no longer supported.", e.getMessage());
+            assertEquals("Only geohashes of type string supported for field [reverse]", e.getMessage());
         }
     }
-    
+
+    public void testReverseOptionFailsWhenStringFieldButResetting() throws IOException {
+        String json = "{\n" +
+                "  \"testname\" : [ {\n" +
+                "    \"lat\" : -6.046997540714173,\n" +
+                "    \"lon\" : -51.94128329747579\n" +
+                "  } ],\n" +
+                "  \"reverse\" : \"true\"\n" +
+                "}";
+        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        itemParser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.reset(itemParser);
+
+        try {
+          GeoDistanceSortBuilder.fromXContent(context, "");
+          fail("adding reverse sorting option should fail with an exception");
+        } catch (ParsingException e) {
+            assertEquals("Trying to reset fieldName to [reverse], already set to [testname].", e.getMessage());
+        }
+    }
+
+    public void testReverseOptionFailsBuildWhenInvalidGeoHashString() throws IOException {
+        String json = "{\n" +
+                "  \"reverse\" : \"false\"\n" +
+                "}";
+        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        itemParser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.reset(itemParser);
+
+        try {
+          GeoDistanceSortBuilder item = GeoDistanceSortBuilder.fromXContent(context, "");
+          item.ignoreMalformed(false);
+          item.build(createMockShardContext());
+          
+          fail("adding reverse sorting option should fail with an exception");
+        } catch (ElasticsearchParseException e) {
+            assertEquals("illegal latitude value [269.384765625] for [GeoDistanceSort] for field [reverse].", e.getMessage());
+        }
+    }
+
     public void testSortModeSumIsRejectedInJSON() throws IOException {
         String json = "{\n" +
                 "  \"testname\" : [ {\n" +

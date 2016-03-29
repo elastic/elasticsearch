@@ -207,7 +207,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
-    private QueryShardContext createMockShardContext() {
+    protected QueryShardContext createMockShardContext() {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);

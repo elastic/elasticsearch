@@ -20,7 +20,8 @@
   - match: {noops: 0}
   - match: {throttled_millis: 0}
   - gte: { took: 0 }
-  - is_false: created # Update by query can't create
+  # Update by query can't create
+  - is_false: created
   - is_false: task
 
 ---
@@ -70,7 +71,8 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
-  - do: # Creates a new version for reindex to miss on scan.
+  # Creates a new version for reindex to miss on scan.
+  - do:
       index:
         index:   test
         type:    foo
@@ -111,7 +113,8 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
-  - do: # Creates a new version for reindex to miss on scan.
+  # Creates a new version for reindex to miss on scan.
+  - do:
       index:
         index:   test
         type:    foo

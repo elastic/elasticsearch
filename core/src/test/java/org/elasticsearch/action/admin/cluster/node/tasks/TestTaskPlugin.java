@@ -244,7 +244,7 @@ public class TestTaskPlugin extends Plugin {
         protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
             List<String> list = new ArrayList<>();
             for (String node : nodesIds) {
-                if (nodes.getDataNodes().containsKey(node)) {
+                if (nodes.nodeExists(node)) {
                     list.add(node);
                 }
             }

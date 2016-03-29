@@ -16,7 +16,7 @@
 
     <properties>
         <elasticsearch.plugin.classname>org.elasticsearch.index.reindex.ReindexPlugin</elasticsearch.plugin.classname>
-        <tests.rest.suite>reindex,update-by-query</tests.rest.suite>
+        <tests.rest.suite>reindex,update_by_query</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 

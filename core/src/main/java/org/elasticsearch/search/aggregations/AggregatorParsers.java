@@ -60,8 +60,7 @@ public class AggregatorParsers {
         Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
         for (Aggregator.Parser parser : aggParsers) {
             aggParsersBuilder.put(parser.name(), parser);
-            AggregatorBuilder<?> factoryPrototype = parser.getFactoryPrototypes();
-            namedWriteableRegistry.registerPrototype(AggregatorBuilder.class, factoryPrototype);
+            namedWriteableRegistry.register(AggregatorBuilder.class, parser.type().stream().toUtf8(), parser);
         }
         this.aggParsers = unmodifiableMap(aggParsersBuilder);
         Map<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = new HashMap<>(pipelineAggregatorParsers.size());

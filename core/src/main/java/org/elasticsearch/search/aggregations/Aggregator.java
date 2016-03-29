@@ -45,7 +45,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      *
      * @see AggregatorBuilder
     */
-    public static abstract class Parser {
+    public static abstract class Parser implements Writeable.Reader<AggregatorBuilder<?>> {
         protected abstract InternalAggregation.Type type();
 
         /**
@@ -65,13 +65,20 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @return                  The resolved aggregator factory or {@code null} in case the aggregation should be skipped
          * @throws java.io.IOException      When parsing fails
          */
-        public abstract AggregatorBuilder<?> parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException;
+        public abstract AggregatorBuilder<?> parse(String aggregationName, XContentParser parser, QueryParseContext context)
+                throws IOException;
 
         /**
          * @return an empty {@link AggregatorBuilder} instance for this parser
          *         that can be used for deserialization
          */
-        public abstract AggregatorBuilder<?> getFactoryPrototypes();
+        protected abstract AggregatorBuilder<?> getFactoryPrototypes();
+
+        @Override
+        public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+            // TODO remove this and let subclasses define it
+            return getFactoryPrototypes().readFrom(in);
+        }
     }
 
     /**

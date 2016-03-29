@@ -434,7 +434,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
-                    if (fieldName != null) {
+                    if (fieldName != null && fieldName.equals(currentName) == false) {
                         throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "Trying to reset fieldName to [{}], already set to [{}].",
@@ -468,7 +468,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 } else if (parseFieldMatcher.match(currentName, NESTED_PATH_FIELD)) {
                     nestedPath = parser.text();
                 } else if (token == Token.VALUE_STRING){
-                    if (fieldName != null) {
+                    if (fieldName != null && fieldName.equals(currentName) == false) {
                         throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "Trying to reset fieldName to [{}], already set to [{}].",

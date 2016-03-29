@@ -148,6 +148,9 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         double sumOfSqrs = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalExtendedStats stats = (InternalExtendedStats) aggregation;
+            if (stats.sigma != sigma) {
+                throw new IllegalStateException("Cannot reduce other stats aggregations that have a different sigma");
+            }
             sumOfSqrs += stats.getSumOfSquares();
         }
         final InternalStats stats = super.doReduce(aggregations, reduceContext);

@@ -793,31 +793,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-
-    static ConcurrentMap<IndexShardReference, String> openShardReferences;
-
-    static boolean setupShardReferenceAssertions() {
-        openShardReferences = new ConcurrentHashMap<>();
-        return true;
-    }
-
-    static boolean addShardReference(IndexShardReference ref, String desc) {
-        String prev = openShardReferences.put(ref, desc);
-        if (prev != null) {
-            throw new AssertionError("shard ref " + ref + " is added twice. current [" + desc + "] prev [" + prev + "]");
-        }
-        return true;
-    }
-
-    static boolean removeShardReference(IndexShardReference ref) {
-        assert openShardReferences.remove(ref) != null : "failed to find ref [" + ref + "]";
-        return true;
-    }
-
-    static {
-        assert setupShardReferenceAssertions();
-    }
-
     /**
      * returns a new reference to {@link IndexShard} to perform a primary operation. Released after performing primary operation locally
      * and replication of the operation to all replica shards is completed / failed (see {@link ReplicationPhase}).
@@ -826,7 +801,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         IndexShardReference ref = IndexShardReferenceImpl.createOnPrimary(indexShard);
-        assert addShardReference(ref, "primary: " + request.toString() + " " + ref.routingEntry());
         return ref;
     }
 
@@ -838,7 +812,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         IndexShardReference ref = IndexShardReferenceImpl.createOnReplica(indexShard, primaryTerm);
-        assert addShardReference(ref, "primary term: " + primaryTerm + " " + ref.routingEntry());
         return ref;
     }
 
@@ -1173,7 +1146,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         public void close() {
             operationLock.close();
-            assert removeShardReference(this);
         }
 
         @Override

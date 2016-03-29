@@ -51,26 +51,26 @@ public class PercentilesMethodTests extends ESTestCase {
         }
     }
 
-    public void testReadFrom() throws Exception {
+    public void testReadFromStream() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(PercentilesMethod.TDIGEST.readFrom(in), equalTo(PercentilesMethod.TDIGEST));
+                assertThat(PercentilesMethod.readFromStream(in), equalTo(PercentilesMethod.TDIGEST));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(PercentilesMethod.TDIGEST.readFrom(in), equalTo(PercentilesMethod.HDR));
+                assertThat(PercentilesMethod.readFromStream(in), equalTo(PercentilesMethod.HDR));
             }
         }
     }
 
-    public void testInvalidReadFrom() throws Exception {
+    public void testInvalidReadFromStream() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(randomIntBetween(2, Integer.MAX_VALUE));
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                PercentilesMethod.TDIGEST.readFrom(in);
+                PercentilesMethod.readFromStream(in);
                 fail("Expected IOException");
             } catch(IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown PercentilesMethod ordinal ["));

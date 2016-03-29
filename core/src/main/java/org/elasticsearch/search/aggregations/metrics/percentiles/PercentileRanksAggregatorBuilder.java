@@ -41,9 +41,6 @@ import java.util.Arrays;
 import java.util.Objects;
 
 public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Numeric, PercentileRanksAggregatorBuilder> {
-
-    static final PercentileRanksAggregatorBuilder PROTOTYPE = new PercentileRanksAggregatorBuilder("");
-
     private double[] values;
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
     private int numberOfSignificantValueDigits = 3;
@@ -52,6 +49,28 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
 
     public PercentileRanksAggregatorBuilder(String name) {
         super(name, InternalTDigestPercentileRanks.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    PercentileRanksAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalTDigestPercentileRanks.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        values = in.readDoubleArray();
+        keyed = in.readBoolean();
+        numberOfSignificantValueDigits = in.readVInt();
+        compression = in.readDouble();
+        method = PercentilesMethod.readFromStream(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeDoubleArray(values);
+        out.writeBoolean(keyed);
+        out.writeVInt(numberOfSignificantValueDigits);
+        out.writeDouble(compression);
+        method.writeTo(out);
     }
 
     /**
@@ -155,27 +174,6 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
         default:
             throw new IllegalStateException("Illegal method [" + method.getName() + "]");
         }
-    }
-
-    @Override
-    protected PercentileRanksAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        PercentileRanksAggregatorBuilder factory = new PercentileRanksAggregatorBuilder(name);
-        factory.values = in.readDoubleArray();
-        factory.keyed = in.readBoolean();
-        factory.numberOfSignificantValueDigits = in.readVInt();
-        factory.compression = in.readDouble();
-        factory.method = PercentilesMethod.TDIGEST.readFrom(in);
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        out.writeDoubleArray(values);
-        out.writeBoolean(keyed);
-        out.writeVInt(numberOfSignificantValueDigits);
-        out.writeDouble(compression);
-        method.writeTo(out);
     }
 
     @Override

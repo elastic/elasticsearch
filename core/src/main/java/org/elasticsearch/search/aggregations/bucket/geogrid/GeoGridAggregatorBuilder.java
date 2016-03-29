@@ -56,6 +56,24 @@ public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
         super(name, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
+    /**
+     * Read from a stream.
+     */
+    GeoGridAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        precision = in.readVInt();
+        requiredSize = in.readVInt();
+        shardSize = in.readVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(precision);
+        out.writeVInt(requiredSize);
+        out.writeVInt(shardSize);
+    }
+
     public GeoGridAggregatorBuilder precision(int precision) {
         this.precision = GeoHashGridParams.checkPrecision(precision);
         return this;
@@ -115,23 +133,6 @@ public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
     }
         return new GeoHashGridAggregatorFactory(name, type, config, precision, requiredSize, shardSize, context, parent,
                 subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected GeoGridAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType,
-            StreamInput in) throws IOException {
-        GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(name);
-        factory.precision = in.readVInt();
-        factory.requiredSize = in.readVInt();
-        factory.shardSize = in.readVInt();
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        out.writeVInt(precision);
-        out.writeVInt(requiredSize);
-        out.writeVInt(shardSize);
     }
 
     @Override

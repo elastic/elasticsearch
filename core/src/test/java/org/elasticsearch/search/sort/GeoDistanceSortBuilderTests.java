@@ -243,12 +243,8 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         context.reset(itemParser);
 
-        try {
-          GeoDistanceSortBuilder.PROTOTYPE.fromXContent(context, "");
-          fail("sort mode sum should not be supported");
-        } catch (IllegalArgumentException e) {
-            // all good
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
+        assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
     }
 
     public void testGeoDistanceSortCanBeParsedFromGeoHash() throws IOException {
@@ -274,12 +270,17 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         context.reset(itemParser);
 
-        GeoDistanceSortBuilder result = GeoDistanceSortBuilder.PROTOTYPE.fromXContent(context, json);
+        GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(context, json);
         assertEquals("[-19.700583312660456, -2.8225036337971687, "
                 + "31.537466906011105, -74.63590376079082, "
                 + "43.71844606474042, -5.548660643398762, "
                 + "-37.20467280596495, 38.71751043945551, "
                 + "-69.44606635719538, 84.25200328230858, "
                 + "-39.03717711567879, 44.74099852144718]", Arrays.toString(result.points()));
+    }
+
+    @Override
+    protected GeoDistanceSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
+        return GeoDistanceSortBuilder.fromXContent(context, fieldName);
     }
 }

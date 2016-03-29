@@ -33,16 +33,31 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
 
-    public static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder(new Coordinate(-1.0, 1.0), new Coordinate(1.0, -1.0));
+    private final Coordinate topLeft;
+    private final Coordinate bottomRight;
 
-    private Coordinate topLeft;
-    private Coordinate bottomRight;
-
+    /**
+     * Build an envelope from the top left and bottom right coordinates.
+     */
     public EnvelopeBuilder(Coordinate topLeft, Coordinate bottomRight) {
         Objects.requireNonNull(topLeft, "topLeft of envelope cannot be null");
         Objects.requireNonNull(bottomRight, "bottomRight of envelope cannot be null");
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public EnvelopeBuilder(StreamInput in) throws IOException {
+        topLeft = readFromStream(in);
+        bottomRight = readFromStream(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeCoordinateTo(topLeft, out);
+        writeCoordinateTo(bottomRight, out);
     }
 
     public Coordinate topLeft() {
@@ -90,16 +105,5 @@ public class EnvelopeBuilder extends ShapeBuilder {
         EnvelopeBuilder other = (EnvelopeBuilder) obj;
         return Objects.equals(topLeft, other.topLeft) &&
                 Objects.equals(bottomRight, other.bottomRight);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        writeCoordinateTo(topLeft, out);
-        writeCoordinateTo(bottomRight, out);
-    }
-
-    @Override
-    public EnvelopeBuilder readFrom(StreamInput in) throws IOException {
-        return new EnvelopeBuilder(readCoordinateFrom(in), readCoordinateFrom(in));
     }
 }

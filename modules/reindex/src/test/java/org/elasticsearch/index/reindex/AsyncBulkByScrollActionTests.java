@@ -178,7 +178,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
              * isn't counted as time that the last batch took.
              */
             assertThat(action.getLastBatchStartTime(), greaterThanOrEqualTo(now));
-            assertEquals(expectedHeaders, client.lastHeaders.get());
+
+            /*
+             * Also while we're here check that we preserved the headers from the last request. assertBusy because no requests might have
+             * come in yet.
+             */
+            assertBusy(() -> assertEquals(expectedHeaders, client.lastHeaders.get()));
         }
     }
 

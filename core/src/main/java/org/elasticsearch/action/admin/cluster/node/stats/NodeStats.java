@@ -235,7 +235,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         breaker = AllCircuitBreakerStats.readOptionalAllCircuitBreakerStats(in);
         scriptStats = in.readOptionalStreamable(ScriptStats::new);
         discoveryStats = in.readOptionalStreamable(() -> new DiscoveryStats(null));
-        ingestStats = in.readOptionalWritable(IngestStats::new);
+        ingestStats = in.readOptionalWriteable(IngestStats::new);
     }
 
     @Override

@@ -131,4 +131,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
     }
 
+
+    @Override
+    protected FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
+        return FieldSortBuilder.fromXContent(context, fieldName);
+    }
 }

@@ -27,4 +27,4 @@
   - match: {failures.0.reason.reason: "failed to run inline script [1/0] using lang [groovy]"}
   - match: {failures.0.reason.caused_by.type:   arithmetic_exception}
   - match: {failures.0.reason.caused_by.reason: Division by zero}
-  - is_true: took
+  - gte: { took: 0 }

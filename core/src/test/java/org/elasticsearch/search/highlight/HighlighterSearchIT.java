@@ -564,6 +564,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).field("index_options", "offsets")
                         .field("term_vector", "with_positions_offsets").endObject()
+                        .startObject("field2").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
         ensureGreen();

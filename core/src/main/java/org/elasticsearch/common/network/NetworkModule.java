@@ -28,6 +28,7 @@ import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.action.admin.cluster.allocation.RestClusterAllocationExplainAction;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
@@ -170,6 +172,7 @@ public class NetworkModule extends AbstractModule {
         RestNodesInfoAction.class,
         RestNodesStatsAction.class,
         RestNodesHotThreadsAction.class,
+        RestClusterAllocationExplainAction.class,
         RestClusterStatsAction.class,
         RestClusterStateAction.class,
         RestClusterHealthAction.class,
@@ -328,7 +331,7 @@ public class NetworkModule extends AbstractModule {
         registerTransportService(NETTY_TRANSPORT, TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         registerTransport(NETTY_TRANSPORT, NettyTransport.class);
-        registerTaskStatus(ReplicationTask.Status.PROTOTYPE);
+        registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
 
         if (transportClient == false) {
             registerHttpTransport(NETTY_TRANSPORT, NettyHttpServerTransport.class);
@@ -374,8 +377,8 @@ public class NetworkModule extends AbstractModule {
         }
     }
 
-    public void registerTaskStatus(Task.Status prototype) {
-        namedWriteableRegistry.registerPrototype(Task.Status.class, prototype);
+    public void registerTaskStatus(String name, Writeable.Reader<? extends Task.Status> reader) {
+        namedWriteableRegistry.register(Task.Status.class, name, reader);
     }
 
     @Override

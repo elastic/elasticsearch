@@ -24,6 +24,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -39,16 +41,13 @@ import org.elasticsearch.test.ESTestCase;
 
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ExtractQueryTermsServiceTests extends ESTestCase {
@@ -218,6 +217,31 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
     }
 
+    public void testExtractQueryMetadata_commonTermsQuery() {
+        CommonTermsQuery commonTermsQuery = new CommonTermsQuery(BooleanClause.Occur.SHOULD, BooleanClause.Occur.SHOULD, 100);
+        commonTermsQuery.add(new Term("_field", "_term1"));
+        commonTermsQuery.add(new Term("_field", "_term2"));
+        List<Term> terms = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(commonTermsQuery));
+        Collections.sort(terms);
+        assertThat(terms.size(), equalTo(2));
+        assertThat(terms.get(0).field(), equalTo("_field"));
+        assertThat(terms.get(0).text(), equalTo("_term1"));
+        assertThat(terms.get(1).field(), equalTo("_field"));
+        assertThat(terms.get(1).text(), equalTo("_term2"));
+    }
+
+    public void testExtractQueryMetadata_blendedTermQuery() {
+        Term[] terms = new Term[]{new Term("_field", "_term1"), new Term("_field", "_term2")};
+        BlendedTermQuery commonTermsQuery = BlendedTermQuery.booleanBlendedQuery(terms, false);
+        List<Term> result = new ArrayList<>(ExtractQueryTermsService.extractQueryTerms(commonTermsQuery));
+        Collections.sort(result);
+        assertThat(result.size(), equalTo(2));
+        assertThat(result.get(0).field(), equalTo("_field"));
+        assertThat(result.get(0).text(), equalTo("_term1"));
+        assertThat(result.get(1).field(), equalTo("_field"));
+        assertThat(result.get(1).text(), equalTo("_term2"));
+    }
+
     public void testExtractQueryMetadata_unsupportedQuery() {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
 
@@ -229,7 +253,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         }
 
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();;
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termRangeQuery, BooleanClause.Occur.SHOULD);
         BooleanQuery bq = builder.build();

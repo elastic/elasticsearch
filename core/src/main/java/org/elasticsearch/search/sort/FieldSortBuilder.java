@@ -42,7 +42,6 @@ import java.util.Objects;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
-    public static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("_na_");
     public static final String NAME = "field_sort";
     public static final ParseField NESTED_PATH = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER = new ParseField("nested_filter");
@@ -94,6 +93,30 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new IllegalArgumentException("fieldName must not be null");
         }
         this.fieldName = fieldName;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public FieldSortBuilder(StreamInput in) throws IOException {
+        fieldName = in.readString();
+        nestedFilter = in.readOptionalQuery();
+        nestedPath = in.readOptionalString();
+        missing = in.readGenericValue();
+        order = in.readOptionalWriteable(SortOrder::readFromStream);
+        sortMode = in.readOptionalWriteable(SortMode::readFromStream);
+        unmappedType = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeOptionalQuery(nestedFilter);
+        out.writeOptionalString(nestedPath);
+        out.writeGenericValue(missing);
+        out.writeOptionalWriteable(order);
+        out.writeOptionalWriteable(sortMode);
+        out.writeOptionalString(unmappedType);
     }
 
     /** Returns the document field this sort should be based on. */
@@ -291,55 +314,16 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return NAME;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(this.fieldName);
-        if (this.nestedFilter != null) {
-            out.writeBoolean(true);
-            out.writeQuery(this.nestedFilter);
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeOptionalString(this.nestedPath);
-        out.writeGenericValue(this.missing);
-
-        if (this.order != null) {
-            out.writeBoolean(true);
-            this.order.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
-
-        out.writeBoolean(this.sortMode != null);
-        if (this.sortMode != null) {
-           this.sortMode.writeTo(out);
-        }
-        out.writeOptionalString(this.unmappedType);
-    }
-
-    @Override
-    public FieldSortBuilder readFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        FieldSortBuilder result = new FieldSortBuilder(fieldName);
-        if (in.readBoolean()) {
-            QueryBuilder<?> query = in.readQuery();
-            result.setNestedFilter(query);
-        }
-        result.setNestedPath(in.readOptionalString());
-        result.missing(in.readGenericValue());
-
-        if (in.readBoolean()) {
-            result.order(SortOrder.readOrderFrom(in));
-        }
-        if (in.readBoolean()) {
-            result.sortMode(SortMode.PROTOTYPE.readFrom(in));
-        }
-        result.unmappedType(in.readOptionalString());
-        return result;
-    }
-
-    @Override
-    public FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
+    /**
+     * Creates a new {@link FieldSortBuilder} from the query held by the {@link QueryParseContext} in
+     * {@link org.elasticsearch.common.xcontent.XContent} format.
+     *
+     * @param context the input parse context. The state on the parser contained in this context will be changed as a side effect of this
+     *        method call
+     * @param fieldName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
+     *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
+     */
+    public static FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         XContentParser parser = context.parser();
 
         QueryBuilder<?> nestedFilter = null;

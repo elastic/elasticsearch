@@ -100,10 +100,6 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         };
 
         namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScriptSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, FieldSortBuilder.PROTOTYPE);
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
 
@@ -117,6 +113,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     /** Returns mutated version of original so the returned sort is different in terms of equals/hashcode */
     protected abstract T mutate(T original) throws IOException;
+
+    /** Parse the sort from xContent. Just delegate to the SortBuilder's static fromXContent method. */
+    protected abstract T fromXContent(QueryParseContext context, String fieldName) throws IOException;
 
     /**
      * Test that creates new sort from a random test sort and checks both for equality
@@ -142,7 +141,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             context.reset(itemParser);
-            T parsedItem = testItem.fromXContent(context, elementName);
+            T parsedItem = fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -255,10 +254,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                T prototype = (T) namedWriteableRegistry.getPrototype(SortBuilder.class,
-                        original.getWriteableName());
-                T copy = prototype.readFrom(in);
-                return copy;
+                return (T) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()).read(in);
             }
         }
     }

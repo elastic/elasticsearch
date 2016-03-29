@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -74,15 +75,14 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        Query filter;
         //LUCENE 4 UPGRADE document mapper should use bytesref as well?
         DocumentMapper documentMapper = context.getMapperService().documentMapper(type.utf8ToString());
         if (documentMapper == null) {
-            filter = new TermQuery(new Term(TypeFieldMapper.NAME, type));
+            // no type means no documents
+            return new MatchNoDocsQuery();
         } else {
-            filter = documentMapper.typeFilter();
+            return documentMapper.typeFilter();
         }
-        return filter;
     }
 
     @Override

@@ -36,8 +36,6 @@ public class CircleBuilder extends ShapeBuilder {
     public static final String FIELD_RADIUS = "radius";
     public static final GeoShapeType TYPE = GeoShapeType.CIRCLE;
 
-    public static final CircleBuilder PROTOTYPE = new CircleBuilder();
-
     private DistanceUnit unit = DistanceUnit.DEFAULT;
     private double radius;
     private Coordinate center;
@@ -48,6 +46,21 @@ public class CircleBuilder extends ShapeBuilder {
      */
     public CircleBuilder() {
         this.center = ZERO_ZERO;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public CircleBuilder(StreamInput in) throws IOException {
+        center(readFromStream(in));
+        radius(in.readDouble(), DistanceUnit.readFromStream(in));;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeCoordinateTo(center, out);
+        out.writeDouble(radius);
+        unit.writeTo(out);
     }
 
     /**
@@ -169,19 +182,5 @@ public class CircleBuilder extends ShapeBuilder {
         return Objects.equals(center, other.center) &&
                 Objects.equals(radius, other.radius) &&
                 Objects.equals(unit.ordinal(), other.unit.ordinal());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        writeCoordinateTo(center, out);
-        out.writeDouble(radius);
-        DistanceUnit.writeDistanceUnit(out, unit);
-    }
-
-    @Override
-    public CircleBuilder readFrom(StreamInput in) throws IOException {
-        return new CircleBuilder()
-                    .center(readCoordinateFrom(in))
-                    .radius(in.readDouble(), DistanceUnit.readDistanceUnit(in));
     }
 }

@@ -685,9 +685,8 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             warnAboutSlowTaskIfNeeded(executionTime, source);
         } catch (Throwable t) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-            logger.warn("failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}{}{}", t, executionTime,
-                    newClusterState.version(), newClusterState.stateUUID(), source, newClusterState.nodes().prettyPrint(),
-                    newClusterState.routingTable().prettyPrint(), newClusterState.getRoutingNodes().prettyPrint());
+            logger.warn("failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}", t, executionTime,
+                    newClusterState.version(), newClusterState.stateUUID(), source, newClusterState.prettyPrint());
             // TODO: do we want to call updateTask.onFailure here?
         }
 

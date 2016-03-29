@@ -41,8 +41,8 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
         // its ok to check for active here, since in relocation, a shard is split into two in routing
         // nodes, once relocating, and one initializing
         if (!allocation.routingNodes().allReplicasActive(shardRouting)) {
-            return allocation.decision(Decision.NO, NAME, "not all replicas are active in cluster");
+            return allocation.decision(Decision.NO, NAME, "rebalancing can not occur if not all replicas are active in the cluster");
         }
-        return allocation.decision(Decision.YES, NAME, "all replicas are active in cluster");
+        return allocation.decision(Decision.YES, NAME, "all replicas are active in the cluster, rebalancing can occur");
     }
 }

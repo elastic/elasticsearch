@@ -50,15 +50,12 @@ public enum SortMode implements Writeable<SortMode> {
     /** Use the median of all values as sort value. Only applicable for number based array fields. **/
     MEDIAN;
 
-    static SortMode PROTOTYPE = MIN;
-
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(ordinal());
     }
 
-    @Override
-    public SortMode readFrom(final StreamInput in) throws IOException {
+    public static SortMode readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown SortMode ordinal [" + ordinal + "]");

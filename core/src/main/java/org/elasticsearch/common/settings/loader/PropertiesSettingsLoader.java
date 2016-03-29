@@ -24,10 +24,12 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.function.Supplier;
 
 /**
  * Settings loader that loads (parses) the settings in a properties format.
@@ -36,42 +38,49 @@ public class PropertiesSettingsLoader implements SettingsLoader {
 
     @Override
     public Map<String, String> load(String source) throws IOException {
-        Properties props = new NoDuplicatesProperties();
-        FastStringReader reader = new FastStringReader(source);
-        try {
-            props.load(reader);
-            Map<String, String> result = new HashMap<>();
-            for (Map.Entry entry : props.entrySet()) {
-                result.put((String) entry.getKey(), (String) entry.getValue());
-            }
-            return result;
-        } finally {
-            IOUtils.closeWhileHandlingException(reader);
-        }
+        return load(() -> new FastStringReader(source), (reader, props) -> props.load(reader));
     }
 
     @Override
     public Map<String, String> load(byte[] source) throws IOException {
-        Properties props = new NoDuplicatesProperties();
-        StreamInput stream = StreamInput.wrap(source);
+        return load(() -> StreamInput.wrap(source), (inStream, props) -> props.load(inStream));
+    }
+
+    private final <T extends Closeable> Map<String, String> load(
+            Supplier<T> supplier,
+            IOExceptionThrowingBiConsumer<T, Properties> properties
+    ) throws IOException {
+        T t = null;
         try {
-            props.load(stream);
-            Map<String, String> result = new HashMap<>();
+            t = supplier.get();
+            final Properties props = new NoDuplicatesProperties();
+            properties.accept(t, props);
+            final Map<String, String> result = new HashMap<>();
             for (Map.Entry entry : props.entrySet()) {
                 result.put((String) entry.getKey(), (String) entry.getValue());
             }
             return result;
         } finally {
-            IOUtils.closeWhileHandlingException(stream);
+            IOUtils.closeWhileHandlingException(t);
         }
+    }
+
+    @FunctionalInterface
+    private interface IOExceptionThrowingBiConsumer<T, U> {
+        void accept(T t, U u) throws IOException;
     }
 
     class NoDuplicatesProperties extends Properties {
         @Override
         public synchronized Object put(Object key, Object value) {
-            Object previousValue = super.put(key, value);
+            final Object previousValue = super.put(key, value);
             if (previousValue != null) {
-                throw new ElasticsearchParseException("duplicate settings key [{}] found, previous value [{}], current value [{}]", key, previousValue, value);
+                throw new ElasticsearchParseException(
+                        "duplicate settings key [{}] found, previous value [{}], current value [{}]",
+                        key,
+                        previousValue,
+                        value
+                );
             }
             return previousValue;
         }

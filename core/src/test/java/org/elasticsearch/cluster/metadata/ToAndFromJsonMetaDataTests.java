@@ -41,11 +41,14 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                 .put(IndexMetaData.builder("test1")
                         .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
-                        .numberOfReplicas(2))
+                        .numberOfReplicas(2)
+                        .primaryTerm(0, 1))
                 .put(IndexMetaData.builder("test2")
                         .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(2)
-                        .numberOfReplicas(3))
+                        .numberOfReplicas(3)
+                        .primaryTerm(0, 2)
+                        .primaryTerm(1, 2))
                 .put(IndexMetaData.builder("test3")
                         .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
@@ -112,15 +115,15 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias1").filter(ALIAS_FILTER1))
                         .putAlias(newAliasMetaDataBuilder("alias2"))
                         .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
-                        .put(IndexTemplateMetaData.builder("foo")
-                                .template("bar")
-                                .order(1)
-                                .settings(settingsBuilder()
-                                        .put("setting1", "value1")
-                                        .put("setting2", "value2"))
-                                .putAlias(newAliasMetaDataBuilder("alias-bar1"))
-                                .putAlias(newAliasMetaDataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
-                                .putAlias(newAliasMetaDataBuilder("alias-bar3").routing("routing-bar")))
+                .put(IndexTemplateMetaData.builder("foo")
+                        .template("bar")
+                        .order(1)
+                        .settings(settingsBuilder()
+                                .put("setting1", "value1")
+                                .put("setting2", "value2"))
+                        .putAlias(newAliasMetaDataBuilder("alias-bar1"))
+                        .putAlias(newAliasMetaDataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
+                        .putAlias(newAliasMetaDataBuilder("alias-bar3").routing("routing-bar")))
                 .put(IndexMetaData.builder("test12")
                         .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")
@@ -133,15 +136,15 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias1").filter(ALIAS_FILTER1))
                         .putAlias(newAliasMetaDataBuilder("alias2"))
                         .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
-                        .put(IndexTemplateMetaData.builder("foo")
-                                .template("bar")
-                                .order(1)
-                                .settings(settingsBuilder()
-                                        .put("setting1", "value1")
-                                        .put("setting2", "value2"))
-                                .putAlias(newAliasMetaDataBuilder("alias-bar1"))
-                                .putAlias(newAliasMetaDataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
-                                .putAlias(newAliasMetaDataBuilder("alias-bar3").routing("routing-bar")))
+                .put(IndexTemplateMetaData.builder("foo")
+                        .template("bar")
+                        .order(1)
+                        .settings(settingsBuilder()
+                                .put("setting1", "value1")
+                                .put("setting2", "value2"))
+                        .putAlias(newAliasMetaDataBuilder("alias-bar1"))
+                        .putAlias(newAliasMetaDataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
+                        .putAlias(newAliasMetaDataBuilder("alias-bar3").routing("routing-bar")))
                 .build();
 
         String metaDataSource = MetaData.Builder.toXContent(metaData);
@@ -150,6 +153,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         MetaData parsedMetaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(metaDataSource));
 
         IndexMetaData indexMetaData = parsedMetaData.index("test1");
+        assertThat(indexMetaData.primaryTerm(0), equalTo(1L));
         assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
         assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.getCreationDate(), equalTo(-1L));
@@ -159,6 +163,8 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         indexMetaData = parsedMetaData.index("test2");
         assertThat(indexMetaData.getNumberOfShards(), equalTo(2));
         assertThat(indexMetaData.getNumberOfReplicas(), equalTo(3));
+        assertThat(indexMetaData.primaryTerm(0), equalTo(2L));
+        assertThat(indexMetaData.primaryTerm(1), equalTo(2L));
         assertThat(indexMetaData.getCreationDate(), equalTo(-1L));
         assertThat(indexMetaData.getSettings().getAsMap().size(), equalTo(5));
         assertThat(indexMetaData.getSettings().get("setting1"), equalTo("value1"));

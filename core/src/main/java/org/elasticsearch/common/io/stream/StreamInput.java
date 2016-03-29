@@ -566,9 +566,14 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
-    public <T extends Writeable> T readOptionalWritable(Writeable.IOFunction<StreamInput, T> provider) throws IOException {
+    public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
-            return provider.apply(this);
+            T t = reader.read(this);
+            if (t == null) {
+                throw new IOException("Writeable.Reader [" + reader
+                        + "] returned null which is not allowed and probably means it screwed up the stream.");
+            }
+            return t;
         } else {
             return null;
         }
@@ -704,6 +709,16 @@ public abstract class StreamInput extends InputStream {
      */
     public QueryBuilder<?> readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
+    }
+
+    /**
+     * Reads an optional {@link QueryBuilder}.
+     */
+    public QueryBuilder<?> readOptionalQuery() throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteable(QueryBuilder.class);
+        }
+        return null;
     }
 
     /**

@@ -67,7 +67,6 @@ import java.util.Objects;
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     public static final String NAME = "_script";
-    public static final ScriptSortBuilder PROTOTYPE = new ScriptSortBuilder(new Script("_na_"), ScriptSortType.STRING);
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
@@ -108,6 +107,28 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         this.sortMode = original.sortMode;
         this.nestedFilter = original.nestedFilter;
         this.nestedPath = original.nestedPath;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ScriptSortBuilder(StreamInput in) throws IOException {
+        script = Script.readScript(in);
+        type = ScriptSortType.readFromStream(in);
+        order = SortOrder.readFromStream(in);
+        sortMode = in.readOptionalWriteable(SortMode::readFromStream);
+        nestedPath = in.readOptionalString();
+        nestedFilter = in.readOptionalQuery();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        script.writeTo(out);
+        type.writeTo(out);
+        order.writeTo(out);
+        out.writeOptionalWriteable(sortMode);
+        out.writeOptionalString(nestedPath);
+        out.writeOptionalQuery(nestedFilter);
     }
 
     /**
@@ -198,8 +219,16 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return builder;
     }
 
-    @Override
-    public ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
+    /**
+     * Creates a new {@link ScriptSortBuilder} from the query held by the {@link QueryParseContext} in
+     * {@link org.elasticsearch.common.xcontent.XContent} format.
+     *
+     * @param context the input parse context. The state on the parser contained in this context will be changed as a side effect of this
+     *        method call
+     * @param elementName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
+     *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
+     */
+    public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         XContentParser parser = context.parser();
         ParseFieldMatcher parseField = context.parseFieldMatcher();
@@ -363,37 +392,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        script.writeTo(out);
-        type.writeTo(out);
-        order.writeTo(out);
-        out.writeBoolean(sortMode != null);
-        if (sortMode != null) {
-            sortMode.writeTo(out);
-        }
-        out.writeOptionalString(nestedPath);
-        boolean hasNestedFilter = nestedFilter != null;
-        out.writeBoolean(hasNestedFilter);
-        if (hasNestedFilter) {
-            out.writeQuery(nestedFilter);
-        }
-    }
-
-    @Override
-    public ScriptSortBuilder readFrom(StreamInput in) throws IOException {
-        ScriptSortBuilder builder = new ScriptSortBuilder(Script.readScript(in), ScriptSortType.PROTOTYPE.readFrom(in));
-        builder.order(SortOrder.readOrderFrom(in));
-        if (in.readBoolean()) {
-            builder.sortMode(SortMode.PROTOTYPE.readFrom(in));
-        }
-        builder.nestedPath = in.readOptionalString();
-        if (in.readBoolean()) {
-            builder.nestedFilter = in.readQuery();
-        }
-        return builder;
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -404,15 +402,15 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         /** script sort for a numeric value **/
         NUMBER;
 
-        static ScriptSortType PROTOTYPE = STRING;
-
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeVInt(ordinal());
         }
 
-        @Override
-        public ScriptSortType readFrom(final StreamInput in) throws IOException {
+        /**
+         * Read from a stream.
+         */
+        static ScriptSortType readFromStream(final StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown ScriptSortType ordinal [" + ordinal + "]");

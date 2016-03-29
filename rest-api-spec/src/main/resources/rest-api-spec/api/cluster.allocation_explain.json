@@ -1,0 +1,20 @@
+{
+  "cluster.allocation_explain": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-allocation-explain.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_cluster/allocation/explain",
+      "paths": ["/_cluster/allocation/explain"],
+      "parts": {},
+      "params": {
+        "include_yes_decisions": {
+          "type": "boolean",
+          "description": "Return 'YES' decisions in explanation (default: false)"
+        }
+      }
+    },
+    "body": {
+      "description": "The index, shard, and primary flag to explain. Empty means 'explain the first unassigned shard'"
+    }
+  }
+}

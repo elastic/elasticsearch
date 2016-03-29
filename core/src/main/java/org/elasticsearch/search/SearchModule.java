@@ -442,7 +442,7 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new ReverseNestedParser());
         registerAggregatorParser(new TopHitsParser());
         registerAggregatorParser(new GeoBoundsParser());
-//        registerAggregatorParser(new GeoCentroidParser());
+        registerAggregatorParser(new GeoCentroidParser());
 //        registerAggregatorParser(new ScriptedMetricParser());
 //        registerAggregatorParser(new ChildrenParser());
 

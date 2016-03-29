@@ -442,7 +442,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     @TestLogging("_root:DEBUG,action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,"
             + "indices.recovery:TRACE,indices.cluster:TRACE")
-    @AwaitsFix(bugUrl = "needs primary terms")
     public void testAckedIndexing() throws Exception {
 
         final String timeout = !(TEST_NIGHTLY && rarely()) ? "1s" : "5s";

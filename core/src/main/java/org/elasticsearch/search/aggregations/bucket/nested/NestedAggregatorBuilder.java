@@ -32,8 +32,6 @@ import java.util.Objects;
 
 public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorBuilder> {
 
-    static final NestedAggregatorBuilder PROTOTYPE = new NestedAggregatorBuilder("", "");
-
     private final String path;
 
     /**
@@ -49,6 +47,20 @@ public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorB
             throw new IllegalArgumentException("[path] must not be null: [" + name + "]");
         }
         this.path = path;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    NestedAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalNested.TYPE);
+        path = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(path);
     }
 
     /**
@@ -70,18 +82,6 @@ public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorB
         builder.field(NestedAggregator.PATH_FIELD.getPreferredName(), path);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    protected NestedAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        String path = in.readString();
-        NestedAggregatorBuilder factory = new NestedAggregatorBuilder(name, path);
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd(StreamOutput out) throws IOException {
-        out.writeString(path);
     }
 
     @Override

@@ -42,21 +42,23 @@ public class ValueCountAggregatorBuilder
         super(name, InternalValueCount.TYPE, ValuesSourceType.ANY, targetValueType);
     }
 
+    /**
+     * Read from a stream.
+     */
+    protected ValueCountAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalValueCount.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(getTargetValueType());
+        super.writeTo(out);
+    }
+
     @Override
     protected ValueCountAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new ValueCountAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected ValuesSourceAggregatorBuilder<ValuesSource, ValueCountAggregatorBuilder> innerReadFrom(String name,
-            ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) {
-        return new ValueCountAggregatorBuilder(name, targetValueType);
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
     }
 
     @Override

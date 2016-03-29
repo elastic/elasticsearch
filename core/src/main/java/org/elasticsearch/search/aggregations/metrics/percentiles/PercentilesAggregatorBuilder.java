@@ -60,7 +60,7 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();
         compression = in.readDouble();
-        method = PercentilesMethod.TDIGEST.readFrom(in);
+        method = PercentilesMethod.readFromStream(in);
     }
 
     @Override

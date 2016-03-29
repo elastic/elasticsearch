@@ -55,6 +55,7 @@ public class SortParseElement implements SearchParseElement {
 
     public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped").withAllDeprecated("unmapped_type");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
+    private static final ParseField REVERSE_FIELD = new ParseField("reverse").withAllDeprecated("replaced by order");
 
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
@@ -144,7 +145,7 @@ public class SortParseElement implements SearchParseElement {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 innerJsonName = parser.currentName();
                             } else if (token.isValue()) {
-                                if ("reverse".equals(innerJsonName)) {
+                                if (context.parseFieldMatcher().match(innerJsonName, REVERSE_FIELD)) {
                                     reverse = parser.booleanValue();
                                 } else if ("order".equals(innerJsonName)) {
                                     if ("asc".equals(parser.text())) {

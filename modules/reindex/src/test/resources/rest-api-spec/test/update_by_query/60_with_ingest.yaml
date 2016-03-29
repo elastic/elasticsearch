@@ -1,5 +1,5 @@
 ---
-"Update a document using update-by-query":
+"Update a document using update_by_query":
   - do:
       ingest.put_pipeline:
         id: "test_ingest"
@@ -25,7 +25,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index:   twitter
         refresh: true
         pipeline: test_ingest

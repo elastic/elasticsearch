@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -34,7 +35,11 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     @Override
     protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(queryBuilder.type())), query);
+        if (queryShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
+            assertEquals(new MatchNoDocsQuery(), query);
+        } else {
+            assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(queryBuilder.type())), query);
+        }
     }
 
     public void testIllegalArgument() {

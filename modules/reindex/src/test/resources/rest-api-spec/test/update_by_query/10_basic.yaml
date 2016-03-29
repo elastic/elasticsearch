@@ -10,7 +10,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index: test
   - is_false: timed_out
   - match: {updated: 1}
@@ -35,7 +35,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         wait_for_completion: false
         index: test
   - match: {task: '/.+:\d+/'}
@@ -79,7 +79,7 @@
 
   - do:
       catch: conflict
-      update-by-query:
+      update_by_query:
         index: test
   - match: {updated: 0}
   - match: {version_conflicts: 1}
@@ -119,7 +119,7 @@
         body:    { "text": "test2" }
 
   - do:
-      update-by-query:
+      update_by_query:
         index: test
         conflicts: proceed
   - match: {updated: 0}
@@ -148,7 +148,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index: twitter
         body:
           query:
@@ -178,7 +178,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index: twitter
         size: 1
   - match: {updated: 1}
@@ -218,7 +218,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         index: test
         scroll_size: 1
   - match: {batches: 3}

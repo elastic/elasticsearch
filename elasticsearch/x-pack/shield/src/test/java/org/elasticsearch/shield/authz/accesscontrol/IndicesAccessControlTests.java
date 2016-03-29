@@ -109,16 +109,16 @@ public class IndicesAccessControlTests extends ESTestCase {
     }
 
     public void testMergeNotGrantedAndGranted() {
-        final Set<String> notGrantedFields = randomFrom(null, Collections.emptySet(), Collections.singleton("baz"));
-        final Set<BytesReference> notGrantedQueries = randomFrom(null, Collections.emptySet(),
-                Collections.singleton(new BytesArray(new byte[] { randomByte() })));
+        final Set<String> notGrantedFields = randomFrom(null, Collections.<String>emptySet(), Collections.singleton("baz"));
+        final Set<BytesReference> notGrantedQueries = randomFrom(null, Collections.<BytesReference>emptySet(),
+                Collections.<BytesReference>singleton(new BytesArray(new byte[] { randomByte() })));
         final IndexAccessControl indexAccessControl = new IndexAccessControl(false, notGrantedFields, notGrantedQueries);
 
         final BytesReference query1 = new BytesArray(new byte[] { 0x1 });
         final Set<String> fields =
-                randomFrom(null, Collections.singleton("foo"), Sets.newHashSet("foo", "bar"), Collections.emptySet());
+                randomFrom(null, Collections.singleton("foo"), Sets.newHashSet("foo", "bar"), Collections.<String>emptySet());
         final Set<BytesReference> queries =
-                randomFrom(null, Collections.singleton(query1), Collections.emptySet());
+                randomFrom(null, Collections.singleton(query1), Collections.<BytesReference>emptySet());
         final IndexAccessControl other = new IndexAccessControl(true, fields, queries);
 
         IndexAccessControl merged = indexAccessControl.merge(other);
@@ -133,16 +133,16 @@ public class IndicesAccessControlTests extends ESTestCase {
     }
 
     public void testMergeNotGranted() {
-        final Set<String> notGrantedFields = randomFrom(null, Collections.emptySet(), Collections.singleton("baz"));
-        final Set<BytesReference> notGrantedQueries = randomFrom(null, Collections.emptySet(),
+        final Set<String> notGrantedFields = randomFrom(null, Collections.<String>emptySet(), Collections.singleton("baz"));
+        final Set<BytesReference> notGrantedQueries = randomFrom(null, Collections.<BytesReference>emptySet(),
                 Collections.singleton(new BytesArray(new byte[] { randomByte() })));
         final IndexAccessControl indexAccessControl = new IndexAccessControl(false, notGrantedFields, notGrantedQueries);
 
         final BytesReference query1 = new BytesArray(new byte[] { 0x1 });
         final Set<String> fields =
-                randomFrom(null, Collections.singleton("foo"), Sets.newHashSet("foo", "bar"), Collections.emptySet());
+                randomFrom(null, Collections.singleton("foo"), Sets.newHashSet("foo", "bar"), Collections.<String>emptySet());
         final Set<BytesReference> queries =
-                randomFrom(null, Collections.singleton(query1), Collections.emptySet());
+                randomFrom(null, Collections.singleton(query1), Collections.<BytesReference>emptySet());
         final IndexAccessControl other = new IndexAccessControl(false, fields, queries);
 
         IndexAccessControl merged = indexAccessControl.merge(other);

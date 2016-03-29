@@ -30,6 +30,12 @@ detected.  All other datatypes must be mapped explicitly.
 Besides the options listed below, dynamic field mapping rules can be further
 customised with <<dynamic-templates,`dynamic_templates`>>.
 
+[[total-fields-limit]]
+==== Total fields limit
+
+To avoid mapping explosion, Index has a default limit of 1000 total number of fields.
+The default setting can be updated with `index.mapping.total_fields.limit`.
+
 [[date-detection]]
 ==== Date detection
 

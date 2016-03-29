@@ -135,9 +135,12 @@ public final class PercolatorQuery extends Query implements Accountable {
             public Explanation explain(LeafReaderContext leafReaderContext, int docId) throws IOException {
                 Scorer scorer = scorer(leafReaderContext);
                 if (scorer != null) {
-                    int result = scorer.iterator().advance(docId);
+                    TwoPhaseIterator twoPhaseIterator = scorer.twoPhaseIterator();
+                    int result = twoPhaseIterator.approximation().advance(docId);
                     if (result == docId) {
-                        return Explanation.match(scorer.score(), "PercolatorQuery");
+                        if (twoPhaseIterator.matches()) {
+                            return Explanation.match(scorer.score(), "PercolatorQuery");
+                        }
                     }
                 }
                 return Explanation.noMatch("PercolatorQuery");

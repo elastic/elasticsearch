@@ -974,7 +974,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private void verifyPrimary() {
         if (shardRouting.primary() == false) {
-            // must use exception that is not ignored by replication logic. See TransportActions.isShardNotAvailableException
             throw new IllegalStateException("shard is not a primary " + shardRouting);
         }
     }

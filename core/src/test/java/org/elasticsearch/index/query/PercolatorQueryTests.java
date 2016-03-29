@@ -36,6 +36,7 @@ import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -60,6 +61,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class PercolatorQueryTests extends ESTestCase {
 
@@ -147,10 +149,38 @@ public class PercolatorQueryTests extends ESTestCase {
         assertThat(topDocs.totalHits, equalTo(5));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
+        Explanation explanation = shardSearcher.explain(builder.build(), 0);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[0].score));
+
+        explanation = shardSearcher.explain(builder.build(), 1);
+        assertThat(explanation.isMatch(), is(false));
+
         assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
+        explanation = shardSearcher.explain(builder.build(), 2);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[1].score));
+
         assertThat(topDocs.scoreDocs[2].doc, equalTo(3));
+        explanation = shardSearcher.explain(builder.build(), 3);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[2].score));
+
+        explanation = shardSearcher.explain(builder.build(), 4);
+        assertThat(explanation.isMatch(), is(false));
+
         assertThat(topDocs.scoreDocs[3].doc, equalTo(5));
+        explanation = shardSearcher.explain(builder.build(), 5);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[3].score));
+
+        explanation = shardSearcher.explain(builder.build(), 6);
+        assertThat(explanation.isMatch(), is(false));
+
         assertThat(topDocs.scoreDocs[4].doc, equalTo(7));
+        explanation = shardSearcher.explain(builder.build(), 7);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[4].score));
     }
 
     public void testDuel() throws Exception {
@@ -236,11 +266,14 @@ public class PercolatorQueryTests extends ESTestCase {
                 new MatchAllDocsQuery()
         );
         TopDocs topDocs2 = shardSearcher.search(builder2.build(), 10);
-
         assertThat(topDocs1.totalHits, equalTo(topDocs2.totalHits));
         assertThat(topDocs1.scoreDocs.length, equalTo(topDocs2.scoreDocs.length));
         for (int j = 0; j < topDocs1.scoreDocs.length; j++) {
             assertThat(topDocs1.scoreDocs[j].doc, equalTo(topDocs2.scoreDocs[j].doc));
+            assertThat(topDocs1.scoreDocs[j].score, equalTo(topDocs2.scoreDocs[j].score));
+            Explanation explain1 = shardSearcher.explain(builder1.build(), topDocs1.scoreDocs[j].doc);
+            Explanation explain2 = shardSearcher.explain(builder2.build(), topDocs2.scoreDocs[j].doc);
+            assertThat(explain1.toHtml(), equalTo(explain2.toHtml()));
         }
     }
 

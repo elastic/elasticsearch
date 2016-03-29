@@ -1,6 +1,8 @@
 [[docs-update-by-query]]
 == Update By Query API
 
+experimental[The update-by-query API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
+
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
 <<picking-up-a-new-property,pick up a new property>> or some other online
@@ -233,11 +235,11 @@ from aborting the operation.
 === Works with the Task API
 
 While Update By Query is running you can fetch their status using the
-<<nodes-task,Nodes Task API>>:
+<<tasks,Task API>>:
 
 [source,js]
 --------------------------------------------------
-POST /_tasks/?pretty&detailed=true&action=byquery
+POST /_tasks/?pretty&detailed=true&action=*byquery
 --------------------------------------------------
 // AUTOSENSE
 
@@ -256,24 +258,26 @@ The responses looks like:
         "testattr" : "test",
         "portsfile" : "true"
       },
-      "tasks" : [ {
-        "node" : "r1A2WoRbTwKZ516z6NEs5A",
-        "id" : 36619,
-        "type" : "transport",
-        "action" : "indices:data/write/update/byquery",
-        "status" : {    <1>
-          "total" : 6154,
-          "updated" : 3500,
-          "created" : 0,
-          "deleted" : 0,
-          "batches" : 36,
-          "version_conflicts" : 0,
-          "noops" : 0,
-          "retries": 0,
-          "throttled_millis": 0
-        },
-        "description" : ""
-      } ]
+      "tasks" : {
+        "r1A2WoRbTwKZ516z6NEs5A:36619" : {
+          "node" : "r1A2WoRbTwKZ516z6NEs5A",
+          "id" : 36619,
+          "type" : "transport",
+          "action" : "indices:data/write/update/byquery",
+          "status" : {    <1>
+            "total" : 6154,
+            "updated" : 3500,
+            "created" : 0,
+            "deleted" : 0,
+            "batches" : 36,
+            "version_conflicts" : 0,
+            "noops" : 0,
+            "retries": 0,
+            "throttled_millis": 0
+          },
+          "description" : ""
+        }
+      }
     }
   }
 }

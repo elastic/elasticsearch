@@ -31,6 +31,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.junit.After;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -73,10 +74,8 @@ public class LocalExporterTests extends MarvelIntegTestCase {
                 .build());
         securedEnsureGreen();
 
-        Exporter exporter = getLocalExporter("_local");
-
         logger.debug("--> exporting a single monitoring doc");
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+        export(Collections.singletonList(newRandomMarvelDoc()));
         awaitMarvelDocsCount(is(1L));
 
         deleteMarvelIndices();
@@ -87,7 +86,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         }
 
         logger.debug("--> exporting {} monitoring docs", monitoringDocs.size());
-        exporter.export(monitoringDocs);
+        export(monitoringDocs);
         awaitMarvelDocsCount(is((long) monitoringDocs.size()));
 
         SearchResponse response = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").get();
@@ -131,7 +130,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         assertThat(exporter.getResolvers().getResolver(doc).index(doc), equalTo(indexName));
 
         logger.debug("--> exporting a random monitoring document");
-        exporter.export(Collections.singletonList(doc));
+        export(Collections.singletonList(doc));
         awaitIndexExists(indexName);
 
         logger.debug("--> updates the timestamp");
@@ -144,7 +143,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
 
         logger.debug("--> exporting the document again (this time with the the new index name time format [{}], expecting index name [{}]",
                 timeFormat, indexName);
-        exporter.export(Collections.singletonList(doc));
+        export(Collections.singletonList(doc));
         awaitIndexExists(indexName);
     }
 
@@ -155,19 +154,21 @@ public class LocalExporterTests extends MarvelIntegTestCase {
                 .build());
         securedEnsureGreen();
 
-        LocalExporter exporter = getLocalExporter("_local");
-
         logger.debug("--> exporting a single monitoring doc");
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+        export(Collections.singletonList(newRandomMarvelDoc()));
         awaitMarvelDocsCount(is(1L));
-        assertNull(exporter.getBulk().requestBuilder);
 
         logger.debug("--> closing monitoring indices");
         assertAcked(client().admin().indices().prepareClose(MONITORING_INDICES_PREFIX + "*").get());
 
         try {
             logger.debug("--> exporting a second monitoring doc");
-            exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+            LocalExporter exporter = getLocalExporter("_local");
+
+            LocalBulk bulk = (LocalBulk) exporter.openBulk();
+            bulk.add(Collections.singletonList(newRandomMarvelDoc()));
+            bulk.close(true);
+
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("failed to flush export bulk [_local]"));
             assertThat(e.getCause(), instanceOf(ExportException.class));
@@ -177,8 +178,16 @@ public class LocalExporterTests extends MarvelIntegTestCase {
             for (ExportException c : cause) {
                 assertThat(c.getMessage(), containsString("IndexClosedException[closed]"));
             }
-            assertNull(exporter.getBulk().requestBuilder);
         }
+    }
+
+    private void export(Collection<MonitoringDoc> docs) throws Exception {
+        Exporters exporters = internalCluster().getInstance(Exporters.class);
+        assertThat(exporters, notNullValue());
+
+        // Wait for exporting bulks to be ready to export
+        assertBusy(() -> exporters.forEach(exporter -> assertThat(exporter.openBulk(), notNullValue())));
+        exporters.export(docs);
     }
 
     private LocalExporter getLocalExporter(String name) throws Exception {

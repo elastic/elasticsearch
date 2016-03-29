@@ -120,6 +120,8 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
 
     @Override
     protected void doStart() {
+        logger.info("monitoring service started");
+
         for (Collector collector : collectors) {
             collector.start();
         }
@@ -153,7 +155,11 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
         }
 
         for (Exporter exporter : exporters) {
-            exporter.close();
+            try {
+                exporter.close();
+            } catch (Exception e) {
+                logger.error("failed to close exporter [{}]", e, exporter.name());
+            }
         }
     }
 

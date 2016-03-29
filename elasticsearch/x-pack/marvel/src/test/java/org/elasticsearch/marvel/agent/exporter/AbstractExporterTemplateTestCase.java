@@ -22,6 +22,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.dataTemplateName;
 import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.indexTemplateName;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCase {
@@ -156,12 +157,14 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
 
     protected void doExporting() throws Exception {
         Collector collector = internalCluster().getInstance(ClusterStatsCollector.class);
-        exporter().export(collector.collect());
-    }
+        assertNotNull(collector);
 
-    private Exporter exporter() {
         Exporters exporters = internalCluster().getInstance(Exporters.class);
-        return exporters.iterator().next();
+        assertNotNull(exporters);
+
+        // Wait for exporting bulks to be ready to export
+        assertBusy(() -> assertThat(exporters.openBulk(), notNullValue()));
+        exporters.export(collector.collect());
     }
 
     private String currentDataIndexName() {

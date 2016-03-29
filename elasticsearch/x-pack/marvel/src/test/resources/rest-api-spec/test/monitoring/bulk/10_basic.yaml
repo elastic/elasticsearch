@@ -1,4 +1,21 @@
 ---
+setup:
+  - do:
+      # Reduce the interval time so that monitoring
+      # indices are created faster
+      cluster.put_settings:
+          body:
+              transient:
+                  xpack.monitoring.agent.interval: 1s
+              flat_settings: true
+  - do:
+      # Waits for the monitoring data index to be available:
+      # it indicates that the local exporter is ready
+      cluster.health:
+          index: ".monitoring-data-*"
+          wait_for_active_shards: 1
+
+---
 "Bulk indexing of monitoring data":
   # Get the current version
   - do: {info: {}}
@@ -53,7 +70,7 @@
         body:
           - '{"index": {}}'
           - '{"field_1": "value_1"}'
-          - '{"index": {"_type": "test_type"}}'
+          - '{"index": {"_type": "custom_type"}}'
           - '{"field_1": "value_2"}'
           - '{"index": {}}'
           - '{"field_1": "value_3"}'
@@ -73,6 +90,6 @@
   - do:
       search:
         index: .monitoring-kibana-*
-        type:  test_type
+        type:  custom_type
 
   - match: { hits.total: 1 }

@@ -166,7 +166,7 @@ public class HttpExporter extends Exporter {
     }
 
     @Override
-    public void close() {
+    public void doClose() {
         if (keepAliveThread != null && keepAliveThread.isAlive()) {
             keepAliveWorker.closed = true;
             keepAliveThread.interrupt();

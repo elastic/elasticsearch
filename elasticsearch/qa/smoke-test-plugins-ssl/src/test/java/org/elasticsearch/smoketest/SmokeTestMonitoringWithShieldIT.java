@@ -32,6 +32,7 @@ import java.util.Collections;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * This test checks that a Monitoring's HTTP exporter correctly exports to a monitoring cluster
@@ -91,8 +92,20 @@ public class SmokeTestMonitoringWithShieldIT extends ESIntegTestCase {
         // Checks that the monitoring index templates have been installed
         assertBusy(() -> {
             GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(MONITORING_PATTERN).get();
-            assertThat(response.getIndexTemplates().size(), equalTo(2));
+            assertThat(response.getIndexTemplates().size(), greaterThanOrEqualTo(2));
         });
+
+        // Waits for monitoring indices to be created
+        assertBusy(() -> {
+            try {
+                assertThat(client().admin().indices().prepareExists(MONITORING_PATTERN).get().isExists(), equalTo(true));
+            } catch (Exception e) {
+                fail("exception when checking for monitoring documents: " + e.getMessage());
+            }
+        });
+
+        // Waits for indices to be ready
+        ensureYellow(MONITORING_PATTERN);
 
         // Checks that the HTTP exporter has successfully exported some data
         assertBusy(() -> {

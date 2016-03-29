@@ -1192,9 +1192,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     @Override
     public SearchSourceBuilder readFrom(StreamInput in) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        if (in.readBoolean()) {
-            builder.aggregations = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
-            }
+        builder.aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         builder.explain = in.readOptionalBoolean();
         builder.fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
         boolean hasFieldDataFields = in.readBoolean();
@@ -1294,11 +1292,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        boolean hasAggregations = aggregations != null;
-        out.writeBoolean(hasAggregations);
-        if (hasAggregations) {
-            aggregations.writeTo(out);
-        }
+        out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
         boolean hasFieldDataFields = fieldDataFields != null;

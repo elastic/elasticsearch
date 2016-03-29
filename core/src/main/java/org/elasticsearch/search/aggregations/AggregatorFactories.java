@@ -123,13 +123,40 @@ public class AggregatorFactories {
     }
 
     public static class Builder extends ToXContentToBytes implements Writeable<Builder> {
-
-        public final static Builder PROTOTYPE = new Builder();
-
         private final Set<String> names = new HashSet<>();
         private final List<AggregatorBuilder<?>> aggregatorBuilders = new ArrayList<>();
         private final List<PipelineAggregatorBuilder<?>> pipelineAggregatorBuilders = new ArrayList<>();
         private boolean skipResolveOrder;
+
+        public Builder() {
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public Builder(StreamInput in) throws IOException {
+            int factoriesSize = in.readVInt();
+            for (int i = 0; i < factoriesSize; i++) {
+                addAggregator(in.readAggregatorFactory());
+            }
+            int pipelineFactoriesSize = in.readVInt();
+            for (int i = 0; i < pipelineFactoriesSize; i++) {
+                addPipelineAggregator(in.readPipelineAggregatorFactory());
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(this.aggregatorBuilders.size());
+            for (AggregatorBuilder<?> factory : aggregatorBuilders) {
+                out.writeAggregatorBuilder(factory);
+            }
+            out.writeVInt(this.pipelineAggregatorBuilders.size());
+            for (PipelineAggregatorBuilder<?> factory : pipelineAggregatorBuilders) {
+                out.writePipelineAggregatorBuilder(factory);
+            }
+        }
+
 
         public Builder addAggregators(AggregatorFactories factories) {
             throw new UnsupportedOperationException("This needs to be removed");
@@ -270,34 +297,6 @@ public class AggregatorFactories {
 
         public int count() {
             return aggregatorBuilders.size() + pipelineAggregatorBuilders.size();
-        }
-
-        @Override
-        public Builder readFrom(StreamInput in) throws IOException {
-            Builder builder = new Builder();
-            int factoriesSize = in.readVInt();
-            for (int i = 0; i < factoriesSize; i++) {
-                AggregatorBuilder<?> factory = in.readAggregatorFactory();
-                builder.addAggregator(factory);
-            }
-            int pipelineFactoriesSize = in.readVInt();
-            for (int i = 0; i < pipelineFactoriesSize; i++) {
-                PipelineAggregatorBuilder<?> factory = in.readPipelineAggregatorFactory();
-                builder.addPipelineAggregator(factory);
-            }
-            return builder;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.aggregatorBuilders.size());
-            for (AggregatorBuilder<?> factory : aggregatorBuilders) {
-                out.writeAggregatorBuilder(factory);
-            }
-            out.writeVInt(this.pipelineAggregatorBuilders.size());
-            for (PipelineAggregatorBuilder<?> factory : pipelineAggregatorBuilders) {
-                out.writePipelineAggregatorBuilder(factory);
-            }
         }
 
         @Override

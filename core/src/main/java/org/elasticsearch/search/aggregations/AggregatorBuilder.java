@@ -70,7 +70,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         }
         name = in.readString();
         this.type = type;
-        factoriesBuilder = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
+        factoriesBuilder = new AggregatorFactories.Builder(in);
         metaData = in.readMap();
     }
 

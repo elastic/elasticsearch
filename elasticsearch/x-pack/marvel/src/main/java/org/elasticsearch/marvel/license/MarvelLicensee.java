@@ -16,6 +16,7 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.marvel.Marvel;
+import org.elasticsearch.marvel.MarvelSettings;
 
 /**
  * {@code MarvelLicensee} determines whether certain features of Monitoring are enabled or disabled.
@@ -65,7 +66,8 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
                                         "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
                                         newLicense.type(), newLicense.type(), newLicense.type()),
                                 LoggerMessageFormat.format(
-                                        "Automatic index cleanup is disabled for clusters with [{}] license.", newLicense.type())
+                                        "Automatic index cleanup is locked to {} days for clusters with [{}] license.",
+                                        MarvelSettings.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newLicense.type())
                             };
                     }
                 }

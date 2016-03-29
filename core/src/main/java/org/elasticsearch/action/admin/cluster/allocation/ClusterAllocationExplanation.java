@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -60,7 +59,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         int size = in.readVInt();
         ntd = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            DiscoveryNode dn = DiscoveryNode.readNode(in);
+            DiscoveryNode dn = new DiscoveryNode(in);
             Decision decision = Decision.readFrom(in);
             ntd.put(dn, decision);
         }
@@ -70,7 +69,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         size = in.readVInt();
         ntw = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            DiscoveryNode dn = DiscoveryNode.readNode(in);
+            DiscoveryNode dn = new DiscoveryNode(in);
             float weight = in.readFloat();
             ntw.put(dn, weight);
         }

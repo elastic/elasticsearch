@@ -21,25 +21,18 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  * Tests for the cluster allocation explanation
@@ -63,7 +56,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         Map<DiscoveryNode, Decision> nodeToDecisions = new HashMap<>();
         Map<DiscoveryNode, Float> nodeToWeight = new HashMap<>();
         for (int i = randomIntBetween(2, 5); i > 0; i--) {
-            DiscoveryNode dn = new DiscoveryNode("node-" + i, DummyTransportAddress.INSTANCE, Version.CURRENT);
+            DiscoveryNode dn = new DiscoveryNode("node-" + i, DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
             Decision.Multi d = new Decision.Multi();
             d.add(Decision.single(Decision.Type.NO, "no label", "because I said no"));
             d.add(Decision.single(Decision.Type.YES, "yes label", "yes please"));

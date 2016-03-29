@@ -33,8 +33,8 @@ import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -88,7 +88,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     private final TransportAddress address;
     private final Map<String, String> attributes;
     private final Version version;
-    private final Set<Role> roles;
+    private final EnumSet<Role> roles;
 
     /**
      * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
@@ -107,13 +107,13 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
             this.attributes.put(in.readString(), in.readString());
         }
         int rolesSize = in.readVInt();
-        this.roles = new HashSet<>(rolesSize);
+        this.roles = EnumSet.noneOf(Role.class);
         for (int i = 0; i < rolesSize; i++) {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= Role.values().length) {
                 throw new IOException("Unknown Role ordinal [" + ordinal + "]");
             }
-            roles.add(Role.values()[in.readVInt()]);
+            this.roles.add(Role.values()[in.readVInt()]);
         }
         this.version = Version.readVersion(in);
     }
@@ -218,7 +218,9 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
                 assert attributes.containsKey(role.getRoleName()) == false : "role name [" + role.getRoleName() + "] found in attributes";
             }
         }
-        this.roles = roles;
+        Set<Role> rolesSet = Collections.unmodifiableSet(roles);
+        this.roles = EnumSet.noneOf(Role.class);
+        this.roles.addAll(rolesSet);
     }
 
     /**
@@ -305,6 +307,10 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return roles.contains(Role.INGEST);
     }
 
+    /**
+     * Returns a set of all the roles that the node fulfills.
+     * If the node doesn't have any specific role, the set is returned empty, which means that the node is a coordinating only node.
+     */
     public Set<Role> getRoles() {
         return roles;
     }
@@ -401,6 +407,10 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return builder;
     }
 
+    /**
+     * Enum that holds all the possible roles that that a node can fulfill in a cluster.
+     * Each role has its name and a corresponding abbreviation used by cat apis.
+     */
     public enum Role {
         MASTER("master", "m"),
         DATA("data", "d"),

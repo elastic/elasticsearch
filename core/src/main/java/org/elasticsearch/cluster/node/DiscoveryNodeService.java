@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -83,7 +82,6 @@ public class DiscoveryNodeService extends AbstractComponent {
                 roles.add(role);
             }
         }
-
         for (CustomAttributesProvider provider : customAttributesProviders) {
             try {
                 Map<String, String> customAttributes = provider.buildAttributes();
@@ -99,7 +97,7 @@ public class DiscoveryNodeService extends AbstractComponent {
             }
         }
         return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes,
-                Collections.unmodifiableSet(roles), version);
+                roles, version);
     }
 
     public interface CustomAttributesProvider {

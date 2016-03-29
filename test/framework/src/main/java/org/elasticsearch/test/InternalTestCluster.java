@@ -522,7 +522,11 @@ public final class InternalTestCluster extends TestCluster {
             int size = numDataNodes();
             for (int i = size; i < n; i++) {
                 logger.info("increasing cluster size from {} to {}", size, n);
-                asyncs.add(startNodeAsync());
+                if (numSharedMasterNodes > 0) {
+                    asyncs.add(startDataOnlyNodeAsync());
+                } else {
+                    asyncs.add(startNodeAsync());
+                }
             }
         }
         try {
@@ -1323,7 +1327,19 @@ public final class InternalTestCluster extends TestCluster {
                 }
                 nodeAndClient.closeNode();
             }
-            for (NodeAndClient nodeAndClient : nodes.values()) {
+
+            // starting master nodes first, for now so restart will be quick. If we'll start
+            // the data nodes first, they will wait for 30s for a master
+            List<DiscoveryNode> discoveryNodes = new ArrayList<>();
+            for (ClusterService clusterService : getInstances(ClusterService.class)) {
+                discoveryNodes.add(clusterService.localNode());
+            }
+
+            discoveryNodes.sort((n1, n2) -> Boolean.compare(n1.isMasterNode() == false, n2.isMasterNode() == false));
+
+
+            for (DiscoveryNode node : discoveryNodes) {
+                NodeAndClient nodeAndClient = nodes.get(node.name());
                 logger.info("Starting node [{}] ", nodeAndClient.name);
                 if (activeDisruptionScheme != null) {
                     activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);

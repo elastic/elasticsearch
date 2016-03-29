@@ -539,7 +539,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type", "test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(
@@ -554,7 +555,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().startObject("properties")
-                .startObject("text_field").field("type", "text").endObject()
+                .startObject("text_field").field("type", "text").field("fielddata", true).endObject()
                 .startObject("keyword_field").field("type", "keyword").endObject()
                 .startObject("byte_field").field("type", "byte").endObject()
                 .startObject("short_field").field("type", "short").endObject()

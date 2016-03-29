@@ -54,7 +54,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testAggregations() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=text"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=keyword"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -119,7 +119,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testAggregationsAndPipelineAggregations() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=text"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=keyword"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -204,7 +204,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     public void testSingleShardAggregations() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
-                .addMapping("type", "field1", "type=text", "field2", "type=text"));
+                .addMapping("type", "field1", "type=text", "field2", "type=keyword"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);

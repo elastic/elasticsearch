@@ -465,7 +465,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testStringSortMissingAscTerminates() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("test", "no_field", "type=text", "some_field", "type=text"));
+                .addMapping("test", "no_field", "type=keyword", "some_field", "type=keyword"));
         client().prepareIndex("test", "test", "1").setSource("some_field", "test").get();
         refresh();
 

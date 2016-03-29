@@ -51,11 +51,14 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
 
     // see https://github.com/elastic/elasticsearch/issues/5998
     public void testShardMinDocCountSignificantTermsTest() throws Exception {
-        String termtype = "text";
+        String textMappings;
         if (randomBoolean()) {
-            termtype = "long";
+            textMappings = "type=long";
+        } else {
+            textMappings = "type=text,fielddata=true";
         }
-        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "{\"properties\":{\"text\": {\"type\": \"" + termtype + "\"}}}"));
+        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
+                .addMapping(type, "text", textMappings));
         ensureYellow(index);
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
@@ -111,8 +114,11 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
     public void testShardMinDocCountTermsTest() throws Exception {
         final String [] termTypes = {"text", "long", "integer", "float", "double"};
         String termtype = termTypes[randomInt(termTypes.length - 1)];
-
-        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "{\"properties\":{\"text\": {\"type\": \"" + termtype + "\"}}}"));
+        String termMappings = "type=" + termtype;
+        if (termtype.equals("text")) {
+            termMappings += ",fielddata=true";
+        }
+        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "text", termMappings));
         ensureYellow(index);
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 

@@ -792,7 +792,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         MultiMatchQueryBuilder builder = multiMatchQuery("value1 value2 value4", "field1", "field2");
         SearchResponse searchResponse = client().prepareSearch().setQuery(builder)
-                .addAggregation(AggregationBuilders.terms("field1").field("field1")).get();
+                .addAggregation(AggregationBuilders.terms("field1").field("field1.keyword")).get();
 
         assertHitCount(searchResponse, 2L);
         // this uses dismax so scores are equal and the order can be arbitrary

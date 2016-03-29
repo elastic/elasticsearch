@@ -308,7 +308,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int numRequestedPayloadFields = randomIntBetween(2, numPayloadFields);
         List<String> payloadFields = new ArrayList<>(numRequestedPayloadFields);
         for (int i = 0; i < numRequestedPayloadFields; i++) {
-            payloadFields.add("test_field" + i);
+            payloadFields.add("test_field" + i + ".keyword");
         }
 
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
@@ -324,7 +324,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertThat(option.getPayload().size(), equalTo(numRequestedPayloadFields));
             for (int i = 0; i < numRequestedPayloadFields; i++) {
-                List<Object> fieldValue = option.getPayload().get("test_field" + i);
+                List<Object> fieldValue = option.getPayload().get("test_field" + i + ".keyword");
                 assertNotNull(fieldValue);
                 assertThat(fieldValue.size(), equalTo(1));
                 assertThat((String)fieldValue.get(0), equalTo(i + "value" + id));
@@ -961,6 +961,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
+                .startObject("test_field")
+                    .field("type", "keyword")
+                .endObject()
+                .startObject("title")
+                    .field("type", "keyword")
+                .endObject()
                 .startObject(FIELD)
                 .field("type", "completion")
                 .field("analyzer", completionMappingBuilder.indexAnalyzer)

@@ -81,6 +81,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                     .startObject("properties")
                         .startObject("message")
                             .field("type", "text")
+                            .field("fielddata", true)
                         .endObject()
                     .endObject()
                 .endObject()
@@ -282,7 +283,7 @@ public class InnerHitsIT extends ESIntegTestCase {
     public void testSimpleParentChild() throws Exception {
         assertAcked(prepareCreate("articles")
                 .addMapping("article", "title", "type=text")
-                .addMapping("comment", "_parent", "type=article", "message", "type=text")
+                .addMapping("comment", "_parent", "type=article", "message", "type=text,fielddata=true")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -903,9 +904,14 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .startObject("properties")
                 .startObject("nested1")
                 .field("type", "nested")
+                .startObject("properties")
+                    .startObject("n_field1")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
                 .endObject()
                 .startObject("field1")
-                .field("type", "long")
+                    .field("type", "long")
                 .endObject()
                 .endObject()
                 .endObject()

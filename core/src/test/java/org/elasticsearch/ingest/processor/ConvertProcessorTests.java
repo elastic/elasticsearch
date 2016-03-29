@@ -304,7 +304,8 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchBoolean() throws Exception {
         boolean randomBoolean = randomBoolean();
         String booleanString = Boolean.toString(randomBoolean);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", booleanString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(),
+            Collections.singletonMap("field", booleanString));
         Processor processor = new ConvertProcessor(randomAsciiOfLength(10), "field", "field", Type.AUTO);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);

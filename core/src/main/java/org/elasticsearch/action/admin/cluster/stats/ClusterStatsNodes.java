@@ -64,7 +64,7 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
 
         int size = in.readVInt();
         this.versions = new HashSet<>(size);
-        for (; size > 0; size--) {
+        for (int i = 0; i < size; i++) {
             this.versions.add(Version.readVersion(in));
         }
 
@@ -75,7 +75,7 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
 
         size = in.readVInt();
         this.plugins = new HashSet<>(size);
-        for (; size > 0; size--) {
+        for (int i = 0; i < size; i++) {
             this.plugins.add(PluginInfo.readFromStream(in));
         }
     }
@@ -477,7 +477,7 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
         private JvmStats(StreamInput in) throws IOException {
             int size = in.readVInt();
             this.versions = new ObjectIntHashMap<>(size);
-            for (; size > 0; size--) {
+            for (int i = 0; i < size; i++) {
                 this.versions.addTo(JvmVersion.readJvmVersion(in), in.readVInt());
             }
             this.threads = in.readVLong();
@@ -664,6 +664,4 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
             out.writeString(vmVendor);
         }
     }
-
-
 }

@@ -11,7 +11,7 @@
 
   - do:
       catch: request
-      update-by-query:
+      update_by_query:
         index:   twitter
         refresh: true
         body:

@@ -188,7 +188,7 @@
         "scroll_size": {
           "type": "integer",
           "defaut_value": 100,
-          "description": "Size on the scroll request powering the update-by-query"
+          "description": "Size on the scroll request powering the update_by_query"
         },
         "wait_for_completion": {
            "type" : "boolean",

@@ -283,6 +283,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
 
         if (reason == MergeReason.MAPPING_UPDATE) {
+            // this check will only be performed on the master node when there is
+            // a call to the update mapping API. For all other cases like
+            // the master node restoring mappings from disk or data nodes
+            // deserializing cluster state that was sent by the master node,
+            // this check will be skipped.
             checkNestedFieldsLimit(fullPathObjectMappers);
         }
 

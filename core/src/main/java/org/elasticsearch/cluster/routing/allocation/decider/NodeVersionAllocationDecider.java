@@ -52,7 +52,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
                     return isVersionCompatible(shardRouting.restoreSource(), node, allocation);
                 } else {
                     // fresh primary, we can allocate wherever
-                    return allocation.decision(Decision.YES, NAME, "primary shard can be allocated anywhere");
+                    return allocation.decision(Decision.YES, NAME, "the primary shard is new and can be allocated anywhere");
                 }
             } else {
                 // relocating primary, only migrate to newer host
@@ -70,16 +70,17 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         }
     }
 
-    private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target, RoutingAllocation allocation) {
+    private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target,
+                                         RoutingAllocation allocation) {
         final RoutingNode source = routingNodes.node(sourceNodeId);
         if (target.node().version().onOrAfter(source.node().version())) {
             /* we can allocate if we can recover from a node that is younger or on the same version
              * if the primary is already running on a newer version that won't work due to possible
              * differences in the lucene index format etc.*/
-            return allocation.decision(Decision.YES, NAME, "target node version [%s] is same or newer than source node version [%s]",
+            return allocation.decision(Decision.YES, NAME, "target node version [%s] is the same or newer than source node version [%s]",
                     target.node().version(), source.node().version());
         } else {
-            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than source node version [%s]",
+            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the source node version [%s]",
                     target.node().version(), source.node().version());
         }
     }
@@ -87,10 +88,10 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
     private Decision isVersionCompatible(RestoreSource restoreSource, final RoutingNode target, RoutingAllocation allocation) {
         if (target.node().version().onOrAfter(restoreSource.version())) {
             /* we can allocate if we can restore from a snapshot that is older or on the same version */
-            return allocation.decision(Decision.YES, NAME, "target node version [%s] is same or newer than snapshot version [%s]",
+            return allocation.decision(Decision.YES, NAME, "target node version [%s] is the same or newer than snapshot version [%s]",
                 target.node().version(), restoreSource.version());
         } else {
-            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than snapshot version [%s]",
+            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the snapshot version [%s]",
                 target.node().version(), restoreSource.version());
         }
     }

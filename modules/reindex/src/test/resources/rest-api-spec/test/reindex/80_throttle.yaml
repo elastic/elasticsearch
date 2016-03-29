@@ -49,5 +49,5 @@
   - match: {failures: []}
   - gt: {throttled_millis: 1000}
   - lt: {throttled_millis: 4000}
-  - is_true: took
+  - gte: { took: 1000 }
   - is_false: task

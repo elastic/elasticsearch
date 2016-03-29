@@ -30,9 +30,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class PointBuilder extends ShapeBuilder {
-
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
-    public static final PointBuilder PROTOTYPE = new PointBuilder();
 
     private Coordinate coordinate;
 
@@ -41,6 +39,18 @@ public class PointBuilder extends ShapeBuilder {
      */
     public PointBuilder() {
         this.coordinate = ZERO_ZERO;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public PointBuilder(StreamInput in) throws IOException {
+        coordinate = readFromStream(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeCoordinateTo(coordinate, out);
     }
 
     public PointBuilder coordinate(Coordinate coordinate) {
@@ -90,15 +100,5 @@ public class PointBuilder extends ShapeBuilder {
         }
         PointBuilder other = (PointBuilder) obj;
         return Objects.equals(coordinate, other.coordinate);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        writeCoordinateTo(coordinate, out);
-    }
-
-    @Override
-    public PointBuilder readFrom(StreamInput in) throws IOException {
-        return new PointBuilder().coordinate(readCoordinateFrom(in));
     }
 }

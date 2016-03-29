@@ -220,6 +220,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService.close();
             transportService.close();
         }
+
+        public String getNodeId() {
+            return discoveryNode.getId();
+        }
     }
 
     public static void connectNodes(TestNode... nodes) {

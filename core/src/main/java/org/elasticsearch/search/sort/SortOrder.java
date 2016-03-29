@@ -50,20 +50,13 @@ public enum SortOrder implements Writeable<SortOrder> {
             return "desc";
         }
     };
-    
-    private static final SortOrder PROTOTYPE = ASC;
 
-    @Override
-    public SortOrder readFrom(StreamInput in) throws IOException {
+    static SortOrder readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown SortOrder ordinal [" + ordinal + "]");
         }
         return values()[ordinal];
-    }
-
-    public static SortOrder readOrderFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
     }
 
     @Override

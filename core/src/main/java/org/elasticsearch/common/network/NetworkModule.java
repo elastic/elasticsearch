@@ -38,6 +38,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.action.admin.cluster.allocation.RestClusterAllocationExplainAction;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
@@ -171,6 +172,7 @@ public class NetworkModule extends AbstractModule {
         RestNodesInfoAction.class,
         RestNodesStatsAction.class,
         RestNodesHotThreadsAction.class,
+        RestClusterAllocationExplainAction.class,
         RestClusterStatsAction.class,
         RestClusterStateAction.class,
         RestClusterHealthAction.class,

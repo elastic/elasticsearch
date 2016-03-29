@@ -61,6 +61,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -812,7 +813,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             fail("should not have been able to reroute the shard");
         } catch (IllegalArgumentException e) {
             assertThat("can't allocated because there isn't enough room: " + e.getMessage(),
-                    e.getMessage().contains("more than allowed [70.0%] used disk on node, free: [26.0%]"), equalTo(true));
+                    e.getMessage(),
+                    containsString("the node is above the low watermark and has more than allowed [70.0%] used disk, free: [26.0%]"));
         }
 
     }

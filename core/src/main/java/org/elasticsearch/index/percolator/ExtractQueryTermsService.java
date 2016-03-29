@@ -27,6 +27,8 @@ import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -162,6 +164,12 @@ public final class ExtractQueryTermsService {
         } else if (query instanceof BoostQuery) {
             Query wrappedQuery = ((BoostQuery) query).getQuery();
             return extractQueryTerms(wrappedQuery);
+        } else if (query instanceof CommonTermsQuery) {
+            List<Term> terms = ((CommonTermsQuery) query).getTerms();
+            return new HashSet<>(terms);
+        } else if (query instanceof BlendedTermQuery) {
+            List<Term> terms = ((BlendedTermQuery) query).getTerms();
+            return new HashSet<>(terms);
         } else {
             throw new UnsupportedQueryException(query);
         }

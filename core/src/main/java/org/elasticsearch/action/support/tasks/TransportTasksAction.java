@@ -207,8 +207,8 @@ public abstract class TransportTasksAction<
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
             ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().nodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
-            for (int i = 0; i < nodesIds.length; i++) {
-                this.nodes[i] = nodes.get(nodesIds[i]);
+            for (int i = 0; i < this.nodesIds.length; i++) {
+                this.nodes[i] = nodes.get(this.nodesIds[i]);
             }
             this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }

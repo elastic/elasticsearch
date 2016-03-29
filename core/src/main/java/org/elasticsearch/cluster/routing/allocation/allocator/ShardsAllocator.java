@@ -19,8 +19,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
+import java.util.Map;
 /**
  * <p>
  * A {@link ShardsAllocator} is the main entry point for shard allocation on nodes in the cluster.
@@ -40,4 +43,15 @@ public interface ShardsAllocator {
      * @return <code>true</code> if the allocation has changed, otherwise <code>false</code>
      */
     boolean allocate(RoutingAllocation allocation);
+
+    /**
+     * Returns a map of node to a float "weight" of where the allocator would like to place the shard.
+     * Higher weights signify greater desire to place the shard on that node.
+     * Does not modify the allocation at all.
+     *
+     * @param allocation current node allocation
+     * @param shard shard to weigh
+     * @return map of nodes to float weights
+     */
+    Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard);
 }

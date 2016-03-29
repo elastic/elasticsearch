@@ -712,6 +712,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional {@link QueryBuilder}.
+     */
+    public QueryBuilder<?> readOptionalQuery() throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteable(QueryBuilder.class);
+        }
+        return null;
+    }
+
+    /**
      * Reads a {@link ShapeBuilder} from the current stream
      */
     public ShapeBuilder readShape() throws IOException {

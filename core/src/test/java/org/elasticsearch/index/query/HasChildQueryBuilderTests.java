@@ -275,12 +275,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(termQuery.getTerm().bytes(), equalTo(ids[0]));
         //check the type filter
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertThat(booleanQuery.clauses().get(1).getQuery(), instanceOf(ConstantScoreQuery.class));
-        ConstantScoreQuery typeConstantScoreQuery = (ConstantScoreQuery) booleanQuery.clauses().get(1).getQuery();
-        assertThat(typeConstantScoreQuery.getQuery(), instanceOf(TermQuery.class));
-        TermQuery typeTermQuery = (TermQuery) typeConstantScoreQuery.getQuery();
-        assertThat(typeTermQuery.getTerm().field(), equalTo(TypeFieldMapper.NAME));
-        assertThat(typeTermQuery.getTerm().text(), equalTo(type));
+        assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(type)), booleanQuery.clauses().get(1).getQuery());
     }
 
     /**

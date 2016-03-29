@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -146,6 +147,11 @@ public abstract class Decision implements ToXContent {
     public abstract String label();
 
     /**
+     * Return the list of all decisions that make up this decision
+     */
+    public abstract List<Decision> getDecisions();
+
+    /**
      * Simple class representing a single decision
      */
     public static class Single extends Decision {
@@ -191,6 +197,11 @@ public abstract class Decision implements ToXContent {
             return this.label;
         }
 
+        @Override
+        public List<Decision> getDecisions() {
+            return Collections.singletonList(this);
+        }
+
         /**
          * Returns the explanation string, fully formatted. Only formats the string once
          */
@@ -202,11 +213,35 @@ public abstract class Decision implements ToXContent {
         }
 
         @Override
-        public String toString() {
-            if (explanation == null) {
-                return type + "()";
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
             }
-            return type + "(" + getExplanation() + ")";
+
+            if (object == null || getClass() != object.getClass()) {
+                return false;
+            }
+
+            Decision.Single s = (Decision.Single) object;
+            return this.type == s.type &&
+                    this.label.equals(s.label) &&
+                    this.getExplanation().equals(s.getExplanation());
+        }
+
+        @Override
+        public int hashCode() {
+            int result = this.type.hashCode();
+            result = 31 * result + this.label.hashCode();
+            result = 31 * result + this.getExplanation().hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            if (explanationString != null || explanation != null) {
+                return type + "(" + getExplanation() + ")";
+            }
+            return type + "()";
         }
 
         @Override
@@ -256,6 +291,31 @@ public abstract class Decision implements ToXContent {
         public String label() {
             // Multi decisions have no labels
             return null;
+        }
+
+        @Override
+        public List<Decision> getDecisions() {
+            return Collections.unmodifiableList(this.decisions);
+        }
+
+        @Override
+        public boolean equals(final Object object) {
+            if (this == object) {
+                return true;
+            }
+
+            if (object == null || getClass() != object.getClass()) {
+                return false;
+            }
+
+            final Decision.Multi m = (Decision.Multi) object;
+
+            return this.decisions.equals(m.decisions);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * decisions.hashCode();
         }
 
         @Override

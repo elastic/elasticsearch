@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;
 
@@ -88,7 +89,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     private final TransportAddress address;
     private final Map<String, String> attributes;
     private final Version version;
-    private final EnumSet<Role> roles;
+    private final Set<Role> roles;
 
     /**
      * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
@@ -211,16 +212,16 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         }
         this.attributes = Collections.unmodifiableMap(attributes);
         //verify that no node roles are being provided as attributes
-        boolean assertEnabled = false;
-        assert assertEnabled = true;
-        if (assertEnabled) {
+        Predicate<Map<String, String>> predicate =  (attrs) -> {
             for (Role role : Role.values()) {
-                assert attributes.containsKey(role.getRoleName()) == false : "role name [" + role.getRoleName() + "] found in attributes";
+                assert attrs.containsKey(role.getRoleName()) == false;
             }
-        }
-        Set<Role> rolesSet = Collections.unmodifiableSet(roles);
-        this.roles = EnumSet.noneOf(Role.class);
-        this.roles.addAll(rolesSet);
+            return true;
+        };
+        assert predicate.test(attributes);
+        Set<Role> rolesSet = EnumSet.noneOf(Role.class);
+        rolesSet.addAll(roles);
+        this.roles = Collections.unmodifiableSet(rolesSet);
     }
 
     /**

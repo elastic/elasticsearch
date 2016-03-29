@@ -38,12 +38,24 @@ import java.util.Objects;
 public class ExtendedStatsAggregatorBuilder
         extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, ExtendedStatsAggregatorBuilder> {
 
-    static final ExtendedStatsAggregatorBuilder PROTOTYPE = new ExtendedStatsAggregatorBuilder("");
-
     private double sigma = 2.0;
 
     public ExtendedStatsAggregatorBuilder(String name) {
         super(name, InternalExtendedStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    ExtendedStatsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalExtendedStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        sigma = in.readDouble();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeDouble(sigma);
     }
 
     public ExtendedStatsAggregatorBuilder sigma(double sigma) {
@@ -62,19 +74,6 @@ public class ExtendedStatsAggregatorBuilder
     protected ExtendedStatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new ExtendedStatsAggregatorFactory(name, type, config, sigma, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected ExtendedStatsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        ExtendedStatsAggregatorBuilder factory = new ExtendedStatsAggregatorBuilder(name);
-        factory.sigma = in.readDouble();
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        out.writeDouble(sigma);
     }
 
     @Override

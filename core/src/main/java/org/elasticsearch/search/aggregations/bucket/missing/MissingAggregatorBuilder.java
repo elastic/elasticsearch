@@ -42,21 +42,23 @@ public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
         super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
     }
 
+    /**
+     * Read from a stream.
+     */
+    MissingAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalMissing.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(getTargetValueType());
+        super.writeTo(out);
+    }
+
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
             ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new MissingAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected MissingAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) {
-        return new MissingAggregatorBuilder(name, targetValueType);
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
     }
 
     @Override

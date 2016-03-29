@@ -418,13 +418,13 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new MinParser());
         registerAggregatorParser(new MaxParser());
         registerAggregatorParser(new StatsParser());
-//        registerAggregatorParser(new ExtendedStatsParser());
+        registerAggregatorParser(new ExtendedStatsParser());
 //        registerAggregatorParser(new ValueCountParser());
 //        registerAggregatorParser(new PercentilesParser());
 //        registerAggregatorParser(new PercentileRanksParser());
 //        registerAggregatorParser(new CardinalityParser());
         registerAggregatorParser(new GlobalParser());
-//        registerAggregatorParser(new MissingParser());
+        registerAggregatorParser(new MissingParser());
         registerAggregatorParser(new FilterParser());
 //        registerAggregatorParser(new FiltersParser(indicesQueriesRegistry));
 //        registerAggregatorParser(new SamplerParser());

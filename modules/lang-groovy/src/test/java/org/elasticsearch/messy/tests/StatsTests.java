@@ -31,6 +31,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats.Bounds;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -40,6 +42,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -104,6 +107,19 @@ public class StatsTests extends AbstractNumericTestCase {
         assertThat(stats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(stats.getSum(), equalTo(0.0));
         assertThat(stats.getCount(), equalTo(0L));
+    }
+
+    public void testPartiallyUnmapped() {
+        Stats s1 = client().prepareSearch("idx")
+                .addAggregation(stats("stats").field("value")).get()
+                .getAggregations().get("stats");
+        ExtendedStats s2 = client().prepareSearch("idx", "idx_unmapped")
+                .addAggregation(stats("stats").field("value")).get()
+                .getAggregations().get("stats");
+        assertEquals(s1.getAvg(), s2.getAvg(), 1e-10);
+        assertEquals(s1.getCount(), s2.getCount());
+        assertEquals(s1.getMin(), s2.getMin(), 0d);
+        assertEquals(s1.getMax(), s2.getMax(), 0d);
     }
 
     @Override

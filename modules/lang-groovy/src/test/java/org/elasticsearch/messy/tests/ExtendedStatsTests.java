@@ -19,7 +19,6 @@
 package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -127,6 +126,24 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getStdDeviation(), equalTo(Double.NaN));
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
+    }
+
+    public void testPartiallyUnmapped() {
+        double sigma = randomDouble() * 5;
+        ExtendedStats s1 = client().prepareSearch("idx")
+                .addAggregation(extendedStats("stats").field("value").sigma(sigma)).get()
+                .getAggregations().get("stats");
+        ExtendedStats s2 = client().prepareSearch("idx", "idx_unmapped")
+                .addAggregation(extendedStats("stats").field("value").sigma(sigma)).get()
+                .getAggregations().get("stats");
+        assertEquals(s1.getAvg(), s2.getAvg(), 1e-10);
+        assertEquals(s1.getCount(), s2.getCount());
+        assertEquals(s1.getMin(), s2.getMin(), 0d);
+        assertEquals(s1.getMax(), s2.getMax(), 0d);
+        assertEquals(s1.getStdDeviation(), s2.getStdDeviation(), 1e-10);
+        assertEquals(s1.getSumOfSquares(), s2.getSumOfSquares(), 1e-10);
+        assertEquals(s1.getStdDeviationBound(Bounds.LOWER), s2.getStdDeviationBound(Bounds.LOWER), 1e-10);
+        assertEquals(s1.getStdDeviationBound(Bounds.UPPER), s2.getStdDeviationBound(Bounds.UPPER), 1e-10);
     }
 
     @Override
@@ -582,17 +599,6 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
             assertThat(extendedStats.getStdDeviationBound(Bounds.UPPER), equalTo(Double.NaN));
 
         }
-    }
-
-    private void assertShardExecutionState(SearchResponse response, int expectedFailures) throws Exception {
-        ShardSearchFailure[] failures = response.getShardFailures();
-        if (failures.length != expectedFailures) {
-            for (ShardSearchFailure failure : failures) {
-                logger.error("Shard Failure: {}", failure.getCause(), failure);
-            }
-            fail("Unexpected shard failures!");
-        }
-        assertThat("Not all shards are initialized", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
     }
 
     private void checkUpperLowerBounds(ExtendedStats stats, double sigma) {

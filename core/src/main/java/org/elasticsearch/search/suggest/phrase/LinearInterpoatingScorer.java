@@ -61,7 +61,7 @@ public final class LinearInterpoatingScorer extends WordScorer {
         if (count < 1) {
             return unigramLambda * scoreUnigram(word);
         }
-        return bigramLambda * (count / (0.5d+w_1.frequency)) + unigramLambda * scoreUnigram(word);
+        return bigramLambda * (count / (0.5d + w_1.frequency)) + unigramLambda * scoreUnigram(word);
     }
 
     @Override
@@ -72,6 +72,7 @@ public final class LinearInterpoatingScorer extends WordScorer {
             return scoreBigram(w, w_1);
         }
         SuggestUtils.join(separator, spare, w.term, w_1.term);
-        return trigramLambda * (count / (1.d+frequency(spare.get()))) + scoreBigram(w, w_1);
+        return trigramLambda * (count / (1.d + frequency(spare.get()))) + scoreBigram(w, w_1);
     }
+
 }

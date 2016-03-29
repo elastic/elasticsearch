@@ -19,10 +19,12 @@
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
@@ -172,8 +174,7 @@ public class TopHitsParser extends Aggregator.Parser {
     }
 
     @Override
-    public TopHitsAggregatorBuilder getFactoryPrototypes() {
-        return TopHitsAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new TopHitsAggregatorBuilder(in);
     }
-
 }

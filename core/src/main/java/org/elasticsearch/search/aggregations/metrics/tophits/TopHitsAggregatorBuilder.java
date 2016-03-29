@@ -66,6 +66,75 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     }
 
     /**
+     * Read from a stream.
+     */
+    TopHitsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalTopHits.TYPE);
+        explain = in.readBoolean();
+        fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+        fieldDataFields = list(in.readOptionalStringArray());
+        fieldNames = list(in.readOptionalStringArray());
+        from = in.readVInt();
+        highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            scriptFields = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                scriptFields.add(ScriptField.PROTOTYPE.readFrom(in));
+            }
+        }
+        size = in.readVInt();
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            sorts = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                sorts.add(in.readSortBuilder());
+            }
+        }
+        trackScores = in.readBoolean();
+        version = in.readBoolean();
+    }
+
+    private <T> List<T> list(@Nullable T[] t) {
+        if (t == null) {
+            return null;
+        }
+        List<T> list = new ArrayList<>();
+        Collections.addAll(list, t);
+        return list;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(explain);
+        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+        out.writeOptionalStringArray(fieldDataFields == null ? null : fieldDataFields.toArray(new String[fieldDataFields.size()]));
+        out.writeOptionalStringArray(fieldNames == null ? null : fieldNames.toArray(new String[fieldNames.size()]));
+        out.writeVInt(from);
+        out.writeOptionalWriteable(highlightBuilder);
+        boolean hasScriptFields = scriptFields != null;
+        out.writeBoolean(hasScriptFields);
+        if (hasScriptFields) {
+            out.writeVInt(scriptFields.size());
+            for (ScriptField scriptField : scriptFields) {
+                scriptField.writeTo(out);
+            }
+        }
+        out.writeVInt(size);
+        boolean hasSorts = sorts != null;
+        out.writeBoolean(hasSorts);
+        if (hasSorts) {
+            out.writeVInt(sorts.size());
+            for (SortBuilder<?> sort : sorts) {
+                out.writeSortBuilder(sort);
+            }
+        }
+        out.writeBoolean(trackScores);
+        out.writeBoolean(version);
+    }
+
+    /**
      * From index to start the search from. Defaults to <tt>0</tt>.
      */
     public TopHitsAggregatorBuilder from(int from) {
@@ -516,95 +585,6 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         return builder;
     }
 
-    @Override
-    protected TopHitsAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        TopHitsAggregatorBuilder factory = new TopHitsAggregatorBuilder(name);
-        factory.explain = in.readBoolean();
-        factory.fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<String> fieldDataFields = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                fieldDataFields.add(in.readString());
-            }
-            factory.fieldDataFields = fieldDataFields;
-        }
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<String> fieldNames = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                fieldNames.add(in.readString());
-            }
-            factory.fieldNames = fieldNames;
-        }
-        factory.from = in.readVInt();
-        factory.highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<ScriptField> scriptFields = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                scriptFields.add(ScriptField.PROTOTYPE.readFrom(in));
-            }
-            factory.scriptFields = scriptFields;
-        }
-        factory.size = in.readVInt();
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<SortBuilder<?>> sorts = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                sorts.add(in.readSortBuilder());
-            }
-            factory.sorts = sorts;
-        }
-        factory.trackScores = in.readBoolean();
-        factory.version = in.readBoolean();
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd(StreamOutput out) throws IOException {
-        out.writeBoolean(explain);
-        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
-        boolean hasFieldDataFields = fieldDataFields != null;
-        out.writeBoolean(hasFieldDataFields);
-        if (hasFieldDataFields) {
-            out.writeVInt(fieldDataFields.size());
-            for (String fieldName : fieldDataFields) {
-                out.writeString(fieldName);
-            }
-        }
-        boolean hasFieldNames = fieldNames != null;
-        out.writeBoolean(hasFieldNames);
-        if (hasFieldNames) {
-            out.writeVInt(fieldNames.size());
-            for (String fieldName : fieldNames) {
-                out.writeString(fieldName);
-            }
-        }
-        out.writeVInt(from);
-        out.writeOptionalWriteable(highlightBuilder);
-        boolean hasScriptFields = scriptFields != null;
-        out.writeBoolean(hasScriptFields);
-        if (hasScriptFields) {
-            out.writeVInt(scriptFields.size());
-            for (ScriptField scriptField : scriptFields) {
-                scriptField.writeTo(out);
-            }
-        }
-        out.writeVInt(size);
-        boolean hasSorts = sorts != null;
-        out.writeBoolean(hasSorts);
-        if (hasSorts) {
-            out.writeVInt(sorts.size());
-            for (SortBuilder<?> sort : sorts) {
-                out.writeSortBuilder(sort);
-            }
-        }
-        out.writeBoolean(trackScores);
-        out.writeBoolean(version);
-    }
-
-    @Override
     protected int doHashCode() {
         return Objects.hash(explain, fetchSourceContext, fieldDataFields, fieldNames, from, highlightBuilder, scriptFields, size, sorts,
                 trackScores, version);

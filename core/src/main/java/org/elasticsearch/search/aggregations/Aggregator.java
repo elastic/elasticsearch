@@ -46,11 +46,14 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * @see AggregatorBuilder
     */
     public static abstract class Parser {
+        protected abstract InternalAggregation.Type type();
 
         /**
          * @return The aggregation type this parser is associated with.
          */
-        public abstract String type();
+        public final String name() {
+            return type().name();
+        }
 
         /**
          * Returns the aggregator factory with which this parser is associated, may return {@code null} indicating the

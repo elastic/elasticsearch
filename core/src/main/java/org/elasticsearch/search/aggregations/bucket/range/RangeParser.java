@@ -22,6 +22,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -46,8 +47,8 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalRange.TYPE.name();
+    protected InternalAggregation.Type type() {
+        return InternalRange.TYPE;
     }
 
     @Override

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
@@ -37,8 +38,8 @@ public class PercentilesParser extends AbstractPercentilesParser {
     public final static double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
 
     @Override
-    public String type() {
-        return InternalTDigestPercentiles.TYPE.name();
+    protected InternalAggregation.Type type() {
+        return InternalTDigestPercentiles.TYPE;
     }
 
     @Override

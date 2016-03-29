@@ -22,6 +22,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+
 import java.io.IOException;
 
 /**
@@ -30,8 +32,8 @@ import java.io.IOException;
 public class NestedParser extends Aggregator.Parser {
 
     @Override
-    public String type() {
-        return InternalNested.TYPE.name();
+    protected InternalAggregation.Type type() {
+        return InternalNested.TYPE;
     }
 
     @Override

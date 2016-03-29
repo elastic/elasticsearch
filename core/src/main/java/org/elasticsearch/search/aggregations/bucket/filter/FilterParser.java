@@ -24,6 +24,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+
 import java.io.IOException;
 
 /**
@@ -32,8 +34,8 @@ import java.io.IOException;
 public class FilterParser extends Aggregator.Parser {
 
     @Override
-    public String type() {
-        return InternalFilter.TYPE.name();
+    protected InternalAggregation.Type type() {
+        return InternalFilter.TYPE;
     }
 
     @Override

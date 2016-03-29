@@ -27,6 +27,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
@@ -47,8 +49,8 @@ public class ScriptedMetricParser extends Aggregator.Parser {
     public static final ParseField LANG_FIELD = new ParseField("lang");
 
     @Override
-    public String type() {
-        return InternalScriptedMetric.TYPE.name();
+    protected InternalAggregation.Type type() {
+        return InternalScriptedMetric.TYPE;
     }
 
     @Override

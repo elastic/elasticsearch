@@ -22,6 +22,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -38,8 +39,8 @@ public class MaxParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalMax.TYPE.name();
+    protected InternalAggregation.Type type() {
+        return InternalMax.TYPE;
     }
 
     @Override

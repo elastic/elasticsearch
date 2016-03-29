@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -39,8 +40,8 @@ import java.util.List;
 public class TopHitsParser extends Aggregator.Parser {
 
     @Override
-    public String type() {
-        return InternalTopHits.TYPE.name();
+    protected InternalAggregation.Type type() {
+        return InternalTopHits.TYPE;
     }
 
     @Override

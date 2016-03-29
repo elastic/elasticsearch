@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
@@ -55,8 +56,8 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public String type() {
-        return SignificantStringTerms.TYPE.name();
+    public InternalAggregation.Type type() {
+        return SignificantStringTerms.TYPE;
     }
 
     @Override

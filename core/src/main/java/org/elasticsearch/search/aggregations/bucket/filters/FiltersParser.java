@@ -28,6 +28,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,8 +50,8 @@ public class FiltersParser extends Aggregator.Parser {
     }
 
     @Override
-    public String type() {
-        return InternalFilters.TYPE.name();
+    protected InternalAggregation.Type type() {
+        return InternalFilters.TYPE;
     }
 
     @Override

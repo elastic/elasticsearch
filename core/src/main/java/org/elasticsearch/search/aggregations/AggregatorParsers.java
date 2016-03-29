@@ -59,7 +59,7 @@ public class AggregatorParsers {
             NamedWriteableRegistry namedWriteableRegistry) {
         Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
         for (Aggregator.Parser parser : aggParsers) {
-            aggParsersBuilder.put(parser.type(), parser);
+            aggParsersBuilder.put(parser.name(), parser);
             AggregatorBuilder<?> factoryPrototype = parser.getFactoryPrototypes();
             namedWriteableRegistry.registerPrototype(AggregatorBuilder.class, factoryPrototype);
         }

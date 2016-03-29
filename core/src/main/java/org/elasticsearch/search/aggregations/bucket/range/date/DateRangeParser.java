@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
@@ -38,8 +39,8 @@ public class DateRangeParser extends RangeParser {
     }
 
     @Override
-    public String type() {
-        return InternalDateRange.TYPE.name();
+    protected InternalAggregation.Type type() {
+        return InternalDateRange.TYPE;
     }
 
     @Override

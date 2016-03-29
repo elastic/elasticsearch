@@ -20,12 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 
@@ -34,7 +34,7 @@ public class RangeAggregatorBuilder extends AbstractRangeBuilder<RangeAggregator
     static final RangeAggregatorBuilder PROTOTYPE = new RangeAggregatorBuilder("");
 
     public RangeAggregatorBuilder(String name) {
-        super(name, InternalRange.FACTORY);
+        super(name, InternalRange.TYPE, InternalRange.FACTORY);
     }
 
     /**

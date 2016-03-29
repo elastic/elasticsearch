@@ -37,12 +37,7 @@ public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAg
     static final DateRangeAggregatorBuilder PROTOTYPE = new DateRangeAggregatorBuilder("");
 
     public DateRangeAggregatorBuilder(String name) {
-        super(name, InternalDateRange.FACTORY);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return InternalDateRange.TYPE.name();
+        super(name, InternalDateRange.TYPE, InternalDateRange.FACTORY);
     }
 
     /**

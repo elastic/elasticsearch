@@ -59,7 +59,7 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
 
     private GeoDistanceAggregatorBuilder(String name, GeoPoint origin,
             InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory) {
-        super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        super(name, InternalGeoDistance.TYPE, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         if (origin == null) {
             throw new IllegalArgumentException("[origin] must not be null: [" + name + "]");
         }
@@ -142,11 +142,6 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
 
     public List<Range> range() {
         return ranges;
-    }
-
-    @Override
-    public String getWriteableName() {
-        return InternalGeoDistance.TYPE.name();
     }
 
     public GeoDistanceAggregatorBuilder unit(DistanceUnit unit) {

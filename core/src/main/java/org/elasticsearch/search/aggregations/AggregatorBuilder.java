@@ -167,7 +167,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
     protected abstract XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    public String getWriteableName() {
+    public final String getWriteableName() {
         return type.stream().toUtf8();
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
@@ -40,8 +41,8 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
     protected long minDocCount = 0;
     protected ExtendedBounds extendedBounds;
 
-    AbstractHistogramBuilder(String name, InternalHistogram.Factory<?> histogramFactory) {
-        super(name, histogramFactory.type(), ValuesSourceType.NUMERIC, histogramFactory.valueType());
+    AbstractHistogramBuilder(String name, InternalAggregation.Type type, InternalHistogram.Factory<?> histogramFactory) {
+        super(name, type, ValuesSourceType.NUMERIC, histogramFactory.valueType());
     }
 
     public long interval() {
@@ -143,11 +144,6 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
     protected XContentBuilder doXContentInterval(XContentBuilder builder, Params params) throws IOException {
         builder.value(interval);
         return builder;
-    }
-
-    @Override
-    public String getWriteableName() {
-        return InternalHistogram.TYPE.name();
     }
 
     @SuppressWarnings("unchecked")

@@ -32,7 +32,7 @@ public class HistogramAggregatorBuilder extends AbstractHistogramBuilder<Histogr
     public static final HistogramAggregatorBuilder PROTOTYPE = new HistogramAggregatorBuilder("");
 
     public HistogramAggregatorBuilder(String name) {
-        super(name, InternalHistogram.HISTOGRAM_FACTORY);
+        super(name, InternalHistogram.TYPE, InternalHistogram.HISTOGRAM_FACTORY);
     }
 
     @Override

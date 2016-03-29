@@ -39,7 +39,7 @@ public class DateHistogramAggregatorBuilder extends AbstractHistogramBuilder<Dat
     private DateHistogramInterval dateHistogramInterval;
 
     public DateHistogramAggregatorBuilder(String name) {
-        super(name, InternalDateHistogram.HISTOGRAM_FACTORY);
+        super(name, InternalDateHistogram.TYPE, InternalDateHistogram.HISTOGRAM_FACTORY);
     }
 
     /**
@@ -81,11 +81,6 @@ public class DateHistogramAggregatorBuilder extends AbstractHistogramBuilder<Dat
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new DateHistogramAggregatorFactory(name, type, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
                 extendedBounds, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return InternalDateHistogram.TYPE.name();
     }
 
     @Override

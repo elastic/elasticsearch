@@ -22,11 +22,13 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +41,8 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     protected List<R> ranges = new ArrayList<>();
     protected boolean keyed = false;
 
-    protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
-        super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+    protected AbstractRangeBuilder(String name, InternalAggregation.Type type, InternalRange.Factory<?, ?> rangeFactory) {
+        super(name, type, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
     }
 

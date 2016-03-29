@@ -444,7 +444,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             + "indices.recovery:TRACE,indices.cluster:TRACE")
     public void testAckedIndexing() throws Exception {
 
-        final String timeout = !(TEST_NIGHTLY && rarely()) ? "1s" : "5s";
+        final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
+        final String timeout = seconds + "s";
 
         // TODO: add node count randomizaion
         final List<String> nodes = startCluster(3);
@@ -534,7 +535,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                     semaphore.release(docsPerIndexer);
                 }
                 logger.info("waiting for indexing requests to complete");
-                assertTrue(countDownLatchRef.get().await(docsPerIndexer * 1000 + 2000, TimeUnit.MILLISECONDS));
+                assertTrue(countDownLatchRef.get().await(docsPerIndexer * seconds * 1000 + 2000, TimeUnit.MILLISECONDS));
 
                 logger.info("stopping disruption");
                 disruptionScheme.stopDisrupting();

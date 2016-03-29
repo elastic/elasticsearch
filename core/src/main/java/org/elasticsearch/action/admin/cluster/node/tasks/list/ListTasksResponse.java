@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -39,7 +38,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Returns the list of tasks currently running on the nodes
@@ -132,8 +130,11 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
             builder.field("host", node.getHostName());
             builder.field("ip", node.getAddress());
 
-            builder.array("roles", node.getRoles().stream().map(DiscoveryNode.Role::getRoleName)
-                    .collect(Collectors.toList()).toArray());
+            builder.startArray("roles");
+            for (DiscoveryNode.Role role : node.getRoles()) {
+                builder.value(role.getRoleName());
+            }
+            builder.endArray();
 
             if (!node.attributes().isEmpty()) {
                 builder.startObject("attributes");

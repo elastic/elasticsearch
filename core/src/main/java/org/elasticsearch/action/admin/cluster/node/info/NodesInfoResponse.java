@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  *
@@ -86,8 +85,11 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
                 }
             }
 
-            builder.array("roles", nodeInfo.getNode().getRoles().stream().map(DiscoveryNode.Role::getRoleName)
-                    .collect(Collectors.toList()).toArray());
+            builder.startArray("roles");
+            for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
+                builder.value(role.getRoleName());
+            }
+            builder.endArray();
 
             if (!nodeInfo.getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");

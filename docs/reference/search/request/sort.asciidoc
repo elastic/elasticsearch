@@ -346,7 +346,7 @@ When sorting on a field, scores are not computed. By setting
 {
     "track_scores": true,
     "sort" : [
-        { "post_date" : {"reverse" : true} },
+        { "post_date" : {"order" : "desc"} },
         { "name" : "desc" },
         { "age" : "desc" }
     ],

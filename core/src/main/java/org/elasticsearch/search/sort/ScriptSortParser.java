@@ -63,7 +63,7 @@ public class ScriptSortParser implements SortParser {
 
     private static final String STRING_SORT_TYPE = "string";
     private static final String NUMBER_SORT_TYPE = "number";
-    private static final ParseField REVERSE_FIELD = new ParseField("reverse").withAllDeprecated("order");
+    private static final ParseField REVERSE_FIELD = new ParseField("reverse").withAllDeprecated("replaced by order");
 
     @Override
     public String[] names() {

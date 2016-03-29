@@ -58,7 +58,7 @@ import java.util.List;
  */
 public class GeoDistanceSortParser implements SortParser {
 
-    private static final ParseField REVERSE_FIELD = new ParseField("reverse").withAllDeprecated("order");
+    private static final ParseField REVERSE_FIELD = new ParseField("reverse").withAllDeprecated("replaced by order");
 
     @Override
     public String[] names() {

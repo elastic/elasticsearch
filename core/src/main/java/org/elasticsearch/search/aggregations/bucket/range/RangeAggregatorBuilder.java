@@ -38,6 +38,13 @@ public class RangeAggregatorBuilder extends AbstractRangeBuilder<RangeAggregator
     }
 
     /**
+     * Read from a stream.
+     */
+    public RangeAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalRange.TYPE, InternalRange.FACTORY, Range.PROTOTYPE::readFrom);
+    }
+
+    /**
      * Add a new range to this aggregation.
      *
      * @param key
@@ -108,15 +115,5 @@ public class RangeAggregatorBuilder extends AbstractRangeBuilder<RangeAggregator
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
-    }
-
-    @Override
-    protected RangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        int size = in.readVInt();
-        RangeAggregatorBuilder factory = new RangeAggregatorBuilder(name);
-        for (int i = 0; i < size; i++) {
-            factory.addRange(Range.PROTOTYPE.readFrom(in));
-        }
-        return factory;
     }
 }

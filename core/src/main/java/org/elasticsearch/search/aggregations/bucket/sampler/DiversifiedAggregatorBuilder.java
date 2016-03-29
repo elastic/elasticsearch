@@ -53,6 +53,24 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
     }
 
     /**
+     * Read from a stream.
+     */
+    DiversifiedAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, TYPE, ValuesSourceType.ANY, null);
+        shardSize = in.readVInt();
+        maxDocsPerValue = in.readVInt();
+        executionHint = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(shardSize);
+        out.writeVInt(maxDocsPerValue);
+        out.writeOptionalString(executionHint);
+    }
+
+    /**
      * Set the max num docs to be returned from each shard.
      */
     public DiversifiedAggregatorBuilder shardSize(int shardSize) {
@@ -120,23 +138,6 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
             builder.field(SamplerAggregator.EXECUTION_HINT_FIELD.getPreferredName(), executionHint);
         }
         return builder;
-    }
-
-    @Override
-    protected DiversifiedAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        DiversifiedAggregatorBuilder factory = new DiversifiedAggregatorBuilder(name);
-        factory.shardSize = in.readVInt();
-        factory.maxDocsPerValue = in.readVInt();
-        factory.executionHint = in.readOptionalString();
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        out.writeVInt(shardSize);
-        out.writeVInt(maxDocsPerValue);
-        out.writeOptionalString(executionHint);
     }
 
     @Override

@@ -19,6 +19,8 @@
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
@@ -26,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -60,7 +63,7 @@ public class DateRangeParser extends RangeParser {
     }
 
     @Override
-    public DateRangeAggregatorBuilder getFactoryPrototypes() {
-        return DateRangeAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new DateRangeAggregatorBuilder(in);
     }
 }

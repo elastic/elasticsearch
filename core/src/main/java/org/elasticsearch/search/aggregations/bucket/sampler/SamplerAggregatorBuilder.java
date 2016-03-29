@@ -43,6 +43,20 @@ public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregato
     }
 
     /**
+     * Read from a stream.
+     */
+    SamplerAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalSampler.TYPE);
+        shardSize = in.readVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(shardSize);
+    }
+
+    /**
      * Set the max num docs to be returned from each shard.
      */
     public SamplerAggregatorBuilder shardSize(int shardSize) {
@@ -69,18 +83,6 @@ public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregato
         builder.field(SamplerAggregator.SHARD_SIZE_FIELD.getPreferredName(), shardSize);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    protected SamplerAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        SamplerAggregatorBuilder factory = new SamplerAggregatorBuilder(name);
-        factory.shardSize = in.readVInt();
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd(StreamOutput out) throws IOException {
-        out.writeVInt(shardSize);
     }
 
     @Override

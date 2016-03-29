@@ -20,7 +20,9 @@ package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
@@ -49,7 +51,7 @@ public class IpRangeParser extends RangeParser {
     @Override
     protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
         return IPv4RangeAggregatorBuilder.Range.PROTOTYPE.fromXContent(parser, parseFieldMatcher);
-            }
+    }
 
     @Override
     protected IPv4RangeAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
@@ -66,11 +68,10 @@ public class IpRangeParser extends RangeParser {
             factory.keyed(keyed);
         }
         return factory;
-        }
-
-    @Override
-    public IPv4RangeAggregatorBuilder getFactoryPrototypes() {
-        return IPv4RangeAggregatorBuilder.PROTOTYPE;
     }
 
+    @Override
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new IPv4RangeAggregatorBuilder(in);
+    }
 }

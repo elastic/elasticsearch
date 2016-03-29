@@ -20,8 +20,10 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
@@ -95,7 +97,7 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AbstractRangeBuilder<?, ?> getFactoryPrototypes() {
-        return RangeAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new RangeAggregatorBuilder(in);
     }
 }

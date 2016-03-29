@@ -21,13 +21,12 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,6 +45,28 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         this.rangeFactory = rangeFactory;
     }
 
+    protected AbstractRangeBuilder(StreamInput in, InternalAggregation.Type type, InternalRange.Factory<?, ?> rangeFactory,
+            Writeable.Reader<R> rangeReader) throws IOException {
+        super(in, type, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        this.rangeFactory = rangeFactory;
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            addRange(rangeReader.read(in));
+        }
+        keyed = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(ranges.size());
+        for (Range range : ranges) {
+            range.writeTo(out);
+        }
+        out.writeBoolean(keyed);
+    }
+
+    @SuppressWarnings("unchecked")
     public AB addRange(R range) {
         if (range == null) {
             throw new IllegalArgumentException("[range] must not be null: [" + name + "]");
@@ -58,6 +79,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         return ranges;
     }
 
+    @SuppressWarnings("unchecked")
     public AB keyed(boolean keyed) {
         this.keyed = keyed;
         return (AB) this;
@@ -75,31 +97,13 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     }
 
     @Override
-    protected AB innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        AbstractRangeBuilder<AB, R> factory = createFactoryFromStream(name, in);
-        factory.keyed = in.readBoolean();
-        return (AB) factory;
-    }
-
-    protected abstract AbstractRangeBuilder<AB, R> createFactoryFromStream(String name, StreamInput in) throws IOException;
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        out.writeVInt(ranges.size());
-        for (Range range : ranges) {
-            range.writeTo(out);
-        }
-        out.writeBoolean(keyed);
-    }
-
-    @Override
     protected int innerHashCode() {
         return Objects.hash(ranges, keyed);
     }
 
     @Override
     protected boolean innerEquals(Object obj) {
+        @SuppressWarnings("unchecked")
         AbstractRangeBuilder<AB, R> other = (AbstractRangeBuilder<AB, R>) obj;
         return Objects.equals(ranges, other.ranges)
                 && Objects.equals(keyed, other.keyed);

@@ -48,6 +48,13 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
     }
 
     /**
+     * Read from a stream.
+     */
+    IPv4RangeAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalIPv4Range.TYPE, InternalIPv4Range.FACTORY, Range.PROTOTYPE::readFrom);
+    }
+
+    /**
      * Add a new range to this aggregation.
      *
      * @param key
@@ -125,16 +132,6 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new Ipv4RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
-    }
-
-    @Override
-    protected IPv4RangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        int size = in.readVInt();
-        IPv4RangeAggregatorBuilder factory = new IPv4RangeAggregatorBuilder(name);
-        for (int i = 0; i < size; i++) {
-            factory.addRange(Range.PROTOTYPE.readFrom(in));
-        }
-        return factory;
     }
 
     public static class Range extends RangeAggregator.Range {

@@ -41,6 +41,15 @@ public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAg
     }
 
     /**
+     * Read from a stream.
+     * @param in
+     * @throws IOException
+     */
+    DateRangeAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalDateRange.TYPE, InternalDateRange.FACTORY, Range.PROTOTYPE::readFrom);
+    }
+
+    /**
      * Add a new range to this aggregation.
      *
      * @param key
@@ -249,15 +258,4 @@ public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAg
         return new DateRangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
     }
-
-    @Override
-    protected DateRangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        int size = in.readVInt();
-        DateRangeAggregatorBuilder factory = new DateRangeAggregatorBuilder(name);
-        for (int i = 0; i < size; i++) {
-            factory.addRange(Range.PROTOTYPE.readFrom(in));
-        }
-        return factory;
-    }
-
 }

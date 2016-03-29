@@ -20,9 +20,11 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
@@ -69,8 +71,7 @@ public class SamplerParser extends Aggregator.Parser {
     }
 
     @Override
-    public SamplerAggregatorBuilder getFactoryPrototypes() {
-        return SamplerAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new SamplerAggregatorBuilder(in);
     }
-
 }

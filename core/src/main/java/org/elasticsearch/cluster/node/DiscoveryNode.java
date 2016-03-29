@@ -113,7 +113,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
             if (ordinal < 0 || ordinal >= Role.values().length) {
                 throw new IOException("Unknown Role ordinal [" + ordinal + "]");
             }
-            this.roles.add(Role.values()[in.readVInt()]);
+            this.roles.add(Role.values()[ordinal]);
         }
         this.version = Version.readVersion(in);
     }

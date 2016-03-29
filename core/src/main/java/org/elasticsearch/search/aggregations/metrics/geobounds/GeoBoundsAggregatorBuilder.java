@@ -44,6 +44,20 @@ public class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Va
     }
 
     /**
+     * Read from a stream.
+     */
+    GeoBoundsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalGeoBounds.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        wrapLongitude = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(wrapLongitude);
+    }
+
+    /**
      * Set whether to wrap longitudes. Defaults to true.
      */
     public GeoBoundsAggregatorBuilder wrapLongitude(boolean wrapLongitude) {
@@ -62,19 +76,6 @@ public class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Va
     protected GeoBoundsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new GeoBoundsAggregatorFactory(name, type, config, wrapLongitude, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected GeoBoundsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(name);
-        factory.wrapLongitude = in.readBoolean();
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        out.writeBoolean(wrapLongitude);
     }
 
     @Override

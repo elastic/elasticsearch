@@ -69,7 +69,7 @@
                     <include>api/nodes.info.json</include>
                     <include>api/count.json</include>
                     <!-- Reindex's REST spec lives in the core because that seems to be how modules are done -->
-                    <include>api/update-by-query.json</include>
+                    <include>api/update_by_query.json</include>
                     <include>api/reindex.json</include>
                 </includes>
             </testResource>

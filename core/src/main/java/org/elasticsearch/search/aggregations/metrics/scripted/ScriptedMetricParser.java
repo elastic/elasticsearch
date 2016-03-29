@@ -21,12 +21,14 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
@@ -162,8 +164,7 @@ public class ScriptedMetricParser extends Aggregator.Parser {
     }
 
     @Override
-    public ScriptedMetricAggregatorBuilder getFactoryPrototypes() {
-        return ScriptedMetricAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new ScriptedMetricAggregatorBuilder(in);
     }
-
 }

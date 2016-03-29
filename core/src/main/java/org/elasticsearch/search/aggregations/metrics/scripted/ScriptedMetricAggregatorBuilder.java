@@ -33,9 +33,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedMetricAggregatorBuilder> {
-
-    static final ScriptedMetricAggregatorBuilder PROTOTYPE = new ScriptedMetricAggregatorBuilder("");
-
     private Script initScript;
     private Script mapScript;
     private Script combineScript;
@@ -44,6 +41,34 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
 
     public ScriptedMetricAggregatorBuilder(String name) {
         super(name, InternalScriptedMetric.TYPE);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    ScriptedMetricAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalScriptedMetric.TYPE);
+        initScript = in.readOptionalStreamable(Script.SUPPLIER);
+        mapScript = in.readOptionalStreamable(Script.SUPPLIER);
+        combineScript = in.readOptionalStreamable(Script.SUPPLIER);
+        reduceScript = in.readOptionalStreamable(Script.SUPPLIER);
+        if (in.readBoolean()) {
+            params = in.readMap();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalStreamable(initScript);
+        out.writeOptionalStreamable(mapScript);
+        out.writeOptionalStreamable(combineScript);
+        out.writeOptionalStreamable(reduceScript);
+        boolean hasParams = params != null;
+        out.writeBoolean(hasParams);
+        if (hasParams) {
+            out.writeMap(params);
+        }
     }
 
     /**
@@ -169,32 +194,6 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    protected ScriptedMetricAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregatorBuilder(name);
-        factory.initScript = in.readOptionalStreamable(Script.SUPPLIER);
-        factory.mapScript = in.readOptionalStreamable(Script.SUPPLIER);
-        factory.combineScript = in.readOptionalStreamable(Script.SUPPLIER);
-        factory.reduceScript = in.readOptionalStreamable(Script.SUPPLIER);
-        if (in.readBoolean()) {
-            factory.params = in.readMap();
-        }
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd(StreamOutput out) throws IOException {
-        out.writeOptionalStreamable(initScript);
-        out.writeOptionalStreamable(mapScript);
-        out.writeOptionalStreamable(combineScript);
-        out.writeOptionalStreamable(reduceScript);
-        boolean hasParams = params != null;
-        out.writeBoolean(hasParams);
-        if (hasParams) {
-            out.writeMap(params);
-        }
     }
 
     @Override

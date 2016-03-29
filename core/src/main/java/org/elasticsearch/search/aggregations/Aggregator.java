@@ -67,21 +67,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          */
         public abstract AggregatorBuilder<?> parse(String aggregationName, XContentParser parser, QueryParseContext context)
                 throws IOException;
-
-        /**
-         * @return an empty {@link AggregatorBuilder} instance for this parser
-         *         that can be used for deserialization
-         */
-        protected AggregatorBuilder<?> getFactoryPrototypes() {
-            // TODO remove this when we remove below
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public AggregatorBuilder<?> read(StreamInput in) throws IOException {
-            // TODO remove this and let subclasses define it
-            return getFactoryPrototypes().readFrom(in);
-        }
     }
 
     /**

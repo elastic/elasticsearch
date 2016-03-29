@@ -443,8 +443,8 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new TopHitsParser());
         registerAggregatorParser(new GeoBoundsParser());
         registerAggregatorParser(new GeoCentroidParser());
-//        registerAggregatorParser(new ScriptedMetricParser());
-//        registerAggregatorParser(new ChildrenParser());
+        registerAggregatorParser(new ScriptedMetricParser());
+        registerAggregatorParser(new ChildrenParser());
 
         registerPipelineParser(new DerivativeParser());
         registerPipelineParser(new MaxBucketParser());

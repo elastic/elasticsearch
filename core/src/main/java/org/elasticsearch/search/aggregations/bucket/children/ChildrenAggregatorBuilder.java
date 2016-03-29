@@ -42,9 +42,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<ParentChild, ChildrenAggregatorBuilder> {
-
-    static final ChildrenAggregatorBuilder PROTOTYPE = new ChildrenAggregatorBuilder("", "");
-
     private String parentType;
     private final String childType;
     private Query parentFilter;
@@ -63,6 +60,21 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
         }
         this.childType = childType;
     }
+
+    /**
+     * Read from a stream.
+     */
+    ChildrenAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalChildren.TYPE, ValuesSourceType.BYTES, ValueType.STRING);
+        childType = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(childType);
+    }
+
 
     @Override
     protected ValuesSourceAggregatorFactory<ParentChild, ?> innerBuild(AggregationContext context,
@@ -103,19 +115,6 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(ParentToChildrenAggregator.TYPE_FIELD.getPreferredName(), childType);
         return builder;
-    }
-
-    @Override
-    protected ChildrenAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        String childType = in.readString();
-        ChildrenAggregatorBuilder factory = new ChildrenAggregatorBuilder(name, childType);
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        out.writeString(childType);
     }
 
     @Override

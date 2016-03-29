@@ -20,18 +20,15 @@
 package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 
 public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorBuilder> {
-
-    static final GlobalAggregatorBuilder PROTOTYPE = new GlobalAggregatorBuilder("");
 
     public GlobalAggregatorBuilder(String name) {
         super(name, InternalGlobal.TYPE);

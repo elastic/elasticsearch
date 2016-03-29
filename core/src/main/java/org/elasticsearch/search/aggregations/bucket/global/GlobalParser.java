@@ -45,11 +45,6 @@ public class GlobalParser extends Aggregator.Parser {
     }
 
     @Override
-    public GlobalAggregatorBuilder getFactoryPrototypes() {
-        return GlobalAggregatorBuilder.PROTOTYPE;
-    }
-
-    @Override
     public AggregatorBuilder<?> read(StreamInput in) throws IOException {
         return new GlobalAggregatorBuilder(in);
     }

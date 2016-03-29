@@ -31,13 +31,24 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNestedAggregatorBuilder> {
-
-    static final ReverseNestedAggregatorBuilder PROTOTYPE = new ReverseNestedAggregatorBuilder("");
-
     private String path;
 
     public ReverseNestedAggregatorBuilder(String name) {
         super(name, InternalReverseNested.TYPE);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    ReverseNestedAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalReverseNested.TYPE);
+        path = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(path);
     }
 
     /**
@@ -74,18 +85,6 @@ public class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNes
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    protected ReverseNestedAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregatorBuilder(name);
-        factory.path = in.readOptionalString();
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd(StreamOutput out) throws IOException {
-        out.writeOptionalString(path);
     }
 
     @Override

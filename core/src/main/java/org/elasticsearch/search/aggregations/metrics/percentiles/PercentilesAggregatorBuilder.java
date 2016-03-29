@@ -55,6 +55,28 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
     }
 
     /**
+     * Read from a stream.
+     */
+    PercentilesAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalTDigestPercentiles.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        percents = in.readDoubleArray();
+        keyed = in.readBoolean();
+        numberOfSignificantValueDigits = in.readVInt();
+        compression = in.readDouble();
+        method = PercentilesMethod.TDIGEST.readFrom(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeDoubleArray(percents);
+        out.writeBoolean(keyed);
+        out.writeVInt(numberOfSignificantValueDigits);
+        out.writeDouble(compression);
+        method.writeTo(out);
+    }
+
+    /**
      * Set the values to compute percentiles from.
      */
     public PercentilesAggregatorBuilder percentiles(double... percents) {
@@ -155,27 +177,6 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
         default:
             throw new IllegalStateException("Illegal method [" + method.getName() + "]");
         }
-    }
-
-    @Override
-    protected PercentilesAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        PercentilesAggregatorBuilder factory = new PercentilesAggregatorBuilder(name);
-        factory.percents = in.readDoubleArray();
-        factory.keyed = in.readBoolean();
-        factory.numberOfSignificantValueDigits = in.readVInt();
-        factory.compression = in.readDouble();
-        factory.method = PercentilesMethod.TDIGEST.readFrom(in);
-        return factory;
-    }
-
-    @Override
-    protected void writeEnd2(StreamOutput out) throws IOException {
-        out.writeDoubleArray(percents);
-        out.writeBoolean(keyed);
-        out.writeVInt(numberOfSignificantValueDigits);
-        out.writeDouble(compression);
-        method.writeTo(out);
     }
 
     @Override

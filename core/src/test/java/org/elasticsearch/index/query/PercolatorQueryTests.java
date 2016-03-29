@@ -36,6 +36,7 @@ import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -64,6 +65,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -149,42 +151,102 @@ public class PercolatorQueryTests extends ESTestCase {
                 new MatchAllDocsQuery()
         );
         builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
-        TopDocs topDocs = shardSearcher.search(builder.build(), 10);
+        // no scoring, wrapping it in a constant score query:
+        Query query = new ConstantScoreQuery(builder.build());
+        TopDocs topDocs = shardSearcher.search(query, 10);
         assertThat(topDocs.totalHits, equalTo(5));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
-        Explanation explanation = shardSearcher.explain(builder.build(), 0);
+        Explanation explanation = shardSearcher.explain(query, 0);
         assertThat(explanation.isMatch(), is(true));
         assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[0].score));
 
-        explanation = shardSearcher.explain(builder.build(), 1);
+        explanation = shardSearcher.explain(query, 1);
         assertThat(explanation.isMatch(), is(false));
 
         assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
-        explanation = shardSearcher.explain(builder.build(), 2);
+        explanation = shardSearcher.explain(query, 2);
         assertThat(explanation.isMatch(), is(true));
         assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[1].score));
 
         assertThat(topDocs.scoreDocs[2].doc, equalTo(3));
-        explanation = shardSearcher.explain(builder.build(), 3);
+        explanation = shardSearcher.explain(query, 3);
         assertThat(explanation.isMatch(), is(true));
         assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[2].score));
 
-        explanation = shardSearcher.explain(builder.build(), 4);
+        explanation = shardSearcher.explain(query, 4);
         assertThat(explanation.isMatch(), is(false));
 
         assertThat(topDocs.scoreDocs[3].doc, equalTo(5));
-        explanation = shardSearcher.explain(builder.build(), 5);
+        explanation = shardSearcher.explain(query, 5);
         assertThat(explanation.isMatch(), is(true));
         assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[3].score));
 
-        explanation = shardSearcher.explain(builder.build(), 6);
+        explanation = shardSearcher.explain(query, 6);
         assertThat(explanation.isMatch(), is(false));
 
         assertThat(topDocs.scoreDocs[4].doc, equalTo(7));
-        explanation = shardSearcher.explain(builder.build(), 7);
+        explanation = shardSearcher.explain(query, 7);
         assertThat(explanation.isMatch(), is(true));
         assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[4].score));
+    }
+
+    public void testVariousQueries_withScoring() throws Exception {
+        SpanNearQuery.Builder snp = new SpanNearQuery.Builder("field", true);
+        snp.addClause(new SpanTermQuery(new Term("field", "jumps")));
+        snp.addClause(new SpanTermQuery(new Term("field", "lazy")));
+        snp.addClause(new SpanTermQuery(new Term("field", "dog")));
+        snp.setSlop(2);
+        addPercolatorQuery("1", snp.build());
+        PhraseQuery.Builder pq1 = new PhraseQuery.Builder();
+        pq1.add(new Term("field", "quick"));
+        pq1.add(new Term("field", "brown"));
+        pq1.add(new Term("field", "jumps"));
+        pq1.setSlop(1);
+        addPercolatorQuery("2", pq1.build());
+        BooleanQuery.Builder bq1 = new BooleanQuery.Builder();
+        bq1.add(new TermQuery(new Term("field", "quick")), BooleanClause.Occur.MUST);
+        bq1.add(new TermQuery(new Term("field", "brown")), BooleanClause.Occur.MUST);
+        bq1.add(new TermQuery(new Term("field", "fox")), BooleanClause.Occur.MUST);
+        addPercolatorQuery("3", bq1.build());
+
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+
+        PercolatorQuery.Builder builder = new PercolatorQuery.Builder(
+                "docType",
+                queryRegistry,
+                new BytesArray("{}"),
+                percolateSearcher,
+                new MatchAllDocsQuery()
+        );
+        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
+        Query query = builder.build();
+        TopDocs topDocs = shardSearcher.search(query, 10);
+        assertThat(topDocs.totalHits, equalTo(3));
+
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
+        Explanation explanation = shardSearcher.explain(query, 2);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[0].score));
+        assertThat(explanation.getDetails(), arrayWithSize(1));
+
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(1));
+        explanation = shardSearcher.explain(query, 1);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[1].score));
+        assertThat(explanation.getDetails(), arrayWithSize(1));
+
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(0));
+        explanation = shardSearcher.explain(query, 0);
+        assertThat(explanation.isMatch(), is(true));
+        assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[2].score));
+        assertThat(explanation.getDetails(), arrayWithSize(1));
     }
 
     public void testDuel() throws Exception {

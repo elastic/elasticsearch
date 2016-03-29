@@ -148,12 +148,17 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .endObject().bytes();
         SearchResponse response = client().prepareSearch()
                 .setQuery(percolatorQuery("type", source))
+                .addSort("_uid", SortOrder.ASC)
                 .get();
         assertHitCount(response, 4);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).score(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).score(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(2).score(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(3).getId(), equalTo("4"));
+        assertThat(response.getHits().getAt(3).score(), equalTo(Float.NaN));
     }
 
     public void testPercolatorQueryWithHighlighting() throws Exception {

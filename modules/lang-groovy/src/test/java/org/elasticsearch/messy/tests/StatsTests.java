@@ -110,6 +110,19 @@ public class StatsTests extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(0l));
     }
 
+    public void testPartiallyUnmapped() {
+        Stats s1 = client().prepareSearch("idx")
+                .addAggregation(stats("stats").field("value")).get()
+                .getAggregations().get("stats");
+        Stats s2 = client().prepareSearch("idx", "idx_unmapped")
+                .addAggregation(stats("stats").field("value")).get()
+                .getAggregations().get("stats");
+        assertEquals(s1.getAvg(), s2.getAvg(), 1e-10);
+        assertEquals(s1.getCount(), s2.getCount());
+        assertEquals(s1.getMin(), s2.getMin(), 0d);
+        assertEquals(s1.getMax(), s2.getMax(), 0d);
+    }
+
     @Override
     @Test
     public void testSingleValuedField() throws Exception {

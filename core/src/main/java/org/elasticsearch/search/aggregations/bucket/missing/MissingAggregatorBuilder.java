@@ -55,7 +55,7 @@ public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) {
+    protected void writeEnd2(StreamOutput out) {
         // Do nothing, no extra state to write to stream
     }
 

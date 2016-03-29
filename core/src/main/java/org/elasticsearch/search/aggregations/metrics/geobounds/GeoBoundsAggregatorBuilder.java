@@ -73,7 +73,7 @@ public class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Va
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         out.writeBoolean(wrapLongitude);
     }
 

@@ -168,8 +168,7 @@ public enum ValueType implements Writeable<ValueType> {
         return description;
     }
 
-    @Override
-    public ValueType readFrom(StreamInput in) throws IOException {
+    public static ValueType readFromStream(StreamInput in) throws IOException {
         byte id = in.readByte();
         for (ValueType valueType : values()) {
             if (id == valueType.id) {

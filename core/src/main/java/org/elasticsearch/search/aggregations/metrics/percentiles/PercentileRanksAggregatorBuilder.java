@@ -170,7 +170,7 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         out.writeDoubleArray(values);
         out.writeBoolean(keyed);
         out.writeVInt(numberOfSignificantValueDigits);

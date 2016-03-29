@@ -167,7 +167,7 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
     protected abstract AB createFactoryFromStream(String name, StreamInput in) throws IOException;
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         writeFactoryToStream(out);
         out.writeVLong(interval);
         out.writeLong(offset);

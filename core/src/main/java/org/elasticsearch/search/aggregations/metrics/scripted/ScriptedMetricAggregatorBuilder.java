@@ -185,7 +185,7 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd(StreamOutput out) throws IOException {
         out.writeOptionalStreamable(initScript);
         out.writeOptionalStreamable(mapScript);
         out.writeOptionalStreamable(combineScript);

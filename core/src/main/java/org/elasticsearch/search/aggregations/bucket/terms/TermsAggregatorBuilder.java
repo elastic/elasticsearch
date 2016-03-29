@@ -38,12 +38,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-/**
- *
- */
-/**
- *
- */
 public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, TermsAggregatorBuilder> {
 
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
@@ -57,8 +51,6 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
-    static final TermsAggregatorBuilder PROTOTYPE = new TermsAggregatorBuilder("", null);
-
     private Terms.Order order = Terms.Order.compound(Terms.Order.count(false), Terms.Order.term(true));
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
@@ -69,6 +61,31 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
 
     public TermsAggregatorBuilder(String name, ValueType valueType) {
         super(name, StringTerms.TYPE, ValuesSourceType.ANY, valueType);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    TermsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, StringTerms.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
+        bucketCountThresholds = BucketCountThresholds.readFromStream(in);
+        collectMode = SubAggCollectionMode.readFromStream(in);
+        executionHint = in.readOptionalString();
+        includeExclude = in.readOptionalWriteable(IncludeExclude::readFromStream);
+        order = InternalOrder.Streams.readOrder(in);
+        showTermDocCountError = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(valueType());
+        super.writeTo(out);
+        bucketCountThresholds.writeTo(out);
+        collectMode.writeTo(out);
+        out.writeOptionalString(executionHint);
+        out.writeOptionalWriteable(includeExclude);
+        InternalOrder.Streams.writeOrder(order, out);
+        out.writeBoolean(showTermDocCountError);
     }
 
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
@@ -250,35 +267,6 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
             includeExclude.toXContent(builder, params);
         }
         return builder;
-    }
-
-    @Override
-    protected TermsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        TermsAggregatorBuilder factory = new TermsAggregatorBuilder(name, targetValueType);
-        factory.bucketCountThresholds = BucketCountThresholds.readFromStream(in);
-        factory.collectMode = SubAggCollectionMode.BREADTH_FIRST.readFrom(in);
-        factory.executionHint = in.readOptionalString();
-        if (in.readBoolean()) {
-            factory.includeExclude = IncludeExclude.readFromStream(in);
-        }
-        factory.order = InternalOrder.Streams.readOrder(in);
-        factory.showTermDocCountError = in.readBoolean();
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        bucketCountThresholds.writeTo(out);
-        collectMode.writeTo(out);
-        out.writeOptionalString(executionHint);
-        boolean hasIncExc = includeExclude != null;
-        out.writeBoolean(hasIncExc);
-        if (hasIncExc) {
-            includeExclude.writeTo(out);
-        }
-        InternalOrder.Streams.writeOrder(order, out);
-        out.writeBoolean(showTermDocCountError);
     }
 
     @Override

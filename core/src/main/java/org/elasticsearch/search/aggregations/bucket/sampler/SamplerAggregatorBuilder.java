@@ -79,7 +79,7 @@ public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregato
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd(StreamOutput out) throws IOException {
         out.writeVInt(shardSize);
     }
 

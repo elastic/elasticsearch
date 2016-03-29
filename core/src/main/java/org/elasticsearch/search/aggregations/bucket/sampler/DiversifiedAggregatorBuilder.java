@@ -133,7 +133,7 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         out.writeVInt(shardSize);
         out.writeVInt(maxDocsPerValue);
         out.writeOptionalString(executionHint);

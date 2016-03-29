@@ -21,8 +21,10 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
@@ -179,8 +181,7 @@ public class TermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public TermsAggregatorBuilder getFactoryPrototypes() {
-        return TermsAggregatorBuilder.PROTOTYPE;
+    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
+        return new TermsAggregatorBuilder(in);
     }
-
 }

@@ -128,7 +128,7 @@ public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);

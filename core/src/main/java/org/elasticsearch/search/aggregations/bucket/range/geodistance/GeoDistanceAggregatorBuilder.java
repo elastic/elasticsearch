@@ -211,7 +211,7 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         out.writeDouble(origin.lat());
         out.writeDouble(origin.lon());
         out.writeVInt(ranges.size());

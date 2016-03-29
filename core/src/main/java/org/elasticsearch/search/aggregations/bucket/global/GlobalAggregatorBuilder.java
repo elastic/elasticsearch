@@ -49,7 +49,7 @@ public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorB
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd(StreamOutput out) throws IOException {
         // Nothing to write
     }
 

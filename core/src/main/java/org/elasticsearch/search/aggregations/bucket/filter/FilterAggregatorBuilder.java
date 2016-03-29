@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -33,9 +32,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorBuilder> {
-
-    static final FilterAggregatorBuilder PROTOTYPE = new FilterAggregatorBuilder("", EmptyQueryBuilder.PROTOTYPE);
-
     private final QueryBuilder<?> filter;
 
     /**
@@ -54,6 +50,20 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
         this.filter = filter;
     }
 
+    /**
+     * Read from a stream.
+     */
+    FilterAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalFilter.TYPE);
+        filter = in.readQuery();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeQuery(filter);
+    }
+
     @Override
     protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
@@ -66,17 +76,6 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
             filter.toXContent(builder, params);
         }
         return builder;
-    }
-
-    @Override
-    protected FilterAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        FilterAggregatorBuilder factory = new FilterAggregatorBuilder(name, in.readQuery());
-        return factory;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(filter);
     }
 
     @Override

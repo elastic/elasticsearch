@@ -562,7 +562,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd(StreamOutput out) throws IOException {
         out.writeBoolean(explain);
         FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
         boolean hasFieldDataFields = fieldDataFields != null;

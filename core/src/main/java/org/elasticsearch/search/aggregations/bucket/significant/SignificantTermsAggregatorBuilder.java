@@ -234,7 +234,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         bucketCountThresholds.writeTo(out);
         out.writeOptionalString(executionHint);
         boolean hasfilterBuilder = filterBuilder != null;

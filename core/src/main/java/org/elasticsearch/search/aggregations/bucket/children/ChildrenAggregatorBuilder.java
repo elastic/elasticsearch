@@ -114,7 +114,7 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         out.writeString(childType);
     }
 

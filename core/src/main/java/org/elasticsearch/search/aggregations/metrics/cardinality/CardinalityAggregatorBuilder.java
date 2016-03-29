@@ -93,7 +93,7 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         boolean hasPrecisionThreshold = precisionThreshold != null;
         out.writeBoolean(hasPrecisionThreshold);
         if (hasPrecisionThreshold) {

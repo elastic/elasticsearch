@@ -72,7 +72,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @return an empty {@link AggregatorBuilder} instance for this parser
          *         that can be used for deserialization
          */
-        protected abstract AggregatorBuilder<?> getFactoryPrototypes();
+        protected AggregatorBuilder<?> getFactoryPrototypes() {
+            // TODO remove this when we remove below
+            throw new UnsupportedOperationException();
+        }
 
         @Override
         public AggregatorBuilder<?> read(StreamInput in) throws IOException {
@@ -162,8 +165,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             throw new ElasticsearchParseException("no [{}] found for value [{}]", KEY.getPreferredName(), value);
         }
 
-        @Override
-        public SubAggCollectionMode readFrom(StreamInput in) throws IOException {
+        public static SubAggCollectionMode readFromStream(StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown SubAggCollectionMode ordinal [" + ordinal + "]");

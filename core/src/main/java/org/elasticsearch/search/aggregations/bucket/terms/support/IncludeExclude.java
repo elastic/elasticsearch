@@ -61,14 +61,9 @@ import java.util.TreeSet;
  */
 public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
 
-    private static final IncludeExclude PROTOTYPE = new IncludeExclude(Collections.emptySortedSet(), Collections.emptySortedSet());
     private static final ParseField INCLUDE_FIELD = new ParseField("include");
     private static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
     private static final ParseField PATTERN_FIELD = new ParseField("pattern");
-
-    public static IncludeExclude readFromStream(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
 
     // The includeValue and excludeValue ByteRefs which are the result of the parsing
     // process are converted into a LongFilter when used on numeric fields
@@ -555,8 +550,7 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
         return builder;
     }
 
-    @Override
-    public IncludeExclude readFrom(StreamInput in) throws IOException {
+    public static IncludeExclude readFromStream(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             String includeString = in.readOptionalString();
             RegExp include = null;

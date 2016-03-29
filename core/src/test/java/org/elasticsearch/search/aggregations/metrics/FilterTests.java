@@ -32,6 +32,7 @@ public class FilterTests extends BaseAggregationTestCase<FilterAggregatorBuilder
         // NORELEASE make RandomQueryBuilder work outside of the
         // AbstractQueryTestCase
         // builder.query(RandomQueryBuilder.createQuery(getRandom()));
+        // TODO the norelease above
         return factory;
     }
 

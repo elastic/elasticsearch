@@ -85,7 +85,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     protected abstract AbstractRangeBuilder<AB, R> createFactoryFromStream(String name, StreamInput in) throws IOException;
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd2(StreamOutput out) throws IOException {
         out.writeVInt(ranges.size());
         for (Range range : ranges) {
             range.writeTo(out);

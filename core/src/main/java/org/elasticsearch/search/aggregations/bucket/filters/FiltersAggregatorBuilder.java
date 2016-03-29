@@ -165,7 +165,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
         if (keyed) {
             out.writeVInt(filters.size());

@@ -62,6 +62,26 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
     }
 
     /**
+     * Read from a stream.
+     */
+    protected AggregatorBuilder(StreamInput in, Type type) throws IOException {
+        if (type == null) {
+            throw new IllegalArgumentException("[type] must not be null: [" + name + "]");
+        }
+        name = in.readString();
+        this.type = type;
+        factoriesBuilder = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
+        metaData = in.readMap();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        factoriesBuilder.writeTo(out);
+        out.writeMap(metaData);
+    }
+
+    /**
      * Add a sub aggregation to this aggregation.
      */
     @SuppressWarnings("unchecked")
@@ -123,27 +143,6 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
 
     protected abstract AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
-
-    @Override
-    public final AB readFrom(StreamInput in) throws IOException {
-        String name = in.readString();
-        AB factory = doReadFrom(name, in);
-        factory.factoriesBuilder = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
-        factory.metaData = in.readMap();
-        return factory;
-    }
-
-    protected abstract AB doReadFrom(String name, StreamInput in) throws IOException;
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        doWriteTo(out);
-        factoriesBuilder.writeTo(out);
-        out.writeMap(metaData);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

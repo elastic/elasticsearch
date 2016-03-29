@@ -80,7 +80,7 @@ public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorB
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    protected void writeEnd(StreamOutput out) throws IOException {
         out.writeString(path);
     }
 

@@ -95,7 +95,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         context.reset(parser);
 
         try {
-          ScoreSortBuilder.PROTOTYPE.fromXContent(context, "_score");
+          ScoreSortBuilder.fromXContent(context, "_score");
           fail("adding reverse sorting option should fail with an exception");
         } catch (ParsingException e) {
             // all good

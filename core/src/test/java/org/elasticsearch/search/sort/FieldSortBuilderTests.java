@@ -124,7 +124,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         context.reset(parser);
 
         try {
-          FieldSortBuilder.PROTOTYPE.fromXContent(context, "");
+          FieldSortBuilder.fromXContent(context, "");
           fail("adding reverse sorting option should fail with an exception");
         } catch (ParsingException e) {
             // all good

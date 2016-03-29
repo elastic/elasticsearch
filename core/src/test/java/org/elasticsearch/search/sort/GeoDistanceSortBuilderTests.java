@@ -218,7 +218,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         context.reset(itemParser);
 
         try {
-          GeoDistanceSortBuilder.PROTOTYPE.fromXContent(context, "");
+          GeoDistanceSortBuilder.fromXContent(context, "");
           fail("adding reverse sorting option should fail with an exception");
         } catch (ParsingException e) {
             assertEquals("Sort option [reverse] no longer supported.", e.getMessage());

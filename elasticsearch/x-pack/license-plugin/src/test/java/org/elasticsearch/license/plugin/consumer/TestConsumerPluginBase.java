@@ -6,6 +6,7 @@
 package org.elasticsearch.license.plugin.consumer;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +21,7 @@ public abstract class TestConsumerPluginBase extends Plugin {
     private final boolean isEnabled;
 
     public TestConsumerPluginBase(Settings settings) {
-        this.isEnabled = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false;
+        this.isEnabled = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false;
     }
 
     @Override

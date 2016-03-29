@@ -8,6 +8,7 @@ package org.elasticsearch.xpack;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
@@ -194,7 +195,7 @@ public class XPackPlugin extends Plugin {
     }
 
     public static boolean transportClientMode(Settings settings) {
-        return !"node".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
+        return TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
     }
 
     public static boolean isTribeNode(Settings settings) {

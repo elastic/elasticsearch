@@ -41,9 +41,6 @@ import java.util.Arrays;
 import java.util.Objects;
 
 public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric, PercentilesAggregatorBuilder> {
-
-    static final PercentilesAggregatorBuilder PROTOTYPE = new PercentilesAggregatorBuilder("");
-
     private double[] percents = PercentilesParser.DEFAULT_PERCENTS;
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
     private int numberOfSignificantValueDigits = 3;

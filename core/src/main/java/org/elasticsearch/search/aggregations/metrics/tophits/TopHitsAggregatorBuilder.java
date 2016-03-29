@@ -46,9 +46,6 @@ import java.util.List;
 import java.util.Objects;
 
 public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregatorBuilder> {
-
-    static final TopHitsAggregatorBuilder PROTOTYPE = new TopHitsAggregatorBuilder("");
-
     private int from = 0;
     private int size = 3;
     private boolean explain = false;

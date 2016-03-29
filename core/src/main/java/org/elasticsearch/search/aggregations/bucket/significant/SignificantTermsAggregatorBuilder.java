@@ -56,14 +56,8 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
             3, 0, 10, -1);
 
-    static final SignificantTermsAggregatorBuilder PROTOTYPE = new SignificantTermsAggregatorBuilder("", null);
-
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
-    private String indexedFieldName;
-    private MappedFieldType fieldType;
-    private FilterableTermsEnum termsEnum;
-    private int numberOfAggregatorsCreated = 0;
     private QueryBuilder<?> filterBuilder = null;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private SignificanceHeuristic significanceHeuristic = JLHScore.PROTOTYPE;
@@ -77,7 +71,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
      */
     protected SignificantTermsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, SignificantStringTerms.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
-        bucketCountThresholds = BucketCountThresholds.readFromStream(in);
+        bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();
         filterBuilder = in.readOptionalQuery();
         includeExclude = in.readOptionalWriteable(IncludeExclude::readFromStream);

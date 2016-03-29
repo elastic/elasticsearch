@@ -34,9 +34,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoBoundsAggregatorBuilder> {
-
-    static final GeoBoundsAggregatorBuilder PROTOTYPE = new GeoBoundsAggregatorBuilder("");
-
     private boolean wrapLongitude = true;
 
     public GeoBoundsAggregatorBuilder(String name) {

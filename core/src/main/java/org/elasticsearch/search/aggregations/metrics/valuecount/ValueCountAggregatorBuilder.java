@@ -36,8 +36,6 @@ import java.io.IOException;
 public class ValueCountAggregatorBuilder
         extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, ValueCountAggregatorBuilder> {
 
-    static final ValueCountAggregatorBuilder PROTOTYPE = new ValueCountAggregatorBuilder("", null);
-
     public ValueCountAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalValueCount.TYPE, ValuesSourceType.ANY, targetValueType);
     }

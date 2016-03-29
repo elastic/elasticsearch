@@ -7,7 +7,7 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
 import org.elasticsearch.test.ESTestCase;
@@ -22,9 +22,9 @@ public class AuthenticationModuleTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
         AuthenticationModule module = new AuthenticationModule(settings);
         try {
-            module.addCustomRealm(randomFrom(PkiRealm.TYPE, LdapRealm.TYPE, ActiveDirectoryRealm.TYPE, ESUsersRealm.TYPE),
+            module.addCustomRealm(randomFrom(PkiRealm.TYPE, LdapRealm.TYPE, ActiveDirectoryRealm.TYPE, FileRealm.TYPE),
                     randomFrom(PkiRealm.Factory.class, LdapRealm.Factory.class, ActiveDirectoryRealm.Factory.class,
-                            ESUsersRealm.Factory.class));
+                            FileRealm.Factory.class));
             fail("overriding a built in realm type is not allowed!");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("cannot redefine"));
@@ -37,7 +37,7 @@ public class AuthenticationModuleTests extends ESTestCase {
         try {
             module.addCustomRealm(randomBoolean() ? null : "",
                     randomFrom(PkiRealm.Factory.class, LdapRealm.Factory.class, ActiveDirectoryRealm.Factory.class,
-                            ESUsersRealm.Factory.class));
+                            FileRealm.Factory.class));
             fail("type must not be null");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("null or empty"));

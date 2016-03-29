@@ -11,17 +11,17 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
+import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRoleRequest, DeleteRoleResponse> {
 
-    private final ESNativeRolesStore rolesStore;
+    private final NativeRolesStore rolesStore;
 
     @Inject
     public TransportDeleteRoleAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, ESNativeRolesStore rolesStore,
+                                     IndexNameExpressionResolver indexNameExpressionResolver, NativeRolesStore rolesStore,
                                      TransportService transportService) {
         super(settings, DeleteRoleAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 DeleteRoleRequest::new);

@@ -11,8 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
-import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
+import org.elasticsearch.shield.authc.esnative.NativeRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
@@ -126,11 +126,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.audit.logfile.prefix.emit_node_host_name", randomBoolean())
                 .put("shield.audit.logfile.prefix.emit_node_name", randomBoolean())
                 .put(InternalCryptoService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
-                .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
-                .put("shield.authc.realms.esusers.order", 0)
-                .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
-                .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
-                .put("shield.authc.realms.index.type", ESNativeRealm.TYPE)
+                .put("shield.authc.realms.file.type", FileRealm.TYPE)
+                .put("shield.authc.realms.file.order", 0)
+                .put("shield.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
+                .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
+                .put("shield.authc.realms.index.type", NativeRealm.TYPE)
                 .put("shield.authc.realms.index.order", "1")
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
                 .put(getNodeSSLSettings());

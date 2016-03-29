@@ -11,18 +11,18 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
+import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportPutRoleAction extends HandledTransportAction<PutRoleRequest, PutRoleResponse> {
 
-    private final ESNativeRolesStore rolesStore;
+    private final NativeRolesStore rolesStore;
 
     @Inject
     public TransportPutRoleAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                  ESNativeRolesStore rolesStore, TransportService transportService) {
+                                  NativeRolesStore rolesStore, TransportService transportService) {
         super(settings, PutRoleAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutRoleRequest::new);
         this.rolesStore = rolesStore;
     }

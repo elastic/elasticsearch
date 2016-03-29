@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for the ESNativeUsersStore and ESNativeRolesStore
  */
-public class ESNativeTests extends NativeRealmIntegTestCase {
+public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     public void testDeletingNonexistingUserAndRole() throws Exception {
         SecurityClient c = securityClient();

@@ -95,7 +95,7 @@ if [ -e "$CONF_DIR" ]; then
         *-Des.default.path.conf=*) ;;
         *)
             if [ ! -d "$CONF_DIR/xpack" ]; then
-                echo "ERROR: The configuration directory [$CONF_DIR/xpack] does not exist. The esusers tool expects security configuration files in that location."
+                echo "ERROR: The configuration directory [$CONF_DIR/xpack] does not exist. The users tool expects security configuration files in that location."
                 echo "The plugin may not have been installed with the correct configuration path. If [$ES_HOME/config/xpack] exists, please copy the 'xpack' directory to [$CONF_DIR]"
                 exit 1
             fi
@@ -126,7 +126,7 @@ if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
 fi
 
 cd "$ES_HOME" > /dev/null
-"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" $properties org.elasticsearch.shield.authc.esusers.tool.ESUsersTool "$@"
+"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" $properties org.elasticsearch.shield.authc.file.tool.UsersTool "$@"
 status=$?
 cd - > /dev/null
 exit $status

@@ -96,4 +96,11 @@ public class NodeStatsTests extends MarvelIntegTestCase {
 
         return Arrays.stream(NodeStatsResolver.FILTERS).filter(s -> s.contains("watcher") == false).toArray(String[]::new);
     }
+
+    @Override
+    protected boolean enableWatcher() {
+        // currently this is the only Monitoring test that expects Watcher to be enabled.
+        // Once this becomes the default, then this should be removed.
+        return randomBoolean();
+    }
 }

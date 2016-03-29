@@ -51,10 +51,11 @@ public class FieldLevelSecurityRandomTests extends ShieldIntegTestCase {
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() +
-                "role1:user1\n" +
-                "role2:user2\n" +
-                "role3:user3\n" +
-                "role4:user4\n";
+                "role1:user1,user2,user3,user4\n" +
+                "role2:user1\n" +
+                "role3:user2\n" +
+                "role4:user3\n" +
+                "role5:user4\n";
     }
 
     @Override
@@ -80,12 +81,17 @@ public class FieldLevelSecurityRandomTests extends ShieldIntegTestCase {
 
         return super.configRoles() +
                 "\nrole1:\n" +
+                "  cluster: [ none ]\n" +
+                "  indices:\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ none ]\n" +
+                "\nrole2:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
                 "      fields:\n" +roleFields.toString() +
-                "role2:\n" +
+                "role3:\n" +
                 "  cluster:\n" +
                 "    - all\n" +
                 "  indices:\n" +
@@ -94,14 +100,14 @@ public class FieldLevelSecurityRandomTests extends ShieldIntegTestCase {
                 "        - all\n" +
                 "      fields:\n" +
                 "        - field1\n" +
-                "role3:\n" +
+                "role4:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: test\n" +
                 "      privileges: [ ALL ]\n" +
                 "      fields:\n" +
                 "        - field2\n" +
-                "role4:\n" +
+                "role5:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: test\n" +

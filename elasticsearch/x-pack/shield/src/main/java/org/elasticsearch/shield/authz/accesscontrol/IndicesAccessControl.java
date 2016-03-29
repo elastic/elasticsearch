@@ -87,10 +87,18 @@ public class IndicesAccessControl {
         }
 
         public IndexAccessControl merge(IndexAccessControl other) {
-            boolean granted = this.granted;
-            if (!granted) {
-                granted = other.isGranted();
+            if (other.isGranted() == false) {
+                // nothing to merge
+                return this;
             }
+
+            final boolean granted = this.granted;
+            if (granted == false) {
+                // we do not support negatives, so if the current isn't granted - just return other
+                assert other.isGranted();
+                return other;
+            }
+
             // this code is a bit of a pita, but right now we can't just initialize an empty set,
             // because an empty Set means no permissions on fields and
             // <code>null</code> means no field level security

@@ -1,5 +1,5 @@
 ---
-"Update-by-query as same user works":
+"Update_by_query as same user works":
 
   - do:
       index:
@@ -11,7 +11,7 @@
       indices.refresh: {}
 
   - do:
-      update-by-query:
+      update_by_query:
         refresh: true
         index: source
         body:
@@ -29,7 +29,7 @@
   - match: { hits.total: 1 }
 
 ---
-"Update-by-query with runas user works":
+"Update_by_query with runas user works":
 
   - do:
       index:
@@ -42,7 +42,7 @@
 
   - do:
       headers: {es-shield-runas-user: powerful_user}
-      update-by-query:
+      update_by_query:
         refresh: true
         index: source
         body:
@@ -60,7 +60,7 @@
   - match: { hits.total: 1 }
 
 ---
-"Update-by-query with runas user with minimal privileges works":
+"Update_by_query with runas user with minimal privileges works":
 
   - do:
       index:
@@ -73,7 +73,7 @@
 
   - do:
       headers: {es-shield-runas-user: minimal_user}
-      update-by-query:
+      update_by_query:
         refresh: true
         index: source
         body:
@@ -91,7 +91,7 @@
   - match: { hits.total: 1 }
 
 ---
-"Update-by-query as readonly user is forbidden":
+"Update_by_query as readonly user is forbidden":
 
   - do:
       index:
@@ -105,11 +105,11 @@
   - do:
       headers: {es-shield-runas-user: readonly_user}
       catch: forbidden
-      update-by-query:
+      update_by_query:
         index: source
 
 ---
-"Update-by-query as user that can't read from the source is forbidden":
+"Update_by_query as user that can't read from the source is forbidden":
 
   - do:
       index:
@@ -123,11 +123,11 @@
   - do:
       headers: {es-shield-runas-user: dest_only_user}
       catch: forbidden
-      update-by-query:
+      update_by_query:
         index: source
 
 ---
-"Update-by-query misses hidden docs":
+"Update_by_query misses hidden docs":
 
   - do:
       index:
@@ -146,7 +146,7 @@
 
   - do:
       headers: {es-shield-runas-user: can_not_see_hidden_docs_user}
-      update-by-query:
+      update_by_query:
         refresh: true
         index: source
         body:
@@ -192,7 +192,7 @@
 
   - do:
       headers: {es-shield-runas-user: can_not_see_hidden_fields_user}
-      update-by-query:
+      update_by_query:
         index: source
         body:
           script:
@@ -204,10 +204,10 @@
         index: source
         type: foo
         id: 1
-  # These were visible to the user running the update-by-query so they stayed.
+  # These were visible to the user running the update_by_query so they stayed.
   - match: { _source.foo: z }
   - match: { _source.bar: z }
-  # This wasn't visible to the update-by-query-ing user so it is gone.
+  # This wasn't visible to the update_by_query-ing user so it is gone.
   - is_false: _source.text
   # The reindexing user tried to sneak an invisible field using a script and got a null for their trouble.
   - match: { _source.hi: null;z }

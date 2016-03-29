@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.esusers.tool;
+package org.elasticsearch.shield.authc.file.tool;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,23 +30,23 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.shield.authc.Realms;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
-import org.elasticsearch.shield.authc.esusers.FileUserPasswdStore;
-import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
+import org.elasticsearch.shield.authc.file.FileUserPasswdStore;
+import org.elasticsearch.shield.authc.file.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.support.FileAttributesChecker;
 import org.elasticsearch.shield.support.Validation;
+import org.elasticsearch.shield.support.Validation.Users;
 
-public class ESUsersTool extends MultiCommand {
+public class UsersTool extends MultiCommand {
 
     public static void main(String[] args) throws Exception {
         Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, Terminal.DEFAULT);
-        exit(new ESUsersTool(env).main(args, Terminal.DEFAULT));
+        exit(new UsersTool(env).main(args, Terminal.DEFAULT));
     }
 
-    ESUsersTool(Environment env) {
+    UsersTool(Environment env) {
         super("Manages elasticsearch native users");
         subcommands.put("useradd", new AddUserCommand(env));
         subcommands.put("userdel", new DeleteUserCommand(env));
@@ -76,7 +76,7 @@ public class ESUsersTool extends MultiCommand {
 
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
-            terminal.println("Adds a native user to elasticsearch (via internal realm). The user will");
+            terminal.println("Adds a file based user to elasticsearch (via internal realm). The user will");
             terminal.println("be added to the users file and its roles will be added to the");
             terminal.println("users_roles file. If non-default files are used (different file");
             terminal.println("locations are configured in elasticsearch.yml) the appropriate files");
@@ -88,7 +88,7 @@ public class ESUsersTool extends MultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             String username = parseUsername(arguments.values(options));
-            Validation.Error validationError = Validation.ESUsers.validateUsername(username);
+            Validation.Error validationError = Users.validateUsername(username);
             if (validationError != null) {
                 throw new UserError(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
             }
@@ -96,7 +96,7 @@ public class ESUsersTool extends MultiCommand {
             char[] password = parsePassword(terminal, passwordOption.value(options));
             String[] roles = parseRoles(terminal, env, rolesOption.value(options));
 
-            Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+            Settings esusersSettings = Realms.fileRealmSettings(env.settings());
             Path passwordFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
             Path rolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
@@ -125,14 +125,14 @@ public class ESUsersTool extends MultiCommand {
         private final OptionSpec<String> arguments;
 
         DeleteUserCommand(Environment env) {
-            super("Deletes a native user");
+            super("Deletes a file based user");
             this.env = env;
             this.arguments = parser.nonOptions("username");
         }
 
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
-            terminal.println("Removes an existing native user from elasticsearch. The user will be");
+            terminal.println("Removes an existing file based user from elasticsearch. The user will be");
             terminal.println("removed from the users file and its roles will be removed to the");
             terminal.println("users_roles file. If non-default files are used (different file");
             terminal.println("locations are configured in elasticsearch.yml) the appropriate files");
@@ -144,7 +144,7 @@ public class ESUsersTool extends MultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             String username = parseUsername(arguments.values(options));
-            Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+            Settings esusersSettings = Realms.fileRealmSettings(env.settings());
             Path passwordFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
             Path rolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
@@ -179,7 +179,7 @@ public class ESUsersTool extends MultiCommand {
         private final OptionSpec<String> arguments;
 
         PasswordCommand(Environment env) {
-            super("Changes the password of an existing native user");
+            super("Changes the password of an existing file based user");
             this.env = env;
             this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"),
                 "The user password")
@@ -189,7 +189,7 @@ public class ESUsersTool extends MultiCommand {
 
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
-            terminal.println("The passwd command changes passwords for native user accounts. The tool");
+            terminal.println("The passwd command changes passwords for files based users. The tool");
             terminal.println("prompts twice for a replacement password. The second entry is compared");
             terminal.println("against the first and both are required to match in order for the");
             terminal.println("password to be changed. If non-default users file is used (a different");
@@ -203,7 +203,7 @@ public class ESUsersTool extends MultiCommand {
             String username = parseUsername(arguments.values(options));
             char[] password = parsePassword(terminal, passwordOption.value(options));
 
-            Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+            Settings esusersSettings = Realms.fileRealmSettings(env.settings());
             Path file = FileUserPasswdStore.resolveFile(esusersSettings, env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(file);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
@@ -238,9 +238,9 @@ public class ESUsersTool extends MultiCommand {
 
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
-            terminal.println("The roles command allows to edit roles for an existing user.");
-            terminal.println("corresponding roles. Alternatively you can also list just a");
-            terminal.println("single users roles, if you do not specify the -a or the -r parameter.");
+            terminal.println("The roles command allows editing roles for file based users.");
+            terminal.println("You can also list a user's roles by omitting the -a and -r");
+            terminal.println("parameters.");
             terminal.println("");
         }
 
@@ -258,7 +258,7 @@ public class ESUsersTool extends MultiCommand {
                 return;
             }
 
-            Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+            Settings esusersSettings = Realms.fileRealmSettings(env.settings());
             Path usersFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
             Path rolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(usersFile, rolesFile);
@@ -295,7 +295,7 @@ public class ESUsersTool extends MultiCommand {
         private final OptionSpec<String> arguments;
 
         ListCommand(Environment env) {
-            super("List existing users and their corresponding roles");
+            super("List existing file based users and their corresponding roles");
             this.env = env;
             this.arguments = parser.nonOptions("username");
         }
@@ -318,7 +318,7 @@ public class ESUsersTool extends MultiCommand {
 
     // pkg private for tests
     static void listUsersAndRoles(Terminal terminal, Environment env, String username) throws Exception {
-        Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+        Settings esusersSettings = Realms.fileRealmSettings(env.settings());
         Path userRolesFilePath = FileUserRolesStore.resolveFile(esusersSettings, env);
         Set<String> knownRoles = FileRolesStore.parseFileForRoleNames(userRolesFilePath, null);
         Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
@@ -403,7 +403,7 @@ public class ESUsersTool extends MultiCommand {
             throw new UserError(ExitCodes.USAGE, "Expected a single username argument, found extra: " + args.toString());
         }
         String username = args.get(0);
-        Validation.Error validationError = Validation.ESUsers.validateUsername(username);
+        Validation.Error validationError = Users.validateUsername(username);
         if (validationError != null) {
             throw new UserError(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
         }
@@ -415,13 +415,13 @@ public class ESUsersTool extends MultiCommand {
         char[] password;
         if (passwordStr != null) {
             password = passwordStr.toCharArray();
-            Validation.Error validationError = Validation.ESUsers.validatePassword(password);
+            Validation.Error validationError = Users.validatePassword(password);
             if (validationError != null) {
                 throw new UserError(ExitCodes.DATA_ERROR, "Invalid password..." + validationError);
             }
         } else {
             password = terminal.readSecret("Enter new password: ");
-            Validation.Error validationError = Validation.ESUsers.validatePassword(password);
+            Validation.Error validationError = Users.validatePassword(password);
             if (validationError != null) {
                 throw new UserError(ExitCodes.DATA_ERROR, "Invalid password..." + validationError);
             }
@@ -459,7 +459,7 @@ public class ESUsersTool extends MultiCommand {
             }
         }
 
-        Settings esusersSettings = Realms.internalRealmSettings(env.settings(), ESUsersRealm.TYPE);
+        Settings esusersSettings = Realms.fileRealmSettings(env.settings());
         verifyRoles(terminal, esusersSettings, env, roles);
 
         return roles;

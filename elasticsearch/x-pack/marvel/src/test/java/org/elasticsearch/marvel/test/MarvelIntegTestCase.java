@@ -25,7 +25,7 @@ import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
@@ -73,11 +73,12 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
      * <p>
      * Control this by overriding {@link #enableShield()}, which defaults to enabling it randomly.
      */
-    protected Boolean shieldEnabled;
+    // SCARY: This needs to be static or lots of tests randomly fail, but it's not used statically!
+    protected static Boolean shieldEnabled;
     /**
      * Enables individual tests to control the behavior.
      * <p>
-     * Control this by overriding {@link #enableWatcher()}, which defaults to enabling it randomly.
+     * Control this by overriding {@link #enableWatcher()}, which defaults to disabling it (this will change!).
      */
     protected Boolean watcherEnabled;
 
@@ -89,8 +90,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         if (watcherEnabled == null) {
             watcherEnabled = enableWatcher();
         }
-        logger.info("--> shield {}", shieldEnabled ? "enabled" : "disabled");
+
+        logger.debug("--> shield {}", shieldEnabled ? "enabled" : "disabled");
         logger.debug("--> watcher {}", watcherEnabled ? "enabled" : "disabled");
+
         return super.buildTestCluster(scope, seed);
     }
 
@@ -174,7 +177,9 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
      * Override and return {@code false} to force running without Watcher.
      */
     protected boolean enableWatcher() {
-        return randomBoolean();
+        // Once randomDefault() becomes the default again, then this should only be actively disabled when
+        // trying to figure out exactly how many indices are at play
+        return false;
     }
 
     protected void stopCollection() {
@@ -507,10 +512,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 Files.createDirectories(folder);
 
                 builder.put("shield.enabled", true)
-                        .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
-                        .put("shield.authc.realms.esusers.order", 0)
-                        .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
-                        .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
+                        .put("shield.authc.realms.file.type", FileRealm.TYPE)
+                        .put("shield.authc.realms.file.order", 0)
+                        .put("shield.authc.realms.file.files.users", writeFile(folder, "users", USERS))
+                        .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
                         .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)

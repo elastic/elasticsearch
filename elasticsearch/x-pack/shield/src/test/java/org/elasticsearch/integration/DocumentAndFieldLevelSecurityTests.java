@@ -43,29 +43,36 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() +
-                "role1:user1,user4\n" +
-                "role2:user2,user4\n" +
-                "role3:user3,user4\n";
+                "role1:user1\n" +
+                "role2:user1,user4\n" +
+                "role3:user2,user4\n" +
+                "role4:user3,user4\n";
     }
 
     @Override
     protected String configRoles() {
         return super.configRoles() +
                 "\nrole1:\n" +
-                "  cluster: [ all ]\n" +
+                "  cluster: [ none ]\n" +
+                "  indices:\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ none ]\n" +
+                "role2:\n" +
+                "  cluster:\n" +
+                "   - all\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
                 "      fields: [ field1 ]\n" +
                 "      query: '{\"term\" : {\"field1\" : \"value1\"}}'\n" +
-                "role2:\n" +
+                "role3:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
                 "      fields: [ field2 ]\n" +
                 "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n" +
-                "role3:\n" +
+                "role4:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +

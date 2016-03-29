@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
 import org.elasticsearch.shield.authz.permission.Role;
 
 /**
@@ -16,10 +15,10 @@ import org.elasticsearch.shield.authz.permission.Role;
 public class CompositeRolesStore implements RolesStore {
 
     private final FileRolesStore fileRolesStore;
-    private final ESNativeRolesStore nativeRolesStore;
+    private final NativeRolesStore nativeRolesStore;
     
     @Inject
-    public CompositeRolesStore(FileRolesStore fileRolesStore, ESNativeRolesStore nativeRolesStore) {
+    public CompositeRolesStore(FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore) {
         this.fileRolesStore = fileRolesStore;
         this.nativeRolesStore = nativeRolesStore;
     }

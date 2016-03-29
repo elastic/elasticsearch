@@ -29,8 +29,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import java.io.IOException;
 
 public class HistogramAggregatorBuilder extends AbstractHistogramBuilder<HistogramAggregatorBuilder> {
-    public static final HistogramAggregatorBuilder PROTOTYPE = new HistogramAggregatorBuilder("");
-
     public HistogramAggregatorBuilder(String name) {
         super(name, InternalHistogram.TYPE, InternalHistogram.HISTOGRAM_FACTORY);
     }

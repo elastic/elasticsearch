@@ -39,12 +39,9 @@ import java.util.Objects;
  *
  */
 public class ExtendedBounds implements ToXContent {
-
     static final ParseField EXTENDED_BOUNDS_FIELD = new ParseField("extended_bounds");
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
-
-    private static final ExtendedBounds PROTOTYPE = new ExtendedBounds();
 
     Long min;
     Long max;
@@ -112,37 +109,6 @@ public class ExtendedBounds implements ToXContent {
         return bounds;
     }
 
-    public ExtendedBounds fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
-            throws IOException {
-        XContentParser.Token token = null;
-        String currentFieldName = null;
-        ExtendedBounds extendedBounds = new ExtendedBounds();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("min".equals(currentFieldName)) {
-                    extendedBounds.minAsStr = parser.text();
-                } else if ("max".equals(currentFieldName)) {
-                    extendedBounds.maxAsStr = parser.text();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown extended_bounds key for a " + token
-                            + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (parseFieldMatcher.match(currentFieldName, MIN_FIELD)) {
-                    extendedBounds.min = parser.longValue(true);
-                } else if (parseFieldMatcher.match(currentFieldName, MAX_FIELD)) {
-                    extendedBounds.max = parser.longValue(true);
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown extended_bounds key for a " + token
-                            + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            }
-        }
-        return extendedBounds;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(EXTENDED_BOUNDS_FIELD.getPreferredName());
@@ -180,6 +146,32 @@ public class ExtendedBounds implements ToXContent {
 
     public static ExtendedBounds parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
             throws IOException {
-        return PROTOTYPE.fromXContent(parser, parseFieldMatcher, aggregationName);
+        XContentParser.Token token = null;
+        String currentFieldName = null;
+        ExtendedBounds extendedBounds = new ExtendedBounds();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if ("min".equals(currentFieldName)) {
+                    extendedBounds.minAsStr = parser.text();
+                } else if ("max".equals(currentFieldName)) {
+                    extendedBounds.maxAsStr = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown extended_bounds key for a " + token
+                            + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (parseFieldMatcher.match(currentFieldName, MIN_FIELD)) {
+                    extendedBounds.min = parser.longValue(true);
+                } else if (parseFieldMatcher.match(currentFieldName, MAX_FIELD)) {
+                    extendedBounds.max = parser.longValue(true);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown extended_bounds key for a " + token
+                            + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            }
+        }
+        return extendedBounds;
     }
 }

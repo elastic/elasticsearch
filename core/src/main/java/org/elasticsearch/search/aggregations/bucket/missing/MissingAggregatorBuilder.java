@@ -35,9 +35,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, MissingAggregatorBuilder> {
-
-    static final MissingAggregatorBuilder PROTOTYPE = new MissingAggregatorBuilder("", null);
-
     public MissingAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
     }

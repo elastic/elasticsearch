@@ -33,9 +33,6 @@ import org.joda.time.DateTime;
 import java.io.IOException;
 
 public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAggregatorBuilder, RangeAggregator.Range> {
-
-    static final DateRangeAggregatorBuilder PROTOTYPE = new DateRangeAggregatorBuilder("");
-
     public DateRangeAggregatorBuilder(String name) {
         super(name, InternalDateRange.TYPE, InternalDateRange.FACTORY);
     }
@@ -46,7 +43,7 @@ public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAg
      * @throws IOException
      */
     DateRangeAggregatorBuilder(StreamInput in) throws IOException {
-        super(in, InternalDateRange.TYPE, InternalDateRange.FACTORY, Range.PROTOTYPE::readFrom);
+        super(in, InternalDateRange.TYPE, InternalDateRange.FACTORY, Range::new);
     }
 
     /**

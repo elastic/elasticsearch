@@ -41,7 +41,7 @@ public class RangeAggregatorBuilder extends AbstractRangeBuilder<RangeAggregator
      * Read from a stream.
      */
     public RangeAggregatorBuilder(StreamInput in) throws IOException {
-        super(in, InternalRange.TYPE, InternalRange.FACTORY, Range.PROTOTYPE::readFrom);
+        super(in, InternalRange.TYPE, InternalRange.FACTORY, Range::new);
     }
 
     /**

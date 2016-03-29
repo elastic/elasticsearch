@@ -45,9 +45,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoGridAggregatorBuilder> {
-
-    static final GeoGridAggregatorBuilder PROTOTYPE = new GeoGridAggregatorBuilder("");
-
     private int precision = GeoHashGridParser.DEFAULT_PRECISION;
     private int requiredSize = GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
     private int shardSize = -1;

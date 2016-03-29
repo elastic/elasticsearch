@@ -34,6 +34,7 @@ import java.util.Map;
 import static org.elasticsearch.ingest.processor.ConvertProcessor.Type;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ConvertProcessorTests extends ESTestCase {
 
@@ -41,7 +42,7 @@ public class ConvertProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int randomInt = randomInt();
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomInt);
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.INTEGER);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.INTEGER);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(randomInt));
     }
@@ -57,7 +58,7 @@ public class ConvertProcessorTests extends ESTestCase {
             expectedList.add(randomInt);
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.INTEGER);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.INTEGER);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
@@ -68,7 +69,7 @@ public class ConvertProcessorTests extends ESTestCase {
         String value = "string-" + randomAsciiOfLengthBetween(1, 10);
         ingestDocument.setFieldValue(fieldName, value);
 
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.INTEGER);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.INTEGER);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -84,7 +85,7 @@ public class ConvertProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomFloat);
         expectedResult.put(fieldName, randomFloat);
 
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.FLOAT);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.FLOAT);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, Float.class), equalTo(randomFloat));
     }
@@ -100,7 +101,7 @@ public class ConvertProcessorTests extends ESTestCase {
             expectedList.add(randomFloat);
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.FLOAT);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.FLOAT);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
@@ -111,7 +112,7 @@ public class ConvertProcessorTests extends ESTestCase {
         String value = "string-" + randomAsciiOfLengthBetween(1, 10);
         ingestDocument.setFieldValue(fieldName, value);
 
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.FLOAT);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.FLOAT);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -129,7 +130,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, booleanString);
 
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.BOOLEAN);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.BOOLEAN);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, Boolean.class), equalTo(randomBoolean));
     }
@@ -149,7 +150,7 @@ public class ConvertProcessorTests extends ESTestCase {
             expectedList.add(randomBoolean);
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.BOOLEAN);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.BOOLEAN);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
@@ -166,7 +167,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
         ingestDocument.setFieldValue(fieldName, fieldValue);
 
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.BOOLEAN);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.BOOLEAN);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -200,7 +201,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
 
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.STRING);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.STRING);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedFieldValue));
     }
@@ -236,7 +237,7 @@ public class ConvertProcessorTests extends ESTestCase {
             expectedList.add(randomValueString);
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, Type.STRING);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, Type.STRING);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
@@ -245,7 +246,7 @@ public class ConvertProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Type type = randomFrom(Type.values());
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, type);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, fieldName, type);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -257,12 +258,88 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testConvertNullField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
         Type type = randomFrom(Type.values());
-        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), "field", type);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), "field", "field", type);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field [field] is null, cannot be converted to type [" + type + "]"));
         }
+    }
+
+    public void testAutoConvertNotString() throws Exception {
+        Object randomValue;
+        switch(randomIntBetween(0, 2)) {
+            case 0:
+                float randomFloat = randomFloat();
+                randomValue = randomFloat;
+                break;
+            case 1:
+                int randomInt = randomInt();
+                randomValue = randomInt;
+                break;
+            case 2:
+                boolean randomBoolean = randomBoolean();
+                randomValue = randomBoolean;
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomValue));
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), "field", "field", Type.AUTO);
+        processor.execute(ingestDocument);
+        Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
+        assertThat(convertedValue, sameInstance(randomValue));
+    }
+
+    public void testAutoConvertStringNotMatched() throws Exception {
+        String value = "notAnIntFloatOrBool";
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", value));
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), "field", "field", Type.AUTO);
+        processor.execute(ingestDocument);
+        Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
+        assertThat(convertedValue, sameInstance(value));
+    }
+
+    public void testAutoConvertMatchBoolean() throws Exception {
+        boolean randomBoolean = randomBoolean();
+        String booleanString = Boolean.toString(randomBoolean);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", booleanString));
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), "field", "field", Type.AUTO);
+        processor.execute(ingestDocument);
+        Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
+        assertThat(convertedValue, equalTo(randomBoolean));
+    }
+
+    public void testAutoConvertMatchInteger() throws Exception {
+        int randomInt = randomInt();
+        String randomString = Integer.toString(randomInt);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), "field", "field", Type.AUTO);
+        processor.execute(ingestDocument);
+        Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
+        assertThat(convertedValue, equalTo(randomInt));
+    }
+
+    public void testAutoConvertMatchFloat() throws Exception {
+        float randomFloat = randomFloat();
+        String randomString = Float.toString(randomFloat);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), "field", "field", Type.AUTO);
+        processor.execute(ingestDocument);
+        Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
+        assertThat(convertedValue, equalTo(randomFloat));
+    }
+
+    public void testTargetField() throws Exception {
+        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        int randomInt = randomInt();
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, String.valueOf(randomInt));
+        String targetField = fieldName + randomAsciiOfLength(5);
+        Processor processor = new ConvertProcessor(randomAsciiOfLength(10), fieldName, targetField, Type.INTEGER);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(String.valueOf(randomInt)));
+        assertThat(ingestDocument.getFieldValue(targetField, Integer.class), equalTo(randomInt));
+
     }
 }

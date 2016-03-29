@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -44,6 +43,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         ConvertProcessor convertProcessor = factory.create(config);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
+        assertThat(convertProcessor.getTargetField(), equalTo("field1"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
     }
 
@@ -87,5 +87,21 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), Matchers.equalTo("[type] required property is missing"));
         }
+    }
+
+    public void testCreateWithExplicitTargetField() throws Exception {
+        ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        ConvertProcessor.Type type = randomFrom(ConvertProcessor.Type.values());
+        config.put("field", "field1");
+        config.put("target_field", "field2");
+        config.put("type", type.toString());
+        String processorTag = randomAsciiOfLength(10);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
+        ConvertProcessor convertProcessor = factory.create(config);
+        assertThat(convertProcessor.getTag(), equalTo(processorTag));
+        assertThat(convertProcessor.getField(), equalTo("field1"));
+        assertThat(convertProcessor.getTargetField(), equalTo("field2"));
+        assertThat(convertProcessor.getConvertType(), equalTo(type));
     }
 }

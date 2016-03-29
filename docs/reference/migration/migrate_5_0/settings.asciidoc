@@ -219,8 +219,8 @@ name of the setting must be prefixed with `es.`.
 
 ==== Discovery Settings
 
-The `discovery.zen.minimum_master_node` must bet set for nodes that are bound
-to a non-loopback network interface. We see those nodes as in "production" mode and
-thus require the setting.
-
-
+The `discovery.zen.minimum_master_node` must bet set for nodes that have
+`network.host`, `network.bind_host`, `network.publish_host`,
+`transport.host`, `transport.bind_host`, or `transport.publish_host`
+configuration options set. We see those nodes as in "production" mode
+and thus require the setting.

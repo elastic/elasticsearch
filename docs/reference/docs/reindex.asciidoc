@@ -1,6 +1,8 @@
 [[docs-reindex]]
 == Reindex API
 
+experimental[The reindex API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
+
 The most basic form of `_reindex` just copies documents from one index to another.
 This will copy documents from the `twitter` index into the `new_twitter` index:
 

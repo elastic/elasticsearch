@@ -7,13 +7,14 @@ package org.elasticsearch.marvel.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,7 +79,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
         String ip = null;
         String transportAddress = null;
         String host = null;
-        ImmutableOpenMap<String, String> attributes = null;
+        Map<String, String> attributes = null;
 
         if (frequently()) {
             uuid = randomAsciiOfLength(5);
@@ -91,14 +92,11 @@ public class MonitoringBulkDocTests extends ESTestCase {
         }
         if (rarely()) {
             int nbAttributes = randomIntBetween(0, 5);
-
-            ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
+            attributes = new HashMap<>();
             for (int i = 0; i < nbAttributes; i++) {
-                builder.put("key#" + i, String.valueOf(i));
+                attributes.put("key#" + i, String.valueOf(i));
             }
-            attributes = builder.build();
         }
         return new MonitoringDoc.Node(uuid, host, transportAddress, ip, name, attributes);
     }
-
 }

@@ -97,7 +97,10 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return valuesSource == null ? Double.POSITIVE_INFINITY : mins.get(owningBucketOrd);
+        if (valuesSource == null || owningBucketOrd >= mins.size()) {
+            return Double.POSITIVE_INFINITY;
+        }
+        return mins.get(owningBucketOrd);
     }
 
     @Override

@@ -89,7 +89,10 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return valuesSource == null ? 0 : sums.get(owningBucketOrd);
+        if (valuesSource == null || owningBucketOrd >= sums.size()) {
+            return 0.0;
+        }
+        return sums.get(owningBucketOrd);
     }
 
     @Override

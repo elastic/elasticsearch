@@ -169,23 +169,6 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
      * </p>
      *
      * @param nodeName    the nodes name
-     * @param nodeId      the nodes unique id
-     * @param node        the original node to copy all the information from
-     */
-    public DiscoveryNode(String nodeName, String nodeId, DiscoveryNode node) {
-        this(nodeName, nodeId, node.hostName, node.hostAddress, node.address, node.attributes, node.roles, node.version);
-    }
-
-    /**
-     * Creates a new {@link DiscoveryNode}.
-     * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
-     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
-     * and updated.
-     * </p>
-     *
-     * @param nodeName    the nodes name
      * @param nodeId      the nodes unique id.
      * @param hostName    the nodes hostname
      * @param hostAddress the nodes host address

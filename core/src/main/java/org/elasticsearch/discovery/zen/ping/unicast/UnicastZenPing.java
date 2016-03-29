@@ -381,8 +381,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     if (!nodeToSend.id().startsWith(UNICAST_NODE_PREFIX)) {
                         DiscoveryNode tempNode = new DiscoveryNode("",
                                 UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.id() + "#",
-                                nodeToSend
-                        );
+                                nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(), nodeToSend.getAttributes(),
+                                nodeToSend.getRoles(), nodeToSend.getVersion());
+
                         logger.trace("replacing {} with temp node {}", nodeToSend, tempNode);
                         nodeToSend = tempNode;
                     }

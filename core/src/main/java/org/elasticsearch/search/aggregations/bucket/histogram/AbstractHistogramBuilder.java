@@ -48,7 +48,8 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
     /**
      * Read from a stream.
      */
-    AbstractHistogramBuilder(StreamInput in, InternalAggregation.Type type, InternalHistogram.Factory<?> histogramFactory) throws IOException {
+    AbstractHistogramBuilder(StreamInput in, InternalAggregation.Type type, InternalHistogram.Factory<?> histogramFactory)
+            throws IOException {
         super(in, type, ValuesSourceType.NUMERIC, histogramFactory.valueType());
         interval = in.readVLong();
         offset = in.readLong();

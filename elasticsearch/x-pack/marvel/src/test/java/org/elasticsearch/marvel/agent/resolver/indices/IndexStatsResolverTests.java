@@ -34,6 +34,8 @@ import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCa
 import java.nio.file.Path;
 import java.util.UUID;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -44,7 +46,7 @@ public class IndexStatsResolverTests extends MonitoringIndexNameResolverTestCase
         IndexStatsMonitoringDoc doc = new IndexStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         doc.setIndexStats(randomIndexStats());
         return doc;
     }
@@ -57,7 +59,7 @@ public class IndexStatsResolverTests extends MonitoringIndexNameResolverTestCase
     public void testIndexStatsResolver() throws Exception {
         IndexStatsMonitoringDoc doc = newMarvelDoc();
         doc.setTimestamp(1437580442979L);
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
 
         IndexStatsResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MarvelTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));

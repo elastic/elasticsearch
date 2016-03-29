@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.resolver.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -14,6 +13,7 @@ import org.elasticsearch.marvel.agent.collector.cluster.DiscoveryNodeMonitoringD
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class DiscoveryNodeResolver extends MonitoringIndexNameResolver.Data<DiscoveryNodeMonitoringDoc> {
 
@@ -44,8 +44,8 @@ public class DiscoveryNodeResolver extends MonitoringIndexNameResolver.Data<Disc
             builder.field(Fields.TRANSPORT_ADDRESS, node.getAddress().toString());
 
             builder.startObject(Fields.ATTRIBUTES);
-            for (ObjectObjectCursor<String, String> attr : node.getAttributes()) {
-                builder.field(attr.key, attr.value);
+            for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
             builder.field(Fields.ID, node.getId());

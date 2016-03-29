@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -102,9 +102,8 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("path.home", createTempDir())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
-                .put("node.client", true)
                 .build();
-        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Arrays.asList(XPackPlugin.class))) {
+        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
             node.start();
             assertGreenClusterState(node.client());
         }
@@ -135,9 +134,9 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
                 .put("discovery.initial_state_timeout", "2s")
                 .put("path.home", createTempDir())
-                .put("node.client", true)
+                .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .build();
-        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Arrays.asList(XPackPlugin.class))) {
+        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
             node.start();
 
             // assert that node is not connected by waiting for the timeout

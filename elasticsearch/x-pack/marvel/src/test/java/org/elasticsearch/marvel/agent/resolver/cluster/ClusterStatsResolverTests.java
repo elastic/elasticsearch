@@ -50,6 +50,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -60,7 +62,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         ClusterStatsMonitoringDoc doc = new ClusterStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         doc.setClusterStats(randomClusterStats());
         return doc;
     }
@@ -91,7 +93,8 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
      */
     private ClusterStatsResponse randomClusterStats() {
         ClusterStatsNodeResponse[] responses = {
-                new ClusterStatsNodeResponse(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, Version.CURRENT),
+                new ClusterStatsNodeResponse(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE,
+                        emptyMap(), emptySet(), Version.CURRENT),
                         ClusterHealthStatus.GREEN, randomNodeInfo(), randomNodeStats(), randomShardStats())
         };
         return new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.DEFAULT, UUID.randomUUID().toString(), responses);
@@ -104,7 +107,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         BoundTransportAddress transportAddress = new BoundTransportAddress(new TransportAddress[]{DummyTransportAddress.INSTANCE},
                 DummyTransportAddress.INSTANCE);
         return new NodeInfo(Version.CURRENT, org.elasticsearch.Build.CURRENT,
-                new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, Version.CURRENT), Collections.emptyMap(),
+                new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), emptyMap(),
                 Settings.EMPTY, DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean()), JvmInfo.jvmInfo(),
                 new ThreadPoolInfo(Collections.singletonList(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5))),
                 new TransportInfo(transportAddress, Collections.emptyMap()), new HttpInfo(transportAddress, randomLong()),
@@ -122,7 +125,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         };
         Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
         statsByShard.put(index, Collections.singletonList(new IndexShardStats(new ShardId(index, 0), randomShardStats())));
-        return new NodeStats(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, Version.CURRENT), 0,
+        return new NodeStats(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
                 new NodeIndicesStats(new CommonStats(), statsByShard), null, null, null, null,
                 new FsInfo(0, pathInfo), null, null, null, null, null, null);
     }

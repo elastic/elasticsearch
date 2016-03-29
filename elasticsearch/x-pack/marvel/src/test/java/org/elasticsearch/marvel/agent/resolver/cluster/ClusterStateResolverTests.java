@@ -20,6 +20,8 @@ import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCa
 
 import java.io.IOException;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -30,11 +32,12 @@ public class ClusterStateResolverTests extends MonitoringIndexNameResolverTestCa
         ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         doc.setStatus(randomFrom(ClusterHealthStatus.values()));
 
-        DiscoveryNode masterNode = new DiscoveryNode("master", new LocalTransportAddress("master"), Version.CURRENT);
-        DiscoveryNode otherNode = new DiscoveryNode("other", new LocalTransportAddress("other"), Version.CURRENT);
+        DiscoveryNode masterNode = new DiscoveryNode("master", new LocalTransportAddress("master"),
+                emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode otherNode = new DiscoveryNode("other", new LocalTransportAddress("other"), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(masterNode).put(otherNode).masterNodeId(masterNode.id()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         doc.setClusterState(clusterState);

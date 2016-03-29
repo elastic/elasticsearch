@@ -18,6 +18,8 @@ import org.joda.time.format.DateTimeFormat;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver.DELIMITER;
 import static org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver.PREFIX;
@@ -39,7 +41,8 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
         MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode(randomAsciiOfLength(5), DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode(randomAsciiOfLength(5), DummyTransportAddress.INSTANCE,
+                emptyMap(), emptySet(), Version.CURRENT));
         return doc;
     }
 

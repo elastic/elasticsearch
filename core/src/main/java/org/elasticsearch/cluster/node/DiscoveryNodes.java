@@ -78,14 +78,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Is this a valid nodes that has the minimal information set. The minimal set is defined
-     * by the localNodeId being set.
-     */
-    public boolean valid() {
-        return localNodeId != null;
-    }
-
-    /**
      * Returns <tt>true</tt> if the local node is the elected master node.
      */
     public boolean isLocalNodeElectedMaster() {

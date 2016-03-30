@@ -8,7 +8,7 @@ integTest {
   cluster {
     setting 'script.inline', 'true'
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
-    extraConfigFile 'xpack/roles.yml', 'roles.yml'
+    extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     [
       test_admin: 'admin',
       powerful_user: 'admin',
@@ -19,7 +19,7 @@ integTest {
       can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
     ].each { String user, String role ->
       setupCommand 'setupUser#' + user,
-                   'bin/xpack/users', 'useradd', user, '-p', 'changeme', '-r', role
+                   'bin/x-pack/users', 'useradd', user, '-p', 'changeme', '-r', role
     }
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')

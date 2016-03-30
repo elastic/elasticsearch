@@ -14,6 +14,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * then uses a transport client to check that the data have been correctly received and
  * indexed in the cluster.
  */
+@TestLogging("org.elasticsearch.action.admin.cluster.settings:DEBUG")
 public class SmokeTestMonitoringWithShieldIT extends ESIntegTestCase {
 
     private static final String USER = "test_user";

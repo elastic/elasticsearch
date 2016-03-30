@@ -269,7 +269,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testHttpResponseWithAnyStatusCodeCanReturnBody() throws Exception {
         int statusCode = randomFrom(200, 201, 400, 401, 403, 404, 405, 409, 413, 429, 500, 503);
-        String body = RandomStrings.randomAsciiOfLength(getRandom(), 100);
+        String body = RandomStrings.randomAsciiOfLength(random(), 100);
         boolean hasBody = usually();
         MockResponse mockResponse = new MockResponse().setResponseCode(statusCode);
         if (hasBody) {

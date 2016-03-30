@@ -135,7 +135,7 @@ public class IndicesAccessControlTests extends ESTestCase {
     public void testMergeNotGranted() {
         final Set<String> notGrantedFields = randomFrom(null, Collections.<String>emptySet(), Collections.singleton("baz"));
         final Set<BytesReference> notGrantedQueries = randomFrom(null, Collections.<BytesReference>emptySet(),
-                Collections.singleton(new BytesArray(new byte[] { randomByte() })));
+                Collections.<BytesReference>singleton(new BytesArray(new byte[] { randomByte() })));
         final IndexAccessControl indexAccessControl = new IndexAccessControl(false, notGrantedFields, notGrantedQueries);
 
         final BytesReference query1 = new BytesArray(new byte[] { 0x1 });

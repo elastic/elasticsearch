@@ -84,7 +84,6 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     @After
     public void cleanup() throws Exception {
-        stopCollection();
         webServer.shutdown();
     }
 

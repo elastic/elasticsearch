@@ -10,7 +10,7 @@ integTest {
     setting 'shield.audit.enabled', 'true'
     setting 'shield.audit.outputs', 'index'
     setupCommand 'setupDummyUser',
-                 'bin/xpack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
       ant.get(src: "http://${node.httpUri()}",

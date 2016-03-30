@@ -46,7 +46,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INTERVAL.getKey(), "-1")
                 .put(MarvelSettings.COLLECTORS.getKey(), ClusterStateCollector.NAME)
                 .put("xpack.monitoring.agent.exporters.default_local.type", "local")
-                .put("node.custom", randomInt)
+                .put("node.attr.custom", randomInt)
                 .build();
     }
 

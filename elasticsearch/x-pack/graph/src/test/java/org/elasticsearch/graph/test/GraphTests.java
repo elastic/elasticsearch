@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.graph.action.GraphExploreAction;
 import org.elasticsearch.graph.action.GraphExploreRequest;
 import org.elasticsearch.graph.action.GraphExploreRequestBuilder;
@@ -33,13 +32,13 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -79,7 +78,12 @@ public class GraphTests extends ESSingleNodeTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 2, SETTING_NUMBER_OF_REPLICAS, 0)
+                .addMapping("type",
+                        "decade", "type=keyword",
+                        "people", "type=keyword",
+                        "description", "type=text,fielddata=true"));
         createIndex("idx_unmapped");
 
         ensureGreen();

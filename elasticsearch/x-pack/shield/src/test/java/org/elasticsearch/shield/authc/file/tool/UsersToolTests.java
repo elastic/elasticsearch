@@ -28,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -56,7 +57,7 @@ public class UsersToolTests extends CommandTestCase {
     public void setupHome() throws IOException {
         Path homeDir = jimfs.getPath("eshome");
         IOUtils.rm(homeDir);
-        confDir = homeDir.resolve("config").resolve("xpack");
+        confDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(confDir);
         Files.write(confDir.resolve("users"), Arrays.asList(
             "existing_user:" + new String(Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray()))),

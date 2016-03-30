@@ -76,7 +76,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return Node.NODE_DATA_SETTING.get(settings);
     }
 
-    public static boolean ingestNode(Settings settings) {
+    public static boolean isIngestNode(Settings settings) {
         return Node.NODE_INGEST_SETTING.get(settings);
     }
 

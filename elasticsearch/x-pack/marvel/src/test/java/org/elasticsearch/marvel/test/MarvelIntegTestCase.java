@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -164,6 +166,18 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         templates.add(MarvelTemplateUtils.indexTemplateName());
         templates.add(MarvelTemplateUtils.dataTemplateName());
         return templates;
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        startCollection();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        stopCollection();
+        super.tearDown();
     }
 
     /**

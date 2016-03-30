@@ -236,10 +236,12 @@ public class InnerHitBuilderTests extends ESTestCase {
                 }));
                 break;
             case 9:
-                copy.setSorts(randomValueOtherThan(copy.getSorts(), () -> {
-                    return randomListStuff(16,
-                            () -> SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
-                }));
+                final List<SortBuilder<?>> sortBuilders = randomValueOtherThan(copy.getSorts(), () -> {
+                    List<SortBuilder<?>> builders = randomListStuff(16,
+                        () -> SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
+                    return builders;
+                });
+                copy.setSorts(sortBuilders);
                 break;
             case 10:
                 copy.setHighlightBuilder(randomValueOtherThan(copy.getHighlightBuilder(),

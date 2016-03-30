@@ -317,7 +317,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
      * In essence that means that all the changes from the other cluster state are also reflected by the current one
      */
     public boolean supersedes(ClusterState other) {
-        return this.nodes().masterNodeId() != null && this.nodes().masterNodeId().equals(other.nodes().masterNodeId()) && this.version() > other.version();
+        return this.nodes().getMasterNodeId() != null && this.nodes().getMasterNodeId().equals(other.nodes().getMasterNodeId()) && this.version() > other.version();
 
     }
 
@@ -382,7 +382,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         }
 
         if (metrics.contains(Metric.MASTER_NODE)) {
-            builder.field("master_node", nodes().masterNodeId());
+            builder.field("master_node", nodes().getMasterNodeId());
         }
 
         if (metrics.contains(Metric.BLOCKS)) {

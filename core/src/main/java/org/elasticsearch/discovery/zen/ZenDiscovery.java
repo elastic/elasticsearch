@@ -634,7 +634,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (!masterNode.getId().equals(currentState.nodes().masterNodeId())) {
+                if (!masterNode.getId().equals(currentState.nodes().getMasterNodeId())) {
                     // master got switched on us, no need to send anything
                     return currentState;
                 }
@@ -698,7 +698,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
                     // its a fresh update from the master as we transition from a start of not having a master to having one
-                    logger.debug("got first state from fresh master [{}]", newClusterState.nodes().masterNodeId());
+                    logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
                     long count = clusterJoinsCounter.incrementAndGet();
                     logger.trace("updated cluster join cluster to [{}]", count);
 
@@ -783,10 +783,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
      */
 
     public static void validateStateIsFromCurrentMaster(ESLogger logger, DiscoveryNodes currentNodes, ClusterState newClusterState) {
-        if (currentNodes.masterNodeId() == null) {
+        if (currentNodes.getMasterNodeId() == null) {
             return;
         }
-        if (!currentNodes.masterNodeId().equals(newClusterState.nodes().masterNodeId())) {
+        if (!currentNodes.getMasterNodeId().equals(newClusterState.nodes().getMasterNodeId())) {
             logger.warn("received a cluster state from a different master than the current one, rejecting (received {}, current {})", newClusterState.nodes().masterNode(), currentNodes.masterNode());
             throw new IllegalStateException("cluster state from a different master than the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentNodes.masterNode() + ")");
         }

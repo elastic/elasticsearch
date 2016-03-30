@@ -254,7 +254,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(4));
         // we prefer to elect up and running nodes
-        assertThat(state.nodes().masterNodeId(), not(isOneOf(newNodes)));
+        assertThat(state.nodes().getMasterNodeId(), not(isOneOf(newNodes)));
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {

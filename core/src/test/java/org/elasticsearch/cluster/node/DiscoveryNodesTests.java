@@ -129,7 +129,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         }, ELECTED_MASTER("_master") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return Collections.singleton(nodes.masterNodeId());
+                return Collections.singleton(nodes.getMasterNodeId());
             }
         }, MASTER_ELIGIBLE(DiscoveryNode.Role.MASTER.getRoleName() + ":true") {
             @Override

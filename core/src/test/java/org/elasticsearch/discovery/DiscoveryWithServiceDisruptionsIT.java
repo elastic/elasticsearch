@@ -402,7 +402,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             try {
                 assertEquals("unequal versions", state.version(), nodeState.version());
                 assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
-                assertEquals("different masters ", state.nodes().masterNodeId(), nodeState.nodes().masterNodeId());
+                assertEquals("different masters ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
                 assertEquals("different meta data version", state.metaData().version(), nodeState.metaData().version());
                 if (!state.routingTable().prettyPrint().equals(nodeState.routingTable().prettyPrint())) {
                     fail("different routing");
@@ -638,7 +638,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         internalCluster().getInstance(ClusterService.class, oldMasterNode).add(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                if (event.state().nodes().masterNodeId() == null) {
+                if (event.state().nodes().getMasterNodeId() == null) {
                     oldMasterNodeSteppedDown.countDown();
                 }
             }

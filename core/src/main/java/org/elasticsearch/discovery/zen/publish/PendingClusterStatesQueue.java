@@ -278,7 +278,7 @@ public class PendingClusterStatesQueue {
                     "[uuid[%s], v[%d], m[%s]]",
                     stateUUID(),
                     state.version(),
-                    state.nodes().masterNodeId()
+                    state.nodes().getMasterNodeId()
             );
         }
     }

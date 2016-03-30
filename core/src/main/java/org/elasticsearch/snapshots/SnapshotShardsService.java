@@ -159,8 +159,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
             } else if (prev.equals(curr) == false) {
                     processIndexShardSnapshots(event);
             }
-            String masterNodeId = event.state().nodes().masterNodeId();
-            if (masterNodeId != null && masterNodeId.equals(event.previousState().nodes().masterNodeId()) == false) {
+            String masterNodeId = event.state().nodes().getMasterNodeId();
+            if (masterNodeId != null && masterNodeId.equals(event.previousState().nodes().getMasterNodeId()) == false) {
                 syncShardStatsOnNewMaster(event);
             }
 

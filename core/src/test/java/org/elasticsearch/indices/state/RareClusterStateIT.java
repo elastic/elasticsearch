@@ -240,7 +240,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
                 // primary must not be on the master node
-                assertFalse(state.nodes().masterNodeId().equals(shard.currentNodeId()));
+                assertFalse(state.nodes().getMasterNodeId().equals(shard.currentNodeId()));
             } else {
                 fail(); // only primaries
             }
@@ -358,7 +358,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
                 // primary must be on the master
-                assertEquals(state.nodes().masterNodeId(), shard.currentNodeId());
+                assertEquals(state.nodes().getMasterNodeId(), shard.currentNodeId());
             } else {
                 assertTrue(shard.active());
             }

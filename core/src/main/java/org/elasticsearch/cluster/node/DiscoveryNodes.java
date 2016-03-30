@@ -175,17 +175,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *
      * @return id of the master
      */
-    public String masterNodeId() {
-        return this.masterNodeId;
-    }
-
-    /**
-     * Get the id of the master node
-     *
-     * @return id of the master
-     */
     public String getMasterNodeId() {
-        return masterNodeId();
+        return this.masterNodeId;
     }
 
     /**
@@ -316,7 +307,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                         resolvedNodesIds.add(localNodeId);
                     }
                 } else if (nodeId.equals("_master")) {
-                    String masterNodeId = masterNodeId();
+                    String masterNodeId = getMasterNodeId();
                     if (masterNodeId != null) {
                         resolvedNodesIds.add(masterNodeId);
                     }
@@ -603,7 +594,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public Builder(DiscoveryNodes nodes) {
-            this.masterNodeId = nodes.masterNodeId();
+            this.masterNodeId = nodes.getMasterNodeId();
             this.localNodeId = nodes.localNodeId();
             this.nodes = ImmutableOpenMap.builder(nodes.getNodes());
         }

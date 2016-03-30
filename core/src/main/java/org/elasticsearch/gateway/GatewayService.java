@@ -163,7 +163,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         }
 
         DiscoveryNodes nodes = state.nodes();
-        if (state.nodes().masterNodeId() == null) {
+        if (state.nodes().getMasterNodeId() == null) {
             logger.debug("not recovering from gateway, no master elected yet");
         } else if (recoverAfterNodes != -1 && (nodes.getMasterAndDataNodes().size()) < recoverAfterNodes) {
             logger.debug("not recovering from gateway, nodes_size (data+master) [{}] < recover_after_nodes [{}]",

@@ -223,7 +223,7 @@ public class RestNodesAction extends AbstractCatAction {
         boolean fullId = req.paramAsBoolean("full_id", false);
 
         DiscoveryNodes nodes = state.getState().nodes();
-        String masterId = nodes.masterNodeId();
+        String masterId = nodes.getMasterNodeId();
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {

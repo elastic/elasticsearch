@@ -973,7 +973,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
         public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
             if (!ackedTaskListener.mustAck(node)) {
                 //we always wait for the master ack anyway
-                if (!node.equals(nodes.masterNode())) {
+                if (!node.equals(nodes.getMasterNode())) {
                     return;
                 }
             }

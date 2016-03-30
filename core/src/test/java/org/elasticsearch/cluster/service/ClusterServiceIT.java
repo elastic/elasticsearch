@@ -518,7 +518,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // the first node should be a master as the minimum required is 1
-        assertThat(clusterService.state().nodes().masterNode(), notNullValue());
+        assertThat(clusterService.state().nodes().getMasterNode(), notNullValue());
         assertThat(clusterService.state().nodes().localNodeMaster(), is(true));
         assertThat(testService.master(), is(true));
 
@@ -554,7 +554,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         internalCluster().stopRandomNonMasterNode();
 
         // there should not be any master as the minimum number of required eligible masters is not met
-        awaitBusy(() -> clusterService1.state().nodes().masterNode() == null &&
+        awaitBusy(() -> clusterService1.state().nodes().getMasterNode() == null &&
                 clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED);
         assertThat(testService1.master(), is(false));
 
@@ -571,8 +571,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 .setWaitForNodes("2").get().isTimedOut(), is(false));
 
         // now that we started node1 again, a new master should be elected
-        assertThat(clusterService2.state().nodes().masterNode(), is(notNullValue()));
-        if (node_2.equals(clusterService2.state().nodes().masterNode().getName())) {
+        assertThat(clusterService2.state().nodes().getMasterNode(), is(notNullValue()));
+        if (node_2.equals(clusterService2.state().nodes().getMasterNode().getName())) {
             assertThat(testService1.master(), is(false));
             assertThat(testService2.master(), is(true));
         } else {

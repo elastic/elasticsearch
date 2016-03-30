@@ -242,13 +242,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         nodesFD.stop();
         DiscoveryNodes nodes = nodes();
         if (sendLeaveRequest) {
-            if (nodes.masterNode() == null) {
+            if (nodes.getMasterNode() == null) {
                 // if we don't know who the master is, nothing to do here
             } else if (!nodes.localNodeMaster()) {
                 try {
-                    membership.sendLeaveRequestBlocking(nodes.masterNode(), nodes.getLocalNode(), TimeValue.timeValueSeconds(1));
+                    membership.sendLeaveRequestBlocking(nodes.getMasterNode(), nodes.getLocalNode(), TimeValue.timeValueSeconds(1));
                 } catch (Exception e) {
-                    logger.debug("failed to send leave request to master [{}]", e, nodes.masterNode());
+                    logger.debug("failed to send leave request to master [{}]", e, nodes.getMasterNode());
                 }
             } else {
                 // we're master -> let other potential master we left and start a master election now rather then wait for masterFD
@@ -260,7 +260,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     try {
                         membership.sendLeaveRequest(nodes.getLocalNode(), possibleMaster);
                     } catch (Exception e) {
-                        logger.debug("failed to send leave request from master [{}] to possible master [{}]", e, nodes.masterNode(), possibleMaster);
+                        logger.debug("failed to send leave request from master [{}] to possible master [{}]", e, nodes.getMasterNode(), possibleMaster);
                     }
                 }
             }
@@ -419,7 +419,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return currentState;
                     }
 
-                    if (currentState.getNodes().masterNode() == null) {
+                    if (currentState.getNodes().getMasterNode() == null) {
                         // Post 1.3.0, the master should publish a new cluster state before acking our join request. we now should have
                         // a valid master.
                         logger.debug("no master node is set, despite of join request completing. retrying pings.");
@@ -427,7 +427,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return currentState;
                     }
 
-                    if (!currentState.getNodes().masterNode().equals(finalMasterNode)) {
+                    if (!currentState.getNodes().getMasterNode().equals(finalMasterNode)) {
                         return joinThreadControl.stopRunningThreadAndRejoin(currentState, "master_switched_while_finalizing_join");
                     }
 
@@ -524,7 +524,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     logger.error("unexpected failure during [{}]", t, source);
                 }
             });
-        } else if (node.equals(nodes().masterNode())) {
+        } else if (node.equals(nodes().getMasterNode())) {
             handleMasterGone(node, null, "shut_down");
         }
     }
@@ -680,11 +680,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     return currentState;
                 }
 
-                assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";
+                assert newClusterState.nodes().getMasterNode() != null : "received a cluster state without a master";
                 assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
                 if (currentState.nodes().localNodeMaster()) {
-                    return handleAnotherMaster(currentState, newClusterState.nodes().masterNode(), newClusterState.version(), "via a new cluster state");
+                    return handleAnotherMaster(currentState, newClusterState.nodes().getMasterNode(), newClusterState.version(), "via a new cluster state");
                 }
 
                 if (shouldIgnoreOrRejectNewClusterState(logger, currentState, newClusterState)) {
@@ -692,8 +692,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
 
                 // check to see that we monitor the correct master of the cluster
-                if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().masterNode())) {
-                    masterFD.restart(newClusterState.nodes().masterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
+                if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
+                    masterFD.restart(newClusterState.nodes().getMasterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
                 }
 
                 if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
@@ -787,8 +787,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
         if (!currentNodes.getMasterNodeId().equals(newClusterState.nodes().getMasterNodeId())) {
-            logger.warn("received a cluster state from a different master than the current one, rejecting (received {}, current {})", newClusterState.nodes().masterNode(), currentNodes.masterNode());
-            throw new IllegalStateException("cluster state from a different master than the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentNodes.masterNode() + ")");
+            logger.warn("received a cluster state from a different master than the current one, rejecting (received {}, current {})", newClusterState.nodes().getMasterNode(), currentNodes.getMasterNode());
+            throw new IllegalStateException("cluster state from a different master than the current one, rejecting (received " + newClusterState.nodes().getMasterNode() + ", current " + currentNodes.getMasterNode() + ")");
         }
     }
 

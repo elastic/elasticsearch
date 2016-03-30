@@ -138,7 +138,7 @@ public class PendingClusterStatesQueue {
         if (findState(state.stateUUID()) == null) {
             throw new IllegalStateException("can't resolve processed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]");
         }
-        final DiscoveryNode currentMaster = state.nodes().masterNode();
+        final DiscoveryNode currentMaster = state.nodes().getMasterNode();
         assert currentMaster != null : "processed cluster state mast have a master. " + state;
 
         // fail or remove any incoming state from a different master
@@ -147,7 +147,7 @@ public class PendingClusterStatesQueue {
         for (int index = 0; index < pendingStates.size(); index++) {
             final ClusterStateContext pendingContext = pendingStates.get(index);
             final ClusterState pendingState = pendingContext.state;
-            final DiscoveryNode pendingMasterNode = pendingState.nodes().masterNode();
+            final DiscoveryNode pendingMasterNode = pendingState.nodes().getMasterNode();
             if (Objects.equals(currentMaster, pendingMasterNode) == false) {
                 contextsToRemove.add(pendingContext);
                 if (pendingContext.committed()) {

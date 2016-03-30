@@ -162,7 +162,7 @@ public class ShardStateActionTests extends ESTestCase {
         // for the right shard
         assertEquals(shardRouting, shardRoutingEntry.getShardRouting());
         // sent to the master
-        assertEquals(clusterService.state().nodes().masterNode().getId(), capturedRequests[0].node.getId());
+        assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node.getId());
 
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
 

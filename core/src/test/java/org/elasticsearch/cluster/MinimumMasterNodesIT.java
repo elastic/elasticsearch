@@ -409,7 +409,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(masterClusterService.state().nodes().masterNode(), nullValue());
+                assertThat(masterClusterService.state().nodes().getMasterNode(), nullValue());
             }
         });
 

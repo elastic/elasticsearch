@@ -846,7 +846,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
-        TransportService masterTranspotService = internalCluster().getInstance(TransportService.class, discoveryNodes.masterNode().getName());
+        TransportService masterTranspotService = internalCluster().getInstance(TransportService.class, discoveryNodes.getMasterNode().getName());
 
         logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, masterNode);
         MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nonMasterNode);
@@ -1175,7 +1175,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             @Override
             public void run() {
                 ClusterState state = getNodeClusterState(node);
-                assertNull("node [" + node + "] still has [" + state.nodes().masterNode() + "] as master", state.nodes().masterNode());
+                assertNull("node [" + node + "] still has [" + state.nodes().getMasterNode() + "] as master", state.nodes().getMasterNode());
                 if (expectedBlocks != null) {
                     for (ClusterBlockLevel level : expectedBlocks.levels()) {
                         assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock(level));
@@ -1191,10 +1191,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             public void run() {
                 ClusterState state = getNodeClusterState(node);
                 String masterNode = null;
-                if (state.nodes().masterNode() != null) {
-                    masterNode = state.nodes().masterNode().getName();
+                if (state.nodes().getMasterNode() != null) {
+                    masterNode = state.nodes().getMasterNode().getName();
                 }
-                logger.trace("[{}] master is [{}]", node, state.nodes().masterNode());
+                logger.trace("[{}] master is [{}]", node, state.nodes().getMasterNode());
                 assertThat("node [" + node + "] still has [" + masterNode + "] as master",
                         oldMasterNode, not(equalTo(masterNode)));
             }
@@ -1206,7 +1206,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             ClusterState state = getNodeClusterState(node);
             String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
             assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
-            String otherMasterNodeName = state.nodes().masterNode() != null ? state.nodes().masterNode().getName() : null;
+            String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
             assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
         }
     }

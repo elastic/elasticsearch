@@ -391,13 +391,13 @@ public class PublishClusterStateAction extends AbstractComponent {
     void validateIncomingState(ClusterState incomingState, ClusterState lastSeenClusterState) {
         final ClusterName incomingClusterName = incomingState.getClusterName();
         if (!incomingClusterName.equals(this.clusterName)) {
-            logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", incomingState.nodes().masterNode(), incomingClusterName);
+            logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", incomingState.nodes().getMasterNode(), incomingClusterName);
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }
         final DiscoveryNodes currentNodes = nodesProvider.nodes();
 
         if (currentNodes.getLocalNode().equals(incomingState.nodes().getLocalNode()) == false) {
-            logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", incomingState.nodes().masterNode());
+            logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", incomingState.nodes().getMasterNode());
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }
 
@@ -427,7 +427,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
         });
         if (state != null) {
-            newPendingClusterStatelistener.onNewClusterState("master " + state.nodes().masterNode() + " committed version [" + state.version() + "]");
+            newPendingClusterStatelistener.onNewClusterState("master " + state.nodes().getMasterNode() + " committed version [" + state.version() + "]");
         }
     }
 

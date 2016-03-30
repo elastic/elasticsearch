@@ -318,7 +318,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Request request = new Request(new String[]{TEST_INDEX});
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
+        DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
         builder.remove(masterNode.getId());
 
@@ -403,7 +403,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final boolean simulateFailedMasterNode = rarely();
         DiscoveryNode failedMasterNode = null;
         if (simulateFailedMasterNode) {
-            failedMasterNode = clusterService.state().nodes().masterNode();
+            failedMasterNode = clusterService.state().nodes().getMasterNode();
             DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
             builder.remove(failedMasterNode.getId());
             builder.masterNodeId(null);

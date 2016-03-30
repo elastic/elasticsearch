@@ -480,7 +480,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
             if (clusterService.state().nodes().localNodeMaster()) {
                 innerUpdateSnapshotState(request);
             } else {
-                transportService.sendRequest(clusterService.state().nodes().masterNode(),
+                transportService.sendRequest(clusterService.state().nodes().getMasterNode(),
                         UPDATE_SNAPSHOT_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
             }
         } catch (Throwable t) {

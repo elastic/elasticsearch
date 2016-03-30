@@ -202,17 +202,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *
      * @return master node
      */
-    public DiscoveryNode masterNode() {
-        return nodes.get(masterNodeId);
-    }
-
-    /**
-     * Get the master node
-     *
-     * @return master node
-     */
     public DiscoveryNode getMasterNode() {
-        return masterNode();
+        return nodes.get(masterNodeId);
     }
 
     /**
@@ -383,8 +374,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         DiscoveryNode newMasterNode = null;
         if (masterNodeId != null) {
             if (other.masterNodeId == null || !other.masterNodeId.equals(masterNodeId)) {
-                previousMasterNode = other.masterNode();
-                newMasterNode = masterNode();
+                previousMasterNode = other.getMasterNode();
+                newMasterNode = getMasterNode();
             }
         }
         return new Delta(previousMasterNode, newMasterNode, localNodeId, Collections.unmodifiableList(removed), Collections.unmodifiableList(added));
@@ -409,7 +400,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             if (node == getLocalNode()) {
                 sb.append(", local");
             }
-            if (node == masterNode()) {
+            if (node == getMasterNode()) {
                 sb.append(", master");
             }
             sb.append("\n");

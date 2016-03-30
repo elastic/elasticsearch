@@ -449,7 +449,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
 
     public Version getMasterVersion() {
-        return client().admin().cluster().prepareState().get().getState().nodes().masterNode().getVersion();
+        return client().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getVersion();
     }
 
     public void testDeleteRoutingRequired() throws ExecutionException, InterruptedException, IOException {

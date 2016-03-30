@@ -240,9 +240,9 @@ public class NodeJoinController extends AbstractComponent {
                 // Take into account the previous known nodes, if they happen not to be available
                 // then fault detection will remove these nodes.
 
-                if (currentState.nodes().masterNode() != null) {
+                if (currentState.nodes().getMasterNode() != null) {
                     // TODO can we tie break here? we don't have a remote master cluster state version to decide on
-                    logger.trace("join thread elected local node as master, but there is already a master in place: {}", currentState.nodes().masterNode());
+                    logger.trace("join thread elected local node as master, but there is already a master in place: {}", currentState.nodes().getMasterNode());
                     throw new NotMasterException("Node [" + clusterService.localNode() + "] not master for join request");
                 }
 

@@ -483,14 +483,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
             if (!indexService.hasShard(shardId) && shardRouting.started()) {
                 if (failedShards.containsKey(shardRouting.shardId())) {
-                    if (nodes.masterNode() != null) {
-                        String message = "master " + nodes.masterNode() + " marked shard as started, but shard has previous failed. resending shard failure";
+                    if (nodes.getMasterNode() != null) {
+                        String message = "master " + nodes.getMasterNode() + " marked shard as started, but shard has previous failed. resending shard failure";
                         logger.trace("[{}] re-sending failed shard [{}], reason [{}]", shardRouting.shardId(), shardRouting, message);
                         shardStateAction.shardFailed(shardRouting, shardRouting, message, null, SHARD_STATE_ACTION_LISTENER);
                     }
                 } else {
                     // the master thinks we are started, but we don't have this shard at all, mark it as failed
-                    sendFailShard(shardRouting, "master [" + nodes.masterNode() + "] marked shard as started, but shard has not been created, mark shard as failed", null);
+                    sendFailShard(shardRouting, "master [" + nodes.getMasterNode() + "] marked shard as started, but shard has not been created, mark shard as failed", null);
                 }
                 continue;
             }
@@ -547,11 +547,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // we managed to tell the master we started), mark us as started
                 if (logger.isTraceEnabled()) {
                     logger.trace("{} master marked shard as initializing, but shard has state [{}], resending shard started to {}",
-                        indexShard.shardId(), indexShard.state(), nodes.masterNode());
+                        indexShard.shardId(), indexShard.state(), nodes.getMasterNode());
                 }
-                if (nodes.masterNode() != null) {
+                if (nodes.getMasterNode() != null) {
                     shardStateAction.shardStarted(shardRouting,
-                        "master " + nodes.masterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started",
+                        "master " + nodes.getMasterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started",
                         SHARD_STATE_ACTION_LISTENER);
                 }
                 return;
@@ -576,8 +576,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         // if there is no shard, create it
         if (!indexService.hasShard(shardId)) {
             if (failedShards.containsKey(shardRouting.shardId())) {
-                if (nodes.masterNode() != null) {
-                    String message = "master " + nodes.masterNode() + " marked shard as initializing, but shard is marked as failed, resend shard failure";
+                if (nodes.getMasterNode() != null) {
+                    String message = "master " + nodes.getMasterNode() + " marked shard as initializing, but shard is marked as failed, resend shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", shardRouting.shardId(), shardRouting, message);
                     shardStateAction.shardFailed(shardRouting, shardRouting, message, null, SHARD_STATE_ACTION_LISTENER);
                 }

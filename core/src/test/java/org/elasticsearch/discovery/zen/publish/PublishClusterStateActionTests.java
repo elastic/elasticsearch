@@ -123,7 +123,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 ClusterChangedEvent event = new ClusterChangedEvent("", newClusterState, clusterState);
                 listener.clusterChanged(event);
             }
-            if (clusterState.nodes().masterNode() == null || newClusterState.supersedes(clusterState)) {
+            if (clusterState.nodes().getMasterNode() == null || newClusterState.supersedes(clusterState)) {
                 clusterState = newClusterState;
             }
             action.pendingStatesQueue().markAsProcessed(newClusterState);

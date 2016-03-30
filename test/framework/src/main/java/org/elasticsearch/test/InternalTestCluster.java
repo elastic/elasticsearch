@@ -1363,7 +1363,7 @@ public final class InternalTestCluster extends TestCluster {
         try {
             Client client = viaNode != null ? client(viaNode) : client();
             ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
-            return state.nodes().masterNode().getName();
+            return state.nodes().getMasterNode().getName();
         } catch (Throwable e) {
             logger.warn("Can't fetch cluster state", e);
             throw new RuntimeException("Can't get master node " + e.getMessage(), e);

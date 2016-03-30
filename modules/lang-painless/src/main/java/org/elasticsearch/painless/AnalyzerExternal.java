@@ -448,6 +448,10 @@ class AnalyzerExternal {
                 throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Unknown variable [" + id + "].");
             }
 
+            if ("_score".equals(id)) {
+                metadata.scoreValueUsed = true;
+            }
+
             varenmd.target = variable.slot;
             varenmd.type = variable.type;
             analyzeLoadStoreExternal(ctx);

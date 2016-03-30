@@ -152,19 +152,22 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     private void writeExecute() {
         final Label fals = new Label();
         final Label end = new Label();
-        execute.visitVarInsn(Opcodes.ALOAD, metadata.inputValueSlot);
-        execute.push("#score");
-        execute.invokeInterface(MAP_TYPE, MAP_GET);
-        execute.dup();
-        execute.ifNull(fals);
-        execute.checkCast(SCORE_ACCESSOR_TYPE);
-        execute.invokeVirtual(SCORE_ACCESSOR_TYPE, SCORE_ACCESSOR_FLOAT);
-        execute.goTo(end);
-        execute.mark(fals);
-        execute.pop();
-        execute.push(0F);
-        execute.mark(end);
-        execute.visitVarInsn(Opcodes.FSTORE, metadata.scoreValueSlot);
+
+        if (metadata.scoreValueUsed) {
+            execute.visitVarInsn(Opcodes.ALOAD, metadata.inputValueSlot);
+            execute.push("#score");
+            execute.invokeInterface(MAP_TYPE, MAP_GET);
+            execute.dup();
+            execute.ifNull(fals);
+            execute.checkCast(SCORE_ACCESSOR_TYPE);
+            execute.invokeVirtual(SCORE_ACCESSOR_TYPE, SCORE_ACCESSOR_FLOAT);
+            execute.goTo(end);
+            execute.mark(fals);
+            execute.pop();
+            execute.push(0F);
+            execute.mark(end);
+            execute.visitVarInsn(Opcodes.FSTORE, metadata.scoreValueSlot);
+        }
 
         execute.push(settings.getMaxLoopCounter());
         execute.visitVarInsn(Opcodes.ISTORE, metadata.loopCounterSlot);

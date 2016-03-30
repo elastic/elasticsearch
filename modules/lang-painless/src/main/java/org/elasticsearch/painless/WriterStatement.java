@@ -327,7 +327,11 @@ class WriterStatement {
         final ExpressionMetadata declvaremd = metadata.getExpressionMetadata(ctx);
         final org.objectweb.asm.Type type = declvaremd.to.type;
         final Sort sort = declvaremd.to.sort;
-        final int slot = (int)declvaremd.postConst;
+        int slot = (int)declvaremd.postConst;
+
+        if (!metadata.scoreValueUsed && slot > metadata.scoreValueSlot) {
+            --slot;
+        }
 
         final ExpressionContext exprctx = ctx.expression();
         final boolean initialize = exprctx == null;

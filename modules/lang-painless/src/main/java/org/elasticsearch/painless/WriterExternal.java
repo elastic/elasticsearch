@@ -431,10 +431,13 @@ class WriterExternal {
         }
     }
 
-    private void writeLoadStoreVariable(final ParserRuleContext source, final boolean store,
-                                        final Type type, final int slot) {
+    private void writeLoadStoreVariable(final ParserRuleContext source, final boolean store, final Type type, int slot) {
         if (type.sort == Sort.VOID) {
             throw new IllegalStateException(WriterUtility.error(source) + "Cannot load/store void type.");
+        }
+
+        if (!metadata.scoreValueUsed && slot > metadata.scoreValueSlot) {
+            --slot;
         }
 
         if (store) {

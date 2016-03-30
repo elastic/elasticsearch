@@ -131,7 +131,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         protected void doStart() {
             final ClusterState clusterState = observer.observedState();
             final DiscoveryNodes nodes = clusterState.nodes();
-            if (nodes.localNodeMaster() || localExecute(request)) {
+            if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
                 // check for block, if blocked, retry, else, execute locally
                 final ClusterBlockException blockException = checkBlock(request, clusterState);
                 if (blockException != null) {

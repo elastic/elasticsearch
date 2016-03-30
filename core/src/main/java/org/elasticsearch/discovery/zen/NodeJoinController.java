@@ -322,7 +322,7 @@ public class NodeJoinController extends AbstractComponent {
         public void onElectedAsMaster(ClusterState state) {
             assert pendingSetAsMasterTask.get() : "onElectedAsMaster called but pendingSetAsMasterTask is not set";
             assertClusterStateThread();
-            assert state.nodes().localNodeMaster() : "onElectedAsMaster called but local node is not master";
+            assert state.nodes().isLocalNodeElectedMaster() : "onElectedAsMaster called but local node is not master";
             if (closed.compareAndSet(false, true)) {
                 try {
                     onClose();

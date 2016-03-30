@@ -477,7 +477,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
     public void updateIndexShardSnapshotStatus(SnapshotId snapshotId, ShardId shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
         UpdateIndexShardSnapshotStatusRequest request = new UpdateIndexShardSnapshotStatusRequest(snapshotId, shardId, status);
         try {
-            if (clusterService.state().nodes().localNodeMaster()) {
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
                 innerUpdateSnapshotState(request);
             } else {
                 transportService.sendRequest(clusterService.state().nodes().getMasterNode(),

@@ -346,7 +346,7 @@ public class MasterFaultDetection extends FaultDetection {
             // all processing is finished.
             //
 
-            if (!nodes.localNodeMaster() || !nodes.nodeExists(request.nodeId)) {
+            if (!nodes.isLocalNodeElectedMaster() || !nodes.nodeExists(request.nodeId)) {
                 logger.trace("checking ping from [{}] under a cluster state thread", request.nodeId);
                 clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ClusterStateUpdateTask() {
 

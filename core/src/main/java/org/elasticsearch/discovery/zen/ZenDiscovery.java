@@ -244,7 +244,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         if (sendLeaveRequest) {
             if (nodes.getMasterNode() == null) {
                 // if we don't know who the master is, nothing to do here
-            } else if (!nodes.localNodeMaster()) {
+            } else if (!nodes.isLocalNodeElectedMaster()) {
                 try {
                     membership.sendLeaveRequestBlocking(nodes.getMasterNode(), nodes.getLocalNode(), TimeValue.timeValueSeconds(1));
                 } catch (Exception e) {
@@ -302,7 +302,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Override
     public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
-        if (!clusterChangedEvent.state().getNodes().localNodeMaster()) {
+        if (!clusterChangedEvent.state().getNodes().isLocalNodeElectedMaster()) {
             throw new IllegalStateException("Shouldn't publish state when not master");
         }
         nodesFD.updateNodesAndPing(clusterChangedEvent.state());
@@ -683,7 +683,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 assert newClusterState.nodes().getMasterNode() != null : "received a cluster state without a master";
                 assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
-                if (currentState.nodes().localNodeMaster()) {
+                if (currentState.nodes().isLocalNodeElectedMaster()) {
                     return handleAnotherMaster(currentState, newClusterState.nodes().getMasterNode(), newClusterState.version(), "via a new cluster state");
                 }
 
@@ -951,11 +951,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private boolean localNodeMaster() {
-        return nodes().localNodeMaster();
+        return nodes().isLocalNodeElectedMaster();
     }
 
     private ClusterState handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
-        assert localClusterState.nodes().localNodeMaster() : "handleAnotherMaster called but current node is not a master";
+        assert localClusterState.nodes().isLocalNodeElectedMaster() : "handleAnotherMaster called but current node is not a master";
         assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
 
         if (otherClusterStateVersion > localClusterState.version()) {

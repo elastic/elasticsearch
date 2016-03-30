@@ -519,7 +519,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         // the first node should be a master as the minimum required is 1
         assertThat(clusterService.state().nodes().getMasterNode(), notNullValue());
-        assertThat(clusterService.state().nodes().localNodeMaster(), is(true));
+        assertThat(clusterService.state().nodes().isLocalNodeElectedMaster(), is(true));
         assertThat(testService.master(), is(true));
 
         String node_1 = internalCluster().startNode(settings);
@@ -530,7 +530,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // the second node should not be the master as node1 is already the master.
-        assertThat(clusterService1.state().nodes().localNodeMaster(), is(false));
+        assertThat(clusterService1.state().nodes().isLocalNodeElectedMaster(), is(false));
         assertThat(testService1.master(), is(false));
 
         internalCluster().stopCurrentMasterNode();
@@ -538,7 +538,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // now that node0 is closed, node1 should be elected as master
-        assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
+        assertThat(clusterService1.state().nodes().isLocalNodeElectedMaster(), is(true));
         assertThat(testService1.master(), is(true));
 
         // start another node and set min_master_node

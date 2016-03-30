@@ -494,7 +494,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
         }
         logger.debug("processing [{}]: execute", source);
         ClusterState previousClusterState = clusterState;
-        if (!previousClusterState.nodes().localNodeMaster() && executor.runOnlyOnMaster()) {
+        if (!previousClusterState.nodes().isLocalNodeElectedMaster() && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", source);
             toExecute.stream().forEach(task -> task.listener.onNoLongerMaster(task.source));
             return;
@@ -561,7 +561,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
         try {
             ArrayList<Discovery.AckListener> ackListeners = new ArrayList<>();
-            if (newClusterState.nodes().localNodeMaster()) {
+            if (newClusterState.nodes().isLocalNodeElectedMaster()) {
                 // only the master controls the version numbers
                 Builder builder = ClusterState.builder(newClusterState).incrementVersion();
                 if (previousClusterState.routingTable() != newClusterState.routingTable()) {
@@ -617,7 +617,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             // if we are the master, publish the new state to all nodes
             // we publish here before we send a notification to all the listeners, since if it fails
             // we don't want to notify
-            if (newClusterState.nodes().localNodeMaster()) {
+            if (newClusterState.nodes().isLocalNodeElectedMaster()) {
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
                 try {
                     clusterStatePublisher.accept(clusterChangedEvent, ackListener);
@@ -661,7 +661,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             }
 
             //manual ack only from the master at the end of the publish
-            if (newClusterState.nodes().localNodeMaster()) {
+            if (newClusterState.nodes().isLocalNodeElectedMaster()) {
                 try {
                     ackListener.onNodeAck(newClusterState.nodes().getLocalNode(), null);
                 } catch (Throwable t) {

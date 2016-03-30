@@ -153,7 +153,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
         final ClusterState state = event.state();
 
-        if (state.nodes().localNodeMaster() == false) {
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
             // not our job to recover
             return;
         }

@@ -1242,7 +1242,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             FieldDataStats after = null;
             try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
                 assumeTrue("we have to have more than one segment", searcher.getDirectoryReader().leaves().size() > 1);
-                IndexFieldData indexFieldData = ifd.loadGlobal(searcher.getDirectoryReader());
+                ifd.loadGlobal(searcher.getDirectoryReader());
                 after = shard.fieldData().stats("foo");
                 assertEquals(after.getEvictions(), before.getEvictions());
                 // If a field doesn't exist an empty IndexFieldData is returned and that isn't cached:
@@ -1301,6 +1301,13 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         };
         final IndexShard newShard = reinitWithWrapper(indexService, shard, wrapper, listener);
         try {
+            IndexingStats indexingStats = newShard.indexingStats();
+            // ensure we are not influencing the indexing stats
+            assertEquals(0, indexingStats.getTotal().getDeleteCount());
+            assertEquals(0, indexingStats.getTotal().getDeleteCurrent());
+            assertEquals(0, indexingStats.getTotal().getIndexCount());
+            assertEquals(0, indexingStats.getTotal().getIndexCurrent());
+            assertEquals(0, indexingStats.getTotal().getIndexFailedCount());
             assertEquals(2, preIndex.get());
             assertEquals(2, postIndex.get());
             assertEquals(1, preDelete.get());

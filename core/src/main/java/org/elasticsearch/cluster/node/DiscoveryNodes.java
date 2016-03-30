@@ -675,7 +675,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             Version minNodeVersion = Version.CURRENT;
             Version minNonClientNodeVersion = Version.CURRENT;
             for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
-                if (nodeEntry.value.dataNode()) {
+                if (nodeEntry.value.isDataNode()) {
                     dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                     minNonClientNodeVersion = Version.smallest(minNonClientNodeVersion, nodeEntry.value.version());
                 }

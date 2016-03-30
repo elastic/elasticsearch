@@ -166,7 +166,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         // Check whether it was a data node that was added
         boolean dataNodeAdded = false;
         for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
-            if (addedNode.dataNode()) {
+            if (addedNode.isDataNode()) {
                 dataNodeAdded = true;
                 break;
             }
@@ -181,7 +181,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
         if (this.isMaster && event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-                if (removedNode.dataNode()) {
+                if (removedNode.isDataNode()) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Removing node from cluster info: {}", removedNode.getId());
                     }

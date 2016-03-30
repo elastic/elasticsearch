@@ -436,7 +436,7 @@ public class TribeIT extends ESIntegTestCase {
     private int countDataNodesForTribe(String tribeName, DiscoveryNodes nodes) {
         int count = 0;
         for (DiscoveryNode node : nodes) {
-            if (!node.dataNode()) {
+            if (!node.isDataNode()) {
                 continue;
             }
             if (tribeName.equals(node.getAttributes().get("tribe.name"))) {

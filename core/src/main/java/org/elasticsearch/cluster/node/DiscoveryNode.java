@@ -245,15 +245,8 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     /**
      * Should this node hold data (shards) or not.
      */
-    public boolean dataNode() {
-        return roles.contains(Role.DATA);
-    }
-
-    /**
-     * Should this node hold data (shards) or not.
-     */
     public boolean isDataNode() {
-        return dataNode();
+        return roles.contains(Role.DATA);
     }
 
     /**

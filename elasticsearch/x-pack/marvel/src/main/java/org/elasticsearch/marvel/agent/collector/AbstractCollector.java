@@ -69,7 +69,7 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     }
 
     protected boolean isLocalNodeMaster() {
-        return clusterService.state().nodes().localNodeMaster();
+        return clusterService.state().nodes().isLocalNodeElectedMaster();
     }
 
     @Override

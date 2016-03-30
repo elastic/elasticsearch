@@ -25,3 +25,17 @@
       update_by_query:
         index: test
         size: -4
+
+---
+"requests_per_second cannot be an empty string":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /requests_per_second cannot be an empty string/
+      update_by_query:
+        index: test
+        requests_per_second: ''

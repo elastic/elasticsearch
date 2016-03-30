@@ -72,3 +72,52 @@ the tribe node will pick one of them. This can be configured using the `tribe.on
 setting. It defaults to `any`, but can be set to `drop` (drop indices that have
 a conflict), or `prefer_[tribeName]` to prefer the index from a specific tribe.
 
+[float]
+=== Tribe node settings
+
+The tribe node starts a node client for each listed cluster.  The following
+configuration options are passed down from the tribe node to each node client:
+
+* `node.name` (used to derive the `node.name` for each node client)
+* `network.host`
+* `network.bind_host`
+* `network.publish_host`
+* `transport.host`
+* `transport.bind_host`
+* `transport.publish_host`
+* `path.home`
+* `path.conf`
+* `path.plugins`
+* `path.logs`
+* `path.scripts`
+* `shield.*`
+
+Almost any setting (except for `path.*`) may be configured at the node client
+level itself, in which case it will override any passed through setting from
+the tribe node.  Settings you may want to set at the node client level
+include:
+
+* `network.host`
+* `network.bind_host`
+* `network.publish_host`
+* `transport.host`
+* `transport.bind_host`
+* `transport.publish_host`
+* `cluster.name`
+* `discovery.zen.ping.unicast.hosts`
+
+[source,yaml]
+------------------------
+path.scripts:   some/path/to/config <1>
+network.host:   192.168.1.5 <2>
+
+tribe:
+  t1:
+    cluster.name:   cluster_one
+  t2:
+    cluster.name:   cluster_two
+    network.host:   10.1.2.3 <3>
+------------------------
+<1> The `path.scripts` setting is inherited by both `t1` and `t2`.
+<2> The `network.host` setting is inherited by `t1`.
+<3> The `t3` node client overrides the inherited from the tribe node.

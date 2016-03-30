@@ -11,3 +11,9 @@
 
   - is_true: nodes
   - is_true: nodes.$master.roles
+
+  - do:
+      tasks.list:
+        group_by: parents
+
+  - is_true: tasks

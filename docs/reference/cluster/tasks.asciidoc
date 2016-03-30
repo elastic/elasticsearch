@@ -99,5 +99,14 @@ POST /_tasks/_cancel?node_id=nodeId1,nodeId2&actions=*reindex
 // AUTOSENSE
 
 
+[float]
+=== Task Grouping
 
+The task lists returned by task API commands can be grouped either by nodes (default) or by parent tasks using the `group_by` parameter.
+The following command will change the grouping to parent tasks:
 
+[source,js]
+--------------------------------------------------
+GET /_tasks?group_by=parents
+--------------------------------------------------
+// AUTOSENSE

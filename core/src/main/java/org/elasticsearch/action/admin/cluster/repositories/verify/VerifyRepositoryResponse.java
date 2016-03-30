@@ -87,7 +87,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         builder.startObject(Fields.NODES);
         for (DiscoveryNode node : nodes) {
             builder.startObject(node.getId(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field(Fields.NAME, node.name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field(Fields.NAME, node.getName(), XContentBuilder.FieldCaseConversion.NONE);
             builder.endObject();
         }
         builder.endObject();

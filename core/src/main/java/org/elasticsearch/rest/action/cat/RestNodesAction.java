@@ -288,7 +288,7 @@ public class RestNodesAction extends AbstractCatAction {
             }
             table.addCell(roles);
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
-            table.addCell(node.name());
+            table.addCell(node.getName());
 
             CompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();
             table.addCell(completionStats == null ? null : completionStats.getSize());

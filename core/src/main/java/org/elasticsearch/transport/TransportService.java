@@ -873,7 +873,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             if (t instanceof RemoteTransportException) {
                 return (RemoteTransportException) t;
             }
-            return new RemoteTransportException(localNode.name(), localNode.getAddress(), action, t);
+            return new RemoteTransportException(localNode.getName(), localNode.getAddress(), action, t);
         }
 
         protected void processException(final TransportResponseHandler handler, final RemoteTransportException rtx) {

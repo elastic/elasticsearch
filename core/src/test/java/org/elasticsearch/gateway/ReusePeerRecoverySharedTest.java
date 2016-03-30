@@ -124,7 +124,7 @@ public class ReusePeerRecoverySharedTest {
             }
             if (!recoveryState.getPrimary() && (useSyncIds == false)) {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}", recoveryState.getShardId().getId(),
-                        recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                        recoveryState.getSourceNode().getName(), recoveryState.getTargetNode().getName(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
                 assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
@@ -139,7 +139,7 @@ public class ReusePeerRecoverySharedTest {
             } else {
                 if (useSyncIds && !recoveryState.getPrimary()) {
                     logger.info("--> replica shard {} recovered from {} to {} using sync id, recovered {}, reuse {}",
-                            recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                            recoveryState.getShardId().getId(), recoveryState.getSourceNode().getName(), recoveryState.getTargetNode().getName(),
                             recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 }
                 assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));

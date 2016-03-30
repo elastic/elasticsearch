@@ -186,7 +186,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterState state = internalCluster().getInstance(ClusterService.class).state();
         DiscoveryNode node = null;
         for (DiscoveryNode discoveryNode : state.nodes()) {
-            if (discoveryNode.name().equals(noneMasterNode)) {
+            if (discoveryNode.getName().equals(noneMasterNode)) {
                 node = discoveryNode;
             }
         }

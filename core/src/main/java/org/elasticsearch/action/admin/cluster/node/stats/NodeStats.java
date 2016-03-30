@@ -299,7 +299,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!params.param("node_info_format", "default").equals("none")) {
-            builder.field("name", getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("name", getNode().getName(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("transport_address", getNode().address().toString(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("host", getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("ip", getNode().getAddress(), XContentBuilder.FieldCaseConversion.NONE);

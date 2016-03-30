@@ -101,7 +101,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -111,7 +110,6 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesRequestCache;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -1889,7 +1887,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
-                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
+                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         nodes.add(name);
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
                     }

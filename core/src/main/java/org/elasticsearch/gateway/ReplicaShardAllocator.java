@@ -286,7 +286,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             String replicaSyncId = storeFilesMetaData.syncId();
             // see if we have a sync id we can make use of
             if (replicaSyncId != null && replicaSyncId.equals(primarySyncId)) {
-                logger.trace("{}: node [{}] has same sync id {} as primary", shard, discoNode.name(), replicaSyncId);
+                logger.trace("{}: node [{}] has same sync id {} as primary", shard, discoNode.getName(), replicaSyncId);
                 nodesToSize.put(discoNode, Long.MAX_VALUE);
             } else {
                 long sizeMatched = 0;
@@ -297,7 +297,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                     }
                 }
                 logger.trace("{}: node [{}] has [{}/{}] bytes of re-usable data",
-                        shard, discoNode.name(), new ByteSizeValue(sizeMatched), sizeMatched);
+                        shard, discoNode.getName(), new ByteSizeValue(sizeMatched), sizeMatched);
                 nodesToSize.put(discoNode, sizeMatched);
             }
         }

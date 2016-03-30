@@ -231,15 +231,8 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     /**
      * The name of the node.
      */
-    public String name() {
-        return this.nodeName;
-    }
-
-    /**
-     * The name of the node.
-     */
     public String getName() {
-        return name();
+        return this.nodeName;
     }
 
     /**
@@ -371,7 +364,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getId(), XContentBuilder.FieldCaseConversion.NONE);
-        builder.field("name", name());
+        builder.field("name", getName());
         builder.field("transport_address", address().toString());
 
         builder.startObject("attributes");

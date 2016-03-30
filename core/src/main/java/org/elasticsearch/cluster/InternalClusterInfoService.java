@@ -395,7 +395,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages) {
         for (NodeStats nodeStats : nodeStatsArray) {
             if (nodeStats.getFs() == null) {
-                logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().name());
+                logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().getName());
             } else {
                 FsInfo.Path leastAvailablePath = null;
                 FsInfo.Path mostAvailablePath = null;

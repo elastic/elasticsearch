@@ -92,7 +92,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
                     for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                         for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                             for (ShardRouting shardRouting : indexShardRoutingTable) {
-                                counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                                counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
                             }
                         }
                     }
@@ -141,7 +141,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
                 }
             }
         }
@@ -175,7 +175,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
                 }
             }
         }
@@ -197,7 +197,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
                 }
             }
         }
@@ -219,7 +219,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
                 }
             }
         }
@@ -240,7 +240,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
                 }
             }
         }

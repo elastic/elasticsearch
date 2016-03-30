@@ -231,7 +231,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
-                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
+                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
                     }
                 }

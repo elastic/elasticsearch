@@ -105,7 +105,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
             NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
             for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
                 table.startRow();
-                table.addCell(node.name());
+                table.addCell(node.getName());
                 table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
                 table.addCell(info == null ? null : info.getProcess().getId());
                 table.addCell(node.getHostName());

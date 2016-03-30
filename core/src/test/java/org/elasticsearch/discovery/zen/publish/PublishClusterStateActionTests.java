@@ -118,7 +118,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         @Override
         public void onNewClusterState(String reason) {
             ClusterState newClusterState = action.pendingStatesQueue().getNextClusterStateToProcess();
-            logger.debug("[{}] received version [{}], uuid [{}]", discoveryNode.name(), newClusterState.version(), newClusterState.stateUUID());
+            logger.debug("[{}] received version [{}], uuid [{}]", discoveryNode.getName(), newClusterState.version(), newClusterState.stateUUID());
             if (listener != null) {
                 ClusterChangedEvent event = new ClusterChangedEvent("", newClusterState, clusterState);
                 listener.clusterChanged(event);

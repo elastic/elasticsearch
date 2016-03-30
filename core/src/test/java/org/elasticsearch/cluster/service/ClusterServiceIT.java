@@ -572,7 +572,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         // now that we started node1 again, a new master should be elected
         assertThat(clusterService2.state().nodes().masterNode(), is(notNullValue()));
-        if (node_2.equals(clusterService2.state().nodes().masterNode().name())) {
+        if (node_2.equals(clusterService2.state().nodes().masterNode().getName())) {
             assertThat(testService1.master(), is(false));
             assertThat(testService2.master(), is(true));
         } else {

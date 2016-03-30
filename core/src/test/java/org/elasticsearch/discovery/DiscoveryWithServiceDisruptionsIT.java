@@ -626,8 +626,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                     DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
                     if (!Objects.equals(previousMaster, currentMaster)) {
                         logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(), event.previousState());
-                        String previousMasterNodeName = previousMaster != null ? previousMaster.name() : null;
-                        String currentMasterNodeName = currentMaster != null ? currentMaster.name() : null;
+                        String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
+                        String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
                         masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
                     }
                 }
@@ -1192,7 +1192,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 ClusterState state = getNodeClusterState(node);
                 String masterNode = null;
                 if (state.nodes().masterNode() != null) {
-                    masterNode = state.nodes().masterNode().name();
+                    masterNode = state.nodes().masterNode().getName();
                 }
                 logger.trace("[{}] master is [{}]", node, state.nodes().masterNode());
                 assertThat("node [" + node + "] still has [" + masterNode + "] as master",
@@ -1206,7 +1206,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             ClusterState state = getNodeClusterState(node);
             String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
             assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().size(), equalTo(nodes.size()));
-            String otherMasterNodeName = state.nodes().masterNode() != null ? state.nodes().masterNode().name() : null;
+            String otherMasterNodeName = state.nodes().masterNode() != null ? state.nodes().masterNode().getName() : null;
             assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
         }
     }

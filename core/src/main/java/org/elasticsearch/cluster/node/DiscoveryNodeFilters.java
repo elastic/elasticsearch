@@ -167,7 +167,7 @@ public class DiscoveryNodeFilters {
                 }
             } else if ("_name".equals(attr) || "name".equals(attr)) {
                 for (String value : values) {
-                    if (Regex.simpleMatch(value, node.name())) {
+                    if (Regex.simpleMatch(value, node.getName())) {
                         if (opType == OpType.OR) {
                             return true;
                         }

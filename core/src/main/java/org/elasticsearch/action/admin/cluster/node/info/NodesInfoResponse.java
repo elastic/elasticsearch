@@ -70,7 +70,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
         for (NodeInfo nodeInfo : this) {
             builder.startObject(nodeInfo.getNode().getId(), XContentBuilder.FieldCaseConversion.NONE);
 
-            builder.field("name", nodeInfo.getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("name", nodeInfo.getNode().getName(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("transport_address", nodeInfo.getNode().address().toString());
             builder.field("host", nodeInfo.getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("ip", nodeInfo.getNode().getHostAddress(), XContentBuilder.FieldCaseConversion.NONE);

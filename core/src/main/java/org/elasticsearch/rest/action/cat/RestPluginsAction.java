@@ -99,7 +99,7 @@ public class RestPluginsAction extends AbstractCatAction {
             for (PluginInfo pluginInfo : info.getPlugins().getPluginInfos()) {
                 table.startRow();
                 table.addCell(node.getId());
-                table.addCell(node.name());
+                table.addCell(node.getName());
                 table.addCell(pluginInfo.getName());
                 table.addCell(pluginInfo.getVersion());
                 table.addCell(pluginInfo.getDescription());

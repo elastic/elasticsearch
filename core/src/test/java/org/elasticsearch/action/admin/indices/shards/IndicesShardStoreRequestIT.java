@@ -192,7 +192,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStatus : shardStatuses) {
             for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
-                        && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().name())) {
+                        && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().getName())) {
                     assertThat(status.getLegacyVersion(), greaterThanOrEqualTo(0L));
                     assertThat(status.getStoreException(), notNullValue());
                 } else {

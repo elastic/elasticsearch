@@ -361,7 +361,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 } else {
                     // not a node id, try and search by name
                     for (DiscoveryNode node : this) {
-                        if (Regex.simpleMatch(nodeId, node.name())) {
+                        if (Regex.simpleMatch(nodeId, node.getName())) {
                             resolvedNodesIds.add(node.getId());
                         }
                     }

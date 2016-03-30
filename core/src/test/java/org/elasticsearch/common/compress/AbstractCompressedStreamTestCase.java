@@ -46,7 +46,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testRandom() throws IOException {
-        Random r = getRandom();
+        Random r = random();
         for (int i = 0; i < 10; i++) {
             byte bytes[] = new byte[TestUtil.nextInt(r, 1, 100000)];
             r.nextBytes(bytes);
@@ -55,7 +55,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testRandomThreads() throws Exception {
-        final Random r = getRandom();
+        final Random r = random();
         int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
@@ -86,7 +86,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testLineDocs() throws IOException {
-        Random r = getRandom();
+        Random r = random();
         LineFileDocs lineFileDocs = new LineFileDocs(r);
         for (int i = 0; i < 10; i++) {
             int numDocs = TestUtil.nextInt(r, 1, 200);
@@ -101,7 +101,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testLineDocsThreads() throws Exception {
-        final Random r = getRandom();
+        final Random r = random();
         int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
@@ -138,7 +138,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testRepetitionsL() throws IOException {
-        Random r = getRandom();
+        Random r = random();
         for (int i = 0; i < 10; i++) {
             int numLongs = TestUtil.nextInt(r, 1, 10000);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -161,7 +161,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testRepetitionsLThreads() throws Exception {
-        final Random r = getRandom();
+        final Random r = random();
         int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
@@ -206,7 +206,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testRepetitionsI() throws IOException {
-        Random r = getRandom();
+        Random r = random();
         for (int i = 0; i < 10; i++) {
             int numInts = TestUtil.nextInt(r, 1, 20000);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -225,7 +225,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testRepetitionsIThreads() throws Exception {
-        final Random r = getRandom();
+        final Random r = random();
         int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
@@ -266,7 +266,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testRepetitionsS() throws IOException {
-        Random r = getRandom();
+        Random r = random();
         for (int i = 0; i < 10; i++) {
             int numShorts = TestUtil.nextInt(r, 1, 40000);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -283,7 +283,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testMixed() throws IOException {
-        Random r = getRandom();
+        Random r = random();
         LineFileDocs lineFileDocs = new LineFileDocs(r);
         for (int i = 0; i < 2; ++i) {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -349,7 +349,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
     }
 
     public void testRepetitionsSThreads() throws Exception {
-        final Random r = getRandom();
+        final Random r = random();
         int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
@@ -396,8 +396,8 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
         OutputStreamStreamOutput rawOs = new OutputStreamStreamOutput(bos);
         StreamOutput os = c.streamOutput(rawOs);
 
-        Random r = getRandom();
-        int bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(getRandom(), 1, 70000);
+        Random r = random();
+        int bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(random(), 1, 70000);
         int prepadding = r.nextInt(70000);
         int postpadding = r.nextInt(70000);
         byte buffer[] = new byte[prepadding + bufferSize + postpadding];
@@ -417,7 +417,7 @@ public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
         StreamInput in = c.streamInput(compressedIn);
 
         // randomize constants again
-        bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(getRandom(), 1, 70000);
+        bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(random(), 1, 70000);
         prepadding = r.nextInt(70000);
         postpadding = r.nextInt(70000);
         buffer = new byte[prepadding + bufferSize + postpadding];

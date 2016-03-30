@@ -121,7 +121,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     }
 
     public void testLocationParsing() throws IOException {
-        Point point = RandomShapeGenerator.xRandomPoint(getRandom());
+        Point point = RandomShapeGenerator.xRandomPoint(random());
         Builder pointTestBuilder = new GeohashCellQuery.Builder("pin", new GeoPoint(point.getY(), point.getX()));
         String pointTest1 = "{\"geohash_cell\": {\"pin\": {\"lat\": " + point.getY() + ",\"lon\": " + point.getX() + "}}}";
         assertParsedQuery(pointTest1, pointTestBuilder);

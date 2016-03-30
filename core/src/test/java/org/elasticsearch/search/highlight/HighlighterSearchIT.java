@@ -2030,7 +2030,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         refresh();
         final int iters = scaledRandomIntBetween(20, 30);
         for (int i = 0; i < iters; i++) {
-            String highlighterType = rarely() ? null : RandomPicks.randomFrom(getRandom(), highlighterTypes);
+            String highlighterType = rarely() ? null : RandomPicks.randomFrom(random(), highlighterTypes);
             MultiMatchQueryBuilder.Type[] supportedQueryTypes;
             if ("postings".equals(highlighterType)) {
                 //phrase_prefix is not supported by postings highlighter, as it rewrites against an empty reader, the prefix will never match any term
@@ -2038,7 +2038,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             } else {
                 supportedQueryTypes = MultiMatchQueryBuilder.Type.values();
             }
-            MultiMatchQueryBuilder.Type matchQueryType = RandomPicks.randomFrom(getRandom(), supportedQueryTypes);
+            MultiMatchQueryBuilder.Type matchQueryType = RandomPicks.randomFrom(random(), supportedQueryTypes);
             final MultiMatchQueryBuilder multiMatchQueryBuilder = multiMatchQuery("the quick brown fox", "field1", "field2").type(matchQueryType);
 
             SearchSourceBuilder source = searchSource()

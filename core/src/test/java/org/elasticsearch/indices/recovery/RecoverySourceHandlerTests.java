@@ -150,7 +150,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             metas.add(md);
         }
 
-        CorruptionUtils.corruptFile(getRandom(), FileSystemUtils.files(tempDir, (p) ->
+        CorruptionUtils.corruptFile(random(), FileSystemUtils.files(tempDir, (p) ->
                 (p.getFileName().toString().equals("write.lock") ||
                         p.getFileName().toString().startsWith("extra")) == false));
         Store targetStore = newStore(createTempDir(), false);

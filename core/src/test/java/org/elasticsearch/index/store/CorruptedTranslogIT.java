@@ -113,7 +113,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         final Index test = state.metaData().index("test").getIndex();
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
-        ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), iterators);
+        ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
         assertNotNull(shardRouting);
         assertTrue(shardRouting.primary());
@@ -141,7 +141,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         if (!files.isEmpty()) {
             int corruptions = randomIntBetween(5, 20);
             for (int i = 0; i < corruptions; i++) {
-                fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
+                fileToCorrupt = RandomPicks.randomFrom(random(), files);
                 try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
                     // read
                     raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));

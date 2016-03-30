@@ -140,7 +140,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> move shard from node_1 to node_3, and wait for relocation to finish");
 
         if (randomBoolean()) { // sometimes add cluster-state delay to trigger observers in IndicesStore.ShardActiveRequestHandler
-            SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_3, getRandom());
+            SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_3, random());
             internalCluster().setDisruptionScheme(disruption);
             MockTransportService transportServiceNode3 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_3);
             CountDownLatch beginRelocationLatch = new CountDownLatch(1);

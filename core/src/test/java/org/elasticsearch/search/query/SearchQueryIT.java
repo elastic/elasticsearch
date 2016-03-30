@@ -206,7 +206,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     // see #3521
     public void testConstantScoreQuery() throws Exception {
-        Random random = getRandom();
+        Random random = random();
         createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"), client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
@@ -218,11 +218,11 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test").setQuery(
                 boolQuery().must(matchAllQuery()).must(
-                constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat()))).get();
+                constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + random().nextFloat()))).get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasScore(searchResponse.getHits().getAt(1).score()));
 
-        client().prepareSearch("test").setQuery(constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat())).get();
+        client().prepareSearch("test").setQuery(constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + random().nextFloat())).get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasScore(searchResponse.getHits().getAt(1).score()));
 

@@ -235,7 +235,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
 
     public void testByteArrayBulkGet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
-        getRandom().nextBytes(array1);
+        random().nextBytes(array1);
         final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
         for (int i = 0; i < array1.length; ++i) {
             array2.set(i, array1[i]);
@@ -252,7 +252,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
 
     public void testByteArrayBulkSet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
-        getRandom().nextBytes(array1);
+        random().nextBytes(array1);
         final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
         for (int i = 0; i < array1.length; ) {
             final int len = Math.min(array1.length - i, randomBoolean() ? randomInt(10) : randomInt(3 * BigArrays.BYTE_PAGE_SIZE));
@@ -315,7 +315,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
 
         // large arrays should be different
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
-        getRandom().nextBytes(array1);
+        random().nextBytes(array1);
         final int array1Hash = Arrays.hashCode(array1);
         final ByteArray array2 = byteArrayWithBytes(array1);
         final int array2Hash = bigArrays.hashCode(array2);

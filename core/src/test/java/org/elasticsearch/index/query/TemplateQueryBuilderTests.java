@@ -45,7 +45,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @BeforeClass
     public static void setupClass() {
-        templateBase = RandomQueryBuilder.createQuery(getRandom());
+        templateBase = RandomQueryBuilder.createQuery(random());
     }
 
     @Override

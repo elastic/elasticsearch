@@ -495,7 +495,7 @@ public class BytesStreamsTests extends ESTestCase {
     // create & fill byte[] with randomized data
     protected byte[] randomizedByteArrayWithSize(int size) {
         byte[] data = new byte[size];
-        getRandom().nextBytes(data);
+        random().nextBytes(data);
         return data;
     }
 

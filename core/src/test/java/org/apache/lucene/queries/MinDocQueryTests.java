@@ -44,7 +44,7 @@ public class MinDocQueryTests extends ESTestCase {
         final int numDocs = randomIntBetween(10, 200);
         final Document doc = new Document();
         final Directory dir = newDirectory();
-        final RandomIndexWriter w = new RandomIndexWriter(getRandom(), dir);
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
         for (int i = 0; i < numDocs; ++i) {
             w.addDocument(doc);
         }

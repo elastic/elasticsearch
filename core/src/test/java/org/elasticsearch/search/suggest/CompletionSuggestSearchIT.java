@@ -83,9 +83,9 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
-    private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
-    private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+    private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
     public void testPrefix() throws Exception {
@@ -1175,8 +1175,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     static class CompletionMappingBuilder {
         String searchAnalyzer = "simple";
         String indexAnalyzer = "simple";
-        Boolean preserveSeparators = getRandom().nextBoolean();
-        Boolean preservePositionIncrements = getRandom().nextBoolean();
+        Boolean preserveSeparators = random().nextBoolean();
+        Boolean preservePositionIncrements = random().nextBoolean();
         LinkedHashMap<String, ContextMapping> contextMappings = null;
 
         public CompletionMappingBuilder searchAnalyzer(String searchAnalyzer) {

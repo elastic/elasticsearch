@@ -221,7 +221,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testRandomSorting() throws IOException, InterruptedException, ExecutionException {
-        Random random = getRandom();
+        Random random = random();
         assertAcked(prepareCreate("test")
                 .addMapping("type",
                         XContentFactory.jsonBuilder()

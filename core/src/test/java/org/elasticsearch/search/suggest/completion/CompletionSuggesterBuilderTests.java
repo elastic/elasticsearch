@@ -145,7 +145,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
      * Test that a malformed JSON suggestion request fails.
      */
     public void testMalformedJsonRequestPayload() throws Exception {
-        final String field = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+        final String field = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
         final String payload = "{\n" +
                                "  \"bad-payload\" : { \n" +
                                "    \"prefix\" : \"sug\",\n" +

@@ -115,7 +115,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
 
         // buffer for bulk reads
         byte[] origBuf = new byte[length];
-        getRandom().nextBytes(origBuf);
+        random().nextBytes(origBuf);
         byte[] targetBuf = Arrays.copyOf(origBuf, origBuf.length);
 
         // bulk-read 0 bytes: must not modify buffer
@@ -172,7 +172,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         byte[] pbrBytesWithOffset = Arrays.copyOfRange(pbr.toBytes(), offset, length);
         // randomized target buffer to ensure no stale slots
         byte[] targetBytes = new byte[pbrBytesWithOffset.length];
-        getRandom().nextBytes(targetBytes);
+        random().nextBytes(targetBytes);
 
         // bulk-read all
         si.readFully(targetBytes);
@@ -574,7 +574,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);
         try {
             for (int i = 0; i < length; i++) {
-                out.writeByte((byte) getRandom().nextInt(1 << 8));
+                out.writeByte((byte) random().nextInt(1 << 8));
             }
         } catch (IOException e) {
             fail("should not happen " + e.getMessage());

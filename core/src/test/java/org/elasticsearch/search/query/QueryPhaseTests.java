@@ -73,7 +73,7 @@ public class QueryPhaseTests extends ESTestCase {
     private void countTestCase(boolean withDeletions) throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
-        RandomIndexWriter w = new RandomIndexWriter(getRandom(), dir, iwc);
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
         final int numDocs = scaledRandomIntBetween(100, 200);
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();

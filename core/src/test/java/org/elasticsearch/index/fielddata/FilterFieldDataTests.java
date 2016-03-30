@@ -39,7 +39,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
     }
 
     public void testFilterByFrequency() throws Exception {
-        Random random = getRandom();
+        Random random = random();
         for (int i = 0; i < 1000; i++) {
             Document d = new Document();
             d.add(new StringField("id", "" + i, Field.Store.NO));

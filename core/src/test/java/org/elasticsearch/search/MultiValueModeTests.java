@@ -369,7 +369,7 @@ public class MultiValueModeTests extends ESTestCase {
         final FixedBitSet docsWithValue = randomBoolean() ? null : new FixedBitSet(numDocs);
         for (int i = 0; i < array.length; ++i) {
             if (randomBoolean()) {
-                array[i] = new BytesRef(RandomStrings.randomAsciiOfLength(getRandom(), 8));
+                array[i] = new BytesRef(RandomStrings.randomAsciiOfLength(random(), 8));
                 if (docsWithValue != null) {
                     docsWithValue.set(i);
                 }
@@ -399,7 +399,7 @@ public class MultiValueModeTests extends ESTestCase {
         for (int i = 0; i < numDocs; ++i) {
             final BytesRef[] values = new BytesRef[randomInt(4)];
             for (int j = 0; j < values.length; ++j) {
-                values[j] = new BytesRef(RandomStrings.randomAsciiOfLength(getRandom(), 8));
+                values[j] = new BytesRef(RandomStrings.randomAsciiOfLength(random(), 8));
             }
             Arrays.sort(values);
             array[i] = values;
@@ -429,7 +429,7 @@ public class MultiValueModeTests extends ESTestCase {
     }
 
     private void verify(SortedBinaryDocValues values, int maxDoc) {
-        for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(RandomStrings.randomAsciiOfLength(getRandom(), 8)) }) {
+        for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(RandomStrings.randomAsciiOfLength(random(), 8)) }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
                 final BinaryDocValues selected = mode.select(values, missingValue);
                 for (int i = 0; i < maxDoc; ++i) {
@@ -463,7 +463,7 @@ public class MultiValueModeTests extends ESTestCase {
     }
 
     private void verify(SortedBinaryDocValues values, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
-        for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(RandomStrings.randomAsciiOfLength(getRandom(), 8)) }) {
+        for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(RandomStrings.randomAsciiOfLength(random(), 8)) }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
                 final BinaryDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc);
                 int prevRoot = -1;

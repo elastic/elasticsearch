@@ -176,7 +176,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         clusterSettings.addSettingsUpdateConsumer(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING, this::handleMinimumMasterNodesChanged, (value) -> {
             final ClusterState clusterState = clusterService.state();
-            int masterNodes = clusterState.nodes().masterNodes().size();
+            int masterNodes = clusterState.nodes().getMasterNodes().size();
             if (value > masterNodes) {
                 throw new IllegalArgumentException("cannot set " + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " to more than the current master nodes count [" + masterNodes + "]");
             }

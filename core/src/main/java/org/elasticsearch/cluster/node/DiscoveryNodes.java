@@ -128,17 +128,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *
      * @return {@link Map} of the discovered master nodes arranged by their ids
      */
-    public ImmutableOpenMap<String, DiscoveryNode> masterNodes() {
-        return this.masterNodes;
-    }
-
-    /**
-     * Get a {@link Map} of the discovered master nodes arranged by their ids
-     *
-     * @return {@link Map} of the discovered master nodes arranged by their ids
-     */
     public ImmutableOpenMap<String, DiscoveryNode> getMasterNodes() {
-        return masterNodes();
+        return this.masterNodes;
     }
 
     /**

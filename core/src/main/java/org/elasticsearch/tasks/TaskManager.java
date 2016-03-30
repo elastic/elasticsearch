@@ -231,7 +231,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
                     TaskId taskId = banIterator.next();
                     if (lastDiscoveryNodes.nodeExists(taskId.getNodeId()) == false) {
                         logger.debug("Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone", taskId,
-                            event.state().getNodes().localNode());
+                            event.state().getNodes().getLocalNode());
                         banIterator.remove();
                     }
                 }

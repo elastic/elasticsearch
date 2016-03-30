@@ -198,7 +198,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     @Override
     synchronized protected void doStart() {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
-        Objects.requireNonNull(clusterState.nodes().localNode(), "please set the local node before starting");
+        Objects.requireNonNull(clusterState.nodes().getLocalNode(), "please set the local node before starting");
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
@@ -229,7 +229,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
      * The local node.
      */
     public DiscoveryNode localNode() {
-        return clusterState.getNodes().localNode();
+        return clusterState.getNodes().getLocalNode();
     }
 
     public OperationRouting operationRouting() {
@@ -663,9 +663,9 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             //manual ack only from the master at the end of the publish
             if (newClusterState.nodes().localNodeMaster()) {
                 try {
-                    ackListener.onNodeAck(newClusterState.nodes().localNode(), null);
+                    ackListener.onNodeAck(newClusterState.nodes().getLocalNode(), null);
                 } catch (Throwable t) {
-                    logger.debug("error while processing ack for master node [{}]", t, newClusterState.nodes().localNode());
+                    logger.debug("error while processing ack for master node [{}]", t, newClusterState.nodes().getLocalNode());
                 }
             }
 

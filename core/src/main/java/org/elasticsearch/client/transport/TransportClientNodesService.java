@@ -491,7 +491,7 @@ public class TransportClientNodesService extends AbstractComponent {
             for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
                 if (!ignoreClusterName && !clusterName.equals(entry.getValue().getClusterName())) {
                     logger.warn("node {} not part of the cluster {}, ignoring...",
-                            entry.getValue().getState().nodes().localNode(), clusterName);
+                            entry.getValue().getState().nodes().getLocalNode(), clusterName);
                     newFilteredNodes.add(entry.getKey());
                     continue;
                 }

@@ -126,7 +126,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         try {
             nodes = clusterChangedEvent.state().nodes();
             nodesToPublishTo = new HashSet<>(nodes.getSize());
-            DiscoveryNode localNode = nodes.localNode();
+            DiscoveryNode localNode = nodes.getLocalNode();
             final int totalMasterNodes = nodes.getMasterNodes().size();
             for (final DiscoveryNode node : nodes) {
                 if (node.equals(localNode) == false) {
@@ -363,7 +363,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             final ClusterState incomingState;
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
-                incomingState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
+                incomingState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().getLocalNode());
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
             } else if (lastSeenClusterState != null) {
                 Diff<ClusterState> diff = lastSeenClusterState.readDiffFrom(in);
@@ -396,7 +396,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
         final DiscoveryNodes currentNodes = nodesProvider.nodes();
 
-        if (currentNodes.localNode().equals(incomingState.nodes().localNode()) == false) {
+        if (currentNodes.getLocalNode().equals(incomingState.nodes().getLocalNode()) == false) {
             logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", incomingState.nodes().masterNode());
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }

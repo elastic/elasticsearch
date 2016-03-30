@@ -246,7 +246,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 // if we don't know who the master is, nothing to do here
             } else if (!nodes.localNodeMaster()) {
                 try {
-                    membership.sendLeaveRequestBlocking(nodes.masterNode(), nodes.localNode(), TimeValue.timeValueSeconds(1));
+                    membership.sendLeaveRequestBlocking(nodes.masterNode(), nodes.getLocalNode(), TimeValue.timeValueSeconds(1));
                 } catch (Exception e) {
                     logger.debug("failed to send leave request to master [{}]", e, nodes.masterNode());
                 }
@@ -254,11 +254,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 // we're master -> let other potential master we left and start a master election now rather then wait for masterFD
                 DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(nodes.getNodes().values(), 5);
                 for (DiscoveryNode possibleMaster : possibleMasters) {
-                    if (nodes.localNode().equals(possibleMaster)) {
+                    if (nodes.getLocalNode().equals(possibleMaster)) {
                         continue;
                     }
                     try {
-                        membership.sendLeaveRequest(nodes.localNode(), possibleMaster);
+                        membership.sendLeaveRequest(nodes.getLocalNode(), possibleMaster);
                     } catch (Exception e) {
                         logger.debug("failed to send leave request from master [{}] to possible master [{}]", e, nodes.masterNode(), possibleMaster);
                     }

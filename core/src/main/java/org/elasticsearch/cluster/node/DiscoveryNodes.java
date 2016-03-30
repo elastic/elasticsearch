@@ -193,17 +193,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *
      * @return local node
      */
-    public DiscoveryNode localNode() {
-        return nodes.get(localNodeId);
-    }
-
-    /**
-     * Get the local node
-     *
-     * @return local node
-     */
     public DiscoveryNode getLocalNode() {
-        return localNode();
+        return nodes.get(localNodeId);
     }
 
     /**
@@ -415,7 +406,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         sb.append("nodes: \n");
         for (DiscoveryNode node : this) {
             sb.append("   ").append(node);
-            if (node == localNode()) {
+            if (node == getLocalNode()) {
                 sb.append(", local");
             }
             if (node == masterNode()) {
@@ -563,7 +554,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     @Override
     public DiscoveryNodes readFrom(StreamInput in) throws IOException {
-        return readFrom(in, localNode());
+        return readFrom(in, getLocalNode());
     }
 
     public static Builder builder() {

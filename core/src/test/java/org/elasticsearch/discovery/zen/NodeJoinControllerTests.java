@@ -94,7 +94,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         super.setUp();
         clusterService = createClusterService(threadPool);
         final DiscoveryNodes initialNodes = clusterService.state().nodes();
-        final DiscoveryNode localNode = initialNodes.localNode();
+        final DiscoveryNode localNode = initialNodes.getLocalNode();
         // make sure we have a master
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
                 DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));

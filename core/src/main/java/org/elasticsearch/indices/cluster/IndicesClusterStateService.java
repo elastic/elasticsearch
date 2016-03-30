@@ -617,7 +617,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 //    the edge case where its mark as relocated, and we might need to roll it back...
                 // For replicas: we are recovering a backup from a primary
                 RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.PRIMARY_RELOCATION : RecoveryState.Type.REPLICA;
-                RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(), type, sourceNode, nodes.localNode());
+                RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(), type, sourceNode, nodes.getLocalNode());
                 indexShard.markAsRecovering("from " + sourceNode, recoveryState);
                 recoveryTargetService.startRecovery(indexShard, type, sourceNode, new PeerRecoveryListener(shardRouting, indexService, indexMetaData));
             } catch (Throwable e) {
@@ -629,11 +629,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             // recover from filesystem store
             final RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(),
                 RecoveryState.Type.STORE,
-                nodes.localNode(), nodes.localNode());
+                nodes.getLocalNode(), nodes.getLocalNode());
             indexShard.markAsRecovering("from store", recoveryState); // mark the shard as recovering on the cluster state thread
             threadPool.generic().execute(() -> {
                 try {
-                    if (indexShard.recoverFromStore(nodes.localNode())) {
+                    if (indexShard.recoverFromStore(nodes.getLocalNode())) {
                         shardStateAction.shardStarted(shardRouting, "after recovery from store", SHARD_STATE_ACTION_LISTENER);
                     }
                 } catch (Throwable t) {
@@ -644,13 +644,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         } else {
             // recover from a restore
             final RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(),
-                RecoveryState.Type.SNAPSHOT, shardRouting.restoreSource(), nodes.localNode());
+                RecoveryState.Type.SNAPSHOT, shardRouting.restoreSource(), nodes.getLocalNode());
             indexShard.markAsRecovering("from snapshot", recoveryState); // mark the shard as recovering on the cluster state thread
             threadPool.generic().execute(() -> {
                 final ShardId sId = indexShard.shardId();
                 try {
                     final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
-                    if (indexShard.restoreFromRepository(indexShardRepository, nodes.localNode())) {
+                    if (indexShard.restoreFromRepository(indexShardRepository, nodes.getLocalNode())) {
                         restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), sId);
                         shardStateAction.shardStarted(shardRouting, "after recovery from repository", SHARD_STATE_ACTION_LISTENER);
                     }

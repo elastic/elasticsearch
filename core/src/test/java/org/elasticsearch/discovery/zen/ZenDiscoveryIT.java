@@ -235,7 +235,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterState stateWithCustomMetaData = ClusterState.builder(state).metaData(mdBuilder).build();
 
         final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
-        DiscoveryNode node = state.nodes().localNode();
+        DiscoveryNode node = state.nodes().getLocalNode();
         zenDiscovery.handleJoinRequest(node, stateWithCustomMetaData, new MembershipAction.JoinCallback() {
             @Override
             public void onSuccess() {

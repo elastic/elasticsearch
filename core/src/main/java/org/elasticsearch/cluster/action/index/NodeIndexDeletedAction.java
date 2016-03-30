@@ -80,7 +80,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         final DiscoveryNodes nodes = clusterState.nodes();
         transportService.sendRequest(clusterState.nodes().masterNode(),
                 INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
-        if (nodes.localNode().isDataNode() == false) {
+        if (nodes.getLocalNode().isDataNode() == false) {
             logger.trace("[{}] not acking store deletion (not a data node)", index);
             return;
         }

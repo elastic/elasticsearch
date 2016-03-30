@@ -246,7 +246,7 @@ public class NodeJoinController extends AbstractComponent {
                     throw new NotMasterException("Node [" + clusterService.localNode() + "] not master for join request");
                 }
 
-                DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes()).masterNodeId(currentState.nodes().localNode().getId());
+                DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNode().getId());
                 // update the fact that we are the master...
                 ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
                 currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();

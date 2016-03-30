@@ -68,7 +68,7 @@ public class GatewayAllocator extends AbstractComponent {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 boolean cleanCache = false;
-                DiscoveryNode localNode = event.state().nodes().localNode();
+                DiscoveryNode localNode = event.state().nodes().getLocalNode();
                 if (localNode != null) {
                     if (localNode.isMasterNode() == true && event.localNodeMaster() == false) {
                         cleanCache = true;

@@ -339,7 +339,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
                 nodeSpecificClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
                 // ignore cluster state messages that do not include "me", not in the game yet...
-                if (nodeSpecificClusterState.nodes().localNode() != null) {
+                if (nodeSpecificClusterState.nodes().getLocalNode() != null) {
                     assert nodeSpecificClusterState.nodes().masterNode() != null : "received a cluster state without a master";
                     assert !nodeSpecificClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 

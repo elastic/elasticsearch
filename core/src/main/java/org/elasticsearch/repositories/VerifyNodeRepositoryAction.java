@@ -69,7 +69,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
     public void verify(String repository, String verificationToken, final ActionListener<VerifyResponse> listener) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
-        final DiscoveryNode localNode = discoNodes.localNode();
+        final DiscoveryNode localNode = discoNodes.getLocalNode();
 
         final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.getMasterAndDataNodes().values();
         final List<DiscoveryNode> nodes = new ArrayList<>();

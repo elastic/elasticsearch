@@ -747,7 +747,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     @Override
     public ClusterState readFrom(StreamInput in) throws IOException {
-        return readFrom(in, nodes.localNode());
+        return readFrom(in, nodes.getLocalNode());
     }
 
     @Override

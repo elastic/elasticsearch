@@ -420,7 +420,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         for (MockNode node : nodes.values()) {
             assertSameState(node.clusterState, clusterState);
-            assertThat(node.clusterState.nodes().localNode(), equalTo(node.discoveryNode));
+            assertThat(node.clusterState.nodes().getLocalNode(), equalTo(node.discoveryNode));
         }
     }
 

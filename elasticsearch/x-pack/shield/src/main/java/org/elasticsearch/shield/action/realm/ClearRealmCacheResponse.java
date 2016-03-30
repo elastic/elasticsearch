@@ -54,7 +54,7 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
         builder.startObject("nodes");
         for (ClearRealmCacheResponse.Node node: getNodes()) {
             builder.startObject(node.getNode().getId());
-            builder.field("name", node.getNode().name());
+            builder.field("name", node.getNode().getName());
             builder.endObject();
         }
         builder.endObject();

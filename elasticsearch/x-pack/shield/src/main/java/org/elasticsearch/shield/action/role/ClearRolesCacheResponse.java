@@ -54,7 +54,7 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
         builder.startObject("nodes");
         for (ClearRolesCacheResponse.Node node: getNodes()) {
             builder.startObject(node.getNode().getId());
-            builder.field("name", node.getNode().name());
+            builder.field("name", node.getNode().getName());
             builder.endObject();
         }
         builder.endObject();

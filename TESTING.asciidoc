@@ -432,7 +432,7 @@ and in another window:
 
 ----------------------------------------------------
 vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
-cd $RPM
+cd $TESTROOT
 sudo bats $BATS/*rpm*.bats
 ----------------------------------------------------
 

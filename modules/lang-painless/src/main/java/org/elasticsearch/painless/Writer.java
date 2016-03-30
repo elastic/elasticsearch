@@ -49,10 +49,11 @@ import org.elasticsearch.painless.PainlessParser.ExtnewContext;
 import org.elasticsearch.painless.PainlessParser.ExtprecContext;
 import org.elasticsearch.painless.PainlessParser.ExtstartContext;
 import org.elasticsearch.painless.PainlessParser.ExtstringContext;
-import org.elasticsearch.painless.PainlessParser.ExttypeContext;
 import org.elasticsearch.painless.PainlessParser.ExtvarContext;
 import org.elasticsearch.painless.PainlessParser.FalseContext;
 import org.elasticsearch.painless.PainlessParser.ForContext;
+import org.elasticsearch.painless.PainlessParser.GenericContext;
+import org.elasticsearch.painless.PainlessParser.IdentifierContext;
 import org.elasticsearch.painless.PainlessParser.IfContext;
 import org.elasticsearch.painless.PainlessParser.IncrementContext;
 import org.elasticsearch.painless.PainlessParser.InitializerContext;
@@ -329,6 +330,16 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitIdentifier(IdentifierContext ctx) {
+        throw new UnsupportedOperationException(WriterUtility.error(ctx) + "Unexpected state.");
+    }
+
+    @Override
+    public Void visitGeneric(GenericContext ctx) {
+        throw new UnsupportedOperationException(WriterUtility.error(ctx) + "Unexpected state.");
+    }
+
+    @Override
     public Void visitPrecedence(final PrecedenceContext ctx) {
         throw new UnsupportedOperationException(WriterUtility.error(ctx) + "Unexpected state.");
     }
@@ -470,13 +481,6 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     @Override
     public Void visitExtdot(final ExtdotContext ctx) {
         external.processExtdot(ctx);
-
-        return null;
-    }
-
-    @Override
-    public Void visitExttype(final ExttypeContext ctx) {
-        external.processExttype(ctx);
 
         return null;
     }

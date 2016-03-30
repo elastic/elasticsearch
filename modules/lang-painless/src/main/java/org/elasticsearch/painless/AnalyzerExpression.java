@@ -168,7 +168,7 @@ class AnalyzerExpression {
             throw new IllegalStateException(AnalyzerUtility.error(ctx) + "Unexpected state.");
         }
 
-        charemd.preConst = ctx.CHAR().getText().charAt(0);
+        charemd.preConst = ctx.CHAR().getText().charAt(1);
         charemd.from = definition.charType;
     }
 

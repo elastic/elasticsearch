@@ -67,15 +67,23 @@ declaration
     ;
 
 decltype
-    : TYPE (LBRACE RBRACE)*
+    : identifier (LBRACE RBRACE)*
     ;
 
 declvar
-    : ID ( ASSIGN expression )?
+    : identifier ( ASSIGN expression )?
     ;
 
 trap
-    : CATCH LP ( TYPE ID ) RP ( block | emptyscope )
+    : CATCH LP ( identifier identifier ) RP ( block | emptyscope )
+    ;
+
+identifier
+    : ID generic?
+    ;
+
+generic
+    : LT identifier ( COMMA identifier )* GT
     ;
 
 expression
@@ -109,21 +117,19 @@ expression
 extstart
     : extprec
     | extcast
-    | exttype
     | extvar
     | extnew
     | extstring
     ;
 
-extprec:   LP ( extprec | extcast | exttype | extvar | extnew | extstring ) RP ( extdot | extbrace )?;
-extcast:   LP decltype RP ( extprec | extcast | exttype | extvar | extnew | extstring );
+extprec:   LP ( extprec | extcast | extvar | extnew | extstring ) RP ( extdot | extbrace )?;
+extcast:   LP decltype RP ( extprec | extcast | extvar | extnew | extstring );
 extbrace:  LBRACE expression RBRACE ( extdot | extbrace )?;
 extdot:    DOT ( extcall | extfield );
-exttype:   TYPE extdot;
 extcall:   EXTID arguments ( extdot | extbrace )?;
-extvar:    ID ( extdot | extbrace )?;
+extvar:    identifier ( extdot | extbrace )?;
 extfield:  ( EXTID | EXTINTEGER ) ( extdot | extbrace )?;
-extnew:    NEW TYPE ( ( arguments ( extdot | extbrace)? ) | ( ( LBRACE expression RBRACE )+ extdot? ) );
+extnew:    NEW identifier ( ( arguments extdot? ) | ( ( LBRACE expression RBRACE )+ extdot? ) );
 extstring: STRING (extdot | extbrace )?;
 
 arguments

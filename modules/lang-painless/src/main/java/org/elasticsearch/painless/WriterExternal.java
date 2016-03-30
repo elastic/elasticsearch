@@ -38,7 +38,6 @@ import org.elasticsearch.painless.PainlessParser.ExtnewContext;
 import org.elasticsearch.painless.PainlessParser.ExtprecContext;
 import org.elasticsearch.painless.PainlessParser.ExtstartContext;
 import org.elasticsearch.painless.PainlessParser.ExtstringContext;
-import org.elasticsearch.painless.PainlessParser.ExttypeContext;
 import org.elasticsearch.painless.PainlessParser.ExtvarContext;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -114,7 +113,6 @@ class WriterExternal {
 
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
-        final ExttypeContext typectx = ctx.exttype();
         final ExtvarContext varctx = ctx.extvar();
         final ExtnewContext newctx = ctx.extnew();
         final ExtstringContext stringctx = ctx.extstring();
@@ -123,8 +121,6 @@ class WriterExternal {
             writer.visit(precctx);
         } else if (castctx != null) {
             writer.visit(castctx);
-        } else if (typectx != null) {
-            writer.visit(typectx);
         } else if (varctx != null) {
             writer.visit(varctx);
         } else if (newctx != null) {
@@ -139,7 +135,6 @@ class WriterExternal {
     void processExtprec(final ExtprecContext ctx) {
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
-        final ExttypeContext typectx = ctx.exttype();
         final ExtvarContext varctx = ctx.extvar();
         final ExtnewContext newctx = ctx.extnew();
         final ExtstringContext stringctx = ctx.extstring();
@@ -148,8 +143,6 @@ class WriterExternal {
             writer.visit(precctx);
         } else if (castctx != null) {
             writer.visit(castctx);
-        } else if (typectx != null) {
-            writer.visit(typectx);
         } else if (varctx != null) {
             writer.visit(varctx);
         } else if (newctx != null) {
@@ -175,7 +168,6 @@ class WriterExternal {
 
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
-        final ExttypeContext typectx = ctx.exttype();
         final ExtvarContext varctx = ctx.extvar();
         final ExtnewContext newctx = ctx.extnew();
         final ExtstringContext stringctx = ctx.extstring();
@@ -184,8 +176,6 @@ class WriterExternal {
             writer.visit(precctx);
         } else if (castctx != null) {
             writer.visit(castctx);
-        } else if (typectx != null) {
-            writer.visit(typectx);
         } else if (varctx != null) {
             writer.visit(varctx);
         } else if (newctx != null) {
@@ -224,10 +214,6 @@ class WriterExternal {
         } else if (fieldctx != null) {
             writer.visit(fieldctx);
         }
-    }
-
-    void processExttype(final ExttypeContext ctx) {
-        writer.visit(ctx.extdot());
     }
 
     void processExtcall(final ExtcallContext ctx) {
@@ -273,12 +259,9 @@ class WriterExternal {
         writeNewExternal(ctx);
 
         final ExtdotContext dotctx = ctx.extdot();
-        final ExtbraceContext bracectx = ctx.extbrace();
 
         if (dotctx != null) {
             writer.visit(dotctx);
-        } else if (bracectx != null) {
-            writer.visit(bracectx);
         }
     }
 
@@ -300,6 +283,10 @@ class WriterExternal {
     private void writeLoadStoreExternal(final ParserRuleContext source) {
         final ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
         final ExternalMetadata parentemd = metadata.getExternalMetadata(sourceenmd.parent);
+
+        if (sourceenmd.target == null) {
+            return;
+        }
 
         final boolean length = "#length".equals(sourceenmd.target);
         final boolean array = "#brace".equals(sourceenmd.target);

@@ -113,7 +113,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             fail("should have hit ParseException");
         } catch (RuntimeException expected) {
             assertTrue(expected.getMessage().contains(
-                "unexpected token ['PainlessError'] was expecting one of [TYPE]."));
+                "Invalid type [PainlessError]."));
         }
 
     }

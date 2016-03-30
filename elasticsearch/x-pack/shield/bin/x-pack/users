@@ -94,9 +94,9 @@ if [ -e "$CONF_DIR" ]; then
     case "$properties" in
         *-Des.default.path.conf=*) ;;
         *)
-            if [ ! -d "$CONF_DIR/xpack" ]; then
-                echo "ERROR: The configuration directory [$CONF_DIR/xpack] does not exist. The syskeygen tool expects security configuration files in that location."
-                echo "The plugin may not have been installed with the correct configuration path. If [$ES_HOME/config/xpack] exists, please copy the 'xpack' directory to [$CONF_DIR]"
+            if [ ! -d "$CONF_DIR/x-pack" ]; then
+                echo "ERROR: The configuration directory [$CONF_DIR/x-pack] does not exist. The users tool expects security configuration files in that location."
+                echo "The plugin may not have been installed with the correct configuration path. If [$ES_HOME/config/x-pack] exists, please copy the 'x-pack' directory to [$CONF_DIR]"
                 exit 1
             fi
             properties="$properties -Des.default.path.conf=$CONF_DIR"
@@ -115,7 +115,7 @@ fi
 export HOSTNAME=`hostname -s`
 
 # include shield jars in classpath
-ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/plugins/xpack/*"
+ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/plugins/x-pack/*"
 
 # don't let JAVA_TOOL_OPTIONS slip in (e.g. crazy agents in ubuntu)
 # works around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
@@ -126,7 +126,7 @@ if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
 fi
 
 cd "$ES_HOME" > /dev/null
-"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" $properties org.elasticsearch.shield.crypto.tool.SystemKeyTool "$@"
+"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" $properties org.elasticsearch.shield.authc.file.tool.UsersTool "$@"
 status=$?
 cd - > /dev/null
 exit $status

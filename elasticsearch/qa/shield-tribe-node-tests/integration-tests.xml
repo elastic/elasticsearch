@@ -75,10 +75,10 @@
         <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
 
         <echo>Adding roles.yml</echo>
-        <copy file="shield-roles.yml" tofile="${home}/config/xpack/roles.yml" overwrite="true"/>
+        <copy file="shield-roles.yml" tofile="${home}/config/x-pack/roles.yml" overwrite="true"/>
 
         <echo>Adding shield users...</echo>
-        <run-script script="${home}/bin/xpack/esusers">
+        <run-script script="${home}/bin/x-pack/esusers">
             <nested>
                 <arg value="useradd"/>
                 <arg value="test_admin"/>

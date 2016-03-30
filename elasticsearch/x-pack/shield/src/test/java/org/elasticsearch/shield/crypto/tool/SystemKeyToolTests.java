@@ -64,7 +64,7 @@ public class SystemKeyToolTests extends CommandTestCase {
 
     public void testGenerateDefaultPath() throws Exception {
         assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path keyPath = homeDir.resolve("config/xpack/system_key");
+        Path keyPath = homeDir.resolve("config/x-pack/system_key");
         Files.createDirectories(keyPath.getParent());
         execute();
         byte[] bytes = Files.readAllBytes(keyPath);

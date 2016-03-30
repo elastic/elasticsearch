@@ -258,7 +258,7 @@ class ClusterFormationTasks {
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.testattr'                : 'test',
+                'node.attr.testattr'                : 'test',
                 'repositories.url.allowed_urls': 'http://snapshot.test*'
         ]
         esConfig['http.port'] = node.config.httpPort

@@ -68,20 +68,17 @@ public class DiscoveryNodeService extends AbstractComponent {
     public DiscoveryNode buildLocalNode(TransportAddress publishAddress) {
         final String nodeId = generateNodeId(settings);
         Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(this.settings).getAsMap());
-        if (attributes.containsKey("client")) {
-            throw new IllegalArgumentException("node.client setting is no longer supported, use " + Node.NODE_MASTER_SETTING.getKey()
-                    + ", " + Node.NODE_DATA_SETTING.getKey() + " and " + Node.NODE_INGEST_SETTING.getKey() + " explicitly instead");
+        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        if (Node.NODE_INGEST_SETTING.get(settings)) {
+            roles.add(DiscoveryNode.Role.INGEST);
+        }
+        if (Node.NODE_MASTER_SETTING.get(settings)) {
+            roles.add(DiscoveryNode.Role.MASTER);
+        }
+        if (Node.NODE_DATA_SETTING.get(settings)) {
+            roles.add(DiscoveryNode.Role.DATA);
         }
 
-        attributes.remove("name"); // name is extracted in other places
-        Set<DiscoveryNode.Role> roles = new HashSet<>();
-        for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
-            String isRoleEnabled = attributes.remove(role.getRoleName());
-            //all existing roles default to true
-            if (isRoleEnabled == null || Booleans.parseBooleanExact(isRoleEnabled)) {
-                roles.add(role);
-            }
-        }
         for (CustomAttributesProvider provider : customAttributesProviders) {
             try {
                 Map<String, String> customAttributes = provider.buildAttributes();

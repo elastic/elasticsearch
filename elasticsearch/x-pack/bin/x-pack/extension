@@ -62,12 +62,10 @@ fi
 # Try to read package config files
 if [ -f "/etc/sysconfig/elasticsearch" ]; then
     CONF_DIR=/etc/elasticsearch
-    CONF_FILE=$CONF_DIR/elasticsearch.yml
 
     . "/etc/sysconfig/elasticsearch"
 elif [ -f "/etc/default/elasticsearch" ]; then
     CONF_DIR=/etc/elasticsearch
-    CONF_FILE=$CONF_DIR/elasticsearch.yml
 
    . "/etc/default/elasticsearch"
 fi
@@ -108,6 +106,12 @@ export HOSTNAME=`hostname -s`
 
 # include x-pack jars in classpath
 ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/plugins/x-pack/*"
+
+# CONF_FILE setting was removed
+if [ ! -z "$CONF_FILE" ]; then
+    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
+    exit 1
+fi
 
 cd "$ES_HOME" > /dev/null
 "$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" $properties org.elasticsearch.xpack.extensions.XPackExtensionCli "$@"

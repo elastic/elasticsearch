@@ -62,12 +62,10 @@ fi
 # Try to read package config files
 if [ -f "/etc/sysconfig/elasticsearch" ]; then
     CONF_DIR=/etc/elasticsearch
-    CONF_FILE=$CONF_DIR/elasticsearch.yml
 
     . "/etc/sysconfig/elasticsearch"
 elif [ -f "/etc/default/elasticsearch" ]; then
     CONF_DIR=/etc/elasticsearch
-    CONF_FILE=$CONF_DIR/elasticsearch.yml
 
    . "/etc/default/elasticsearch"
 fi
@@ -94,14 +92,6 @@ if [ -e "$CONF_DIR" ]; then
             ;;
     esac
 fi
-if [ -e "$CONF_FILE" ]; then
-    case "$properties" in
-    *-Des.default.config=*) ;;
-    *)
-        properties="$properties -Des.default.config=$CONF_FILE"
-        ;;
-    esac
-fi
 
 export HOSTNAME=`hostname -s`
 
@@ -114,6 +104,12 @@ if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
     echo "Warning: Ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
     echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
     unset JAVA_TOOL_OPTIONS
+fi
+
+# CONF_FILE setting was removed
+if [ ! -z "$CONF_FILE" ]; then
+    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
+    exit 1
 fi
 
 cd "$ES_HOME" > /dev/null

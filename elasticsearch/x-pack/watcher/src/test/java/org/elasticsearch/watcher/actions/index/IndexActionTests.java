@@ -36,6 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -120,9 +121,11 @@ public class IndexActionTests extends ESIntegTestCase {
         boolean customTimestampField = "@timestamp".equals(timestampField);
 
         if (timestampField == null || "_timestamp".equals(timestampField)) {
-            assertThat(prepareCreate("test-index")
-                    .addMapping("test-type", "_timestamp", "enabled=true", "foo", "type=keyword")
-                    .get().isAcknowledged(), is(true));
+            assertAcked(prepareCreate("test-index")
+                    .addMapping("test-type", "_timestamp", "enabled=true", "foo", "type=keyword"));
+        } else {
+            assertAcked(prepareCreate("test-index")
+                    .addMapping("test-type", "foo", "type=keyword"));
         }
 
         Object list = randomFrom(

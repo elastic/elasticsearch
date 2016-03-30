@@ -271,7 +271,7 @@ public class NoMasterNodeIT extends AbstractWatcherIntegrationTestCase {
             public void run () {
                 for (Client client : clients()) {
                     ClusterState state = client.admin().cluster().prepareState().setLocal(true).get().getState();
-                    assertThat("Node [" + state.nodes().localNode() + "] should have a NO_MASTER_BLOCK",
+                    assertThat("Node [" + state.nodes().getLocalNode() + "] should have a NO_MASTER_BLOCK",
                             state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), is(true));
                 }
             }

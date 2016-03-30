@@ -654,7 +654,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     public List<String> fillRandom(List<String> list, int times) {
         for (int i = 0; i < times; i++) {
-            list.add(randomRealisticUnicodeOfCodepointLengthBetween(1, 5));
+            list.add(randomAsciiOfLengthBetween(1, 5));
         }
         return list;
     }

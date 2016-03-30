@@ -151,7 +151,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         assertEquals("suggestion field name is empty", e.getMessage());
 
         TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
-        
+
         // test invalid accuracy values
         expectThrows(IllegalArgumentException.class, () -> builder.accuracy(-0.5f));
         expectThrows(IllegalArgumentException.class, () -> builder.accuracy(1.1f));
@@ -206,7 +206,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     }
 
     public void testMalformedJson() {
-        final String field = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+        final String field = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
         String suggest = "{\n" +
                          "  \"bad-payload\" : {\n" +
                          "    \"text\" : \"the amsterdma meetpu\",\n" +

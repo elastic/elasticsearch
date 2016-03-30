@@ -83,7 +83,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
 
         try (Directory dir = new RAMDirectory();
-             IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new MockAnalyzer(getRandom())))) {
+             IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new MockAnalyzer(random())))) {
             w.addDocuments(doc.docs());
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 final LeafReader leaf = reader.leaves().get(0).reader();

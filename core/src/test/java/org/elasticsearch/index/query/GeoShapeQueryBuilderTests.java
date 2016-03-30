@@ -59,8 +59,8 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     @Override
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder() {
-        ShapeType shapeType = ShapeType.randomType(getRandom());
-        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null, shapeType);
+        ShapeType shapeType = ShapeType.randomType(random());
+        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
 
         GeoShapeQueryBuilder builder;
         clearShapeFields();
@@ -148,7 +148,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     }
 
     public void testNoFieldName() throws Exception {
-        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
+        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null);
         try {
             new GeoShapeQueryBuilder(null, shape);
             fail("Expected IllegalArgumentException");
@@ -185,7 +185,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     }
 
     public void testNoRelation() throws IOException {
-        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
+        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null);
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
         try {
             builder.relation(null);
@@ -196,7 +196,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     }
 
     public void testInvalidRelation() throws IOException {
-        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
+        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null);
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
         try {
             builder.strategy(SpatialStrategy.TERM);

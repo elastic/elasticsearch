@@ -74,6 +74,6 @@ public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPo
     }
 
     static MultiPointBuilder createRandomShape() {
-        return (MultiPointBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.MULTIPOINT);
+        return (MultiPointBuilder) RandomShapeGenerator.createShape(random(), ShapeType.MULTIPOINT);
     }
 }

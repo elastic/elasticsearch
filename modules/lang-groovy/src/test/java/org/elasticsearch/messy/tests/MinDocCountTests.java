@@ -82,7 +82,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         for (int i = 0; i < cardinality; ++i) {
             String stringTerm;
             do {
-                stringTerm = RandomStrings.randomAsciiOfLength(getRandom(), 8);
+                stringTerm = RandomStrings.randomAsciiOfLength(random(), 8);
             } while (!stringTerms.add(stringTerm));
             long longTerm;
             do {

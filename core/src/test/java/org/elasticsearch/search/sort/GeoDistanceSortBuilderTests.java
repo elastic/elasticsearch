@@ -52,13 +52,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 int count = randomIntBetween(1, 10);
                 String[] geohashes = new String[count];
                 for (int i = 0; i < count; i++) {
-                    geohashes[i] = RandomGeoGenerator.randomPoint(getRandom()).geohash();
+                    geohashes[i] = RandomGeoGenerator.randomPoint(random()).geohash();
                 }
 
                 result = new GeoDistanceSortBuilder(fieldName, geohashes);
                 break;
             case 1:
-                GeoPoint pt = RandomGeoGenerator.randomPoint(getRandom());
+                GeoPoint pt = RandomGeoGenerator.randomPoint(random());
                 result = new GeoDistanceSortBuilder(fieldName, pt.getLat(), pt.getLon());
                 break;
             case 2:
@@ -125,7 +125,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             int count = randomIntBetween(1, 10);
             result = new GeoPoint[count];
             for (int i = 0; i < count; i++) {
-                result[i] = RandomGeoGenerator.randomPoint(getRandom());
+                result[i] = RandomGeoGenerator.randomPoint(random());
             }
         }
         return result;
@@ -146,7 +146,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         switch (parameter) {
         case 0:
             while (Arrays.deepEquals(original.points(), result.points())) {
-                GeoPoint pt = RandomGeoGenerator.randomPoint(getRandom());
+                GeoPoint pt = RandomGeoGenerator.randomPoint(random());
                 result.point(pt.getLat(), pt.getLon());
             }
             break;
@@ -192,7 +192,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     public void testSortModeSumIsRejectedInSetter() {
         GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder("testname", -1, -1);
-        GeoPoint point = RandomGeoGenerator.randomPoint(getRandom());
+        GeoPoint point = RandomGeoGenerator.randomPoint(random());
         builder.point(point.getLat(), point.getLon());
         try {
             builder.sortMode(SortMode.SUM);

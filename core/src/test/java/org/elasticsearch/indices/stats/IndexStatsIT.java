@@ -592,7 +592,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(true));
             assertThat(isSet(flag, stats.getTotal()), equalTo(true));
         }
-        Random random = getRandom();
+        Random random = random();
         EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
         for (Flag flag : values) {
             if (random.nextBoolean()) {
@@ -638,7 +638,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             flags.set(flag, true);
         }
         assertThat(flags.anySet(), equalTo(true));
-        Random random = getRandom();
+        Random random = random();
         flags.set(values[random.nextInt(values.length)], false);
         assertThat(flags.anySet(), equalTo(true));
 

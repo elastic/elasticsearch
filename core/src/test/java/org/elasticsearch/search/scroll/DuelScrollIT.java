@@ -203,7 +203,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
         sort.order(randomBoolean() ? SortOrder.ASC : SortOrder.DESC);
 
-        SearchType searchType = RandomPicks.randomFrom(getRandom(), Arrays.asList(searchTypes));
+        SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(searchTypes));
 
         logger.info("numDocs={}, scrollRequestSize={}, sort={}, searchType={}", numDocs, scrollRequestSize, sort, searchType);
         return new TestContext(numDocs, scrollRequestSize, sort, searchType);

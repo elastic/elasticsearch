@@ -208,15 +208,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     // Test facilities and facades for subclasses.
     // -----------------------------------------------------------------
 
-    // TODO: replaces uses of getRandom() with random()
     // TODO: decide on one set of naming for between/scaledBetween and remove others
     // TODO: replace frequently() with usually()
-
-    /** Shortcut for {@link RandomizedContext#getRandom()}. Use {@link #random()} instead. */
-    public static Random getRandom() {
-        // TODO: replace uses of this function with random()
-        return random();
-    }
 
     /**
      * Returns a "scaled" random number between min and max (inclusive).

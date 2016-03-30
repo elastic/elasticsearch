@@ -480,10 +480,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return sb.toString();
     }
 
-    public Delta emptyDelta() {
-        return new Delta(null, null, localNodeId, DiscoveryNode.EMPTY_LIST, DiscoveryNode.EMPTY_LIST);
-    }
-
     public static class Delta {
 
         private final String localNodeId;

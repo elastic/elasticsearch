@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -79,8 +78,6 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     public static boolean isIngestNode(Settings settings) {
         return Node.NODE_INGEST_SETTING.get(settings);
     }
-
-    public static final List<DiscoveryNode> EMPTY_LIST = Collections.emptyList();
 
     private final String nodeName;
     private final String nodeId;

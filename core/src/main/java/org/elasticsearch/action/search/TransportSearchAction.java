@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -44,6 +46,10 @@ import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
  *
  */
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
+
+    /** The maximum number of shards for a single search request. */
+    public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
+            "action.search.shard_count.limit", 1000L, 1L, Property.Dynamic, Property.NodeScope);
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;

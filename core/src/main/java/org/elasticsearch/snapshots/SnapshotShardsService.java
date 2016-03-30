@@ -114,7 +114,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
             clusterService.addLast(this);
         }
 
-        if (DiscoveryNode.masterNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings)) {
             // This needs to run only on nodes that can become masters
             transportService.registerRequestHandler(UPDATE_SNAPSHOT_ACTION_NAME, UpdateIndexShardSnapshotStatusRequest::new, ThreadPool.Names.SAME, new UpdateSnapshotStateRequestHandler());
         }

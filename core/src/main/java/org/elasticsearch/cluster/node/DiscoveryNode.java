@@ -68,7 +68,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return Node.NODE_DATA_SETTING.get(settings) || Node.NODE_MASTER_SETTING.get(settings);
     }
 
-    public static boolean masterNode(Settings settings) {
+    public static boolean isMasterNode(Settings settings) {
         return Node.NODE_MASTER_SETTING.get(settings);
     }
 

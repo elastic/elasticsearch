@@ -80,10 +80,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             ensureNoPre019ShardState(nodeEnv);
         }
 
-        if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.dataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
         }
-        if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.dataNode(settings)) {
             try {
                 ensureNoPre019State();
                 IndexFolderUpgrader.upgradeIndicesIfNeeded(settings, nodeEnv);

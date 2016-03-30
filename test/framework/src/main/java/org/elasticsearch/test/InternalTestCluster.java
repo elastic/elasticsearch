@@ -1651,7 +1651,7 @@ public final class InternalTestCluster extends TestCluster {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.dataNode(nodeAndClient.node.settings()) ||
-                    DiscoveryNode.masterNode(nodeAndClient.node.settings());
+                    DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
         }
     }
 
@@ -1671,7 +1671,7 @@ public final class InternalTestCluster extends TestCluster {
     private static final class NoDataNoMasterNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return DiscoveryNode.masterNode(nodeAndClient.node.settings()) == false &&
+            return DiscoveryNode.isMasterNode(nodeAndClient.node.settings()) == false &&
                 DiscoveryNode.dataNode(nodeAndClient.node.settings()) == false;
         }
     }

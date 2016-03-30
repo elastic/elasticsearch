@@ -113,7 +113,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
 
-        if (DiscoveryNode.masterNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings)) {
             // addLast to make sure that Repository will be created before snapshot
             clusterService.addLast(this);
         }

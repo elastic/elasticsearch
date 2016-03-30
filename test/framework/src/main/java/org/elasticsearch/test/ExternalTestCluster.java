@@ -42,7 +42,6 @@ import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -98,7 +97,7 @@ public final class ExternalTestCluster extends TestCluster {
                 if (DiscoveryNode.dataNode(nodeInfo.getSettings())) {
                     dataNodes++;
                     masterAndDataNodes++;
-                } else if (DiscoveryNode.masterNode(nodeInfo.getSettings())) {
+                } else if (DiscoveryNode.isMasterNode(nodeInfo.getSettings())) {
                     masterAndDataNodes++;
                 }
             }

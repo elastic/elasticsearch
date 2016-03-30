@@ -128,7 +128,7 @@ class InstallPluginCommand extends Command {
             "repository-hdfs",
             "repository-s3",
             "store-smb",
-            "xpack")));
+            "x-pack")));
 
     private final Environment env;
     private final OptionSpec<Void> batchOption;

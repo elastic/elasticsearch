@@ -232,7 +232,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *
      * @return the oldest version in the cluster
      */
-    public Version smallestVersion() {
+    public Version getSmallestVersion() {
        return minNodeVersion;
     }
 

@@ -228,7 +228,7 @@ public class ExportersTests extends ESTestCase {
         exporters.start();
 
         DiscoveryNode localNode = mock(DiscoveryNode.class);
-        when(localNode.masterNode()).thenReturn(true);
+        when(localNode.isMasterNode()).thenReturn(true);
         when(clusterService.localNode()).thenReturn(localNode);
 
         ExportBulk bulk = exporters.openBulk();
@@ -252,7 +252,7 @@ public class ExportersTests extends ESTestCase {
         exporters.start();
 
         DiscoveryNode localNode = mock(DiscoveryNode.class);
-        when(localNode.masterNode()).thenReturn(false);
+        when(localNode.isMasterNode()).thenReturn(false);
         when(clusterService.localNode()).thenReturn(localNode);
 
         ExportBulk bulk = exporters.openBulk();

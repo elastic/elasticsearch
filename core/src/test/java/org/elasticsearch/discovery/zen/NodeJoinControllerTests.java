@@ -557,7 +557,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         for (DiscoveryNode node : expectedNodes) {
             assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.getId()), equalTo(node));
         }
-        assertThat(discoveryNodes.size(), equalTo(expectedNodes.size()));
+        assertThat(discoveryNodes.getSize(), equalTo(expectedNodes.size()));
     }
 
     static class SimpleFuture extends BaseFuture<Void> {

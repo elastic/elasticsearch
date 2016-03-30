@@ -125,7 +125,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         final boolean sendFullVersion;
         try {
             nodes = clusterChangedEvent.state().nodes();
-            nodesToPublishTo = new HashSet<>(nodes.size());
+            nodesToPublishTo = new HashSet<>(nodes.getSize());
             DiscoveryNode localNode = nodes.localNode();
             final int totalMasterNodes = nodes.masterNodes().size();
             for (final DiscoveryNode node : nodes) {

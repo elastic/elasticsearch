@@ -88,7 +88,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.info("--> should be blocked, no master...");
         ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
-        assertThat(state.nodes().size(), equalTo(1)); // verify that we still see the local node in the cluster state
+        assertThat(state.nodes().getSize(), equalTo(1)); // verify that we still see the local node in the cluster state
 
         logger.info("--> start second node, cluster should be formed");
         internalCluster().startNode(settings);
@@ -102,7 +102,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.nodes().size(), equalTo(2));
+        assertThat(state.nodes().getSize(), equalTo(2));
         assertThat(state.metaData().indices().containsKey("test"), equalTo(false));
 
         createIndex("test");
@@ -128,7 +128,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         });
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
-        assertThat(state.nodes().size(), equalTo(1)); // verify that we still see the local node in the cluster state
+        assertThat(state.nodes().getSize(), equalTo(1)); // verify that we still see the local node in the cluster state
 
         logger.info("--> starting the previous master node again...");
         internalCluster().startNode(settings);
@@ -142,7 +142,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.nodes().size(), equalTo(2));
+        assertThat(state.nodes().getSize(), equalTo(2));
         assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
 
         ensureGreen();
@@ -174,7 +174,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.nodes().size(), equalTo(2));
+        assertThat(state.nodes().getSize(), equalTo(2));
         assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
 
         logger.info("Running Cluster Health");
@@ -217,7 +217,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.nodes().size(), equalTo(4));
+        assertThat(state.nodes().getSize(), equalTo(4));
 
         createIndex("test");
         NumShards numShards = getNumShards("test");
@@ -252,7 +252,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.nodes().size(), equalTo(4));
+        assertThat(state.nodes().getSize(), equalTo(4));
         // we prefer to elect up and running nodes
         assertThat(state.nodes().masterNodeId(), not(isOneOf(newNodes)));
 

@@ -401,7 +401,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             // assert nodes are identical
             try {
                 assertEquals("unequal versions", state.version(), nodeState.version());
-                assertEquals("unequal node count", state.nodes().size(), nodeState.nodes().size());
+                assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
                 assertEquals("different masters ", state.nodes().masterNodeId(), nodeState.nodes().masterNodeId());
                 assertEquals("different meta data version", state.metaData().version(), nodeState.metaData().version());
                 if (!state.routingTable().prettyPrint().equals(nodeState.routingTable().prettyPrint())) {
@@ -1205,7 +1205,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         for (String node : nodes) {
             ClusterState state = getNodeClusterState(node);
             String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
-            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().size(), equalTo(nodes.size()));
+            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
             String otherMasterNodeName = state.nodes().masterNode() != null ? state.nodes().masterNode().getName() : null;
             assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
         }

@@ -101,17 +101,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *
      * @return number of nodes
      */
-    public int size() {
-        return nodes.size();
-    }
-
-    /**
-     * Get the number of known nodes
-     *
-     * @return number of nodes
-     */
     public int getSize() {
-        return size();
+        return nodes.size();
     }
 
     /**

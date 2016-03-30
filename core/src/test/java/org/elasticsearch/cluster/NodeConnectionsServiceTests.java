@@ -129,7 +129,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
     private void assertConnectedExactlyToNodes(ClusterState state) {
         assertConnected(state.nodes());
-        assertThat(transport.connectedNodes.size(), equalTo(state.nodes().size()));
+        assertThat(transport.connectedNodes.size(), equalTo(state.nodes().getSize()));
     }
 
     private void assertConnected(Iterable<DiscoveryNode> nodes) {

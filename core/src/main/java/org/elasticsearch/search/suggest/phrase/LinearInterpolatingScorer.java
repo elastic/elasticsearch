@@ -27,13 +27,13 @@ import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidat
 import java.io.IOException;
 
 //TODO public for tests
-public final class LinearInterpoatingScorer extends WordScorer {
+public final class LinearInterpolatingScorer extends WordScorer {
 
     private final double unigramLambda;
     private final double bigramLambda;
     private final double trigramLambda;
 
-    public LinearInterpoatingScorer(IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator,
+    public LinearInterpolatingScorer(IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator,
             double trigramLambda, double bigramLambda, double unigramLambda) throws IOException {
         super(reader, terms, field, realWordLikelyhood, separator);
         double sum = unigramLambda + bigramLambda + trigramLambda;

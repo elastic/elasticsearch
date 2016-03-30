@@ -173,7 +173,7 @@ public final class LinearInterpolation extends SmoothingModel {
     @Override
     public WordScorerFactory buildWordScorerFactory() {
         return (IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator) ->
-                    new LinearInterpoatingScorer(reader, terms, field, realWordLikelyhood, separator, trigramLambda, bigramLambda,
+                    new LinearInterpolatingScorer(reader, terms, field, realWordLikelyhood, separator, trigramLambda, bigramLambda,
                         unigramLambda);
     }
 }

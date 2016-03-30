@@ -440,7 +440,7 @@ If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
 gradle prepareTestRoot
-vagrant up trusty --provider virtualbox && vagrant ssh trusty
+vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
 cd $TESTROOT
 sudo bats $BATS/*.bats
 -------------------------------------------------

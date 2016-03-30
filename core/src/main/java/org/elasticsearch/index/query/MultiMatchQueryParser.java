@@ -30,7 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Same as {@link MatchQueryParser} but has support for multiple fields.
+ * Same as {@link MatchQueryBuilder} but has support for multiple fields.
  */
 public class MultiMatchQueryParser implements QueryParser<MultiMatchQueryBuilder> {
 

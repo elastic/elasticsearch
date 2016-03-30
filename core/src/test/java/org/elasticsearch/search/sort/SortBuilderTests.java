@@ -57,6 +57,7 @@ public class SortBuilderTests extends ESTestCase {
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
+        indicesQueriesRegistry = null;
     }
 
     /**

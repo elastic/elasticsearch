@@ -637,12 +637,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @SuppressWarnings("unchecked")
     protected <QB extends QueryBuilder> QB assertSerialization(QB testQuery) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            testQuery.writeTo(output);
+            output.writeQuery(testQuery);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryParser<?> queryParser = queryParser(testQuery.getName());
-                assertNotNull("queryparser not found for query: [" + testQuery.getName() + "]", queryParser);
-                QueryBuilder<?> prototype = queryParser.getBuilderPrototype();
-                QueryBuilder<?> deserializedQuery = prototype.readFrom(in);
+                QueryBuilder<?> deserializedQuery = in.readQuery();
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
                 assertNotSame(deserializedQuery, testQuery);
@@ -685,38 +682,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    private QueryParser<?> queryParser(String queryId) {
-        QueryParser<?> queryParser = indicesQueriesRegistry.queryParsers().get(queryId);
-        if (queryParser == null && EmptyQueryBuilder.NAME.equals(queryId)) {
-            return new QueryParser() {
-                @Override
-                public String[] names() {
-                    return new String[]{EmptyQueryBuilder.NAME};
-                }
-
-                @Override
-                public QueryBuilder<?> fromXContent(QueryParseContext parseContext) throws IOException {
-                    return new EmptyQueryBuilder();
-                }
-
-                @Override
-                public QueryBuilder getBuilderPrototype() {
-                    return EmptyQueryBuilder.PROTOTYPE;
-                }
-            };
-        }
-        return queryParser;
-    }
-
     //we use the streaming infra to create a copy of the query provided as argument
+    @SuppressWarnings("unchecked")
     protected QB copyQuery(QB query) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            query.writeTo(output);
+            output.writeQuery(query);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<?> prototype = queryParser(query.getName()).getBuilderPrototype();
-                @SuppressWarnings("unchecked")
-                QB secondQuery = (QB) prototype.readFrom(in);
-                return secondQuery;
+                return (QB) in.readQuery();
             }
         }
     }

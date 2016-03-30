@@ -34,7 +34,7 @@ public interface ScoreFunctionParser<FB extends ScoreFunctionBuilder<FB>> {
     /**
      * Returns the name of the function, for example "linear", "gauss" etc. This
      * name is used for registering the parser in
-     * {@link FunctionScoreQueryParser}.
+     * {@link FunctionScoreQueryBuilder}.
      * */
     String[] getNames();
 }

@@ -106,6 +106,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
+        indicesQueriesRegistry = null;
     }
 
     /** Returns random sort that is put under test */

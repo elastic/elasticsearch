@@ -25,12 +25,15 @@ import java.io.IOException;
  * Defines a query parser that is able to read and parse a query object in {@link org.elasticsearch.common.xcontent.XContent}
  * format and create an internal object representing the query, implementing {@link QueryBuilder}, which can be streamed to other nodes.
  */
+@FunctionalInterface
 public interface QueryParser<QB extends QueryBuilder<QB>> {
 
     /**
      * The names this query parser is registered under.
      */
-    String[] names();
+    default String[] names() { // TODO remove this when nothing implements it
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Creates a new {@link QueryBuilder} from the query held by the {@link QueryParseContext}
@@ -47,5 +50,7 @@ public interface QueryParser<QB extends QueryBuilder<QB>> {
     /**
      * @return an empty {@link QueryBuilder} instance for this parser that can be used for deserialization
      */
-    QB getBuilderPrototype();
+    default QB getBuilderPrototype() { // TODO remove this when nothing implements it
+        throw new UnsupportedOperationException();
+    }
 }

@@ -1,8 +1,10 @@
 [[docs-reindex]]
 == Reindex API
 
-`_reindex`'s most basic form just copies documents from one index to another.
-This will copy documents from `twitter` into `new_twitter`:
+experimental[The reindex API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
+
+The most basic form of `_reindex` just copies documents from one index to another.
+This will copy documents from the `twitter` index into the `new_twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -32,12 +34,13 @@ That will return something like this:
 }
 --------------------------------------------------
 
-Just like `_update_by_query`, `_reindex` gets a snapshot of the source index
-but its target must be a **different** index so version conflicts are unlikely.
-The `dest` element can be configured like the index API to control optimistic
-concurrency control. Just leaving out `version_type` (as above) or setting it
-to `internal` will cause Elasticsearch to blindly dump documents into the
-target, overwriting any that happen to have the same type and id:
+Just like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
+snapshot of the source index but its target must be a **different** index so
+version conflicts are unlikely. The `dest` element can be configured like the
+index API to control optimistic concurrency control. Just leaving out
+`version_type` (as above) or setting it to `internal` will cause Elasticsearch
+to blindly dump documents into the target, overwriting any that happen to have
+the same type and id:
 
 [source,js]
 --------------------------------------------------
@@ -113,7 +116,7 @@ POST /_reindex
 // AUTOSENSE
 
 You can limit the documents by adding a type to the `source` or by adding a
-query. This will only copy `tweet`s made by `kimchy` into `new_twitter`:
+query. This will only copy ++tweet++&apos;s made by `kimchy` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
@@ -140,9 +143,9 @@ lots of sources in one request. This will copy documents from the `tweet` and
 `post` types in the `twitter` and `blog` index. It'd include the `post` type in
 the `twitter` index and the `tweet` type in the `blog` index. If you want to be
 more specific you'll need to use the `query`. It also makes no effort to handle
-id collisions. The target index will remain valid but it's not easy to predict
+ID collisions. The target index will remain valid but it's not easy to predict
 which document will survive because the iteration order isn't well defined.
-Just avoid that situation, ok?
+
 [source,js]
 --------------------------------------------------
 POST /_reindex
@@ -222,14 +225,15 @@ POST /_reindex
 
 Think of the possibilities! Just be careful! With great power.... You can
 change:
- * "_id"
- * "_type"
- * "_index"
- * "_version"
- * "_routing"
- * "_parent"
- * "_timestamp"
- * "_ttl"
+
+ * `_id`
+ * `_type`
+ * `_index`
+ * `_version`
+ * `_routing`
+ * `_parent`
+ * `_timestamp`
+ * `_ttl`
 
 Setting `_version` to `null` or clearing it from the `ctx` map is just like not
 sending the version in an indexing request. It will cause that document to be
@@ -257,6 +261,7 @@ the `=`.
 For example, you can use the following request to copy all documents from
 the `source` index with the company name `cat` into the `dest` index with
 routing set to `cat`.
+
 [source,js]
 --------------------------------------------------
 POST /_reindex
@@ -298,7 +303,7 @@ Elasticsearch log file. This will be fixed soon.
 `consistency` controls how many copies of a shard must respond to each write
 request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
-{ref}/docs-bulk.html[Bulk API].
+<<docs-bulk,Bulk API>>.
 
 `timeout` controls how long each batch waits for the target shard to become
 available. It works exactly how it works in the {ref}/docs-bulk.html[Bulk API].
@@ -351,7 +356,7 @@ from aborting the operation.
 === Works with the Task API
 
 While Reindex is running you can fetch their status using the
-{ref}/task/list.html[Task List APIs]:
+<<tasks,Task API>>:
 
 [source,js]
 --------------------------------------------------
@@ -374,22 +379,24 @@ The responses looks like:
         "testattr" : "test",
         "portsfile" : "true"
       },
-      "tasks" : [ {
-        "node" : "r1A2WoRbTwKZ516z6NEs5A",
-        "id" : 36619,
-        "type" : "transport",
-        "action" : "indices:data/write/reindex",
-        "status" : {    <1>
-          "total" : 6154,
-          "updated" : 3500,
-          "created" : 0,
-          "deleted" : 0,
-          "batches" : 36,
-          "version_conflicts" : 0,
-          "noops" : 0
-        },
-        "description" : ""
-      } ]
+      "tasks" : {
+        "r1A2WoRbTwKZ516z6NEs5A:36619" : {
+          "node" : "r1A2WoRbTwKZ516z6NEs5A",
+          "id" : 36619,
+          "type" : "transport",
+          "action" : "indices:data/write/reindex",
+          "status" : {    <1>
+            "total" : 6154,
+            "updated" : 3500,
+            "created" : 0,
+            "deleted" : 0,
+            "batches" : 36,
+            "version_conflicts" : 0,
+            "noops" : 0
+          },
+          "description" : ""
+        }
+      }
     }
   }
 }

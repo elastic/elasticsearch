@@ -25,9 +25,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
@@ -36,13 +38,17 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
@@ -55,7 +61,7 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(GroovyPlugin.class);
     }
-    
+
     private static double[] randomPercentiles() {
         final int length = randomIntBetween(1, 20);
         final double[] percentiles = new double[length];
@@ -445,6 +451,39 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                 assertThat(p99, lessThanOrEqualTo(previous));
             }
             previous = p99;
+        }
+    }
+
+    @Override
+    public void testOrderByEmptyAggregation() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        terms("terms").field("value").order(Terms.Order.compound(Terms.Order.aggregation("filter>percentiles.99", true)))
+                                .subAggregation(filter("filter").filter(termQuery("value", 100))
+                                        .subAggregation(percentiles("percentiles").method(PercentilesMethod.HDR).field("value"))))
+                .get();
+
+        assertHitCount(searchResponse, 10);
+
+        Terms terms = searchResponse.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        List<Terms.Bucket> buckets = terms.getBuckets();
+        assertThat(buckets, notNullValue());
+        assertThat(buckets.size(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            Terms.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsNumber(), equalTo((Number) Long.valueOf(i + 1)));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+            Filter filter = bucket.getAggregations().get("filter");
+            assertThat(filter, notNullValue());
+            assertThat(filter.getDocCount(), equalTo(0L));
+            Percentiles percentiles = filter.getAggregations().get("percentiles");
+            assertThat(percentiles, notNullValue());
+            assertThat(percentiles.percentile(99), equalTo(Double.NaN));
+
         }
     }
 

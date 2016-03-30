@@ -11,7 +11,7 @@
 
   - do:
       catch: request
-      update-by-query:
+      update_by_query:
         index:   source
         body:
           query:
@@ -29,4 +29,4 @@
   # - match: {failures.0.reason.reason: "failed to run inline script [1/0] using lang [groovy]"}
   # - match: {failures.0.reason.caused_by.type:   arithmetic_exception}
   # - match: {failures.0.reason.caused_by.reason: Division by zero}
-  # - is_true: took
+  # - gte: { took: 0 }

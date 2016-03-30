@@ -27,7 +27,7 @@
         filter_path: "*"
         body: "{ query: { match_all: {} } }"
 
-  - is_true: took
+  - gte: { took: 0 }
   - is_true: _shards.total
   - is_true: hits.total
   - is_true: hits.hits.0._index
@@ -84,4 +84,3 @@
   - is_true:  hits.hits.1._index
   - is_false: hits.hits.1._type
   - is_true:  hits.hits.1._id
-

@@ -1,6 +1,8 @@
 [[docs-update-by-query]]
 == Update By Query API
 
+experimental[The update-by-query API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
+
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
 <<picking-up-a-new-property,pick up a new property>> or some other online
@@ -56,7 +58,7 @@ POST /twitter/tweet/_update_by_query?conflicts=proceed
 // AUTOSENSE
 
 You can also limit `_update_by_query` using the
-{ref}/query-dsl.html[Query DSL]. This will update all documents from the
+<<query-dsl,Query DSL>>. This will update all documents from the
 `twitter` index for the user `kimchy`:
 
 [source,js]
@@ -73,7 +75,7 @@ POST /twitter/_update_by_query?conflicts=proceed
 // AUTOSENSE
 
 <1> The query must be passed as a value to the `query` key, in the same
-way as the {ref}/search-search.html[Search API]. You can also use the `q`
+way as the <<search-search,Search API>>. You can also use the `q`
 parameter in the same way as the search api.
 
 So far we've only been updating documents without changing their source. That
@@ -81,6 +83,7 @@ is genuinely useful for things like
 <<picking-up-a-new-property,picking up new properties>> but it's only half the
 fun. `_update_by_query` supports a `script` object to update the document. This
 will increment the `likes` field on all of kimchy's tweets:
+
 [source,js]
 --------------------------------------------------
 POST /twitter/_update_by_query
@@ -97,7 +100,7 @@ POST /twitter/_update_by_query
 --------------------------------------------------
 // AUTOSENSE
 
-Just as in {ref}/docs-update.html[Update API] you can set `ctx.op = "noop"` if
+Just as in <<docs-update,Update API>> you can set `ctx.op = "noop"` if
 your script decides that it doesn't have to make any changes. That will cause
 `_update_by_query` to omit that document from its updates. Setting `ctx.op` to
 anything else is an error. If you want to delete by a query you can use the
@@ -158,7 +161,7 @@ the Elasticsearch log file. This will be fixed soon.
 `consistency` controls how many copies of a shard must respond to each write
 request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
-{ref}/docs-bulk.html[Bulk API].
+<<docs-bulk,Bulk API>>.
 
 `timeout` controls how long each batch waits for the target shard to become
 available. It works exactly how it works in the {ref}/docs-bulk.html[Bulk API].
@@ -207,11 +210,11 @@ from aborting the operation.
 === Works with the Task API
 
 While Update By Query is running you can fetch their status using the
-{ref}/task/list.html[Task List APIs]:
+<<tasks,Task API>>:
 
 [source,js]
 --------------------------------------------------
-POST /_tasks/?pretty&detailed=true&action=byquery
+POST /_tasks/?pretty&detailed=true&action=*byquery
 --------------------------------------------------
 // AUTOSENSE
 
@@ -230,22 +233,24 @@ The responses looks like:
         "testattr" : "test",
         "portsfile" : "true"
       },
-      "tasks" : [ {
-        "node" : "r1A2WoRbTwKZ516z6NEs5A",
-        "id" : 36619,
-        "type" : "transport",
-        "action" : "indices:data/write/update/byquery",
-        "status" : {    <1>
-          "total" : 6154,
-          "updated" : 3500,
-          "created" : 0,
-          "deleted" : 0,
-          "batches" : 36,
-          "version_conflicts" : 0,
-          "noops" : 0
-        },
-        "description" : ""
-      } ]
+      "tasks" : {
+        "r1A2WoRbTwKZ516z6NEs5A:36619" : {
+          "node" : "r1A2WoRbTwKZ516z6NEs5A",
+          "id" : 36619,
+          "type" : "transport",
+          "action" : "indices:data/write/update/byquery",
+          "status" : {    <1>
+            "total" : 6154,
+            "updated" : 3500,
+            "created" : 0,
+            "deleted" : 0,
+            "batches" : 36,
+            "version_conflicts" : 0,
+            "noops" : 0
+          },
+          "description" : ""
+        }
+      }
     }
   }
 }
@@ -258,6 +263,7 @@ progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
 
 
+[float]
 [[picking-up-a-new-property]]
 === Pick up a new property
 
@@ -352,4 +358,4 @@ POST test/_search?filter_path=hits.total
 }
 --------------------------------------------------
 
-Hurray! You can do the exact same thing when adding a field to a multifield.
+You can do the exact same thing when adding a field to a multifield.

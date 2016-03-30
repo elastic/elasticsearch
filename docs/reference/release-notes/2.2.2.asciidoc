@@ -1,0 +1,32 @@
+[[release-notes-2.2.2]]
+== 2.2.2 Release Notes
+
+[[enhancement-2.2.2]]
+[float]
+=== Enhancements
+
+Logging::
+* Log suppressed stack traces under DEBUG {pull}16627[#16627] (issues: {issue}12991[#12991], {issue}15329[#15329], {issue}16622[#16622])
+
+
+
+[[bug-2.2.2]]
+[float]
+=== Bug fixes
+
+Allocation::
+* IndicesStore checks for `allocated elsewhere` for every shard not alocated on the local node {pull}17106[#17106]
+
+CAT API::
+* Fix column aliases in _cat/indices, _cat/nodes and _cat/shards APIs {pull}17145[#17145] (issue: {issue}17101[#17101])
+
+Geo::
+* Remove .geohash suffix from GeoDistanceQuery and GeoDistanceRangeQuery {pull}15871[#15871] (issue: {issue}15179[#15179])
+
+Recovery::
+* Try to renew sync ID if `flush=true` on forceMerge {pull}17108[#17108] (issue: {issue}17019[#17019])
+
+Translog::
+* Call ensureOpen on Translog#newView() to prevent IllegalStateException {pull}17191[#17191]
+
+

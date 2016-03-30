@@ -411,16 +411,22 @@ class Metadata {
     int inputValueSlot = -1;
 
     /**
-     * Used to determine what slot the score variable is stored in.  This is used in the {@link Writer} whenever
+     * Used to determine what slot the loopCounter variable is stored in.  This is used n the {@link Writer} whenever
+     * the loop variable is accessed.
+     */
+    int loopCounterSlot = -1;
+
+    /**
+     * Used to determine what slot the _score variable is stored in.  This is used in the {@link Writer} whenever
      * the score variable is accessed.
      */
     int scoreValueSlot = -1;
 
     /**
-     * Used to determine what slot the loopCounter variable is stored in.  This is used n the {@link Writer} whenever
-     * the loop variable is accessed.
+     * Used to determine if the _score variable is actually used.  This is used in the {@link Analyzer} to update
+     * variable slots at the completion of analysis if _score is not used.
      */
-    int loopCounterSlot = -1;
+    boolean scoreValueUsed = false;
 
     /**
      * Maps the relevant ANTLR node to its metadata.

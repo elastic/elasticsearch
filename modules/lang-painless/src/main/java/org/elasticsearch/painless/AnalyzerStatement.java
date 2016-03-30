@@ -34,6 +34,7 @@ import org.elasticsearch.painless.PainlessParser.DoContext;
 import org.elasticsearch.painless.PainlessParser.ExprContext;
 import org.elasticsearch.painless.PainlessParser.ExpressionContext;
 import org.elasticsearch.painless.PainlessParser.ForContext;
+import org.elasticsearch.painless.PainlessParser.IdentifierContext;
 import org.elasticsearch.painless.PainlessParser.IfContext;
 import org.elasticsearch.painless.PainlessParser.InitializerContext;
 import org.elasticsearch.painless.PainlessParser.MultipleContext;
@@ -525,15 +526,20 @@ class AnalyzerStatement {
 
     void processDecltype(final DecltypeContext ctx) {
         final ExpressionMetadata decltypeemd = metadata.getExpressionMetadata(ctx);
-        final String name = ctx.getText();
-        decltypeemd.from = definition.getType(name);
+        final IdentifierContext idctx = ctx.identifier();
+        final String type = ctx.getText();
+
+        utility.isValidType(idctx, true);
+        decltypeemd.from = definition.getType(type);
     }
 
     void processDeclvar(final DeclvarContext ctx) {
         final ExpressionMetadata declvaremd = metadata.getExpressionMetadata(ctx);
+        final IdentifierContext idctx = ctx.identifier();
+        final String identifier = idctx.getText();
 
-        final String name = ctx.ID().getText();
-        declvaremd.postConst = utility.addVariable(ctx, name, declvaremd.to).slot;
+        utility.isValidIdentifier(idctx, true);
+        declvaremd.postConst = utility.addVariable(ctx, identifier, declvaremd.to).slot;
 
         final ExpressionContext exprctx = AnalyzerUtility.updateExpressionTree(ctx.expression());
 
@@ -548,7 +554,9 @@ class AnalyzerStatement {
     void processTrap(final TrapContext ctx) {
         final StatementMetadata trapsmd = metadata.getStatementMetadata(ctx);
 
-        final String type = ctx.TYPE().getText();
+        final IdentifierContext idctx0 = ctx.identifier(0);
+        final String type = idctx0.getText();
+        utility.isValidType(idctx0, true);
         trapsmd.exception = definition.getType(type);
 
         try {
@@ -557,8 +565,10 @@ class AnalyzerStatement {
             throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Invalid exception type [" + trapsmd.exception.name + "].");
         }
 
-        final String id = ctx.ID().getText();
-        trapsmd.slot = utility.addVariable(ctx, id, trapsmd.exception).slot;
+        final IdentifierContext idctx1 = ctx.identifier(1);
+        final String identifier = idctx1.getText();
+        utility.isValidIdentifier(idctx1, true);
+        trapsmd.slot = utility.addVariable(ctx, identifier, trapsmd.exception).slot;
 
         final BlockContext blockctx = ctx.block();
 

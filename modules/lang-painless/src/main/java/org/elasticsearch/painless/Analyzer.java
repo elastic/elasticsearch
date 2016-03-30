@@ -48,10 +48,11 @@ import org.elasticsearch.painless.PainlessParser.ExtnewContext;
 import org.elasticsearch.painless.PainlessParser.ExtprecContext;
 import org.elasticsearch.painless.PainlessParser.ExtstartContext;
 import org.elasticsearch.painless.PainlessParser.ExtstringContext;
-import org.elasticsearch.painless.PainlessParser.ExttypeContext;
 import org.elasticsearch.painless.PainlessParser.ExtvarContext;
 import org.elasticsearch.painless.PainlessParser.FalseContext;
 import org.elasticsearch.painless.PainlessParser.ForContext;
+import org.elasticsearch.painless.PainlessParser.GenericContext;
+import org.elasticsearch.painless.PainlessParser.IdentifierContext;
 import org.elasticsearch.painless.PainlessParser.IfContext;
 import org.elasticsearch.painless.PainlessParser.IncrementContext;
 import org.elasticsearch.painless.PainlessParser.InitializerContext;
@@ -83,7 +84,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
     private Analyzer(final Metadata metadata) {
         final Definition definition = metadata.definition;
 
-        final AnalyzerUtility utility = new AnalyzerUtility();
+        final AnalyzerUtility utility = new AnalyzerUtility(metadata);
         final AnalyzerCaster caster = new AnalyzerCaster(definition);
         final AnalyzerPromoter promoter = new AnalyzerPromoter(definition);
 
@@ -94,8 +95,8 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         utility.incrementScope();
         utility.addVariable(null, "#this", definition.execType);
         metadata.inputValueSlot = utility.addVariable(null, "input", definition.smapType).slot;
-        metadata.scoreValueSlot = utility.addVariable(null, "_score", definition.floatType).slot;
         metadata.loopCounterSlot = utility.addVariable(null, "#loop", definition.intType).slot;
+        metadata.scoreValueSlot = utility.addVariable(null, "_score", definition.floatType).slot;
 
         metadata.createStatementMetadata(metadata.root);
         visit(metadata.root);
@@ -254,6 +255,16 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitIdentifier(IdentifierContext ctx) {
+        throw new UnsupportedOperationException(AnalyzerUtility.error(ctx) + "Unexpected state.");
+    }
+
+    @Override
+    public Void visitGeneric(GenericContext ctx) {
+        throw new UnsupportedOperationException(AnalyzerUtility.error(ctx) + "Unexpected state.");
+    }
+
+    @Override
     public Void visitPrecedence(final PrecedenceContext ctx) {
         throw new UnsupportedOperationException(AnalyzerUtility.error(ctx) + "Unexpected state.");
     }
@@ -394,13 +405,6 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
     @Override
     public Void visitExtdot(final ExtdotContext ctx) {
         external.processExtdot(ctx);
-
-        return null;
-    }
-
-    @Override
-    public Void visitExttype(final ExttypeContext ctx) {
-        external.processExttype(ctx);
 
         return null;
     }

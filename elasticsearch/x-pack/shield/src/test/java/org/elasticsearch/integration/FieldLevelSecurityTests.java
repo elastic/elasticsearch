@@ -907,7 +907,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testAggs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                        .addMapping("type1", "field1", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
                 .setRefresh(true)

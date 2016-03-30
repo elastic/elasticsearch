@@ -417,7 +417,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testGlobalAggregation() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text,fielddata=true", "field3", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setRefresh(true)
@@ -481,7 +481,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
     public void testChildrenAggregation() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .addMapping("type1", "field1", "type=text", "field2", "type=text")
-                        .addMapping("type2", "_parent", "type=type1", "field3", "type=text")
+                        .addMapping("type2", "_parent", "type=type1", "field3", "type=text,fielddata=true")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setRefresh(true)

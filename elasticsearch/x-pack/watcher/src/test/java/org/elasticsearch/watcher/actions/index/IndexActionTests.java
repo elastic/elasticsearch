@@ -121,7 +121,7 @@ public class IndexActionTests extends ESIntegTestCase {
 
         if (timestampField == null || "_timestamp".equals(timestampField)) {
             assertThat(prepareCreate("test-index")
-                    .addMapping("test-type", "{ \"test-type\" : { \"_timestamp\" : { \"enabled\" : \"true\" }}}")
+                    .addMapping("test-type", "_timestamp", "enabled=true", "foo", "type=keyword")
                     .get().isAcknowledged(), is(true));
         }
 

@@ -56,6 +56,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -73,8 +74,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -109,11 +112,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
-    private final IndexingSlowLog slowLog;
-    private final IndexingOperationListener[] listeners;
+    private final List<IndexingOperationListener> indexingOperationListeners;
+    private final List<SearchOperationListener> searchOperationListeners;
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
-    private final SearchSlowLog searchSlowLog;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
 
@@ -129,7 +131,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                         IndexModule.IndexSearcherWrapperFactory wrapperFactory,
                         MapperRegistry mapperRegistry,
                         IndicesFieldDataCache indicesFieldDataCache,
-                        IndexingOperationListener... listenersIn) throws IOException {
+                        List<SearchOperationListener> searchOperationListeners,
+                        List<IndexingOperationListener> indexingOperationListeners) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.analysisService = registry.build(indexSettings);
@@ -155,15 +158,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.engineFactory = engineFactory;
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
-        this.slowLog = new IndexingSlowLog(indexSettings);
-
-        // Add our slowLog to the incoming IndexingOperationListeners:
-        this.listeners = new IndexingOperationListener[1+listenersIn.length];
-        this.listeners[0] = slowLog;
-        System.arraycopy(listenersIn, 0, this.listeners, 1, listenersIn.length);
+        this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
+        this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         // kick off async ops for the first shard in this index
         this.refreshTask = new AsyncRefreshTask(this);
-        searchSlowLog = new SearchSlowLog(indexSettings);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -338,12 +336,13 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 new StoreCloseListener(shardId, canDeleteShardContent, () -> eventListener.onStoreClosed(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
                 indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService,
-                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, searchSlowLog, engineWarmer);
+                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
+                    searchOperationListeners);
                 // no indexing listeners - shadow  engines don't index
             } else {
                 indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService,
-                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, searchSlowLog, engineWarmer,
-                    listeners);
+                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
+                    searchOperationListeners, indexingOperationListeners);
             }
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -455,8 +454,12 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return bigArrays;
     }
 
-    public SearchSlowLog getSearchSlowLog() {
-        return searchSlowLog;
+    List<IndexingOperationListener> getIndexOperationListeners() { // pkg private for testing
+        return indexingOperationListeners;
+    }
+
+    List<SearchOperationListener> getSearchOperationListener() { // pkg private for testing
+        return searchOperationListeners;
     }
 
     private class StoreCloseListener implements Store.OnClose {

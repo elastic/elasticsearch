@@ -61,7 +61,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
         Iterable<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting);
         for (ShardRouting assignedShard : assignedShards) {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
-                return allocation.decision(Decision.NO, NAME, "shard cannot be allocated on same node [%s] it already exists on", node.nodeId());
+                return allocation.decision(Decision.NO, NAME,
+                        "the shard cannot be allocated on the same node id [%s] on which it already exists", node.nodeId());
             }
         }
         if (sameHost) {
@@ -85,7 +86,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         for (ShardRouting assignedShard : assignedShards) {
                             if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
                                 return allocation.decision(Decision.NO, NAME,
-                                        "shard cannot be allocated on same host [%s] it already exists on", node.nodeId());
+                                        "shard cannot be allocated on the same host [%s] on which it already exists", node.nodeId());
                             }
                         }
                     }

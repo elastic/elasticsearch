@@ -77,7 +77,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
 
         context.reset(parser);
-        ScoreSortBuilder scoreSort = ScoreSortBuilder.PROTOTYPE.fromXContent(context, "_score");
+        ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(context, "_score");
         assertEquals(order, scoreSort.order());
     }
 
@@ -85,5 +85,10 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     protected void sortFieldAssertions(ScoreSortBuilder builder, SortField sortField) {
         assertEquals(SortField.Type.SCORE, sortField.getType());
         assertEquals(builder.order() == SortOrder.DESC ? false : true, sortField.getReverse());
+    }
+
+    @Override
+    protected ScoreSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
+        return ScoreSortBuilder.fromXContent(context, fieldName);
     }
 }

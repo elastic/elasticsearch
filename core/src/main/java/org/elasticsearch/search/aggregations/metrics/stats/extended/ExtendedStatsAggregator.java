@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -140,20 +141,34 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
     @Override
     public double metric(String name, long owningBucketOrd) {
+        if (valuesSource == null || owningBucketOrd >= counts.size()) {
+            switch(InternalExtendedStats.Metrics.resolve(name)) {
+                case count: return 0;
+                case sum: return 0;
+                case min: return Double.POSITIVE_INFINITY;
+                case max: return Double.NEGATIVE_INFINITY;
+                case avg: return Double.NaN;
+                case sum_of_squares: return 0;
+                case variance: return Double.NaN;
+                case std_deviation: return Double.NaN;
+                case std_upper: return Double.NaN;
+                case std_lower: return Double.NaN;
+                default:
+                    throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+            }
+        }
         switch(InternalExtendedStats.Metrics.resolve(name)) {
-            case count: return valuesSource == null ? 0 : counts.get(owningBucketOrd);
-            case sum: return valuesSource == null ? 0 : sums.get(owningBucketOrd);
-            case min: return valuesSource == null ? Double.POSITIVE_INFINITY : mins.get(owningBucketOrd);
-            case max: return valuesSource == null ? Double.NEGATIVE_INFINITY : maxes.get(owningBucketOrd);
-            case avg: return valuesSource == null ? Double.NaN : sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
-            case sum_of_squares: return valuesSource == null ? 0 : sumOfSqrs.get(owningBucketOrd);
-            case variance: return valuesSource == null ? Double.NaN : variance(owningBucketOrd);
-            case std_deviation: return valuesSource == null ? Double.NaN : Math.sqrt(variance(owningBucketOrd));
+            case count: return counts.get(owningBucketOrd);
+            case sum: return sums.get(owningBucketOrd);
+            case min: return mins.get(owningBucketOrd);
+            case max: return maxes.get(owningBucketOrd);
+            case avg: return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+            case sum_of_squares: return sumOfSqrs.get(owningBucketOrd);
+            case variance: return variance(owningBucketOrd);
+            case std_deviation: return Math.sqrt(variance(owningBucketOrd));
             case std_upper:
-                if (valuesSource == null) { return Double.NaN; }
                 return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             case std_lower:
-                if (valuesSource == null) { return Double.NaN; }
                 return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) - (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             default:
                 throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");

@@ -39,17 +39,30 @@ import java.util.Objects;
 public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
-    public static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
     public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField ORDER_FIELD = new ParseField("order");
     private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
     private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.Type.SCORE, true);
 
+    /**
+     * Build a ScoreSortBuilder default to descending sort order.
+     */
     public ScoreSortBuilder() {
         // order defaults to desc when sorting on the _score
         order(SortOrder.DESC);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public ScoreSortBuilder(StreamInput in) throws IOException {
+        order(SortOrder.readFromStream(in));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        order.writeTo(out);
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -61,8 +74,16 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
         return builder;
     }
 
-    @Override
-    public ScoreSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
+    /**
+     * Creates a new {@link ScoreSortBuilder} from the query held by the {@link QueryParseContext} in
+     * {@link org.elasticsearch.common.xcontent.XContent} format.
+     *
+     * @param context the input parse context. The state on the parser contained in this context will be changed as a side effect of this
+     *        method call
+     * @param fieldName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
+     *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
+     */
+    public static ScoreSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         XContentParser parser = context.parser();
         ParseFieldMatcher matcher = context.parseFieldMatcher();
 
@@ -114,17 +135,6 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     @Override
     public int hashCode() {
         return Objects.hash(this.order);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        order.writeTo(out);
-    }
-
-    @Override
-    public ScoreSortBuilder readFrom(StreamInput in) throws IOException {
-        ScoreSortBuilder builder = new ScoreSortBuilder().order(SortOrder.readOrderFrom(in));
-        return builder;
     }
 
     @Override

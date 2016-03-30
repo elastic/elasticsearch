@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -39,7 +40,6 @@ import java.util.Set;
 /**
  * We enforce limits once any network host is configured. In this case we assume the node is running in production
  * and all production limit checks must pass. This should be extended as we go to settings like:
- * - discovery.zen.minimum_master_nodes
  * - discovery.zen.ping.unicast.hosts is set if we use zen disco
  * - ensure we can write in all data directories
  * - fail if vm.max_map_count is under a certain limit (not sure if this works cross platform)
@@ -114,10 +114,10 @@ final class BootstrapCheck {
     }
 
     // the list of checks to execute
-    private static List<Check> checks(final Settings settings) {
+    static List<Check> checks(final Settings settings) {
         final List<Check> checks = new ArrayList<>();
         final FileDescriptorCheck fileDescriptorCheck
-                = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
+            = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
         checks.add(new MlockallCheck(BootstrapSettings.MLOCKALL_SETTING.get(settings)));
         if (Constants.LINUX) {
@@ -126,6 +126,7 @@ final class BootstrapCheck {
         if (Constants.LINUX || Constants.MAC_OS_X) {
             checks.add(new MaxSizeVirtualMemoryCheck());
         }
+        checks.add(new MinMasterNodesCheck(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(settings)));
         return Collections.unmodifiableList(checks);
     }
 
@@ -186,10 +187,10 @@ final class BootstrapCheck {
         @Override
         public final String errorMessage() {
             return String.format(
-                    Locale.ROOT,
-                    "max file descriptors [%d] for elasticsearch process likely too low, increase to at least [%d]",
-                    getMaxFileDescriptorCount(),
-                    limit
+                Locale.ROOT,
+                "max file descriptors [%d] for elasticsearch process likely too low, increase to at least [%d]",
+                getMaxFileDescriptorCount(),
+                limit
             );
         }
 
@@ -224,6 +225,26 @@ final class BootstrapCheck {
             return Natives.isMemoryLocked();
         }
 
+    }
+
+    static class MinMasterNodesCheck implements Check {
+
+        final boolean minMasterNodesIsSet;
+
+        MinMasterNodesCheck(boolean minMasterNodesIsSet) {
+            this.minMasterNodesIsSet = minMasterNodesIsSet;
+        }
+
+        @Override
+        public boolean check() {
+            return minMasterNodesIsSet == false;
+        }
+
+        @Override
+        public String errorMessage() {
+            return "please set [" + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
+                "] to a majority of the number of master eligible nodes in your cluster.";
+        }
     }
 
     static class MaxNumberOfThreadsCheck implements Check {

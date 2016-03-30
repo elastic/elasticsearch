@@ -19,18 +19,6 @@
 
 package org.elasticsearch.index;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -81,6 +69,18 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -620,6 +620,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             if (durability != oldTranslogDurability) {
                 rescheduleFsyncTask(durability);
             }
+        }
+
+        // update primary terms
+        for (final IndexShard shard : this.shards.values()) {
+            shard.updatePrimaryTerm(metadata.primaryTerm(shard.shardId().id()));
         }
     }
 

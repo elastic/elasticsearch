@@ -1,6 +1,8 @@
 [[docs-update-by-query]]
 == Update By Query API
 
+experimental[The update-by-query API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
+
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
 <<picking-up-a-new-property,pick up a new property>> or some other online
@@ -56,7 +58,7 @@ POST /twitter/tweet/_update_by_query?conflicts=proceed
 // AUTOSENSE
 
 You can also limit `_update_by_query` using the
-{ref}/query-dsl.html[Query DSL]. This will update all documents from the
+<<query-dsl,Query DSL>>. This will update all documents from the
 `twitter` index for the user `kimchy`:
 
 [source,js]
@@ -73,7 +75,7 @@ POST /twitter/_update_by_query?conflicts=proceed
 // AUTOSENSE
 
 <1> The query must be passed as a value to the `query` key, in the same
-way as the {ref}/search-search.html[Search API]. You can also use the `q`
+way as the <<search-search,Search API>>. You can also use the `q`
 parameter in the same way as the search api.
 
 So far we've only been updating documents without changing their source. That
@@ -81,6 +83,7 @@ is genuinely useful for things like
 <<picking-up-a-new-property,picking up new properties>> but it's only half the
 fun. `_update_by_query` supports a `script` object to update the document. This
 will increment the `likes` field on all of kimchy's tweets:
+
 [source,js]
 --------------------------------------------------
 POST /twitter/_update_by_query
@@ -97,7 +100,7 @@ POST /twitter/_update_by_query
 --------------------------------------------------
 // AUTOSENSE
 
-Just as in {ref}/docs-update.html[Update API] you can set `ctx.op = "noop"` if
+Just as in <<docs-update,Update API>> you can set `ctx.op = "noop"` if
 your script decides that it doesn't have to make any changes. That will cause
 `_update_by_query` to omit that document from its updates. Setting `ctx.op` to
 anything else is an error. If you want to delete by a query you can use the
@@ -167,7 +170,7 @@ the Elasticsearch log file. This will be fixed soon.
 `consistency` controls how many copies of a shard must respond to each write
 request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
-{ref}/docs-bulk.html[Bulk API].
+<<docs-bulk,Bulk API>>.
 
 `requests_per_second` can be set to any decimal number (1.4, 6, 1000, etc) and
 throttle the number of requests per second that the update by query issues. The
@@ -232,7 +235,7 @@ from aborting the operation.
 === Works with the Task API
 
 While Update By Query is running you can fetch their status using the
-{ref}/task/list.html[Task List APIs]:
+<<nodes-task,Nodes Task API>>:
 
 [source,js]
 --------------------------------------------------
@@ -285,6 +288,7 @@ progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
 
 
+[float]
 [[picking-up-a-new-property]]
 === Pick up a new property
 
@@ -379,4 +383,4 @@ POST test/_search?filter_path=hits.total
 }
 --------------------------------------------------
 
-Hurray! You can do the exact same thing when adding a field to a multifield.
+You can do the exact same thing when adding a field to a multifield.

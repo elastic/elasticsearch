@@ -37,9 +37,28 @@ public class MultiLineStringBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
 
-    public static final MultiLineStringBuilder PROTOTYPE = new MultiLineStringBuilder();
-
     private final ArrayList<LineStringBuilder> lines = new ArrayList<>();
+
+    public MultiLineStringBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MultiLineStringBuilder(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            linestring(new LineStringBuilder(in));
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(lines.size());
+        for (LineStringBuilder line : lines) {
+            line.writeTo(out);
+        }
+    }
 
     public MultiLineStringBuilder linestring(LineStringBuilder line) {
         this.lines.add(line);
@@ -113,23 +132,5 @@ public class MultiLineStringBuilder extends ShapeBuilder {
         }
         MultiLineStringBuilder other = (MultiLineStringBuilder) obj;
         return Objects.equals(lines, other.lines);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(lines.size());
-        for (LineStringBuilder line : lines) {
-            line.writeTo(out);
-        }
-    }
-
-    @Override
-    public MultiLineStringBuilder readFrom(StreamInput in) throws IOException {
-        MultiLineStringBuilder multiLineStringBuilder = new MultiLineStringBuilder();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            multiLineStringBuilder.linestring(LineStringBuilder.PROTOTYPE.readFrom(in));
-        }
-        return multiLineStringBuilder;
     }
 }

@@ -44,7 +44,7 @@ import static java.util.Collections.unmodifiableSet;
 public class RoutingAllocation {
 
     /**
-     * this class is used to describe results of a {@link RoutingAllocation}  
+     * this class is used to describe results of a {@link RoutingAllocation}
      */
     public static class Result {
 

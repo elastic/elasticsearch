@@ -26,6 +26,13 @@ should be used instead.
 The `name` setting has been removed and is replaced by `node.name`. Usage of
 `-Dname=some_node_name` is not supported anymore.
 
+==== Node attribute settings
+
+Node level attributes used for allocation filtering, forced awareness or other node identification / grouping
+must be prefixed with `node.attr`. In previous versions it was possible to specify node attributes with the `node.`
+prefix. All node attributes except of `node.master`, `node.data` and `node.ingest` must be moved to the new `node.attr.`
+namespace.
+
 ==== Node types settings
 
 The `node.client` setting has been removed. A node with such a setting set will not

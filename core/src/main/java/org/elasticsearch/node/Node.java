@@ -143,9 +143,7 @@ public class Node implements Closeable {
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
-    // this sucks that folks can mistype data, master or ingest and get away with it.
-    // TODO: we should move this to node.attribute.${name} = ${value} instead.
-    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.", Property.NodeScope);
+    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", Property.NodeScope);
 
 
     private static final String CLIENT_TYPE = "node";

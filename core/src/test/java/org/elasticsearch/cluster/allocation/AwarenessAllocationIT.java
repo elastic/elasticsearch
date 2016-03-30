@@ -61,7 +61,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
 
         logger.info("--> starting 2 nodes on the same rack");
-        internalCluster().startNodesAsync(2, Settings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_1").build()).get();
+        internalCluster().startNodesAsync(2, Settings.settingsBuilder().put(commonSettings).put("node.attr.rack_id", "rack_1").build()).get();
 
         createIndex("test1");
         createIndex("test2");
@@ -74,7 +74,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> starting 1 node on a different rack");
-        final String node3 = internalCluster().startNode(Settings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2").build());
+        final String node3 = internalCluster().startNode(Settings.settingsBuilder().put(commonSettings).put("node.attr.rack_id", "rack_2").build());
 
         // On slow machines the initial relocation might be delayed
         assertThat(awaitBusy(
@@ -113,10 +113,10 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
         logger.info("--> starting 4 nodes on different zones");
         List<String> nodes = internalCluster().startNodesAsync(
-                Settings.settingsBuilder().put(commonSettings).put("node.zone", "a").build(),
-                Settings.settingsBuilder().put(commonSettings).put("node.zone", "b").build(),
-                Settings.settingsBuilder().put(commonSettings).put("node.zone", "b").build(),
-                Settings.settingsBuilder().put(commonSettings).put("node.zone", "a").build()
+                Settings.settingsBuilder().put(commonSettings).put("node.attr.zone", "a").build(),
+                Settings.settingsBuilder().put(commonSettings).put("node.attr.zone", "b").build(),
+                Settings.settingsBuilder().put(commonSettings).put("node.attr.zone", "b").build(),
+                Settings.settingsBuilder().put(commonSettings).put("node.attr.zone", "a").build()
         ).get();
         String A_0 = nodes.get(0);
         String B_0 = nodes.get(1);
@@ -159,8 +159,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
         logger.info("--> starting 2 nodes on zones 'a' & 'b'");
         List<String> nodes = internalCluster().startNodesAsync(
-                Settings.settingsBuilder().put(commonSettings).put("node.zone", "a").build(),
-                Settings.settingsBuilder().put(commonSettings).put("node.zone", "b").build()
+                Settings.settingsBuilder().put(commonSettings).put("node.attr.zone", "a").build(),
+                Settings.settingsBuilder().put(commonSettings).put("node.attr.zone", "b").build()
         ).get();
         String A_0 = nodes.get(0);
         String B_0 = nodes.get(1);
@@ -183,7 +183,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(B_0), equalTo(5));
         logger.info("--> starting another node in zone 'b'");
 
-        String B_1 = internalCluster().startNode(Settings.settingsBuilder().put(commonSettings).put("node.zone", "b").build());
+        String B_1 = internalCluster().startNode(Settings.settingsBuilder().put(commonSettings).put("node.attr.zone", "b").build());
         health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         client().admin().cluster().prepareReroute().get();

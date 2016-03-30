@@ -33,23 +33,12 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DiscoveryNodeServiceTests extends ESTestCase {
 
-    public void testClientNodeSettingIsProhibited() {
-        Settings settings = Settings.builder().put("node.client", randomBoolean()).build();
-        try {
-            new DiscoveryNodeService(settings, Version.CURRENT).buildLocalNode(DummyTransportAddress.INSTANCE);
-            fail("build attributes should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("node.client setting is no longer supported, use node.master, " +
-                    "node.data and node.ingest explicitly instead"));
-        }
-    }
-
     public void testBuildLocalNode() {
         Map<String, String> expectedAttributes = new HashMap<>();
         int numCustomSettings = randomIntBetween(0, 5);
         Settings.Builder builder = Settings.builder();
         for (int i = 0; i < numCustomSettings; i++) {
-            builder.put("node.attr" + i, "value" + i);
+            builder.put("node.attr.attr" + i, "value" + i);
             expectedAttributes.put("attr" + i, "value" + i);
         }
         Set<DiscoveryNode.Role> selectedRoles = new HashSet<>();
@@ -76,7 +65,7 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
         int numCustomSettings = randomIntBetween(0, 5);
         Settings.Builder builder = Settings.builder();
         for (int i = 0; i < numCustomSettings; i++) {
-            builder.put("node.attr" + i, "value" + i);
+            builder.put("node.attr.attr" + i, "value" + i);
             expectedAttributes.put("attr" + i, "value" + i);
         }
         DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build(), Version.CURRENT);

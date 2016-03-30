@@ -46,9 +46,9 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         switch(nodeOrdinal) {
         case 1:
-            return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("node.tag", "B").build();
+            return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("node.attr.tag", "B").build();
         case 0:
-            return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("node.tag", "A").build();
+            return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("node.attr.tag", "A").build();
         }
         return super.nodeSettings(nodeOrdinal);
     }

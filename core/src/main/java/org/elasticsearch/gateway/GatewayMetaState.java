@@ -285,7 +285,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     }
 
     public static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state, ClusterState previousState, Set<Index> previouslyWrittenIndices) {
-        RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().localNodeId());
+        RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
         }

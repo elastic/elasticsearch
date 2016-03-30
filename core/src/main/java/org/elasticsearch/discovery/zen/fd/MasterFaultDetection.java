@@ -328,7 +328,7 @@ public class MasterFaultDetection extends FaultDetection {
             final DiscoveryNodes nodes = clusterService.state().nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
-            if (!request.masterNodeId.equals(nodes.localNodeId())) {
+            if (!request.masterNodeId.equals(nodes.getLocalNodeId())) {
                 throw new ThisIsNotTheMasterYouAreLookingForException();
             }
 

@@ -301,9 +301,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                             for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {
                                 if (!ignoreShards.contains(shard)) {
-                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().localNodeId()));
+                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));
                                 } else {
-                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().localNodeId(), RestoreInProgress.State.FAILURE));
+                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.FAILURE));
                                 }
                             }
                         }
@@ -486,7 +486,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     public void indexShardRestoreCompleted(SnapshotId snapshotId, ShardId shardId) {
         logger.trace("[{}] successfully restored shard  [{}]", snapshotId, shardId);
         UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshotId, shardId,
-                new ShardRestoreStatus(clusterService.state().nodes().localNodeId(), RestoreInProgress.State.SUCCESS));
+                new ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.SUCCESS));
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
                     UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
@@ -760,7 +760,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     public void failRestore(SnapshotId snapshotId, ShardId shardId) {
         logger.debug("[{}] failed to restore shard  [{}]", snapshotId, shardId);
         UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshotId, shardId,
-                new ShardRestoreStatus(clusterService.state().nodes().localNodeId(), RestoreInProgress.State.FAILURE));
+                new ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.FAILURE));
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
                     UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }

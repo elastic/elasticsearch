@@ -967,7 +967,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 // since the network connections are asymmetric, it may be that we received a state but have disconnected from the node
                 // in the past (after a master failure, for example)
                 transportService.connectToNode(otherMaster);
-                transportService.sendRequest(otherMaster, DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequest(localClusterState.nodes().localNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                transportService.sendRequest(otherMaster, DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequest(localClusterState.nodes().getLocalNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                     @Override
                     public void handleException(TransportException exp) {

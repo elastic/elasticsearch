@@ -255,12 +255,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                                     case DONE:
                                         logger.debug("[{}] trying to cancel snapshot on the shard [{}] that is already done, updating status on the master", entry.snapshotId(), shard.key);
                                         updateIndexShardSnapshotStatus(entry.snapshotId(), shard.key,
-                                                new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotsInProgress.State.SUCCESS));
+                                                new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().getLocalNodeId(), SnapshotsInProgress.State.SUCCESS));
                                         break;
                                     case FAILURE:
                                         logger.debug("[{}] trying to cancel snapshot on the shard [{}] that has already failed, updating status on the master", entry.snapshotId(), shard.key);
                                         updateIndexShardSnapshotStatus(entry.snapshotId(), shard.key,
-                                                new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotsInProgress.State.FAILED, snapshotStatus.failure()));
+                                                new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().getLocalNodeId(), SnapshotsInProgress.State.FAILED, snapshotStatus.failure()));
                                         break;
                                     default:
                                         throw new IllegalStateException("Unknown snapshot shard stage " + snapshotStatus.stage());
@@ -382,12 +382,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                                 // but we think the shard is done - we need to make new master know that the shard is done
                                 logger.debug("[{}] new master thinks the shard [{}] is not completed but the shard is done locally, updating status on the master", snapshot.snapshotId(), shardId);
                                 updateIndexShardSnapshotStatus(snapshot.snapshotId(), shardId,
-                                        new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotsInProgress.State.SUCCESS));
+                                        new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().getLocalNodeId(), SnapshotsInProgress.State.SUCCESS));
                             } else if (localShard.getValue().stage() == IndexShardSnapshotStatus.Stage.FAILURE) {
                                 // but we think the shard failed - we need to make new master know that the shard failed
                                 logger.debug("[{}] new master thinks the shard [{}] is not completed but the shard failed locally, updating status on master", snapshot.snapshotId(), shardId);
                                 updateIndexShardSnapshotStatus(snapshot.snapshotId(), shardId,
-                                        new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotsInProgress.State.FAILED, localShardStatus.failure()));
+                                        new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().getLocalNodeId(), SnapshotsInProgress.State.FAILED, localShardStatus.failure()));
 
                             }
                         }

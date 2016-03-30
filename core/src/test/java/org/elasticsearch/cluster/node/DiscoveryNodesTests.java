@@ -124,7 +124,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         LOCAL("_local") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return Collections.singleton(nodes.localNodeId());
+                return Collections.singleton(nodes.getLocalNodeId());
             }
         }, ELECTED_MASTER("_master") {
             @Override

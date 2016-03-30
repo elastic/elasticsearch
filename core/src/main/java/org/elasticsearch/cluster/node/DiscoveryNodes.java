@@ -184,17 +184,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *
      * @return id of the local node
      */
-    public String localNodeId() {
-        return this.localNodeId;
-    }
-
-    /**
-     * Get the id of the local node
-     *
-     * @return id of the local node
-     */
     public String getLocalNodeId() {
-        return localNodeId();
+        return this.localNodeId;
     }
 
     /**
@@ -302,7 +293,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodesIds.length);
             for (String nodeId : nodesIds) {
                 if (nodeId.equals("_local")) {
-                    String localNodeId = localNodeId();
+                    String localNodeId = getLocalNodeId();
                     if (localNodeId != null) {
                         resolvedNodesIds.add(localNodeId);
                     }
@@ -595,7 +586,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
         public Builder(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.getMasterNodeId();
-            this.localNodeId = nodes.localNodeId();
+            this.localNodeId = nodes.getLocalNodeId();
             this.nodes = ImmutableOpenMap.builder(nodes.getNodes());
         }
 

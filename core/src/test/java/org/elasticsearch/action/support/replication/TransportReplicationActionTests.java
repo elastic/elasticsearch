@@ -376,7 +376,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final List<CapturingTransport.CapturedRequest> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear().get(primaryNodeId);
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
-        if (clusterService.state().nodes().localNodeId().equals(primaryNodeId)) {
+        if (clusterService.state().nodes().getLocalNodeId().equals(primaryNodeId)) {
             assertThat(capturedRequests.get(0).action, equalTo("testAction[p]"));
             assertPhase(task, "waiting_on_primary");
         } else {
@@ -722,7 +722,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertEquals(request.shardId, replicationRequest.shardId);
         }
 
-        String localNodeId = clusterService.state().getNodes().localNodeId();
+        String localNodeId = clusterService.state().getNodes().getLocalNodeId();
         // no request was sent to the local node
         assertThat(nodesSentTo.keySet(), not(hasItem(localNodeId)));
 

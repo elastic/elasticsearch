@@ -123,7 +123,7 @@ public class ClusterServiceTests extends ESTestCase {
         ClusterState state = timedClusterService.state();
         final DiscoveryNodes nodes = state.nodes();
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes)
-                .masterNodeId(makeMaster ? nodes.localNodeId() : null);
+                .masterNodeId(makeMaster ? nodes.getLocalNodeId() : null);
         state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                 .nodes(nodesBuilder).build();
         setState(timedClusterService, state);

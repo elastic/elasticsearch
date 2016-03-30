@@ -193,7 +193,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void cleanFailedShards(final ClusterChangedEvent event) {
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
+        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().getLocalNodeId());
         if (routingNode == null) {
             failedShards.clear();
             return;
@@ -221,7 +221,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private void applyDeletedIndices(final ClusterChangedEvent event) {
         final ClusterState previousState = event.previousState();
-        final String localNodeId = event.state().nodes().localNodeId();
+        final String localNodeId = event.state().nodes().getLocalNodeId();
         assert localNodeId != null;
 
         for (Index index : event.indicesDeleted()) {
@@ -259,7 +259,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyDeletedShards(final ClusterChangedEvent event) {
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
+        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().getLocalNodeId());
         if (routingNode == null) {
             return;
         }
@@ -315,7 +315,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         final Set<Index> hasAllocations = new HashSet<>();
-        final RoutingNode node = event.state().getRoutingNodes().node(event.state().nodes().localNodeId());
+        final RoutingNode node = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
         // if no shards are allocated ie. if this node is a master-only node it can return nul
         if (node != null) {
             for (ShardRouting routing : node) {
@@ -362,7 +362,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private void applyNewIndices(final ClusterChangedEvent event) {
         // we only create indices for shards that are allocated
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
+        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().getLocalNodeId());
         if (routingNode == null) {
             return;
         }
@@ -407,7 +407,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (requireRefresh && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(index.getName(), indexMetaData.getIndexUUID(),
-                            event.state().nodes().localNodeId())
+                            event.state().nodes().getLocalNodeId())
                     );
                 }
             } catch (Throwable t) {
@@ -459,7 +459,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         RoutingTable routingTable = event.state().routingTable();
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
+        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().getLocalNodeId());
 
         if (routingNode == null) {
             failedShards.clear();

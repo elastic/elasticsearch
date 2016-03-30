@@ -469,7 +469,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 try {
                     DiscoveryNodes discoveryNodes = contextProvider.nodes();
                     for (PingResponse pingResponse : response.pingResponses) {
-                        if (pingResponse.node().getId().equals(discoveryNodes.localNodeId())) {
+                        if (pingResponse.node().getId().equals(discoveryNodes.getLocalNodeId())) {
                             // that's us, ignore
                             continue;
                         }

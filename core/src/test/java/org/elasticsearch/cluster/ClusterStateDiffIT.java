@@ -134,7 +134,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
                 // Check nodes
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
-                assertThat(clusterStateFromDiffs.nodes().localNodeId(), equalTo(previousClusterStateFromDiffs.nodes().localNodeId()));
+                assertThat(clusterStateFromDiffs.nodes().getLocalNodeId(), equalTo(previousClusterStateFromDiffs.nodes().getLocalNodeId()));
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
                 for (ObjectCursor<String> node : clusterStateFromDiffs.nodes().getNodes().keys()) {
                     DiscoveryNode node1 = clusterState.nodes().get(node.value);

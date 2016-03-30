@@ -44,7 +44,7 @@ You can also store your template in a special index named `.scripts`:
 
 [source,java]
 --------------------------------------------------
-client.preparePutIndexedScript("mustache", "template_gender",
+client.preparePutIndexedScript("mustache", "gender_template",
         "{\n" +
         "    \"template\" : {\n" +
         "        \"query\" : {\n" +

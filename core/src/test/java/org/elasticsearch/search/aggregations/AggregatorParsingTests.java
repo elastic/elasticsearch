@@ -260,7 +260,7 @@ public class AggregatorParsingTests extends ESTestCase {
     public void testInvalidAggregationName() throws Exception {
         Matcher matcher = Pattern.compile("[^\\[\\]>]+").matcher("");
         String name;
-        Random rand = getRandom();
+        Random rand = random();
         int len = randomIntBetween(1, 5);
         char[] word = new char[len];
         while (true) {

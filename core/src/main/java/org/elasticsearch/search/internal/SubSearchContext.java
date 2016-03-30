@@ -49,6 +49,8 @@ public class SubSearchContext extends FilteredSearchContext {
     private int from;
     private int size = DEFAULT_SIZE;
     private Sort sort;
+    private ParsedQuery parsedQuery;
+    private Query query;
 
     private final FetchSearchResult fetchSearchResult;
     private final QuerySearchResult querySearchResult;
@@ -183,6 +185,25 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public Sort sort() {
         return sort;
+    }
+
+    @Override
+    public SearchContext parsedQuery(ParsedQuery parsedQuery) {
+        this.parsedQuery = parsedQuery;
+        if (parsedQuery != null) {
+            this.query = parsedQuery.query();
+        }
+        return this;
+    }
+
+    @Override
+    public ParsedQuery parsedQuery() {
+        return parsedQuery;
+    }
+
+    @Override
+    public Query query() {
+        return query;
     }
 
     @Override

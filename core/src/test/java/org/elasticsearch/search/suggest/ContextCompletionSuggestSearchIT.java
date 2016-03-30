@@ -55,9 +55,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @SuppressCodecs("*") // requires custom completion format
 public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
-    private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
-    private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+    private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
 
     @Override
     protected int numberOfReplicas() {

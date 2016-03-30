@@ -73,7 +73,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(Settings settings) {
-        return createAllocationService(settings, getRandom());
+        return createAllocationService(settings, random());
     }
 
     public static MockAllocationService createAllocationService(Settings settings, Random random) {
@@ -88,13 +88,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(settings,
-                randomAllocationDeciders(settings, new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), getRandom()),
+                randomAllocationDeciders(settings, new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
                 NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(settings), clusterInfoService);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
         return new MockAllocationService(settings,
-                randomAllocationDeciders(settings, new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), getRandom()),
+                randomAllocationDeciders(settings, new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
                 gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
 

@@ -94,7 +94,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
-        Random random = getRandom();
+        Random random = random();
         expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
         for (int i = 0; i < numDocs; i++) {
             //generate random point

@@ -28,7 +28,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.search.similarities.DFISimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
@@ -42,18 +41,17 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script.ScriptParseException;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -118,11 +116,13 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     protected HasChildQueryBuilder doCreateTestQueryBuilder() {
         int min = randomIntBetween(0, Integer.MAX_VALUE / 2);
         int max = randomIntBetween(min, Integer.MAX_VALUE);
-        InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(STRING_FIELD_NAME_2, SortOrder.ASC);
         return new HasChildQueryBuilder(CHILD_TYPE,
                 RandomQueryBuilder.createQuery(random()), max, min,
                 RandomPicks.randomFrom(random(), ScoreMode.values()),
-                randomBoolean()  ? null : new QueryInnerHits("inner_hits_name", innerHit));
+                randomBoolean()  ? null : new InnerHitBuilder()
+                        .setName(randomAsciiOfLengthBetween(1, 10))
+                        .setSize(randomIntBetween(0, 100))
+                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
     }
 
     @Override
@@ -142,9 +142,10 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             if (query != null) {
                 assertNotNull(SearchContext.current().innerHits());
                 assertEquals(1, SearchContext.current().innerHits().getInnerHits().size());
-                assertTrue(SearchContext.current().innerHits().getInnerHits().containsKey("inner_hits_name"));
-                InnerHitsContext.BaseInnerHits innerHits = SearchContext.current().innerHits().getInnerHits().get("inner_hits_name");
-                assertEquals(innerHits.size(), 100);
+                assertTrue(SearchContext.current().innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+                InnerHitsContext.BaseInnerHits innerHits =
+                        SearchContext.current().innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
+                assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
                 assertEquals(innerHits.sort().getSort().length, 1);
                 assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME_2);
             } else {
@@ -217,13 +218,29 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "    \"boost\" : 2.0,\n" +
                 "    \"_name\" : \"WNzYMJKRwePuRBh\",\n" +
                 "    \"inner_hits\" : {\n" +
+                "      \"type\" : \"child\",\n" +
                 "      \"name\" : \"inner_hits_name\",\n" +
+                "      \"from\" : 0,\n" +
                 "      \"size\" : 100,\n" +
+                "      \"version\" : false,\n" +
+                "      \"explain\" : false,\n" +
+                "      \"track_scores\" : false,\n" +
                 "      \"sort\" : [ {\n" +
                 "        \"mapped_string\" : {\n" +
                 "          \"order\" : \"asc\"\n" +
                 "        }\n" +
-                "      } ]\n" +
+                "      } ],\n" +
+                "      \"query\" : {\n" +
+                "        \"range\" : {\n" +
+                "          \"mapped_string\" : {\n" +
+                "            \"from\" : \"agJhRET\",\n" +
+                "            \"to\" : \"zvqIq\",\n" +
+                "            \"include_lower\" : true,\n" +
+                "            \"include_upper\" : true,\n" +
+                "            \"boost\" : 1.0\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -236,7 +253,11 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals(query, queryBuilder.childType(), "child");
         assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
         assertNotNull(query, queryBuilder.innerHit());
-        assertEquals(query, queryBuilder.innerHit(), new QueryInnerHits("inner_hits_name", new InnerHitsBuilder.InnerHit().setSize(100).addSort("mapped_string", SortOrder.ASC)));
+        assertEquals(query, queryBuilder.innerHit(), new InnerHitBuilder().setParentChildType("child")
+                .setName("inner_hits_name")
+                .setSize(100)
+                .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC))
+                .setQuery(queryBuilder.query()));
 
     }
     public void testToQueryInnerQueryType() throws IOException {

@@ -2,6 +2,15 @@
 #
 setup:
     - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            test:
+              properties:
+                foo:
+                  type: keyword
+    - do:
         index:
             index: test
             type: test

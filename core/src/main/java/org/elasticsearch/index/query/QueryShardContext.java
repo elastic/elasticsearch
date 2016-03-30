@@ -47,13 +47,13 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorQueryCache;
-import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
+import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -141,10 +141,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.parseContext.reset(jp);
     }
 
-    public InnerHitsSubSearchContext getInnerHitsContext(XContentParser parser) throws IOException {
-        return InnerHitsQueryParserHelper.parse(parser);
-    }
-
     public AnalysisService getAnalysisService() {
         return mapperService.analysisService();
     }
@@ -208,14 +204,14 @@ public class QueryShardContext extends QueryRewriteContext {
         return isFilter;
     }
 
-    public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
+    public void addInnerHit(InnerHitBuilder innerHitBuilder) throws IOException {
         SearchContext sc = SearchContext.current();
         if (sc == null) {
             throw new QueryShardException(this, "inner_hits unsupported");
         }
 
         InnerHitsContext innerHitsContext = sc.innerHits();
-        innerHitsContext.addInnerHitDefinition(name, context);
+        innerHitsContext.addInnerHitDefinition(innerHitBuilder.buildInline(sc, this));
     }
 
     public Collection<String> simpleMatchToIndexNames(String pattern) {

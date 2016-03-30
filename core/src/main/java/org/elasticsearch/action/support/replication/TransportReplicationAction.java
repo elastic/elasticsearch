@@ -520,7 +520,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         private void handleBlockException(ClusterBlockException blockException) {
             if (blockException.retryable()) {
-                logger.trace("cluster is blocked ({}), scheduling a retry", blockException.getMessage());
+                logger.trace("cluster is blocked, scheduling a retry", blockException);
                 retry(blockException);
             } else {
                 finishAsFailed(blockException);

@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 import java.io.IOException;
 
@@ -35,6 +35,7 @@ public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder> 
     public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
     public static final ParseField TYPE_FIELD = new ParseField("parent_type", "type");
     public static final ParseField SCORE_FIELD = new ParseField("score");
+    public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
 
     @Override
     public String[] names() {
@@ -48,7 +49,7 @@ public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder> 
         String parentType = null;
         boolean score = HasParentQueryBuilder.DEFAULT_SCORE;
         String queryName = null;
-        QueryInnerHits innerHits = null;
+        InnerHitBuilder innerHits = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -59,8 +60,8 @@ public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder> 
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     iqb = parseContext.parseInnerQueryBuilder();
-                } else if ("inner_hits".equals(currentFieldName)) {
-                    innerHits = new QueryInnerHits(parser);
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
+                    innerHits = InnerHitBuilder.fromXContent(parser, parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }

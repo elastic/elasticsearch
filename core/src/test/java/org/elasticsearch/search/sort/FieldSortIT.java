@@ -180,7 +180,8 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testTrackScores() throws Exception {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type", "svalue", "type=keyword").get());
         ensureGreen();
         index("test", "type1", jsonBuilder().startObject()
                 .field("id", "1")
@@ -220,7 +221,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testRandomSorting() throws IOException, InterruptedException, ExecutionException {
-        Random random = getRandom();
+        Random random = random();
         assertAcked(prepareCreate("test")
                 .addMapping("type",
                         XContentFactory.jsonBuilder()
@@ -294,7 +295,8 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void test3078() {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type", "field", "type=keyword").get());
         ensureGreen();
 
         for (int i = 1; i < 101; i++) {
@@ -423,7 +425,8 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testIssue2986() {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type", "field1", "type=keyword").get());
 
         client().prepareIndex("test", "post", "1").setSource("{\"field1\":\"value1\"}").execute().actionGet();
         client().prepareIndex("test", "post", "2").setSource("{\"field1\":\"value2\"}").execute().actionGet();
@@ -444,7 +447,8 @@ public class FieldSortIT extends ESIntegTestCase {
             } catch (Exception e) {
                 // ignore
             }
-            createIndex("test");
+            assertAcked(client().admin().indices().prepareCreate("test")
+                    .addMapping("type", "tag", "type=keyword").get());
             ensureGreen();
             client().prepareIndex("test", "type", "1").setSource("tag", "alpha").execute().actionGet();
             refresh();
@@ -1414,6 +1418,7 @@ public class FieldSortIT extends ESIntegTestCase {
                                                 .startObject("properties")
                                                     .startObject("foo")
                                                         .field("type", "text")
+                                                        .field("fielddata", true)
                                                         .startObject("fields")
                                                             .startObject("sub")
                                                                 .field("type", "keyword")

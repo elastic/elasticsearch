@@ -107,7 +107,16 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             request.indices());
 
         shardsIts = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
-        expectedSuccessfulOps = shardsIts.size();
+        final int shardCount = shardsIts.size();
+        final long shardCountLimit = clusterService.getClusterSettings().get(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING);
+        if (shardCount > shardCountLimit) {
+            throw new IllegalArgumentException("Trying to query " + shardCount + " shards, which is over the limit of "
+                    + shardCountLimit + ". This limit exists because querying many shards at the same time can make the "
+                    + "job of the coordinating node very CPU and/or memory intensive. It is usually a better idea to "
+                    + "have a smaller number of larger shards. Update [" + TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey()
+                    + "] to a greater value if you really want to query that many shards at the same time.");
+        }
+        expectedSuccessfulOps = shardCount;
         // we need to add 1 for non active partition, since we count it in the total!
         expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
 

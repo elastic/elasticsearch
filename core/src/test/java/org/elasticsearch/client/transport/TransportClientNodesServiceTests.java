@@ -63,7 +63,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         TestIteration() {
             threadPool = new ThreadPool("transport-client-nodes-service-tests");
-            transport = new FailAndRetryMockTransport<TestResponse>(getRandom()) {
+            transport = new FailAndRetryMockTransport<TestResponse>(random()) {
                 @Override
                 public List<String> getLocalAddresses() {
                     return Collections.emptyList();

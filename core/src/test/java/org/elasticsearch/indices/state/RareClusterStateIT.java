@@ -187,7 +187,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         nodes.remove(internalCluster().getMasterName());
 
         // block none master node.
-        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodes.iterator().next(), getRandom());
+        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodes.iterator().next(), random());
         internalCluster().setDisruptionScheme(disruption);
         logger.info("--> indexing a doc");
         index("test", "type", "1");
@@ -247,7 +247,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         }
 
         // Block cluster state processing where our shard is
-        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(otherNode, getRandom());
+        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(otherNode, random());
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
 
@@ -365,7 +365,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         }
 
         // Block cluster state processing on the replica
-        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(otherNode, getRandom());
+        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(otherNode, random());
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final AtomicReference<Object> putMappingResponse = new AtomicReference<>();

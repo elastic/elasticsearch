@@ -30,10 +30,10 @@ public class BytesReferenceTests extends ESTestCase {
         final int len = randomIntBetween(0, randomBoolean() ? 10: 100000);
         final int offset1 = randomInt(5);
         final byte[] array1 = new byte[offset1 + len + randomInt(5)];
-        getRandom().nextBytes(array1);
+        random().nextBytes(array1);
         final int offset2 = randomInt(offset1);
         final byte[] array2 = Arrays.copyOfRange(array1, offset1 - offset2, array1.length);
-        
+
         final BytesArray b1 = new BytesArray(array1, offset1, len);
         final BytesArray b2 = new BytesArray(array2, offset2, len);
         assertTrue(BytesReference.Helper.bytesEqual(b1, b2));

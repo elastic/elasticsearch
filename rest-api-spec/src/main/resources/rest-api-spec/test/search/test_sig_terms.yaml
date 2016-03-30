@@ -6,6 +6,14 @@
           body:
             settings:
                 number_of_shards: "1"
+            mappings:
+                doc:
+                    properties:
+                        text:
+                            type: text
+                            fielddata: true
+                        class:
+                            type: keyword
 
   - do:
       index:

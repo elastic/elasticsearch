@@ -297,7 +297,7 @@ public class NestedIT extends ESIntegTestCase {
     public void testNestNestedAggs() throws Exception {
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
                 .addAggregation(nested("level1", "nested1")
-                        .subAggregation(terms("a").field("nested1.a")
+                        .subAggregation(terms("a").field("nested1.a.keyword")
                                 .collectMode(aggCollectionMode)
                         .subAggregation(nested("level2", "nested1.nested2")
                                         .subAggregation(sum("sum").field("nested1.nested2.b")))))
@@ -463,7 +463,7 @@ public class NestedIT extends ESIntegTestCase {
         assertAcked(
                 prepareCreate("idx4")
                         .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("product", "categories", "type=text", "name", "type=text", "property", "type=nested")
+                        .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
 

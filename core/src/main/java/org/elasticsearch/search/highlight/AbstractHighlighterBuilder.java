@@ -21,6 +21,7 @@ package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +43,7 @@ import java.util.Objects;
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> {
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes {
 
     public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
@@ -363,7 +364,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      * @return the value set by {@link #phraseLimit(Integer)}
      */
     public Integer phraseLimit() {
-        return this.noMatchSize;
+        return this.phraseLimit;
     }
 
     /**
@@ -381,6 +382,16 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public Boolean forceSource() {
         return this.forceSource;
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerXContent(builder);
+        builder.endObject();
+        return builder;
+    }
+
+    protected abstract void innerXContent(XContentBuilder builder) throws IOException;
 
     void commonOptionsToXContent(XContentBuilder builder) throws IOException {
         if (preTags != null) {

@@ -46,7 +46,7 @@ import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
+import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -162,7 +162,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private SuggestBuilder suggestBuilder;
 
-    private BytesReference innerHitsBuilder;
+    private InnerHitsBuilder innerHitsBuilder;
 
     private List<RescoreBuilder<?>> rescoreBuilders;
 
@@ -457,22 +457,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     public SearchSourceBuilder innerHits(InnerHitsBuilder innerHitsBuilder) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            innerHitsBuilder.innerXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            this.innerHitsBuilder = builder.bytes();
-            return this;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        this.innerHitsBuilder = innerHitsBuilder;
+        return this;
     }
 
-    /**
-     * Gets the bytes representing the inner hits builder for this request.
-     */
-    public BytesReference innerHits() {
+    public InnerHitsBuilder innerHits() {
         return innerHitsBuilder;
     }
 
@@ -857,40 +846,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELDS_FIELD)) {
                     scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        String scriptFieldName = parser.currentName();
-                        token = parser.nextToken();
-                        if (token == XContentParser.Token.START_OBJECT) {
-                            Script script = null;
-                            boolean ignoreFailure = false;
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    currentFieldName = parser.currentName();
-                                } else if (token.isValue()) {
-                                    if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                                        script = Script.parse(parser, context.parseFieldMatcher());
-                                    } else if (context.parseFieldMatcher().match(currentFieldName, IGNORE_FAILURE_FIELD)) {
-                                        ignoreFailure = parser.booleanValue();
-                                    } else {
-                                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
-                                                + "].", parser.getTokenLocation());
-                                    }
-                                } else if (token == XContentParser.Token.START_OBJECT) {
-                                    if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                                        script = Script.parse(parser, context.parseFieldMatcher());
-                                    } else {
-                                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
-                                                + "].", parser.getTokenLocation());
-                                    }
-                                } else {
-                                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
-                                            + "].", parser.getTokenLocation());
-                                }
-                            }
-                            scriptFields.add(new ScriptField(scriptFieldName, script, ignoreFailure));
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] in ["
-                                    + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
-                        }
+                        scriptFields.add(new ScriptField(parser, context));
                     }
                 } else if (context.parseFieldMatcher().match(currentFieldName, INDICES_BOOST_FIELD)) {
                     indexBoost = new ObjectFloatHashMap<String>();
@@ -909,8 +865,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
                     highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
-                    XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
-                    innerHitsBuilder = xContentBuilder.bytes();
+                    innerHitsBuilder = InnerHitsBuilder.fromXContent(parser, context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
                     suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
@@ -1094,10 +1049,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
         if (innerHitsBuilder != null) {
-            builder.field(INNER_HITS_FIELD.getPreferredName());
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(innerHitsBuilder);
-            parser.nextToken();
-            builder.copyCurrentStructure(parser);
+            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitsBuilder, params);
         }
 
         if (suggestBuilder != null) {
@@ -1126,7 +1078,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     public static class ScriptField implements Writeable<ScriptField>, ToXContent {
 
-        public static final ScriptField PROTOTYPE = new ScriptField(null, null);
+        public static final ScriptField PROTOTYPE = new ScriptField((String) null, (Script) null);
 
         private final boolean ignoreFailure;
         private final String fieldName;
@@ -1140,6 +1092,48 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             this.fieldName = fieldName;
             this.script = script;
             this.ignoreFailure = ignoreFailure;
+        }
+
+        public ScriptField(XContentParser parser, QueryParseContext context) throws IOException {
+            boolean ignoreFailure = false;
+            String scriptFieldName = parser.currentName();
+            Script script = null;
+
+            XContentParser.Token token;
+            token = parser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                String currentFieldName = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if (token.isValue()) {
+                        if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
+                            script = Script.parse(parser, context.parseFieldMatcher());
+                        } else if (context.parseFieldMatcher().match(currentFieldName, IGNORE_FAILURE_FIELD)) {
+                            ignoreFailure = parser.booleanValue();
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
+                                    + "].", parser.getTokenLocation());
+                        }
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
+                            script = Script.parse(parser, context.parseFieldMatcher());
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
+                                    + "].", parser.getTokenLocation());
+                        }
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
+                                + "].", parser.getTokenLocation());
+                    }
+                }
+                this.ignoreFailure = ignoreFailure;
+                this.fieldName = scriptFieldName;
+                this.script = script;
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] in ["
+                        + parser.currentName() + "] but found [" + token + "]", parser.getTokenLocation());
+            }
         }
 
         public String fieldName() {
@@ -1235,7 +1229,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.indexBoost = indexBoost;
         }
         if (in.readBoolean()) {
-            builder.innerHitsBuilder = in.readBytesReference();
+            builder.innerHitsBuilder = InnerHitsBuilder.PROTO.readFrom(in);
         }
         if (in.readBoolean()) {
             builder.minScore = in.readFloat();
@@ -1343,7 +1337,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         boolean hasInnerHitsBuilder = innerHitsBuilder != null;
         out.writeBoolean(hasInnerHitsBuilder);
         if (hasInnerHitsBuilder) {
-            out.writeBytesReference(innerHitsBuilder);
+            innerHitsBuilder.writeTo(out);
         }
         boolean hasMinScore = minScore != null;
         out.writeBoolean(hasMinScore);

@@ -60,7 +60,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", STRING_FIELD_NAME, "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         int numDocs = between(10, 200);
         int numUniqueTerms = between(2,numDocs/2);
@@ -72,7 +73,9 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                     .field(DOUBLE_FIELD_NAME, 1.0 * randomInt(numUniqueTerms))
                     .endObject()));
         }
-        assertAcked(prepareCreate("idx_single_shard").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
+        assertAcked(prepareCreate("idx_single_shard")
+                .addMapping("type", STRING_FIELD_NAME, "type=keyword")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
         for (int i = 0; i < numDocs; i++) {
             builders.add(client().prepareIndex("idx_single_shard", "type", ""+i).setSource(jsonBuilder()
                     .startObject()

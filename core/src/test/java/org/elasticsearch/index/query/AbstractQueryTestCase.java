@@ -844,7 +844,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     public static String randomGeohash(int minPrecision, int maxPrecision) {
-        return geohashGenerator.ofStringLength(getRandom(), minPrecision, maxPrecision);
+        return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
     public static class GeohashGenerator extends CodepointSetGenerator {

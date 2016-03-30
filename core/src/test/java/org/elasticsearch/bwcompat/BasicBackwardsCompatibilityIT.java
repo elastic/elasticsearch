@@ -318,7 +318,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         String[] indexForDoc = new String[docs.length];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(indexForDoc[i] = RandomPicks.randomFrom(getRandom(), indices), "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
+            docs[i] = client().prepareIndex(indexForDoc[i] = RandomPicks.randomFrom(random(), indices), "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
         }
         indexRandom(true, docs);
         for (String index : indices) {

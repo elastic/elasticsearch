@@ -349,7 +349,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
         @Override
         protected Directory newDirectory(Path dir) throws IOException {
-            MockDirectoryWrapper  mock = new MockDirectoryWrapper(getRandom(), super.newDirectory(dir));
+            MockDirectoryWrapper  mock = new MockDirectoryWrapper(random(), super.newDirectory(dir));
             closeAfterSuite(mock);
             return mock;
         }

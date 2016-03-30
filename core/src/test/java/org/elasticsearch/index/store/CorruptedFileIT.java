@@ -608,7 +608,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         Index test = state.metaData().index("test").getIndex();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
-        ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), iterators);
+        ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
         assertNotNull(shardRouting);
         assertTrue(shardRouting.primary());
@@ -632,7 +632,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             }
         }
         pruneOldDeleteGenerations(files);
-        CorruptionUtils.corruptFile(getRandom(), files.toArray(new Path[0]));
+        CorruptionUtils.corruptFile(random(), files.toArray(new Path[0]));
         return shardRouting;
     }
 

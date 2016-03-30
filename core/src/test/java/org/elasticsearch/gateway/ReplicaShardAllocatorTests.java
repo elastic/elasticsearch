@@ -105,7 +105,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * and find a better copy for the shard.
      */
     public void testAsyncFetchOnAnythingButIndexCreation() {
-        UnassignedInfo.Reason reason = RandomPicks.randomFrom(getRandom(), EnumSet.complementOf(EnumSet.of(UnassignedInfo.Reason.INDEX_CREATED)));
+        UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), EnumSet.complementOf(EnumSet.of(UnassignedInfo.Reason.INDEX_CREATED)));
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, reason);
         testAllocator.clean();
         testAllocator.allocateUnassigned(allocation);

@@ -377,13 +377,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             idxSettings.isShadowReplicaIndex() ? "s" : "", reason);
 
         final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, analysisRegistry);
+        for (IndexingOperationListener operationListener : indexingOperationListeners) {
+            indexModule.addIndexOperationListener(operationListener);
+        }
         pluginsService.onIndexModule(indexModule);
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
-        final IndexEventListener listener = indexModule.freeze();
-        listener.beforeIndexCreated(index, idxSettings.getSettings());
-        return indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, indicesQueryCache, mapperRegistry, indicesFieldDataCache, indexingOperationListeners);
+        return indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, indicesQueryCache, mapperRegistry, indicesFieldDataCache);
     }
 
     /**

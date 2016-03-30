@@ -21,21 +21,17 @@ package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight.FieldOptions;
-import org.elasticsearch.search.highlight.SearchContextHighlight.FieldOptions.Builder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +50,7 @@ import java.util.Set;
  *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
-public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> implements Writeable<HighlightBuilder>, ToXContent  {
+public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> implements Writeable<HighlightBuilder> {
 
     public static final HighlightBuilder PROTOTYPE = new HighlightBuilder();
 
@@ -92,16 +88,15 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     public static final String[] DEFAULT_STYLED_POST_TAGS = {"</em>"};
 
     /**
-     * a {@link FieldOptions.Builder} with default settings
+     * a {@link FieldOptions} with default settings
      */
-    public final static Builder defaultFieldOptions() {
-        return new SearchContextHighlight.FieldOptions.Builder()
-                .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(DEFAULT_SCORE_ORDERED).highlightFilter(DEFAULT_HIGHLIGHT_FILTER)
-                .requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH).forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE).numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS)
-                .encoder(DEFAULT_ENCODER).boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
-                .boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
-                .noMatchSize(DEFAULT_NO_MATCH_SIZE).phraseLimit(DEFAULT_PHRASE_LIMIT);
-    }
+    final static FieldOptions defaultOptions = new SearchContextHighlight.FieldOptions.Builder()
+            .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(DEFAULT_SCORE_ORDERED)
+            .highlightFilter(DEFAULT_HIGHLIGHT_FILTER).requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH)
+            .forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE)
+            .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS).encoder(DEFAULT_ENCODER)
+            .boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN).boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
+            .noMatchSize(DEFAULT_NO_MATCH_SIZE).phraseLimit(DEFAULT_PHRASE_LIMIT).build();
 
     private final List<Field> fields = new ArrayList<>();
 
@@ -222,14 +217,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return this.useExplicitFieldOrder;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerXContent(builder);
-        builder.endObject();
-        return builder;
-    }
-
     /**
      * parse options only present in top level highlight builder (`tags_schema`, `encoder` and nested `fields`)
      */
@@ -279,7 +266,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         transferOptions(this, globalOptionsBuilder, context);
 
         // overwrite unset global options by default values
-        globalOptionsBuilder.merge(defaultFieldOptions().build());
+        globalOptionsBuilder.merge(defaultOptions);
 
         // create field options
         Collection<org.elasticsearch.search.highlight.SearchContextHighlight.Field> fieldOptions = new ArrayList<>();
@@ -292,7 +279,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 fieldOptionsBuilder.matchedFields(matchedFields);
             }
             transferOptions(field, fieldOptionsBuilder, context);
-            fieldOptions.add(new SearchContextHighlight.Field(field.name(), fieldOptionsBuilder.merge(globalOptionsBuilder.build()).build()));
+            fieldOptions.add(new SearchContextHighlight.Field(field.name(), fieldOptionsBuilder
+                    .merge(globalOptionsBuilder.build()).build()));
         }
         return new SearchContextHighlight(fieldOptions);
     }
@@ -306,7 +294,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
      * @throws IOException on errors parsing any optional nested highlight query
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static void transferOptions(AbstractHighlighterBuilder highlighterBuilder, SearchContextHighlight.FieldOptions.Builder targetOptionsBuilder, QueryShardContext context) throws IOException {
+    private static void transferOptions(AbstractHighlighterBuilder highlighterBuilder,
+            SearchContextHighlight.FieldOptions.Builder targetOptionsBuilder, QueryShardContext context) throws IOException {
         if (highlighterBuilder.preTags != null) {
             targetOptionsBuilder.preTags(highlighterBuilder.preTags);
         }
@@ -357,7 +346,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
     }
 
-    private static Character[] convertCharArray(char[] array) {
+    static Character[] convertCharArray(char[] array) {
         if (array == null) {
             return null;
         }
@@ -368,6 +357,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return charArray;
     }
 
+    @Override
     public void innerXContent(XContentBuilder builder) throws IOException {
         // first write common options
         commonOptionsToXContent(builder);
@@ -395,18 +385,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             } else {
                 builder.endObject();
             }
-        }
-    }
-
-    @Override
-    public final String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return builder.string();
-        } catch (Exception e) {
-            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
         }
     }
 
@@ -483,6 +461,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             return this;
         }
 
+        @Override
         public void innerXContent(XContentBuilder builder) throws IOException {
             builder.startObject(name);
             // write common options
@@ -525,7 +504,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 String fieldname = parser.currentName();
                 return new Field(fieldname);
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "unknown token type [{}], expected field name", parser.currentToken());
+                throw new ParsingException(parser.getTokenLocation(), "unknown token type [{}], expected field name",
+                        parser.currentToken());
             }
         }
 

@@ -51,10 +51,11 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldstats.FieldStatsProvider;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
@@ -76,6 +77,7 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -274,9 +276,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     public QuerySearchResultProvider executeQueryPhase(ShardSearchRequest request) throws IOException {
         final SearchContext context = createAndPutContext(request);
-        final ShardSearchStats shardSearchStats = context.indexShard().searchService();
+        final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         try {
-            shardSearchStats.onPreQueryPhase(context);
+            operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             contextProcessing(context);
 
@@ -287,7 +289,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             } else {
                 contextProcessedSuccessfully(context);
             }
-            shardSearchStats.onQueryPhase(context, System.nanoTime() - time);
+            operationListener.onQueryPhase(context, System.nanoTime() - time);
 
             return context.queryResult();
         } catch (Throwable e) {
@@ -295,7 +297,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             if (e instanceof ExecutionException) {
                 e = e.getCause();
             }
-            shardSearchStats.onFailedQueryPhase(context);
+            operationListener.onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -306,18 +308,18 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request) {
         final SearchContext context = findContext(request.id());
-        ShardSearchStats shardSearchStats = context.indexShard().searchService();
+        SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         try {
-            shardSearchStats.onPreQueryPhase(context);
+            operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             contextProcessing(context);
             processScroll(request, context);
             queryPhase.execute(context);
             contextProcessedSuccessfully(context);
-            shardSearchStats.onQueryPhase(context, System.nanoTime() - time);
+            operationListener.onQueryPhase(context, System.nanoTime() - time);
             return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
         } catch (Throwable e) {
-            shardSearchStats.onFailedQueryPhase(context);
+            operationListener.onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -331,9 +333,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         contextProcessing(context);
         context.searcher().setAggregatedDfs(request.dfs());
         IndexShard indexShard = context.indexShard();
-        ShardSearchStats shardSearchStats = indexShard.searchService();
+        SearchOperationListener operationListener = indexShard.getSearchOperationListener();
         try {
-            shardSearchStats.onPreQueryPhase(context);
+            operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             queryPhase.execute(context);
             if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scrollContext() == null) {
@@ -342,10 +344,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             } else {
                 contextProcessedSuccessfully(context);
             }
-            shardSearchStats.onQueryPhase(context, System.nanoTime() - time);
+            operationListener.onQueryPhase(context, System.nanoTime() - time);
             return context.queryResult();
         } catch (Throwable e) {
-            shardSearchStats.onFailedQueryPhase(context);
+            operationListener.onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -368,18 +370,18 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         final SearchContext context = createAndPutContext(request);
         contextProcessing(context);
         try {
-            ShardSearchStats shardSearchStats = context.indexShard().searchService();
-            shardSearchStats.onPreQueryPhase(context);
+            SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+            operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             try {
                 loadOrExecuteQueryPhase(request, context, queryPhase);
             } catch (Throwable e) {
-                shardSearchStats.onFailedQueryPhase(context);
+                operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             long time2 = System.nanoTime();
-            shardSearchStats.onQueryPhase(context, time2 - time);
-            shardSearchStats.onPreFetchPhase(context);
+            operationListener.onQueryPhase(context, time2 - time);
+            operationListener.onPreFetchPhase(context);
             try {
                 shortcutDocIdsToLoad(context);
                 fetchPhase.execute(context);
@@ -389,10 +391,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     contextProcessedSuccessfully(context);
                 }
             } catch (Throwable e) {
-                shardSearchStats.onFailedFetchPhase(context);
+                operationListener.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
-            shardSearchStats.onFetchPhase(context, System.nanoTime() - time2);
+            operationListener.onFetchPhase(context, System.nanoTime() - time2);
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (Throwable e) {
             logger.trace("Fetch phase failed", e);
@@ -408,18 +410,18 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         contextProcessing(context);
         context.searcher().setAggregatedDfs(request.dfs());
         try {
-            ShardSearchStats shardSearchStats = context.indexShard().searchService();
-            shardSearchStats.onPreQueryPhase(context);
+            SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+            operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             try {
                 queryPhase.execute(context);
             } catch (Throwable e) {
-                shardSearchStats.onFailedQueryPhase(context);
+                operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             long time2 = System.nanoTime();
-            shardSearchStats.onQueryPhase(context, time2 - time);
-            shardSearchStats.onPreFetchPhase(context);
+            operationListener.onQueryPhase(context, time2 - time);
+            operationListener.onPreFetchPhase(context);
             try {
                 shortcutDocIdsToLoad(context);
                 fetchPhase.execute(context);
@@ -429,10 +431,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     contextProcessedSuccessfully(context);
                 }
             } catch (Throwable e) {
-                shardSearchStats.onFailedFetchPhase(context);
+                operationListener.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
-            shardSearchStats.onFetchPhase(context, System.nanoTime() - time2);
+            operationListener.onFetchPhase(context, System.nanoTime() - time2);
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (Throwable e) {
             logger.trace("Fetch phase failed", e);
@@ -447,19 +449,19 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         final SearchContext context = findContext(request.id());
         contextProcessing(context);
         try {
-            ShardSearchStats shardSearchStats = context.indexShard().searchService();
+            SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
             processScroll(request, context);
-            shardSearchStats.onPreQueryPhase(context);
+            operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             try {
                 queryPhase.execute(context);
             } catch (Throwable e) {
-                shardSearchStats.onFailedQueryPhase(context);
+                operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             long time2 = System.nanoTime();
-            shardSearchStats.onQueryPhase(context, time2 - time);
-            shardSearchStats.onPreFetchPhase(context);
+            operationListener.onQueryPhase(context, time2 - time);
+            operationListener.onPreFetchPhase(context);
             try {
                 shortcutDocIdsToLoad(context);
                 fetchPhase.execute(context);
@@ -469,10 +471,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     contextProcessedSuccessfully(context);
                 }
             } catch (Throwable e) {
-                shardSearchStats.onFailedFetchPhase(context);
+                operationListener.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
-            shardSearchStats.onFetchPhase(context, System.nanoTime() - time2);
+            operationListener.onFetchPhase(context, System.nanoTime() - time2);
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
         } catch (Throwable e) {
             logger.trace("Fetch phase failed", e);
@@ -486,13 +488,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     public FetchSearchResult executeFetchPhase(ShardFetchRequest request) {
         final SearchContext context = findContext(request.id());
         contextProcessing(context);
-        final ShardSearchStats shardSearchStats = context.indexShard().searchService();
+        final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         try {
             if (request.lastEmittedDoc() != null) {
                 context.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
             }
             context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
-            shardSearchStats.onPreFetchPhase(context);
+            operationListener.onPreFetchPhase(context);
             long time = System.nanoTime();
             fetchPhase.execute(context);
             if (fetchPhaseShouldFreeContext(context)) {
@@ -500,10 +502,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             } else {
                 contextProcessedSuccessfully(context);
             }
-            shardSearchStats.onFetchPhase(context, System.nanoTime() - time);
+            operationListener.onFetchPhase(context, System.nanoTime() - time);
             return context.fetchResult();
         } catch (Throwable e) {
-            shardSearchStats.onFailedFetchPhase(context);
+            operationListener.onFailedFetchPhase(context);
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -527,9 +529,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         try {
             putContext(context);
             if (request.scroll() != null) {
-                context.indexShard().searchService().onNewScrollContext(context);
+                context.indexShard().getSearchOperationListener().onNewScrollContext(context);
             }
-            context.indexShard().searchService().onNewContext(context);
+            context.indexShard().getSearchOperationListener().onNewContext(context);
             success = true;
             return context;
         } finally {
@@ -617,9 +619,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         final SearchContext context = removeContext(id);
         if (context != null) {
             try {
-                context.indexShard().searchService().onFreeContext(context);
+                context.indexShard().getSearchOperationListener().onFreeContext(context);
                 if (context.scrollContext() != null) {
-                    context.indexShard().searchService().onFreeScrollContext(context);
+                    context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
                 }
             } finally {
                 context.close();
@@ -754,20 +756,22 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
         }
         if (source.innerHits() != null) {
-            XContentParser innerHitsParser = null;
-            try {
-                innerHitsParser = XContentFactory.xContent(source.innerHits()).createParser(source.innerHits());
-                innerHitsParser.nextToken();
-                this.elementParsers.get("inner_hits").parse(innerHitsParser, context);
-            } catch (Exception e) {
-                String sSource = "_na_";
+            for (Map.Entry<String, InnerHitBuilder> entry : source.innerHits().getInnerHitsBuilders().entrySet()) {
                 try {
-                    sSource = source.toString();
-                } catch (Throwable e1) {
-                    // ignore
+                    // This is the same logic in QueryShardContext#toQuery() where we reset also twice.
+                    // Personally I think a reset at the end is sufficient, but I kept the logic consistent with this method.
+
+                    // The reason we need to invoke reset at all here is because inner hits may modify the QueryShardContext#nestedScope,
+                    // so we need to reset at the end.
+                    queryShardContext.reset();
+                    InnerHitBuilder innerHitBuilder = entry.getValue();
+                    InnerHitsContext innerHitsContext = context.innerHits();
+                    innerHitBuilder.buildTopLevel(context, queryShardContext, innerHitsContext);
+                } catch (IOException e) {
+                    throw new SearchContextException(context, "failed to create InnerHitsContext", e);
+                } finally {
+                    queryShardContext.reset();
                 }
-                XContentLocation location = innerHitsParser != null ? innerHitsParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse suggest source [" + sSource + "]", location, e);
             }
         }
         if (source.scriptFields() != null) {

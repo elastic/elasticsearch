@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseTextField;
 
 /** A {@link FieldMapper} for full-text fields. */
@@ -60,7 +59,6 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         public static final MappedFieldType FIELD_TYPE = new TextFieldType();
 
         static {
-            FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.freeze();
         }
 
@@ -177,8 +175,8 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         private int fielddataMinSegmentSize;
 
         public TextFieldType() {
-            // TODO: change the default to false
-            fielddata = true;
+            setTokenized(true);
+            fielddata = false;
             fielddataMinFrequency = Defaults.FIELDDATA_MIN_FREQUENCY;
             fielddataMaxFrequency = Defaults.FIELDDATA_MAX_FREQUENCY;
             fielddataMinSegmentSize = Defaults.FIELDDATA_MIN_SEGMENT_SIZE;

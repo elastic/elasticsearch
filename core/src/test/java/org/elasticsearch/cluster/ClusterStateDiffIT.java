@@ -492,7 +492,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             public IndexMetaData randomCreate(String name) {
                 IndexMetaData.Builder builder = IndexMetaData.builder(name);
                 Settings.Builder settingsBuilder = Settings.builder();
-                setRandomIndexSettings(getRandom(), settingsBuilder);
+                setRandomIndexSettings(random(), settingsBuilder);
                 settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion(random()));
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
@@ -672,6 +672,6 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      * Generates a random name that starts with the given prefix
      */
     private String randomName(String prefix) {
-        return prefix + Strings.randomBase64UUID(getRandom());
+        return prefix + Strings.randomBase64UUID(random());
     }
 }

@@ -27,14 +27,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
@@ -55,7 +51,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     private ScoreMode scoreMode = DEFAULT_SCORE_MODE;
 
-    private QueryInnerHits queryInnerHits;
+    private InnerHitBuilder innerHitBuilder;
 
     public NestedQueryBuilder(String path, QueryBuilder query) {
         if (path == null) {
@@ -68,10 +64,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         this.query = query;
     }
 
-    public NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode, QueryInnerHits queryInnerHits) {
+    public NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode, InnerHitBuilder innerHitBuilder) {
         this(path, query);
         scoreMode(scoreMode);
-        this.queryInnerHits = queryInnerHits;
+        this.innerHitBuilder = innerHitBuilder;
+        if (this.innerHitBuilder != null) {
+            this.innerHitBuilder.setNestedPath(path);
+            this.innerHitBuilder.setQuery(query);
+        }
     }
 
     /**
@@ -88,8 +88,10 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     /**
      * Sets inner hit definition in the scope of this nested query and reusing the defined path and query.
      */
-    public NestedQueryBuilder innerHit(QueryInnerHits innerHit) {
-        this.queryInnerHits = innerHit;
+    public NestedQueryBuilder innerHit(InnerHitBuilder innerHit) {
+        this.innerHitBuilder = Objects.requireNonNull(innerHit);
+        this.innerHitBuilder.setNestedPath(path);
+        this.innerHitBuilder.setQuery(query);
         return this;
     }
 
@@ -103,8 +105,8 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     /**
      * Returns inner hit definition in the scope of this query and reusing the defined type and query.
      */
-    public QueryInnerHits innerHit() {
-        return queryInnerHits;
+    public InnerHitBuilder innerHit() {
+        return innerHitBuilder;
     }
 
     /**
@@ -124,8 +126,8 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             builder.field(NestedQueryParser.SCORE_MODE_FIELD.getPreferredName(), HasChildQueryParser.scoreModeAsString(scoreMode));
         }
         printBoostAndQueryName(builder);
-        if (queryInnerHits != null) {
-            queryInnerHits.toXContent(builder, params);
+        if (innerHitBuilder != null) {
+            builder.field(NestedQueryParser.INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
         builder.endObject();
     }
@@ -140,12 +142,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         return Objects.equals(query, that.query)
                 && Objects.equals(path, that.path)
                 && Objects.equals(scoreMode, that.scoreMode)
-                && Objects.equals(queryInnerHits, that.queryInnerHits);
+                && Objects.equals(innerHitBuilder, that.innerHitBuilder);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, path, scoreMode, queryInnerHits);
+        return Objects.hash(query, path, scoreMode, innerHitBuilder);
     }
 
     private NestedQueryBuilder(StreamInput in) throws IOException {
@@ -153,9 +155,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         final int ordinal = in.readVInt();
         scoreMode = ScoreMode.values()[ordinal];
         query = in.readQuery();
-        if (in.readBoolean()) {
-            queryInnerHits = new QueryInnerHits(in);
-        }
+        innerHitBuilder = InnerHitBuilder.optionalReadFromStream(in);
     }
 
     @Override
@@ -163,9 +163,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         out.writeString(path);
         out.writeVInt(scoreMode.ordinal());
         out.writeQuery(query);
-        if (queryInnerHits != null) {
+        if (innerHitBuilder != null) {
             out.writeBoolean(true);
-            queryInnerHits.writeTo(out);
+            innerHitBuilder.writeTo(out);
         } else {
             out.writeBoolean(false);
         }
@@ -187,40 +187,25 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
         final BitSetProducer parentFilter;
         final Query childFilter;
-        final ObjectMapper parentObjectMapper;
         final Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
+        if (innerHitBuilder != null) {
+            context.addInnerHit(innerHitBuilder);
+        }
+        if (objectMapper == null) {
+            parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
+        } else {
+            parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
+        }
+        childFilter = nestedObjectMapper.nestedTypeFilter();
         try {
-            if (objectMapper == null) {
-                parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
-            } else {
-                parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
-            }
-            childFilter = nestedObjectMapper.nestedTypeFilter();
-            parentObjectMapper = context.nestedScope().nextLevel(nestedObjectMapper);
+            context.nestedScope().nextLevel(nestedObjectMapper);
             innerQuery = this.query.toQuery(context);
             if (innerQuery == null) {
                 return null;
             }
         } finally {
             context.nestedScope().previousLevel();
-        }
-
-        if (queryInnerHits != null) {
-            try (XContentParser parser = queryInnerHits.getXcontentParser()) {
-                XContentParser.Token token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new IllegalStateException("start object expected but was: [" + token + "]");
-                }
-                InnerHitsSubSearchContext innerHits = context.getInnerHitsContext(parser);
-                if (innerHits != null) {
-                    ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
-
-                    InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, parentObjectMapper, nestedObjectMapper);
-                    String name = innerHits.getName() != null ? innerHits.getName() : path;
-                    context.addInnerHits(name, nestedInnerHits);
-                }
-            }
         }
         return new ToParentBlockJoinQuery(Queries.filtered(innerQuery, childFilter), parentFilter, scoreMode);
     }
@@ -229,7 +214,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrite = query.rewrite(queryRewriteContext);
         if (rewrite != query) {
-            return new NestedQueryBuilder(path, rewrite).scoreMode(scoreMode);
+            return new NestedQueryBuilder(path, rewrite).scoreMode(scoreMode).innerHit(innerHitBuilder);
         }
         return this;
     }

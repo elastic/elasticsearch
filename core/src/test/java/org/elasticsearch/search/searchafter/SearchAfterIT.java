@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +52,8 @@ public class SearchAfterIT extends ESIntegTestCase {
     private static final int NUM_DOCS = 100;
 
     public void testsShouldFail() throws Exception {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
         indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
         try {
@@ -139,7 +141,8 @@ public class SearchAfterIT extends ESIntegTestCase {
     }
 
     public void testWithNullStrings() throws ExecutionException, InterruptedException {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
         indexRandom(true,
                 client().prepareIndex("test", "type1", "0").setSource("field1", 0),

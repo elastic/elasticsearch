@@ -66,8 +66,8 @@ public class ChildrenIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
                 prepareCreate("test")
-                    .addMapping("article")
-                    .addMapping("comment", "_parent", "type=article")
+                    .addMapping("article", "category", "type=keyword")
+                    .addMapping("comment", "_parent", "type=article", "commenter", "type=keyword")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -295,8 +295,8 @@ children("non-existing", "xyz")
         String childType = "variantsku";
         assertAcked(
                 prepareCreate(indexName)
-                        .addMapping(masterType, "brand", "type=text", "name", "type=text", "material", "type=text")
-                        .addMapping(childType, "_parent", "type=masterprod", "color", "type=text", "size", "type=text")
+                        .addMapping(masterType, "brand", "type=text", "name", "type=keyword", "material", "type=text")
+                        .addMapping(childType, "_parent", "type=masterprod", "color", "type=keyword", "size", "type=keyword")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -358,7 +358,7 @@ children("non-existing", "xyz")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                         )
-                        .addMapping(grandParentType)
+                        .addMapping(grandParentType, "name", "type=keyword")
                         .addMapping(parentType, "_parent", "type=" + grandParentType)
                         .addMapping(childType, "_parent", "type=" + parentType)
         );

@@ -146,3 +146,8 @@ vectors don't support distributed document frequencies anymore.
 
 The `reverse` parameter has been removed, in favour of explicitly
 specifying the sort order with the `order` option.
+
+==== Inner hits
+
+* The format of top level inner hits has been changed to be more readable. All options are now set on the same level.
+  So the `path` and `type` options are specified on the same level where `query` and other options are specified.

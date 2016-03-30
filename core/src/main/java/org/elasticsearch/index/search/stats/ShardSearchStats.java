@@ -23,7 +23,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.SearchSlowLog;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
@@ -35,16 +35,11 @@ import static java.util.Collections.emptyMap;
 
 /**
  */
-public final class ShardSearchStats {
+public final class ShardSearchStats implements SearchOperationListener {
 
-    private final SearchSlowLog slowLogSearchService;
     private final StatsHolder totalStats = new StatsHolder();
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
-
-    public ShardSearchStats(SearchSlowLog searchSlowLog) {
-        this.slowLogSearchService = searchSlowLog;
-    }
 
     /**
      * Returns the stats, including group specific stats. If the groups are null/0 length, then nothing
@@ -71,6 +66,7 @@ public final class ShardSearchStats {
         return new SearchStats(total, openContexts.count(), groupsSt);
     }
 
+    @Override
     public void onPreQueryPhase(SearchContext searchContext) {
         computeStats(searchContext, statsHolder -> {
             if (searchContext.hasOnlySuggest()) {
@@ -81,6 +77,7 @@ public final class ShardSearchStats {
         });
     }
 
+    @Override
     public void onFailedQueryPhase(SearchContext searchContext) {
         computeStats(searchContext, statsHolder -> {
             if (searchContext.hasOnlySuggest()) {
@@ -91,6 +88,7 @@ public final class ShardSearchStats {
         });
     }
 
+    @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
         computeStats(searchContext, statsHolder -> {
             if (searchContext.hasOnlySuggest()) {
@@ -101,23 +99,24 @@ public final class ShardSearchStats {
                 statsHolder.queryCurrent.dec();
             }
         });
-        slowLogSearchService.onQueryPhase(searchContext, tookInNanos);
     }
 
+    @Override
     public void onPreFetchPhase(SearchContext searchContext) {
         computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.inc());
     }
 
+    @Override
     public void onFailedFetchPhase(SearchContext searchContext) {
         computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.dec());
     }
 
+    @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
         computeStats(searchContext, statsHolder -> {
             statsHolder.fetchMetric.inc(tookInNanos);
             statsHolder.fetchCurrent.dec();
         });
-        slowLogSearchService.onFetchPhase(searchContext, tookInNanos);
     }
 
     public void clear() {
@@ -159,18 +158,22 @@ public final class ShardSearchStats {
         return stats;
     }
 
+    @Override
     public void onNewContext(SearchContext context) {
         openContexts.inc();
     }
 
+    @Override
     public void onFreeContext(SearchContext context) {
         openContexts.dec();
     }
 
+    @Override
     public void onNewScrollContext(SearchContext context) {
         totalStats.scrollCurrent.inc();
     }
 
+    @Override
     public void onFreeScrollContext(SearchContext context) {
         totalStats.scrollCurrent.dec();
         totalStats.scrollMetric.inc(System.nanoTime() - context.getOriginNanoTime());

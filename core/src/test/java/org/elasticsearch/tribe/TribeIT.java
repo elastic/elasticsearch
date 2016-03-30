@@ -95,9 +95,9 @@ public class TribeIT extends ESIntegTestCase {
 
         };
         cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2,
-                Strings.randomBase64UUID(getRandom()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, Collections.emptyList(), Function.identity());
+                Strings.randomBase64UUID(random()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, Collections.emptyList(), Function.identity());
 
-        cluster2.beforeTest(getRandom(), 0.1);
+        cluster2.beforeTest(random(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
     }
 

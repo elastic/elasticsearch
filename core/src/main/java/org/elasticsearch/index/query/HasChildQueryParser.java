@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -55,7 +55,7 @@ public class HasChildQueryParser implements QueryParser<HasChildQueryBuilder> {
         int minChildren = HasChildQueryBuilder.DEFAULT_MIN_CHILDREN;
         int maxChildren = HasChildQueryBuilder.DEFAULT_MAX_CHILDREN;
         String queryName = null;
-        QueryInnerHits queryInnerHits = null;
+        InnerHitBuilder innerHitBuilder = null;
         String currentFieldName = null;
         XContentParser.Token token;
         QueryBuilder iqb = null;
@@ -68,7 +68,7 @@ public class HasChildQueryParser implements QueryParser<HasChildQueryBuilder> {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     iqb = parseContext.parseInnerQueryBuilder();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
-                    queryInnerHits = new QueryInnerHits(parser);
+                    innerHitBuilder = InnerHitBuilder.fromXContent(parser, parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
@@ -90,7 +90,7 @@ public class HasChildQueryParser implements QueryParser<HasChildQueryBuilder> {
                 }
             }
         }
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren, scoreMode, queryInnerHits);
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren, scoreMode, innerHitBuilder);
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
         return hasChildQueryBuilder;

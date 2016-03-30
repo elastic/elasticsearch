@@ -78,7 +78,8 @@ public class ShardReduceIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested", "ip", "type=ip", "location", "type=geo_point"));
+                .addMapping("type", "nested", "type=nested", "ip", "type=ip",
+                        "location", "type=geo_point", "term-s", "type=keyword"));
 
         indexRandom(true,
                 indexDoc("2014-01-01", 1),

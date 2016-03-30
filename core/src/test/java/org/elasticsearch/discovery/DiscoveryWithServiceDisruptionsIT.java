@@ -218,7 +218,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
 
-        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterNode, unluckyNode, getRandom());
+        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterNode, unluckyNode, random());
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
 
@@ -562,7 +562,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
-        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(oldMasterNode, getRandom(), 100, 200, 30000, 60000);
+        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(oldMasterNode, random(), 100, 200, 30000, 60000);
         internalCluster().setDisruptionScheme(masterNodeDisruption);
         masterNodeDisruption.startDisrupting();
 
@@ -609,7 +609,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertMaster(oldMasterNode, nodes);
 
         // Simulating a painful gc by suspending all threads for a long time on the current elected master node.
-        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(getRandom(), oldMasterNode);
+        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(random(), oldMasterNode);
 
         // Save the majority side
         final List<String> majoritySide = new ArrayList<>(nodes);
@@ -779,7 +779,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
-        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterNode, isolatedNode, getRandom());
+        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterNode, isolatedNode, random());
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
         // Wait until elected master has removed that the unlucky node...
@@ -816,7 +816,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }
 
         // Simulate a network issue between the unicast target node and the rest of the cluster
-        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(unicastTargetSide, restOfClusterSide, getRandom());
+        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(unicastTargetSide, restOfClusterSide, random());
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
         // Wait until elected master has removed that the unlucky node...
@@ -955,7 +955,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     public void testClusterFormingWithASlowNode() throws Exception {
         configureUnicastCluster(3, null, 2);
 
-        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(getRandom(), 0, 0, 1000, 2000);
+        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,
@@ -1035,7 +1035,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc").setSource("{\"int_field\":1}"));
         }
         indexRandom(true, indexRequestBuilderList);
-        SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_2, getRandom());
+        SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_2, random());
 
         internalCluster().setDisruptionScheme(disruption);
         MockTransportService transportServiceNode2 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_2);
@@ -1095,7 +1095,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         ensureYellow();
 
         final String masterNode1 = internalCluster().getMasterName();
-        NetworkPartition networkPartition = new NetworkUnresponsivePartition(masterNode1, dataNode.get(), getRandom());
+        NetworkPartition networkPartition = new NetworkUnresponsivePartition(masterNode1, dataNode.get(), random());
         internalCluster().setDisruptionScheme(networkPartition);
         networkPartition.startDisrupting();
         // We know this will time out due to the partition, we check manually below to not proceed until
@@ -1117,9 +1117,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     protected NetworkPartition addRandomPartition() {
         NetworkPartition partition;
         if (randomBoolean()) {
-            partition = new NetworkUnresponsivePartition(getRandom());
+            partition = new NetworkUnresponsivePartition(random());
         } else {
-            partition = new NetworkDisconnectPartition(getRandom());
+            partition = new NetworkDisconnectPartition(random());
         }
 
         setDisruptionScheme(partition);
@@ -1135,9 +1135,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         NetworkPartition partition;
         if (randomBoolean()) {
-            partition = new NetworkUnresponsivePartition(side1, side2, getRandom());
+            partition = new NetworkUnresponsivePartition(side1, side2, random());
         } else {
-            partition = new NetworkDisconnectPartition(side1, side2, getRandom());
+            partition = new NetworkDisconnectPartition(side1, side2, random());
         }
 
         internalCluster().setDisruptionScheme(partition);
@@ -1148,10 +1148,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     private ServiceDisruptionScheme addRandomDisruptionScheme() {
         // TODO: add partial partitions
         List<ServiceDisruptionScheme> list = Arrays.asList(
-                new NetworkUnresponsivePartition(getRandom()),
-                new NetworkDelaysPartition(getRandom()),
-                new NetworkDisconnectPartition(getRandom()),
-                new SlowClusterStateProcessing(getRandom())
+                new NetworkUnresponsivePartition(random()),
+                new NetworkDelaysPartition(random()),
+                new NetworkDisconnectPartition(random()),
+                new SlowClusterStateProcessing(random())
         );
         Collections.shuffle(list, random());
         setDisruptionScheme(list.get(0));

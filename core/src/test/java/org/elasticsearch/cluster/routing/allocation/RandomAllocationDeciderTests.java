@@ -56,7 +56,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
      * already allocated on a node and balances the cluster to gain optimal
      * balance.*/
     public void testRandomDecisions() {
-        RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(getRandom());
+        RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(random());
         AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY), new ReplicaAfterPrimaryActiveAllocationDecider(Settings.EMPTY),
                         randomAllocationDecider))), NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);

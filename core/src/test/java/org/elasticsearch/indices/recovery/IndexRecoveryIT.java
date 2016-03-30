@@ -535,8 +535,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // start a master node
         internalCluster().startNode(nodeSettings);
 
-        InternalTestCluster.Async<String> blueFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "blue").put(nodeSettings).build());
-        InternalTestCluster.Async<String> redFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "red").put(nodeSettings).build());
+        InternalTestCluster.Async<String> blueFuture = internalCluster().startNodeAsync(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
+        InternalTestCluster.Async<String> redFuture = internalCluster().startNodeAsync(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
         final String blueNodeName = blueFuture.get();
         final String redNodeName = redFuture.get();
 

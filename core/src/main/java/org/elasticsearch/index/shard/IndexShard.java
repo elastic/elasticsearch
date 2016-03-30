@@ -128,7 +128,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexCache indexCache;
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
-    private final ShardSearchStats searchService;
+    private final ShardSearchStats searchStats = new ShardSearchStats();
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache shardQueryCache;
@@ -151,6 +151,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * being indexed/deleted.
      */
     private final AtomicLong writingBytes = new AtomicLong();
+    private final SearchOperationListener searchOperationListener;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -195,7 +196,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
                       @Nullable EngineFactory engineFactory,
                       IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, ThreadPool threadPool, BigArrays bigArrays,
-                      SearchSlowLog slowLog, Engine.Warmer warmer, IndexingOperationListener... listeners) {
+                      Engine.Warmer warmer, List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) {
         super(shardId, indexSettings);
         final Settings settings = indexSettings.getSettings();
         this.codecService = new CodecService(mapperService, logger);
@@ -210,11 +211,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats();
-        final List<IndexingOperationListener> listenersList = new ArrayList<>(Arrays.asList(listeners));
+        final List<IndexingOperationListener> listenersList = new ArrayList<>(listeners);
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
+        final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
+        searchListenersList.add(searchStats);
+        this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
-        this.searchService = new ShardSearchStats(slowLog);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.shardQueryCache = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();
@@ -270,8 +273,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return mapperService;
     }
 
-    public ShardSearchStats searchService() {
-        return this.searchService;
+    public SearchOperationListener getSearchOperationListener() {
+        return this.searchOperationListener;
     }
 
     public ShardIndexWarmerService warmerService() {
@@ -483,6 +486,11 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public boolean index(Engine.Index index) {
         ensureWriteAllowed(index);
+        Engine engine = getEngine();
+        return index(engine, index);
+    }
+
+    private boolean index(Engine engine, Engine.Index index) {
         active.set(true);
         index = indexingOperationListeners.preIndex(index);
         final boolean created;
@@ -490,7 +498,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
-            Engine engine = getEngine();
             created = engine.index(index);
             index.endTime(System.nanoTime());
         } catch (Throwable ex) {
@@ -521,13 +528,17 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
+        Engine engine = getEngine();
+        delete(engine, delete);
+    }
+
+    private void delete(Engine engine, Engine.Delete delete) {
         active.set(true);
         delete = indexingOperationListeners.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
             }
-            Engine engine = getEngine();
             engine.delete(delete);
             delete.endTime(System.nanoTime());
         } catch (Throwable ex) {
@@ -613,7 +624,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public SearchStats searchStats(String... groups) {
-        return searchService.stats(groups);
+        return searchStats.stats(groups);
     }
 
     public GetStats getStats() {
@@ -1378,6 +1389,16 @@ public class IndexShard extends AbstractIndexShardComponent {
                 translogStats.totalOperations(snapshot.totalOperations());
                 translogStats.totalOperationsOnStart(snapshot.totalOperations());
                 return super.recoveryFromSnapshot(engine, snapshot);
+            }
+
+            @Override
+            protected void index(Engine engine, Engine.Index engineIndex) {
+                IndexShard.this.index(engine, engineIndex);
+            }
+
+            @Override
+            protected void delete(Engine engine, Engine.Delete engineDelete) {
+                IndexShard.this.delete(engine, engineDelete);
             }
         };
         return new EngineConfig(shardId,

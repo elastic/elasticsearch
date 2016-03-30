@@ -141,3 +141,8 @@ The term vectors APIs no longer persist unmapped fields in the mappings.
 
 The `dfs` parameter to the term vectors API has been removed completely. Term
 vectors don't support distributed document frequencies anymore.
+
+==== Sort
+
+The `reverse` parameter has been removed, in favour of explicitly
+specifying the sort order with the `order` option.

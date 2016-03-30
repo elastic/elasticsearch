@@ -41,6 +41,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     public static final String NAME = "_score";
     public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField ORDER_FIELD = new ParseField("order");
+    private static final ParseField REVERSE_FORBIDDEN = new ParseField("reverse");
     private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
     private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.Type.SCORE, true);
 
@@ -94,12 +95,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
             } else if (token.isValue()) {
-                if (matcher.match(currentName, REVERSE_FIELD)) {
-                    if (parser.booleanValue()) {
-                        result.order(SortOrder.ASC);
-                    }
-                    // else we keep the default DESC
-                } else if (matcher.match(currentName, ORDER_FIELD)) {
+                if (matcher.match(currentName, ORDER_FIELD)) {
                     result.order(SortOrder.fromString(parser.text()));
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");

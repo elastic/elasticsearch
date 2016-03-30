@@ -161,4 +161,31 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             assertThat(e.getMessage(), containsString("Limit of total fields [1] in index [test2] has been exceeded"));
         }
     }
+
+    public void testMappingDepthExceedsLimit() throws Throwable {
+        CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "text")
+                    .endObject()
+                .endObject().endObject().bytes());
+        IndexService indexService1 = createIndex("test1", Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build());
+        // no exception
+        indexService1.mapperService().merge("type", simpleMapping, MergeReason.MAPPING_UPDATE, false);
+
+        CompressedXContent objectMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("object1")
+                        .field("type", "object")
+                    .endObject()
+                .endObject().endObject().bytes());
+
+        IndexService indexService2 = createIndex("test2");
+        // no exception
+        indexService2.mapperService().merge("type", objectMapping, MergeReason.MAPPING_UPDATE, false);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> indexService1.mapperService().merge("type2", objectMapping, MergeReason.MAPPING_UPDATE, false));
+        assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
+    }
 }

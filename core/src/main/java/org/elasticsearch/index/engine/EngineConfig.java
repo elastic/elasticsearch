@@ -64,7 +64,7 @@ public final class EngineConfig {
     private final Similarity similarity;
     private final CodecService codecService;
     private final Engine.EventListener eventListener;
-    private final boolean forceNewTranslog;
+    private volatile boolean forceNewTranslog = false;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
 
@@ -89,9 +89,6 @@ public final class EngineConfig {
         }
     }, Property.IndexScope, Property.NodeScope);
 
-    /** if set to true the engine will start even if the translog id in the commit point can not be found */
-    public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
-
     private TranslogConfig translogConfig;
     private boolean create = false;
 
@@ -105,7 +102,6 @@ public final class EngineConfig {
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                         TranslogConfig translogConfig, TimeValue flushMergesAfter) {
         this.shardId = shardId;
-        final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.warmer = warmer == null ? (a) -> {} : warmer;
@@ -122,7 +118,6 @@ public final class EngineConfig {
         // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
         indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
         this.translogRecoveryPerformer = translogRecoveryPerformer;
-        this.forceNewTranslog = settings.getAsBoolean(INDEX_FORCE_NEW_TRANSLOG, false);
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
@@ -304,5 +299,11 @@ public final class EngineConfig {
      * are written after the engine became inactive from an indexing perspective.
      */
     public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
+
+    /** if set to true the engine will start even if the translog id in the commit point can not be found and a new transaction log
+     * will be created this should be used if recovery from translog should be skipped */
+    public void setForceNewTranslog(boolean forceNewTranslog) {
+        this.forceNewTranslog = forceNewTranslog;
+    }
 
 }

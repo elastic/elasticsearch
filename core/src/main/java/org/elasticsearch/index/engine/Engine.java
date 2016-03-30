@@ -65,6 +65,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
@@ -1149,7 +1150,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Request that this engine throttle incoming indexing requests to one thread.  Must be matched by a later call to {@link deactivateThrottling}.
+     * Request that this engine throttle incoming indexing requests to one thread.  Must be matched by a later call to {@link #deactivateThrottling()}.
      */
     public abstract void activateThrottling();
 
@@ -1157,4 +1158,10 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #activateThrottling} call.
      */
     public abstract void deactivateThrottling();
+
+    /**
+     * Performs recovery from the transaction log.
+     * This operation will close the engine if the recovery fails.
+     */
+    public abstract Engine recoverFromTranslog() throws IOException;
 }

@@ -79,13 +79,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
-import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -259,12 +257,13 @@ public class InternalEngineTests extends ESTestCase {
         return new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
     }
 
-    protected InternalEngine createEngine(Store store, Path translogPath) {
+    protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
         return createEngine(defaultSettings, store, translogPath, newMergePolicy());
     }
 
-    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
-        return new InternalEngine(config(indexSettings, store, translogPath, mergePolicy), false);
+    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) throws IOException {
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy);
+        return new InternalEngine(config).recoverFromTranslog();
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
@@ -556,7 +555,7 @@ public class InternalEngineTests extends ESTestCase {
         InternalEngine engine = createEngine(store, translog);
         engine.close();
 
-        engine = new InternalEngine(engine.config(), false);
+        engine = new InternalEngine(engine.config()).recoverFromTranslog();
         Engine.Searcher searcher = wrapper.wrap(engine.acquireSearcher("test"));
         assertThat(counter.get(), equalTo(2));
         searcher.close();
@@ -794,7 +793,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testSyncedFlush() throws IOException {
         try (Store store = createStore();
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                     new LogByteSizeMergePolicy()), false)) {
+                     new LogByteSizeMergePolicy())).recoverFromTranslog()) {
             final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
             engine.index(new Engine.Index(newUid("1"), doc));
@@ -821,7 +820,7 @@ public class InternalEngineTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             try (Store store = createStore();
                  InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                         new LogDocMergePolicy()), false)) {
+                         new LogDocMergePolicy())).recoverFromTranslog()) {
                 final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
                 ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
                 Engine.Index doc1 = new Engine.Index(newUid("1"), doc);
@@ -889,7 +888,10 @@ public class InternalEngineTests extends ESTestCase {
         } else {
             engine.flushAndClose();
         }
-        engine = new InternalEngine(config, randomBoolean());
+        engine = new InternalEngine(config);
+        if (randomBoolean()) {
+            engine.recoverFromTranslog();
+        }
         assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
     }
 
@@ -913,7 +915,7 @@ public class InternalEngineTests extends ESTestCase {
             directory.setPreventDoubleWrite(false);
         }
         config.setCreate(false);
-        engine = new InternalEngine(config, false);
+        engine = new InternalEngine(config).recoverFromTranslog();
         assertNull("Sync ID must be gone since we have a document to replay", engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
@@ -1051,7 +1053,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testForceMerge() throws IOException {
         try (Store store = createStore();
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                     new LogByteSizeMergePolicy()), false)) { // use log MP here we test some behavior in ESMP
+                     new LogByteSizeMergePolicy())).recoverFromTranslog()) { // use log MP here we test some behavior in ESMP
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, null);
@@ -1489,7 +1491,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testEnableGcDeletes() throws Exception {
         try (Store store = createStore();
-            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy()), false)) {
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy())).recoverFromTranslog()) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
@@ -1625,9 +1627,9 @@ public class InternalEngineTests extends ESTestCase {
             // expected
         }
         // now it should be OK.
-        IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(),
-                Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build());
-        engine = createEngine(indexSettings, store, primaryTranslogDir, newMergePolicy());
+        EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy());
+        config.setForceNewTranslog(true);
+        engine = new InternalEngine(config);
     }
 
     public void testTranslogReplayWithFailure() throws IOException {
@@ -1661,7 +1663,7 @@ public class InternalEngineTests extends ESTestCase {
                     engine = createEngine(store, primaryTranslogDir);
                     started = true;
                     break;
-                } catch (EngineCreationFailureException ex) {
+                } catch (EngineException | IOException e) {
                 }
             }
 
@@ -1702,7 +1704,7 @@ public class InternalEngineTests extends ESTestCase {
             directory.setPreventDoubleWrite(false);
         }
         engine.close();
-        engine = new InternalEngine(engine.config(), true);
+        engine = new InternalEngine(engine.config());
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
@@ -1831,7 +1833,7 @@ public class InternalEngineTests extends ESTestCase {
 
         engine.close();
         engine.config().setCreate(false);
-        engine = new InternalEngine(engine.config(), false); // we need to reuse the engine config unless the parser.mappingModified won't work
+        engine = new InternalEngine(engine.config()).recoverFromTranslog(); // we need to reuse the engine config unless the parser.mappingModified won't work
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
@@ -1966,7 +1968,7 @@ public class InternalEngineTests extends ESTestCase {
                 , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
 
         try {
-            new InternalEngine(brokenConfig, false);
+            new InternalEngine(brokenConfig).recoverFromTranslog();
             fail("translog belongs to a different engine");
         } catch (EngineCreationFailureException ex) {
         }

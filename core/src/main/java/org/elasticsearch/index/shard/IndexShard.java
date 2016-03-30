@@ -41,6 +41,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -53,7 +54,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.SuspendableRefContainer;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
@@ -110,7 +110,6 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -185,7 +184,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private static final EnumSet<IndexShardState> writeAllowedStatesForReplica = EnumSet.of(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     private final IndexSearcherWrapper searcherWrapper;
-
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
      * IndexingMemoryController}).
@@ -239,11 +237,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
-
-        this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
-        this.suspendableRefContainer = new SuspendableRefContainer();
-        this.searcherWrapper = indexSearcherWrapper;
-        this.primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
+        engineConfig = newEngineConfig(translogConfig, cachingPolicy, new IndexShardRecoveryPerformer(shardId, mapperService, logger));
+        suspendableRefContainer = new SuspendableRefContainer();
+        searcherWrapper = indexSearcherWrapper;
+        primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
     }
 
     public Store store() {
@@ -859,7 +856,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
-    public void performTranslogRecovery(boolean indexExists) {
+    public void performTranslogRecovery(boolean indexExists) throws IOException {
         if (indexExists == false) {
             // note: these are set when recovering from the translog
             final RecoveryState.Translog translogStats = recoveryState().getTranslog();
@@ -870,7 +867,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
-    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) {
+    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -893,7 +890,12 @@ public class IndexShard extends AbstractIndexShardComponent {
             // we still give sync'd flush a chance to run:
             active.set(true);
         }
-        createNewEngine(skipTranslogRecovery, engineConfig);
+        engineConfig.setForceNewTranslog(skipTranslogRecovery);
+        Engine newEngine = createNewEngine(engineConfig);
+        verifyNotClosed();
+        if (skipTranslogRecovery == false) {
+            newEngine.recoverFromTranslog();
+        }
 
     }
 
@@ -1313,13 +1315,14 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void createNewEngine(boolean skipTranslogRecovery, EngineConfig config) {
+    private Engine createNewEngine(EngineConfig config) {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new EngineClosedException(shardId);
             }
             assert this.currentEngineReference.get() == null;
-            this.currentEngineReference.set(newEngine(skipTranslogRecovery, config));
+            this.currentEngineReference.set(newEngine(config));
+
         }
 
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during which
@@ -1330,10 +1333,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (engine != null) {
             engine.onSettingsChanged();
         }
+        return engine;
     }
 
-    protected Engine newEngine(boolean skipTranslogRecovery, EngineConfig config) {
-        return engineFactory.newReadWriteEngine(config, skipTranslogRecovery);
+    protected Engine newEngine(EngineConfig config) {
+        return engineFactory.newReadWriteEngine(config);
     }
 
     /**
@@ -1374,33 +1378,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy) {
-        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, logger) {
-            @Override
-            protected void operationProcessed() {
-                assert recoveryState != null;
-                recoveryState.getTranslog().incrementRecoveredOperations();
-            }
-
-            @Override
-            public int recoveryFromSnapshot(Engine engine, Translog.Snapshot snapshot) throws IOException {
-                assert recoveryState != null;
-                RecoveryState.Translog translogStats = recoveryState.getTranslog();
-                translogStats.totalOperations(snapshot.totalOperations());
-                translogStats.totalOperationsOnStart(snapshot.totalOperations());
-                return super.recoveryFromSnapshot(engine, snapshot);
-            }
-
-            @Override
-            protected void index(Engine engine, Engine.Index engineIndex) {
-                IndexShard.this.index(engine, engineIndex);
-            }
-
-            @Override
-            protected void delete(Engine engine, Engine.Delete engineDelete) {
-                IndexShard.this.delete(engine, engineDelete);
-            }
-        };
+    private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy, TranslogRecoveryPerformer translogRecoveryPerformer) {
         return new EngineConfig(shardId,
             threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
@@ -1533,6 +1511,38 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public boolean isRefreshNeeded() {
         return getEngine().refreshNeeded();
+    }
+
+    private class IndexShardRecoveryPerformer extends TranslogRecoveryPerformer {
+
+        protected IndexShardRecoveryPerformer(ShardId shardId, MapperService mapperService, ESLogger logger) {
+            super(shardId, mapperService, logger);
+        }
+
+        @Override
+        protected void operationProcessed() {
+            assert recoveryState != null;
+            recoveryState.getTranslog().incrementRecoveredOperations();
+        }
+
+        @Override
+        public int recoveryFromSnapshot(Engine engine, Translog.Snapshot snapshot) throws IOException {
+            assert recoveryState != null;
+            RecoveryState.Translog translogStats = recoveryState.getTranslog();
+            translogStats.totalOperations(snapshot.totalOperations());
+            translogStats.totalOperationsOnStart(snapshot.totalOperations());
+            return super.recoveryFromSnapshot(engine, snapshot);
+        }
+
+        @Override
+        protected void index(Engine engine, Engine.Index engineIndex) {
+            IndexShard.this.index(engine, engineIndex);
+        }
+
+        @Override
+        protected void delete(Engine engine, Engine.Delete engineDelete) {
+            IndexShard.this.delete(engine, engineDelete);
+        }
     }
 
 }

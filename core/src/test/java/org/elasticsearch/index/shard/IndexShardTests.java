@@ -31,6 +31,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -117,6 +118,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -1317,6 +1320,60 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexService(resolveIndex("test"));
+        IndexShard shard = indexService.getShardOrNull(0);
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").get();
+        client().prepareDelete("test", "test", "0").get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
+
+        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
+        shard.close("simon says", false);
+        AtomicReference<IndexShard> shardRef = new AtomicReference<>();
+        List<Throwable> failures = new ArrayList<>();
+        IndexingOperationListener listener = new IndexingOperationListener() {
+
+            @Override
+            public void postIndex(Engine.Index index, boolean created) {
+                try {
+                    assertNotNull(shardRef.get());
+                    // this is all IMC needs to do - check current memory and refresh
+                    assertTrue(shardRef.get().getIndexBufferRAMBytesUsed() > 0);
+                    shardRef.get().refresh("test");
+                } catch (Throwable t) {
+                    failures.add(t);
+                    throw t;
+                }
+            }
+
+
+            @Override
+            public void postDelete(Engine.Delete delete) {
+                try {
+                    assertNotNull(shardRef.get());
+                    // this is all IMC needs to do - check current memory and refresh
+                    assertTrue(shardRef.get().getIndexBufferRAMBytesUsed() > 0);
+                    shardRef.get().refresh("test");
+                } catch (Throwable t) {
+                    failures.add(t);
+                    throw t;
+                }
+            }
+        };
+        final IndexShard newShard = newIndexShard(indexService, shard, wrapper, listener);
+        shardRef.set(newShard);
+        recoverShard(newShard, shard.routingEntry());
+
+        try {
+            ExceptionsHelper.rethrowAndSuppress(failures);
+        } finally {
+            newShard.close("just do it", randomBoolean());
+        }
+    }
+
     public void testSearchIsReleaseIfWrapperFails() throws IOException {
         createIndex("test");
         ensureGreen();
@@ -1348,12 +1405,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     private final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
-        ShardRouting routing = new ShardRouting(shard.routingEntry());
-        IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(),
-                shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
-                indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-                indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners)
-        );
+        IndexShard newShard = newIndexShard(indexService, shard, wrapper, listeners);
+        return recoverShard(newShard, shard.routingEntry());
+    }
+
+    private final IndexShard recoverShard(IndexShard newShard, ShardRouting oldRouting) throws IOException {
+        ShardRouting routing = new ShardRouting(oldRouting);
         ShardRoutingHelper.reinit(routing);
         newShard.updateRoutingEntry(routing, false);
         DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
@@ -1362,6 +1419,15 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         routing = new ShardRouting(routing);
         ShardRoutingHelper.moveToStarted(routing);
         newShard.updateRoutingEntry(routing, true);
+        return newShard;
+    }
+
+    private final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
+        IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(),
+            shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
+            indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
+            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners)
+        );
         return newShard;
     }
 

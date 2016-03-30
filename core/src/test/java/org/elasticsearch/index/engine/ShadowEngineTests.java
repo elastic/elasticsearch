@@ -217,7 +217,9 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
-        return new InternalEngine(config(indexSettings, store, translogPath, mergePolicy), true);
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy);
+        config.setForceNewTranslog(true);
+        return new InternalEngine(config);
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {

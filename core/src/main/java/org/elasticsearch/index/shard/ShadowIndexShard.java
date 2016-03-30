@@ -81,9 +81,8 @@ public final class ShadowIndexShard extends IndexShard {
     }
 
     @Override
-    protected Engine newEngine(boolean skipInitialTranslogRecovery, EngineConfig config) {
+    protected Engine newEngine(EngineConfig config) {
         assert this.shardRouting.primary() == false;
-        assert skipInitialTranslogRecovery : "can not recover from gateway";
         config.setCreate(false); // hardcoded - we always expect an index to be present
         return engineFactory.newReadOnlyEngine(config);
     }

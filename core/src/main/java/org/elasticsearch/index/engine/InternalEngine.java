@@ -114,7 +114,7 @@ public class InternalEngine extends Engine {
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
 
-    public InternalEngine(EngineConfig engineConfig, boolean skipInitialTranslogRecovery) throws EngineException {
+    public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
         this.versionMap = new LiveVersionMap();
         store.incRef();
@@ -132,14 +132,12 @@ public class InternalEngine extends Engine {
             }
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
-            final Translog.TranslogGeneration translogGeneration;
             try {
                 final boolean create = engineConfig.isCreate();
                 writer = createWriter(create);
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer, create || skipInitialTranslogRecovery || engineConfig.forceNewTranslog());
-                translogGeneration = translog.getGeneration();
-                assert translogGeneration != null;
+                translog = openTranslog(engineConfig, writer, create || engineConfig.forceNewTranslog());
+                assert translog.getGeneration() != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
@@ -151,16 +149,15 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
+
             this.translog = translog;
             manager = createSearcherManager();
             this.searcherManager = manager;
             this.versionMap.setManager(searcherManager);
             try {
-                if (skipInitialTranslogRecovery) {
+                if (engineConfig.forceNewTranslog()) {
                     // make sure we point at the latest translog from now on..
                     commitIndexWriter(writer, translog, lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID));
-                } else {
-                    recoverFromTranslog(engineConfig, translogGeneration);
                 }
             } catch (IOException | EngineException ex) {
                 throw new EngineCreationFailureException(shardId, "failed to recover from translog", ex);
@@ -177,6 +174,20 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    @Override
+    public InternalEngine recoverFromTranslog() throws IOException {
+        boolean success = false;
+        try {
+            recoverFromTranslog(engineConfig.getTranslogRecoveryPerformer());
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
+        return this;
     }
 
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, boolean createNew) throws IOException {
@@ -219,9 +230,10 @@ public class InternalEngine extends Engine {
         return translog;
     }
 
-    protected void recoverFromTranslog(EngineConfig engineConfig, Translog.TranslogGeneration translogGeneration) throws IOException {
+
+    private void recoverFromTranslog(TranslogRecoveryPerformer handler) throws IOException {
+        Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         int opsRecovered = 0;
-        final TranslogRecoveryPerformer handler = engineConfig.getTranslogRecoveryPerformer();
         try {
             Translog.Snapshot snapshot = translog.newSnapshot();
             opsRecovered = handler.recoveryFromSnapshot(this, snapshot);

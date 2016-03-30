@@ -749,7 +749,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         final ClusterState clusterState = clusterService.state();
         if (clusterService.lifecycleState() == Lifecycle.State.STARTED
                 && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
-                && clusterState.nodes().masterNode() != null) {
+                && clusterState.nodes().getMasterNode() != null) {
             final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
             if (currentMetaData == null || currentMetaData.getLicense() == null) {
                 // triggers a cluster changed event
@@ -762,7 +762,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     private void requestTrialLicense(final ClusterState currentState) {
-        DiscoveryNode masterNode = currentState.nodes().masterNode();
+        DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         if (masterNode == null) {
             throw new IllegalStateException("master not available when registering auto-generated license");
         }

@@ -89,6 +89,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.EMPTY_PARAMS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -647,13 +648,15 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexShard shard = test.shard(0);
         ShardIndexingService shardIndexingService = shard.indexingService();
         final AtomicBoolean postIndexCalled = new AtomicBoolean(false);
+        final AtomicReference<Boolean> wasCreated = new AtomicReference<>(null);
 
         shardIndexingService.addListener(new IndexingOperationListener() {
 
             @Override
-            public void postIndex(Engine.Index index) {
+            public void postIndex(Engine.Index index, boolean created) {
                 postIndexCalled.set(true);
-                super.postIndex(index);
+                wasCreated.set(created);
+                super.postIndex(index, created);
             }
         });
 
@@ -661,6 +664,18 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
         assertTrue(postIndexCalled.get());
+        assertNotNull(wasCreated.get());
+        assertTrue(wasCreated.get());
+
+        postIndexCalled.set(false);
+        wasCreated.set(null);
+        doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
+        index = new Engine.Index(new Term("_uid", "1"), doc);
+        shard.index(index);
+        assertTrue(postIndexCalled.get());
+        assertNotNull(wasCreated.get());
+        assertFalse(wasCreated.get());
+
     }
 
     public void testPostIndexWithException() throws IOException {

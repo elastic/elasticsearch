@@ -158,7 +158,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
-    public void postIndex(Engine.Index index) {
+    public void postIndex(Engine.Index index, boolean created) {
         long took = index.endTime() - index.startTime();
         totalStats.indexMetric.inc(took);
         totalStats.indexCurrent.dec();
@@ -168,7 +168,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         slowLog.postIndex(index, took);
         for (IndexingOperationListener listener : listeners) {
             try {
-                listener.postIndex(index);
+                listener.postIndex(index, created);
             } catch (Exception e) {
                 logger.warn("postIndex listener [{}] failed", e, listener);
             }

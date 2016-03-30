@@ -604,7 +604,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             indexingService.postIndex(index, ex);
             throw ex;
         }
-        indexingService.postIndex(index);
+        indexingService.postIndex(index, created);
         return created;
     }
 

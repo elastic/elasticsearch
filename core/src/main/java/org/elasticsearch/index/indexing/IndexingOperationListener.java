@@ -76,7 +76,7 @@ public abstract class IndexingOperationListener {
     /**
      * Called after the indexing operation occurred.
      */
-    public void postIndex(Engine.Index index) {
+    public void postIndex(Engine.Index index, boolean created) {
 
     }
 

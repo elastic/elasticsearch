@@ -684,7 +684,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test_iol"));
         IndexShard shard = test.getShardOrNull(0);
         AtomicInteger preIndex = new AtomicInteger();
-        AtomicInteger postIndex = new AtomicInteger();
+        AtomicInteger postIndexCreate = new AtomicInteger();
+        AtomicInteger postIndexUpdate = new AtomicInteger();
         AtomicInteger postIndexException = new AtomicInteger();
         AtomicInteger preDelete = new AtomicInteger();
         AtomicInteger postDelete = new AtomicInteger();
@@ -697,8 +698,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index) {
-                postIndex.incrementAndGet();
+            public void postIndex(Engine.Index index, boolean created) {
+                if(created) {
+                    postIndexCreate.incrementAndGet();
+                } else {
+                    postIndexUpdate.incrementAndGet();
+                }
             }
 
             @Override
@@ -728,7 +733,17 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
         assertEquals(1, preIndex.get());
-        assertEquals(1, postIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(0, postIndexUpdate.get());
+        assertEquals(0, postIndexException.get());
+        assertEquals(0, preDelete.get());
+        assertEquals(0, postDelete.get());
+        assertEquals(0, postDeleteException.get());
+
+        shard.index(index);
+        assertEquals(2, preIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(1, postIndexUpdate.get());
         assertEquals(0, postIndexException.get());
         assertEquals(0, preDelete.get());
         assertEquals(0, postDelete.get());
@@ -737,8 +752,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
         shard.delete(delete);
 
-        assertEquals(1, preIndex.get());
-        assertEquals(1, postIndex.get());
+        assertEquals(2, preIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(1, postIndexUpdate.get());
         assertEquals(0, postIndexException.get());
         assertEquals(1, preDelete.get());
         assertEquals(1, postDelete.get());
@@ -754,8 +770,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         }
 
-        assertEquals(2, preIndex.get());
-        assertEquals(1, postIndex.get());
+        assertEquals(3, preIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(1, postIndexUpdate.get());
         assertEquals(1, postIndexException.get());
         assertEquals(1, preDelete.get());
         assertEquals(1, postDelete.get());
@@ -767,8 +784,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         }
 
-        assertEquals(2, preIndex.get());
-        assertEquals(1, postIndex.get());
+        assertEquals(3, preIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(1, postIndexUpdate.get());
         assertEquals(1, postIndexException.get());
         assertEquals(2, preDelete.get());
         assertEquals(1, postDelete.get());

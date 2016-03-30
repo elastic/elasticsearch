@@ -72,7 +72,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postIndex(Engine.Index index) {
+    public void postIndex(Engine.Index index, boolean created) {
         long took = index.endTime() - index.startTime();
         totalStats.indexMetric.inc(took);
         totalStats.indexCurrent.dec();

@@ -23,9 +23,11 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -37,6 +39,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to explain the allocation of a shard in the cluster
  */
 public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAllocationExplainRequest> {
+
+    private static ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser("cluster/allocation/explain");
+    static {
+        PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField("index"));
+        PARSER.declareInt(ClusterAllocationExplainRequest::setShard, new ParseField("shard"));
+        PARSER.declareBoolean(ClusterAllocationExplainRequest::setPrimary, new ParseField("primary"));
+    }
 
     private String index;
     private Integer shard;
@@ -101,7 +110,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     }
 
     @Nullable
-    public int getShard() {
+    public Integer getShard() {
         return this.shard;
     }
 
@@ -111,7 +120,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     }
 
     @Nullable
-    public boolean isPrimary() {
+    public Boolean isPrimary() {
         return this.primary;
     }
 
@@ -139,40 +148,12 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     }
 
     public static ClusterAllocationExplainRequest parse(XContentParser parser) throws IOException {
-        String currentFieldName = null;
-        String index = null;
-        Integer shard = null;
-        Boolean primary = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if ("index".equals(currentFieldName)) {
-                    index = parser.text();
-                } else if ("shard".equals(currentFieldName)) {
-                    shard = parser.intValue();
-                } else if ("primary".equals(currentFieldName)) {
-                    primary = parser.booleanValue();
-                } else {
-                    throw new ElasticsearchParseException("unexpected field [" + currentFieldName + "] in allocation explain request");
-                }
-
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                // the object was started
-                continue;
-            } else {
-                throw new ElasticsearchParseException("unexpected token [" + token + "] in allocation explain request");
-            }
+        ClusterAllocationExplainRequest req = PARSER.parse(parser, new ClusterAllocationExplainRequest());
+        Exception e = req.validate();
+        if (e != null) {
+            throw new ElasticsearchParseException("'index', 'shard', and 'primary' must be specified in allocation explain request", e);
         }
-
-        if (index == null && shard == null && primary == null) {
-            // If it was an empty body, use the "any unassigned shard" request
-            return new ClusterAllocationExplainRequest();
-        } else if (index == null || shard == null || primary == null) {
-            throw new ElasticsearchParseException("'index', 'shard', and 'primary' must be specified in allocation explain request");
-        }
-        return new ClusterAllocationExplainRequest(index, shard, primary);
+        return req;
     }
 
     @Override

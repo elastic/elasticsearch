@@ -158,7 +158,7 @@ public class TranslogRecoveryPerformer {
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
                     }
-                    engine.index(engineIndex);
+                    index(engine, engineIndex);
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
@@ -166,8 +166,9 @@ public class TranslogRecoveryPerformer {
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
                     }
-                    engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
-                            delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false));
+                    final Engine.Delete engineDelete = new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
+                            delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false);
+                    delete(engine, engineDelete);
                     break;
                 default:
                     throw new IllegalStateException("No operation defined for [" + operation + "]");
@@ -191,6 +192,14 @@ public class TranslogRecoveryPerformer {
             }
         }
         operationProcessed();
+    }
+
+    protected void index(Engine engine, Engine.Index engineIndex) {
+        engine.index(engineIndex);
+    }
+
+    protected void delete(Engine engine, Engine.Delete engineDelete) {
+        engine.delete(engineDelete);
     }
 
 

@@ -486,6 +486,11 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public boolean index(Engine.Index index) {
         ensureWriteAllowed(index);
+        Engine engine = getEngine();
+        return index(engine, index);
+    }
+
+    private boolean index(Engine engine, Engine.Index index) {
         active.set(true);
         index = indexingOperationListeners.preIndex(index);
         final boolean created;
@@ -493,7 +498,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
-            Engine engine = getEngine();
             created = engine.index(index);
             index.endTime(System.nanoTime());
         } catch (Throwable ex) {
@@ -524,13 +528,17 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
+        Engine engine = getEngine();
+        delete(engine, delete);
+    }
+
+    private void delete(Engine engine, Engine.Delete delete) {
         active.set(true);
         delete = indexingOperationListeners.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
             }
-            Engine engine = getEngine();
             engine.delete(delete);
             delete.endTime(System.nanoTime());
         } catch (Throwable ex) {
@@ -1381,6 +1389,16 @@ public class IndexShard extends AbstractIndexShardComponent {
                 translogStats.totalOperations(snapshot.totalOperations());
                 translogStats.totalOperationsOnStart(snapshot.totalOperations());
                 return super.recoveryFromSnapshot(engine, snapshot);
+            }
+
+            @Override
+            protected void index(Engine engine, Engine.Index engineIndex) {
+                IndexShard.this.index(engine, engineIndex);
+            }
+
+            @Override
+            protected void delete(Engine engine, Engine.Delete engineDelete) {
+                IndexShard.this.delete(engine, engineDelete);
             }
         };
         return new EngineConfig(shardId,

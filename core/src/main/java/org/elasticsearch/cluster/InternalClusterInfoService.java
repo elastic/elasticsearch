@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -307,7 +308,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             @Override
             public void onFailure(Throwable e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
                         if (logger.isTraceEnabled()) {
@@ -337,7 +338,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             @Override
             public void onFailure(Throwable e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
                         if (logger.isTraceEnabled()) {

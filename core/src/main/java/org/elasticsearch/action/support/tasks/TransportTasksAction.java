@@ -205,7 +205,7 @@ public abstract class TransportTasksAction<
             ClusterState clusterState = clusterService.state();
             String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().nodes();
+            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < this.nodesIds.length; i++) {
                 this.nodes[i] = nodes.get(this.nodesIds[i]);

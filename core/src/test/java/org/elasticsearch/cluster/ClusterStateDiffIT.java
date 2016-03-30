@@ -133,10 +133,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 assertThat(clusterStateFromDiffs.stateUUID(), equalTo(clusterState.stateUUID()));
 
                 // Check nodes
-                assertThat(clusterStateFromDiffs.nodes().nodes(), equalTo(clusterState.nodes().nodes()));
+                assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
                 assertThat(clusterStateFromDiffs.nodes().localNodeId(), equalTo(previousClusterStateFromDiffs.nodes().localNodeId()));
-                assertThat(clusterStateFromDiffs.nodes().nodes(), equalTo(clusterState.nodes().nodes()));
-                for (ObjectCursor<String> node : clusterStateFromDiffs.nodes().nodes().keys()) {
+                assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
+                for (ObjectCursor<String> node : clusterStateFromDiffs.nodes().getNodes().keys()) {
                     DiscoveryNode node1 = clusterState.nodes().get(node.value);
                     DiscoveryNode node2 = clusterStateFromDiffs.nodes().get(node.value);
                     assertThat(node1.getVersion(), equalTo(node2.getVersion()));
@@ -184,7 +184,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private ClusterState.Builder randomNodes(ClusterState clusterState) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
-        List<String> nodeIds = randomSubsetOf(randomInt(clusterState.nodes().nodes().size() - 1), clusterState.nodes().nodes().keys().toArray(String.class));
+        List<String> nodeIds = randomSubsetOf(randomInt(clusterState.nodes().getNodes().size() - 1), clusterState.nodes().getNodes().keys().toArray(String.class));
         for (String nodeId : nodeIds) {
             if (nodeId.startsWith("node-")) {
                 if (randomBoolean()) {
@@ -215,13 +215,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     builder.remove(index);
                 } else {
-                    builder.add(randomChangeToIndexRoutingTable(clusterState.routingTable().indicesRouting().get(index), clusterState.nodes().nodes().keys().toArray(String.class)));
+                    builder.add(randomChangeToIndexRoutingTable(clusterState.routingTable().indicesRouting().get(index), clusterState.nodes().getNodes().keys().toArray(String.class)));
                 }
             }
         }
         int additionalIndexCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalIndexCount; i++) {
-            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().nodes().keys().toArray(String.class)));
+            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keys().toArray(String.class)));
         }
         return ClusterState.builder(clusterState).routingTable(builder.build());
     }

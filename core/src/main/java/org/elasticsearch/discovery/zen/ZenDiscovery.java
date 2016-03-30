@@ -252,7 +252,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
             } else {
                 // we're master -> let other potential master we left and start a master election now rather then wait for masterFD
-                DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(nodes.nodes().values(), 5);
+                DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(nodes.getNodes().values(), 5);
                 for (DiscoveryNode possibleMaster : possibleMasters) {
                     if (nodes.localNode().equals(possibleMaster)) {
                         continue;

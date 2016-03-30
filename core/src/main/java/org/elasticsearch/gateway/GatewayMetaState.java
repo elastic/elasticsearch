@@ -76,14 +76,14 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         nodesListGatewayMetaState.init(this);
 
-        if (DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings)) {
             ensureNoPre019ShardState(nodeEnv);
         }
 
-        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
         }
-        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
                 ensureNoPre019State();
                 IndexFolderUpgrader.upgradeIndicesIfNeeded(settings, nodeEnv);

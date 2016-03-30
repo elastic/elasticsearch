@@ -94,7 +94,7 @@ public final class ExternalTestCluster extends TestCluster {
             for (int i = 0; i < nodeInfos.getNodes().length; i++) {
                 NodeInfo nodeInfo = nodeInfos.getNodes()[i];
                 httpAddresses[i] = ((InetSocketTransportAddress) nodeInfo.getHttp().address().publishAddress()).address();
-                if (DiscoveryNode.dataNode(nodeInfo.getSettings())) {
+                if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
                     dataNodes++;
                     masterAndDataNodes++;
                 } else if (DiscoveryNode.isMasterNode(nodeInfo.getSettings())) {

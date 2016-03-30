@@ -108,7 +108,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        if (DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings)) {
             // this is only useful on the nodes that can hold data
             // addLast to make sure that Repository will be created before snapshot
             clusterService.addLast(this);

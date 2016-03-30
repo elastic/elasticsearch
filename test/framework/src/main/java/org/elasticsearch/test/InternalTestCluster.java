@@ -1643,14 +1643,14 @@ public final class InternalTestCluster extends TestCluster {
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return DiscoveryNode.dataNode(nodeAndClient.node.settings());
+            return DiscoveryNode.isDataNode(nodeAndClient.node.settings());
         }
     }
 
     private static final class DataOrMasterNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return DiscoveryNode.dataNode(nodeAndClient.node.settings()) ||
+            return DiscoveryNode.isDataNode(nodeAndClient.node.settings()) ||
                     DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
         }
     }
@@ -1672,7 +1672,7 @@ public final class InternalTestCluster extends TestCluster {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.isMasterNode(nodeAndClient.node.settings()) == false &&
-                DiscoveryNode.dataNode(nodeAndClient.node.settings()) == false;
+                DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;
         }
     }
 

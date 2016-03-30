@@ -741,7 +741,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(0, postDeleteException.get());
 
         shard.index(index);
-        assertEquals(1, preIndex.get());
+        assertEquals(2, preIndex.get());
         assertEquals(1, postIndexCreate.get());
         assertEquals(1, postIndexUpdate.get());
         assertEquals(0, postIndexException.get());

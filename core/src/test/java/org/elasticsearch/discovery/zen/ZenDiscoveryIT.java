@@ -197,7 +197,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                         emptySet(), Version.CURRENT)).masterNodeId("abc");
         ClusterState.Builder builder = ClusterState.builder(state);
         builder.nodes(nodes);
-        BytesReference bytes = PublishClusterStateAction.serializeFullClusterState(builder.build(), node.version());
+        BytesReference bytes = PublishClusterStateAction.serializeFullClusterState(builder.build(), node.getVersion());
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();

@@ -264,7 +264,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return roles;
     }
 
-    public Version version() {
+    public Version getVersion() {
         return this.version;
     }
 
@@ -274,10 +274,6 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
     public String getHostAddress() {
         return this.hostAddress;
-    }
-
-    public Version getVersion() {
-        return this.version;
     }
 
     @Override

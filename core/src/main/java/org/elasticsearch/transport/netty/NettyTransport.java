@@ -887,7 +887,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
             // as the version to use also when the node receiving this request will send the response with
-            Version version = Version.smallest(this.version, node.version());
+            Version version = Version.smallest(this.version, node.getVersion());
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
@@ -900,7 +900,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // more explicit).
             if (request instanceof BytesTransportRequest) {
                 BytesTransportRequest bRequest = (BytesTransportRequest) request;
-                assert node.version().equals(bRequest.version());
+                assert node.getVersion().equals(bRequest.version());
                 bRequest.writeThin(stream);
                 stream.close();
                 bytes = bStream.bytes();

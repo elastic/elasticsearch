@@ -212,16 +212,16 @@ public class PublishClusterStateAction extends AbstractComponent {
             try {
                 if (sendFullVersion || !previousState.nodes().nodeExists(node.getId())) {
                     // will send a full reference
-                    if (serializedStates.containsKey(node.version()) == false) {
-                        serializedStates.put(node.version(), serializeFullClusterState(clusterState, node.version()));
+                    if (serializedStates.containsKey(node.getVersion()) == false) {
+                        serializedStates.put(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));
                     }
                 } else {
                     // will send a diff
                     if (diff == null) {
                         diff = clusterState.diff(previousState);
                     }
-                    if (serializedDiffs.containsKey(node.version()) == false) {
-                        serializedDiffs.put(node.version(), serializeDiffClusterState(diff, node.version()));
+                    if (serializedDiffs.containsKey(node.getVersion()) == false) {
+                        serializedDiffs.put(node.getVersion(), serializeDiffClusterState(diff, node.getVersion()));
                     }
                 }
             } catch (IOException e) {
@@ -232,11 +232,11 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     private void sendFullClusterState(ClusterState clusterState, Map<Version, BytesReference> serializedStates,
                                       DiscoveryNode node, TimeValue publishTimeout, SendingController sendingController) {
-        BytesReference bytes = serializedStates.get(node.version());
+        BytesReference bytes = serializedStates.get(node.getVersion());
         if (bytes == null) {
             try {
-                bytes = serializeFullClusterState(clusterState, node.version());
-                serializedStates.put(node.version(), bytes);
+                bytes = serializeFullClusterState(clusterState, node.getVersion());
+                serializedStates.put(node.getVersion(), bytes);
             } catch (Throwable e) {
                 logger.warn("failed to serialize cluster_state before publishing it to node {}", e, node);
                 sendingController.onNodeSendFailed(node, e);
@@ -249,8 +249,8 @@ public class PublishClusterStateAction extends AbstractComponent {
     private void sendClusterStateDiff(ClusterState clusterState,
                                       Map<Version, BytesReference> serializedDiffs, Map<Version, BytesReference> serializedStates,
                                       DiscoveryNode node, TimeValue publishTimeout, SendingController sendingController) {
-        BytesReference bytes = serializedDiffs.get(node.version());
-        assert bytes != null : "failed to find serialized diff for node " + node + " of version [" + node.version() + "]";
+        BytesReference bytes = serializedDiffs.get(node.getVersion());
+        assert bytes != null : "failed to find serialized diff for node " + node + " of version [" + node.getVersion() + "]";
         sendClusterStateToNode(clusterState, bytes, node, publishTimeout, sendingController, true, serializedStates);
     }
 
@@ -266,7 +266,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             // -> no need to compress, we already compressed the bytes
             TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
             transportService.sendRequest(node, SEND_ACTION_NAME,
-                    new BytesTransportRequest(bytes, node.version()),
+                    new BytesTransportRequest(bytes, node.getVersion()),
                     options,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 

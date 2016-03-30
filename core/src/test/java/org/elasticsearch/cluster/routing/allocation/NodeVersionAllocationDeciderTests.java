@@ -415,17 +415,17 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 String fromId = r.currentNodeId();
                 assertThat(fromId, notNullValue());
                 assertThat(toId, notNullValue());
-                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().version(),
-                    toId, routingNodes.node(toId).node().version());
-                assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
+                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().getVersion(),
+                    toId, routingNodes.node(toId).node().getVersion());
+                assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
             } else {
                 ShardRouting primary = routingNodes.activePrimary(r);
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.relocatingNodeId();
-                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().version(),
-                    toId, routingNodes.node(toId).node().version());
-                assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
+                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().getVersion(),
+                    toId, routingNodes.node(toId).node().getVersion());
+                assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
             }
         }
 
@@ -436,9 +436,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.currentNodeId();
-                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().version(),
-                    toId, routingNodes.node(toId).node().version());
-                assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
+                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().getVersion(),
+                    toId, routingNodes.node(toId).node().getVersion());
+                assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
             }
         }
 

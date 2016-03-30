@@ -141,7 +141,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.transportService = transportService;
-        if (DiscoveryNode.masterNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings)) {
             transportService.registerRequestHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME, TransportRequest.Empty::new,
                     ThreadPool.Names.SAME, new RegisterTrialLicenseRequestHandler());
         }

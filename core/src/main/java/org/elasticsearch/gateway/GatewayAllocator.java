@@ -70,7 +70,7 @@ public class GatewayAllocator extends AbstractComponent {
                 boolean cleanCache = false;
                 DiscoveryNode localNode = event.state().nodes().localNode();
                 if (localNode != null) {
-                    if (localNode.masterNode() == true && event.localNodeMaster() == false) {
+                    if (localNode.isMasterNode() == true && event.localNodeMaster() == false) {
                         cleanCache = true;
                     }
                 } else {

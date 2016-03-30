@@ -252,15 +252,8 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     /**
      * Can this node become master or not.
      */
-    public boolean masterNode() {
-        return roles.contains(Role.MASTER);
-    }
-
-    /**
-     * Can this node become master or not.
-     */
     public boolean isMasterNode() {
-        return masterNode();
+        return roles.contains(Role.MASTER);
     }
 
     /**

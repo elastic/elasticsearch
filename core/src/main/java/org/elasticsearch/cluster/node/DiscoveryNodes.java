@@ -679,7 +679,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                     minNonClientNodeVersion = Version.smallest(minNonClientNodeVersion, nodeEntry.value.version());
                 }
-                if (nodeEntry.value.masterNode()) {
+                if (nodeEntry.value.isMasterNode()) {
                     masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                     minNonClientNodeVersion = Version.smallest(minNonClientNodeVersion, nodeEntry.value.version());
                 }

@@ -154,7 +154,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
-                return discoveryNode.masterNode();
+                return discoveryNode.isMasterNode();
             }
         });
     }
@@ -205,7 +205,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 // Since operation occurs only on masters, it's enough that only master-eligible nodes acked
-                return discoveryNode.masterNode();
+                return discoveryNode.isMasterNode();
             }
         });
     }

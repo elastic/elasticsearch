@@ -863,7 +863,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         Set<DiscoveryNode> activeNodes = new HashSet<>();
         // nodes discovered who has previously been part of the cluster and do not ping for the very first time
         Set<DiscoveryNode> joinedOnceActiveNodes = new HashSet<>();
-        if (localNode.masterNode()) {
+        if (localNode.isMasterNode()) {
             activeNodes.add(localNode);
             long joinsCounter = clusterJoinsCounter.get();
             if (joinsCounter > 0) {

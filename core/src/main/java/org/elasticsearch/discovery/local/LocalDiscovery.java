@@ -106,7 +106,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
             LocalDiscovery firstMaster = null;
             for (LocalDiscovery localDiscovery : clusterGroup.members()) {
-                if (localDiscovery.localNode().masterNode()) {
+                if (localDiscovery.localNode().isMasterNode()) {
                     firstMaster = localDiscovery;
                     break;
                 }
@@ -193,7 +193,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
             LocalDiscovery firstMaster = null;
             for (LocalDiscovery localDiscovery : clusterGroup.members()) {
-                if (localDiscovery.localNode().masterNode()) {
+                if (localDiscovery.localNode().isMasterNode()) {
                     firstMaster = localDiscovery;
                     break;
                 }

@@ -168,9 +168,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         } else if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
             logger.debug("not recovering from gateway, nodes_size (data+master) [{}] < recover_after_nodes [{}]",
                 nodes.masterAndDataNodes().size(), recoverAfterNodes);
-        } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
+        } else if (recoverAfterDataNodes != -1 && nodes.getDataNodes().size() < recoverAfterDataNodes) {
             logger.debug("not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
-                nodes.dataNodes().size(), recoverAfterDataNodes);
+                nodes.getDataNodes().size(), recoverAfterDataNodes);
         } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
             logger.debug("not recovering from gateway, nodes_size (master) [{}] < recover_after_master_nodes [{}]",
                 nodes.masterNodes().size(), recoverAfterMasterNodes);
@@ -188,9 +188,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 if (expectedNodes != -1 && (nodes.masterAndDataNodes().size() < expectedNodes)) { // does not meet the expected...
                     enforceRecoverAfterTime = true;
                     reason = "expecting [" + expectedNodes + "] nodes, but only have [" + nodes.masterAndDataNodes().size() + "]";
-                } else if (expectedDataNodes != -1 && (nodes.dataNodes().size() < expectedDataNodes)) { // does not meet the expected...
+                } else if (expectedDataNodes != -1 && (nodes.getDataNodes().size() < expectedDataNodes)) { // does not meet the expected...
                     enforceRecoverAfterTime = true;
-                    reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.dataNodes().size() + "]";
+                    reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
                 } else if (expectedMasterNodes != -1 && (nodes.masterNodes().size() < expectedMasterNodes)) { // does not meet the expected...
                     enforceRecoverAfterTime = true;
                     reason = "expecting [" + expectedMasterNodes + "] master nodes, but only have [" + nodes.masterNodes().size() + "]";

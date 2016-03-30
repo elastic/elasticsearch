@@ -92,7 +92,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, S
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
         validationFailures = validation.failures();
         numberOfNodes = clusterState.nodes().getSize();
-        numberOfDataNodes = clusterState.nodes().dataNodes().size();
+        numberOfDataNodes = clusterState.nodes().getDataNodes().size();
 
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);

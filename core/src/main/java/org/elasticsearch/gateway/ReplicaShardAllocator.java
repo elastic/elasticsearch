@@ -216,7 +216,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      * Can the shard be allocated on at least one node based on the allocation deciders.
      */
     private boolean canBeAllocatedToAtLeastOneNode(ShardRouting shard, RoutingAllocation allocation) {
-        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().dataNodes().values()) {
+        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
             RoutingNode node = allocation.routingNodes().node(cursor.value.getId());
             if (node == null) {
                 continue;

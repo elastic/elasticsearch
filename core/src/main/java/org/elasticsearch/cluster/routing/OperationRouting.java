@@ -230,7 +230,7 @@ public class OperationRouting extends AbstractComponent {
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {
-        if (!nodes.dataNodes().keys().contains(nodeId)) {
+        if (!nodes.getDataNodes().keys().contains(nodeId)) {
             throw new IllegalArgumentException("No data node with id[" + nodeId + "] found");
         }
     }

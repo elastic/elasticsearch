@@ -83,7 +83,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
             return;
         }
         // we will want to know this for translating "all" to a number
-        final int dataNodeCount = event.state().nodes().dataNodes().size();
+        final int dataNodeCount = event.state().nodes().getDataNodes().size();
 
         Map<Integer, List<Index>> nrReplicasChanged = new HashMap<>();
         // we need to do this each time in case it was changed by update settings

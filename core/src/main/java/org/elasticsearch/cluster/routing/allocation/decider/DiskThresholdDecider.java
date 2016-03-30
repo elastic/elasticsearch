@@ -618,7 +618,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Allow allocation regardless if only a single data node is available
-        if (allocation.nodes().dataNodes().size() <= 1) {
+        if (allocation.nodes().getDataNodes().size() <= 1) {
             if (logger.isTraceEnabled()) {
                 logger.trace("only a single data node is present, allowing allocation");
             }

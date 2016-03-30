@@ -103,7 +103,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                 // wait for events from all nodes that it has been removed from their respective metadata...
                 int count = currentState.nodes().getSize();
                 // add the notifications that the store was deleted from *data* nodes
-                count += currentState.nodes().dataNodes().size();
+                count += currentState.nodes().getDataNodes().size();
                 final AtomicInteger counter = new AtomicInteger(count * indices.size());
 
                 // this listener will be notified once we get back a notification based on the cluster state change below.

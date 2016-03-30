@@ -119,17 +119,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *
      * @return {@link Map} of the discovered data nodes arranged by their ids
      */
-    public ImmutableOpenMap<String, DiscoveryNode> dataNodes() {
-        return this.dataNodes;
-    }
-
-    /**
-     * Get a {@link Map} of the discovered data nodes arranged by their ids
-     *
-     * @return {@link Map} of the discovered data nodes arranged by their ids
-     */
     public ImmutableOpenMap<String, DiscoveryNode> getDataNodes() {
-        return dataNodes();
+        return this.dataNodes;
     }
 
     /**

@@ -495,7 +495,7 @@ public class TransportClientNodesService extends AbstractComponent {
                     newFilteredNodes.add(entry.getKey());
                     continue;
                 }
-                for (ObjectCursor<DiscoveryNode> cursor : entry.getValue().getState().nodes().dataNodes().values()) {
+                for (ObjectCursor<DiscoveryNode> cursor : entry.getValue().getState().nodes().getDataNodes().values()) {
                     newNodes.add(cursor.value);
                 }
             }

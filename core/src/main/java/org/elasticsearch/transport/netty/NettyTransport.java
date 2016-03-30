@@ -993,7 +993,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
-        InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
+        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
         ChannelFuture connect = clientBootstrap.connect(address);
         connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
         if (!connect.isSuccess()) {
@@ -1011,7 +1011,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         ChannelFuture[] connectReg = new ChannelFuture[nodeChannels.reg.length];
         ChannelFuture[] connectState = new ChannelFuture[nodeChannels.state.length];
         ChannelFuture[] connectPing = new ChannelFuture[nodeChannels.ping.length];
-        InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
+        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
         for (int i = 0; i < connectRecovery.length; i++) {
             connectRecovery[i] = clientBootstrap.connect(address);
         }

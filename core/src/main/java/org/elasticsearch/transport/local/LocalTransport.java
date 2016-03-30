@@ -175,7 +175,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             if (connectedNodes.containsKey(node)) {
                 return;
             }
-            final LocalTransport targetTransport = transports.get(node.address());
+            final LocalTransport targetTransport = transports.get(node.getAddress());
             if (targetTransport == null) {
                 throw new ConnectTransportException(node, "Failed to connect");
             }

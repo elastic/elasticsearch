@@ -793,7 +793,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     void handleJoinRequest(final DiscoveryNode node, final ClusterState state, final MembershipAction.JoinCallback callback) {
-        if (!transportService.addressSupported(node.address().getClass())) {
+        if (!transportService.addressSupported(node.getAddress().getClass())) {
             // TODO, what should we do now? Maybe inform that node that its crap?
             logger.warn("received a wrong address type from [{}], ignoring...", node);
         } else if (nodeJoinController == null) {

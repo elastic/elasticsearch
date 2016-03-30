@@ -234,8 +234,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
             table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
-            if (node.address() instanceof InetSocketTransportAddress) {
-                table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+            if (node.getAddress() instanceof InetSocketTransportAddress) {
+                table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
             } else {
                 table.addCell("-");
             }

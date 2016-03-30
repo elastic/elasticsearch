@@ -287,7 +287,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public DiscoveryNode findByAddress(TransportAddress address) {
         for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
             DiscoveryNode node = cursor.value;
-            if (node.address().equals(address)) {
+            if (node.getAddress().equals(address)) {
                 return node;
             }
         }

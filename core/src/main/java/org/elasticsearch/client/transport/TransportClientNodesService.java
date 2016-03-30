@@ -138,7 +138,7 @@ public class TransportClientNodesService extends AbstractComponent {
     public List<TransportAddress> transportAddresses() {
         List<TransportAddress> lstBuilder = new ArrayList<>();
         for (DiscoveryNode listedNode : listedNodes) {
-            lstBuilder.add(listedNode.address());
+            lstBuilder.add(listedNode.getAddress());
         }
         return Collections.unmodifiableList(lstBuilder);
     }
@@ -164,7 +164,7 @@ public class TransportClientNodesService extends AbstractComponent {
             for (TransportAddress transportAddress : transportAddresses) {
                 boolean found = false;
                 for (DiscoveryNode otherNode : listedNodes) {
-                    if (otherNode.address().equals(transportAddress)) {
+                    if (otherNode.getAddress().equals(transportAddress)) {
                         found = true;
                         logger.debug("address [{}] already exists with [{}], ignoring...", transportAddress, otherNode);
                         break;
@@ -198,7 +198,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
             List<DiscoveryNode> builder = new ArrayList<>();
             for (DiscoveryNode otherNode : listedNodes) {
-                if (!otherNode.address().equals(transportAddress)) {
+                if (!otherNode.getAddress().equals(transportAddress)) {
                     builder.add(otherNode);
                 } else {
                     logger.debug("removing address [{}]", otherNode);

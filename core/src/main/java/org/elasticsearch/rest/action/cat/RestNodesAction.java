@@ -242,8 +242,8 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostAddress());
-            if (node.address() instanceof InetSocketTransportAddress) {
-                table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+            if (node.getAddress() instanceof InetSocketTransportAddress) {
+                table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
             } else {
                 table.addCell("-");
             }

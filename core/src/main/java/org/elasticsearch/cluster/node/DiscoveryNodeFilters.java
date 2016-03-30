@@ -82,8 +82,8 @@ public class DiscoveryNodeFilters {
             if ("_ip".equals(attr)) {
                 // We check both the host_ip or the publish_ip
                 String publishAddress = null;
-                if (node.address() instanceof InetSocketTransportAddress) {
-                    publishAddress = NetworkAddress.format(((InetSocketTransportAddress) node.address()).address().getAddress());
+                if (node.getAddress() instanceof InetSocketTransportAddress) {
+                    publishAddress = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
                 }
 
                 boolean match = matchByIP(values, node.getHostAddress(), publishAddress);
@@ -116,8 +116,8 @@ public class DiscoveryNodeFilters {
             } else if ("_publish_ip".equals(attr)) {
                 // We check explicitly only the publish_ip
                 String address = null;
-                if (node.address() instanceof InetSocketTransportAddress) {
-                    address = NetworkAddress.format(((InetSocketTransportAddress) node.address()).address().getAddress());
+                if (node.getAddress() instanceof InetSocketTransportAddress) {
+                    address = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
                 }
 
                 boolean match = matchByIP(values, address, null);

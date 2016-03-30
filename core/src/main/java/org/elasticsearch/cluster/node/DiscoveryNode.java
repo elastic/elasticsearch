@@ -210,15 +210,8 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     /**
      * The address that the node can be communicated with.
      */
-    public TransportAddress address() {
-        return address;
-    }
-
-    /**
-     * The address that the node can be communicated with.
-     */
     public TransportAddress getAddress() {
-        return address();
+        return address;
     }
 
     /**
@@ -351,7 +344,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getId(), XContentBuilder.FieldCaseConversion.NONE);
         builder.field("name", getName());
-        builder.field("transport_address", address().toString());
+        builder.field("transport_address", getAddress().toString());
 
         builder.startObject("attributes");
         for (Map.Entry<String, String> entry : attributes.entrySet()) {

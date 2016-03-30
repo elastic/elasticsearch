@@ -360,7 +360,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         for (final DiscoveryNode node : nodesToPing) {
             // make sure we are connected
             final boolean nodeFoundByAddress;
-            DiscoveryNode nodeToSend = discoNodes.findByAddress(node.address());
+            DiscoveryNode nodeToSend = discoNodes.findByAddress(node.getAddress());
             if (nodeToSend != null) {
                 nodeFoundByAddress = true;
             } else {

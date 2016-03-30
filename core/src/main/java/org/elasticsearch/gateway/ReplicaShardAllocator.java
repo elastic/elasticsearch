@@ -164,7 +164,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, primaryStore, shardStores);
 
             if (matchingNodes.getNodeWithHighestMatch() != null) {
-                RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().id());
+                RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
                 // we only check on THROTTLE since we checked before before on NO
                 Decision decision = allocation.deciders().canAllocate(shard, nodeWithHighestMatch, allocation);
                 if (decision.type() == Decision.Type.THROTTLE) {
@@ -217,7 +217,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      */
     private boolean canBeAllocatedToAtLeastOneNode(ShardRouting shard, RoutingAllocation allocation) {
         for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().dataNodes().values()) {
-            RoutingNode node = allocation.routingNodes().node(cursor.value.id());
+            RoutingNode node = allocation.routingNodes().node(cursor.value.getId());
             if (node == null) {
                 continue;
             }
@@ -259,7 +259,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            RoutingNode node = allocation.routingNodes().node(discoNode.id());
+            RoutingNode node = allocation.routingNodes().node(discoNode.getId());
             if (node == null) {
                 continue;
             }

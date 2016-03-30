@@ -87,7 +87,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         Map<String, List<ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().dataNodes().values()) {
-            nodesToShards.put(cursor.value.id(), new ArrayList<>());
+            nodesToShards.put(cursor.value.getId(), new ArrayList<>());
         }
 
         // fill in the inverse of node -> shards allocated
@@ -570,7 +570,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public void addNode(DiscoveryNode node) {
         ensureMutable();
-        RoutingNode routingNode = new RoutingNode(node.id(), node);
+        RoutingNode routingNode = new RoutingNode(node.getId(), node);
         nodesToShards.put(routingNode.nodeId(), routingNode);
     }
 

@@ -85,7 +85,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
                     doVerify(repository, verificationToken);
                 } catch (Throwable t) {
                     logger.warn("[{}] failed to verify repository", t, repository);
-                    errors.add(new VerificationFailure(node.id(), t));
+                    errors.add(new VerificationFailure(node.getId(), t));
                 }
                 if (counter.decrementAndGet() == 0) {
                     finishVerification(listener, nodes, errors);
@@ -101,7 +101,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        errors.add(new VerificationFailure(node.id(), exp));
+                        errors.add(new VerificationFailure(node.getId(), exp));
                         if (counter.decrementAndGet() == 0) {
                             finishVerification(listener, nodes, errors);
                         }

@@ -160,7 +160,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             }
 
             // check if shard is active on the current node or is getting relocated to the our node
-            String localNodeId = state.getNodes().localNode().id();
+            String localNodeId = state.getNodes().localNode().getId();
             if (localNodeId.equals(shardRouting.currentNodeId()) || localNodeId.equals(shardRouting.relocatingNodeId())) {
                 return false;
             }

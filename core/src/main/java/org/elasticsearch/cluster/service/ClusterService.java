@@ -159,7 +159,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
     synchronized public void setLocalNode(DiscoveryNode localNode) {
         assert clusterState.nodes().localNodeId() == null : "local node is already set";
-        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes()).put(localNode).localNodeId(localNode.id());
+        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes()).put(localNode).localNodeId(localNode.getId());
         this.clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
     }
 

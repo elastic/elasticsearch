@@ -72,7 +72,7 @@ public class ZenPingTests extends ESTestCase {
         ZenPing.PingResponse[] aggregate = collection.toArray();
 
         for (ZenPing.PingResponse ping : aggregate) {
-            int nodeId = Integer.parseInt(ping.node().id());
+            int nodeId = Integer.parseInt(ping.node().getId());
             assertThat(maxIdPerNode[nodeId], equalTo(ping.id()));
             assertThat(masterPerNode[nodeId], equalTo(ping.master()));
             assertThat(hasJoinedOncePerNode[nodeId], equalTo(ping.hasJoinedOnce()));

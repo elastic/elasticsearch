@@ -299,7 +299,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             try {
                 NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
                 if (task != null) {
-                    nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                    nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     taskManager.registerChildTask(task, node.getId());
                 }
                 transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new BaseTransportResponseHandler<NodeResponse>() {
@@ -330,7 +330,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         protected void onNodeResponse(DiscoveryNode node, int nodeIndex, NodeResponse response) {
             if (logger.isTraceEnabled()) {
-                logger.trace("received response for [{}] from node [{}]", actionName, node.id());
+                logger.trace("received response for [{}] from node [{}]", actionName, node.getId());
             }
 
             // this is defensive to protect against the possibility of double invocation
@@ -344,7 +344,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
-            String nodeId = node.id();
+            String nodeId = node.getId();
             if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
                 logger.debug("failed to execute [{}] on node [{}]", t, actionName, nodeId);
             }

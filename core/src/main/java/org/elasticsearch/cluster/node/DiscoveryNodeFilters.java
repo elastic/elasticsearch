@@ -155,7 +155,7 @@ public class DiscoveryNodeFilters {
                 }
             } else if ("_id".equals(attr)) {
                 for (String value : values) {
-                    if (node.id().equals(value)) {
+                    if (node.getId().equals(value)) {
                         if (opType == OpType.OR) {
                             return true;
                         }

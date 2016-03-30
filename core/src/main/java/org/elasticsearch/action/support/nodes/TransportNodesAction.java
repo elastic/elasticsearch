@@ -161,7 +161,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                     } else {
                         ChildTaskRequest nodeRequest = newNodeRequest(nodeId, request);
                         if (task != null) {
-                            nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                            nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                             taskManager.registerChildTask(task, node.getId());
                         }
 
@@ -178,7 +178,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
                             @Override
                             public void handleException(TransportException exp) {
-                                onFailure(idx, node.id(), exp);
+                                onFailure(idx, node.getId(), exp);
                             }
 
                             @Override

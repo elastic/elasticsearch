@@ -552,7 +552,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         final Throwable cause = exp.unwrapCause();
                         if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException ||
                             (isPrimaryAction && retryPrimaryException(cause))) {
-                            logger.trace("received an error from node [{}] for request [{}], scheduling a retry", exp, node.id(), request);
+                            logger.trace("received an error from node [{}] for request [{}], scheduling a retry", exp, node.getId(), request);
                             retry(exp);
                         } else {
                             finishAsFailed(exp);

@@ -135,8 +135,8 @@ public class TransportNodesActionTests extends ESTestCase {
             discoBuilder = discoBuilder.put(node);
             discoveryNodes.add(node);
         }
-        discoBuilder.localNodeId(randomFrom(discoveryNodes).id());
-        discoBuilder.masterNodeId(randomFrom(discoveryNodes).id());
+        discoBuilder.localNodeId(randomFrom(discoveryNodes).getId());
+        discoBuilder.masterNodeId(randomFrom(discoveryNodes).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(CLUSTER_NAME);
         stateBuilder.nodes(discoBuilder);
         ClusterState clusterState = stateBuilder.build();

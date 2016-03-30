@@ -72,7 +72,7 @@ public class TransportClientIT extends ESIntegTestCase {
             }
 
             for (DiscoveryNode discoveryNode : nodeService.listedNodes()) {
-                assertThat(discoveryNode.id(), startsWith("#transport#-"));
+                assertThat(discoveryNode.getId(), startsWith("#transport#-"));
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
             }
 

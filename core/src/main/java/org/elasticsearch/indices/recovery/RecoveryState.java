@@ -316,7 +316,7 @@ public class RecoveryState implements ToXContent, Streamable {
             restoreSource.toXContent(builder, params);
         } else {
             builder.startObject(Fields.SOURCE);
-            builder.field(Fields.ID, sourceNode.id());
+            builder.field(Fields.ID, sourceNode.getId());
             builder.field(Fields.HOST, sourceNode.getHostName());
             builder.field(Fields.TRANSPORT_ADDRESS, sourceNode.address().toString());
             builder.field(Fields.IP, sourceNode.getHostAddress());
@@ -325,7 +325,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         builder.startObject(Fields.TARGET);
-        builder.field(Fields.ID, targetNode.id());
+        builder.field(Fields.ID, targetNode.getId());
         builder.field(Fields.HOST, targetNode.getHostName());
         builder.field(Fields.TRANSPORT_ADDRESS, targetNode.address().toString());
         builder.field(Fields.IP, targetNode.getHostAddress());

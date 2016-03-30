@@ -124,7 +124,7 @@ public class RestFielddataAction extends AbstractCatAction {
             table.startRow();
             // add the node info and field data total before each individual field
             NodeStats ns = statsEntry.getKey();
-            table.addCell(ns.getNode().id());
+            table.addCell(ns.getNode().getId());
             table.addCell(ns.getNode().getHostName());
             table.addCell(ns.getNode().getHostAddress());
             table.addCell(ns.getNode().getName());

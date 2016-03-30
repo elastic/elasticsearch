@@ -951,7 +951,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         globalLock.readLock().lock();
         try {
 
-            try (Releasable ignored = connectionLock.acquire(node.id())) {
+            try (Releasable ignored = connectionLock.acquire(node.getId())) {
                 if (!lifecycle.started()) {
                     throw new IllegalStateException("can't add nodes to a stopped transport");
                 }
@@ -1109,7 +1109,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
 
-        try (Releasable ignored = connectionLock.acquire(node.id())) {
+        try (Releasable ignored = connectionLock.acquire(node.getId())) {
             NodeChannels nodeChannels = connectedNodes.remove(node);
             if (nodeChannels != null) {
                 try {
@@ -1131,7 +1131,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         // check outside of the lock
         NodeChannels nodeChannels = connectedNodes.get(node);
         if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
-            try (Releasable ignored = connectionLock.acquire(node.id())) {
+            try (Releasable ignored = connectionLock.acquire(node.getId())) {
                 nodeChannels = connectedNodes.get(node);
                 // check again within the connection lock, if its still applicable to remove it
                 if (nodeChannels != null && nodeChannels.hasChannel(channel)) {

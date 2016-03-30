@@ -107,7 +107,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     protected NodeSnapshotStatus nodeOperation(NodeRequest request) {
         Map<SnapshotId, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>();
         try {
-            String nodeId = clusterService.localNode().id();
+            String nodeId = clusterService.localNode().getId();
             for (SnapshotId snapshotId : request.snapshotIds) {
                 Map<ShardId, IndexShardSnapshotStatus> shardsStatus = snapshotShardsService.currentSnapshotShards(snapshotId);
                 if (shardsStatus == null) {

@@ -283,7 +283,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Override
     public String nodeDescription() {
-        return clusterName.value() + "/" + clusterService.localNode().id();
+        return clusterName.value() + "/" + clusterService.localNode().getId();
     }
 
     /** start of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
@@ -501,7 +501,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node.id());
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node.getId());
                     currentState = ClusterState.builder(currentState).nodes(builder).build();
                     // check if we have enough master nodes, if not, we need to move into joining the cluster again
                     if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
@@ -541,12 +541,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (currentState.nodes().get(node.id()) == null) {
+                if (currentState.nodes().get(node.getId()) == null) {
                     logger.debug("node [{}] already removed from cluster state. ignoring.", node);
                     return currentState;
                 }
                 DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
-                        .remove(node.id());
+                        .remove(node.getId());
                 currentState = ClusterState.builder(currentState).nodes(builder).build();
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
@@ -634,14 +634,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (!masterNode.id().equals(currentState.nodes().masterNodeId())) {
+                if (!masterNode.getId().equals(currentState.nodes().masterNodeId())) {
                     // master got switched on us, no need to send anything
                     return currentState;
                 }
 
                 DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(currentState.nodes())
                         // make sure the old master node, which has failed, is not part of the nodes we publish
-                        .remove(masterNode.id())
+                        .remove(masterNode.getId())
                         .masterNodeId(null).build();
 
                 // flush any pending cluster states from old master, so it will not be set as master again

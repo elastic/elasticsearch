@@ -224,15 +224,8 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     /**
      * The unique id of the node.
      */
-    public String id() {
-        return nodeId;
-    }
-
-    /**
-     * The unique id of the node.
-     */
     public String getId() {
-        return id();
+        return nodeId;
     }
 
     /**
@@ -377,7 +370,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(id(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.startObject(getId(), XContentBuilder.FieldCaseConversion.NONE);
         builder.field("name", name());
         builder.field("transport_address", address().toString());
 

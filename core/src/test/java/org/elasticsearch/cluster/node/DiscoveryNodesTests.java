@@ -41,8 +41,8 @@ public class DiscoveryNodesTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
         DiscoveryNode[] nodes = discoveryNodes.nodes().values().toArray(DiscoveryNode.class);
         DiscoveryNode node = randomFrom(nodes);
-        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomBoolean() ? node.id() : node.name());
-        assertThat(resolvedNode.id(), equalTo(node.id()));
+        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomBoolean() ? node.getId() : node.name());
+        assertThat(resolvedNode.getId(), equalTo(node.getId()));
     }
 
     public void testResolveNodeByAttribute() {
@@ -52,7 +52,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         try {
             DiscoveryNode resolvedNode = discoveryNodes.resolveNode(nodeSelector.selector);
             assertThat(matchingNodeIds.size(), equalTo(1));
-            assertThat(resolvedNode.id(), equalTo(matchingNodeIds.iterator().next()));
+            assertThat(resolvedNode.getId(), equalTo(matchingNodeIds.iterator().next()));
         } catch(IllegalArgumentException e) {
             if (matchingNodeIds.size() == 0) {
                 assertThat(e.getMessage(), equalTo("failed to resolve [" + nodeSelector.selector + "], no matching nodes"));
@@ -88,7 +88,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         for (int i = 0; i < numNodeNames; i++) {
             DiscoveryNode discoveryNode = randomFrom(nodes);
             nodeSelectors.add(discoveryNode.name());
-            expectedNodeIdsSet.add(discoveryNode.id());
+            expectedNodeIdsSet.add(discoveryNode.getId());
         }
 
         String[] resolvedNodesIds = discoveryNodes.resolveNodesIds(nodeSelectors.toArray(new String[nodeSelectors.size()]));
@@ -111,8 +111,8 @@ public class DiscoveryNodesTests extends ESTestCase {
             discoBuilder = discoBuilder.put(node);
             nodesList.add(node);
         }
-        discoBuilder.localNodeId(randomFrom(nodesList).id());
-        discoBuilder.masterNodeId(randomFrom(nodesList).id());
+        discoBuilder.localNodeId(randomFrom(nodesList).getId());
+        discoBuilder.masterNodeId(randomFrom(nodesList).getId());
         return discoBuilder.build();
     }
 
@@ -158,7 +158,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Set<String> ids = new HashSet<>();
                 nodes.getNodes().valuesIt().forEachRemaining(node -> {
                     if ("value".equals(node.getAttributes().get("attr"))) {
-                        ids.add(node.id());
+                        ids.add(node.getId());
                     }
                 });
                 return ids;

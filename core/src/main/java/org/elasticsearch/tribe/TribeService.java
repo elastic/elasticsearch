@@ -353,20 +353,20 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             for (DiscoveryNode discoNode : currentState.nodes()) {
                 String markedTribeName = discoNode.getAttributes().get(TRIBE_NAME_SETTING.getKey());
                 if (markedTribeName != null && markedTribeName.equals(tribeName)) {
-                    if (tribeState.nodes().get(discoNode.id()) == null) {
+                    if (tribeState.nodes().get(discoNode.getId()) == null) {
                         clusterStateChanged = true;
                         logger.info("[{}] removing node [{}]", tribeName, discoNode);
-                        nodes.remove(discoNode.id());
+                        nodes.remove(discoNode.getId());
                     }
                 }
             }
             // go over tribe nodes, and see if they need to be added
             for (DiscoveryNode tribe : tribeState.nodes()) {
-                if (currentState.nodes().get(tribe.id()) == null) {
+                if (currentState.nodes().get(tribe.getId()) == null) {
                     // a new node, add it, but also add the tribe name to the attributes
                     Map<String, String> tribeAttr = new HashMap<>(tribe.getAttributes());
                     tribeAttr.put(TRIBE_NAME_SETTING.getKey(), tribeName);
-                    DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(),
+                    DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.getId(), tribe.getHostName(), tribe.getHostAddress(),
                             tribe.address(), unmodifiableMap(tribeAttr), tribe.getRoles(), tribe.version());
                     clusterStateChanged = true;
                     logger.info("[{}] adding node [{}]", tribeName, discoNode);

@@ -227,8 +227,8 @@ public class RestNodesAction extends AbstractCatAction {
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {
-            NodeInfo info = nodesInfo.getNodesMap().get(node.id());
-            NodeStats stats = nodesStats.getNodesMap().get(node.id());
+            NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
+            NodeStats stats = nodesStats.getNodesMap().get(node.getId());
 
             JvmInfo jvmInfo = info == null ? null : info.getJvm();
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
@@ -239,7 +239,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.startRow();
 
-            table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
+            table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostAddress());
             if (node.address() instanceof InetSocketTransportAddress) {
@@ -287,7 +287,7 @@ public class RestNodesAction extends AbstractCatAction {
                 roles = node.getRoles().stream().map(DiscoveryNode.Role::getAbbreviation).collect(Collectors.joining());
             }
             table.addCell(roles);
-            table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : "-");
+            table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
             table.addCell(node.name());
 
             CompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();

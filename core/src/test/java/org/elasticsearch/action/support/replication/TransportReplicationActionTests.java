@@ -768,7 +768,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     assertEquals(1, shardFailedRequests.length);
                     CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
                     // get the shard the request was sent to
-                    ShardRouting routing = clusterService.state().getRoutingNodes().node(capturedRequest.node.id()).get(request.shardId.id());
+                    ShardRouting routing = clusterService.state().getRoutingNodes().node(capturedRequest.node.getId()).get(request.shardId.id());
                     // and the shard that was requested to be failed
                     ShardStateAction.ShardRoutingEntry shardRoutingEntry = (ShardStateAction.ShardRoutingEntry) shardFailedRequest.request;
                     // the shard the request was sent to and the shard to be failed should be the same

@@ -207,7 +207,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
         // snapshots in the future
         Map<SnapshotId, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots = new HashMap<>();
         // Now go through all snapshots and update existing or create missing
-        final String localNodeId = clusterService.localNode().id();
+        final String localNodeId = clusterService.localNode().getId();
         if (snapshotsInProgress != null) {
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 if (entry.state() == SnapshotsInProgress.State.STARTED) {

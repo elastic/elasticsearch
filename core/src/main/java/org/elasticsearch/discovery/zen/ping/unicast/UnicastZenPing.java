@@ -378,9 +378,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 // to make sure we don't disconnect a true node which was temporarily removed from the DiscoveryNodes
                 // but will be added again during the pinging. We therefore create a new temporary node
                 if (!nodeFoundByAddress) {
-                    if (!nodeToSend.id().startsWith(UNICAST_NODE_PREFIX)) {
+                    if (!nodeToSend.getId().startsWith(UNICAST_NODE_PREFIX)) {
                         DiscoveryNode tempNode = new DiscoveryNode("",
-                                UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.id() + "#",
+                                UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.getId() + "#",
                                 nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(), nodeToSend.getAttributes(),
                                 nodeToSend.getRoles(), nodeToSend.getVersion());
 
@@ -469,7 +469,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 try {
                     DiscoveryNodes discoveryNodes = contextProvider.nodes();
                     for (PingResponse pingResponse : response.pingResponses) {
-                        if (pingResponse.node().id().equals(discoveryNodes.localNodeId())) {
+                        if (pingResponse.node().getId().equals(discoveryNodes.localNodeId())) {
                             // that's us, ignore
                             continue;
                         }

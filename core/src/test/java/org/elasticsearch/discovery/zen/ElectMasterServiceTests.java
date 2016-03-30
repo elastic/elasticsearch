@@ -68,7 +68,7 @@ public class ElectMasterServiceTests extends ESTestCase {
             if (!prevNode.masterNode()) {
                 assertFalse(node.masterNode());
             } else if (node.masterNode()) {
-                assertTrue(prevNode.id().compareTo(node.id()) < 0);
+                assertTrue(prevNode.getId().compareTo(node.getId()) < 0);
             }
             prevNode = node;
         }
@@ -100,7 +100,7 @@ public class ElectMasterServiceTests extends ESTestCase {
             assertNotNull(master);
             for (DiscoveryNode node : nodes) {
                 if (node.masterNode()) {
-                    assertTrue(master.id().compareTo(node.id()) <= 0);
+                    assertTrue(master.getId().compareTo(node.getId()) <= 0);
                 }
             }
         }

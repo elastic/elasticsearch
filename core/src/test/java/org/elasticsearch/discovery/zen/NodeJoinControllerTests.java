@@ -97,7 +97,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         final DiscoveryNode localNode = initialNodes.localNode();
         // make sure we have a master
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
-                DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.id())));
+                DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
         nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
                 new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
                 Settings.EMPTY);
@@ -555,7 +555,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         logger.info("assert for [{}] in:\n{}", expectedNodes, state.prettyPrint());
         DiscoveryNodes discoveryNodes = state.nodes();
         for (DiscoveryNode node : expectedNodes) {
-            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.id()), equalTo(node));
+            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.getId()), equalTo(node));
         }
         assertThat(discoveryNodes.size(), equalTo(expectedNodes.size()));
     }

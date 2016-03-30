@@ -246,7 +246,7 @@ public class NodeJoinController extends AbstractComponent {
                     throw new NotMasterException("Node [" + clusterService.localNode() + "] not master for join request");
                 }
 
-                DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes()).masterNodeId(currentState.nodes().localNode().id());
+                DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes()).masterNodeId(currentState.nodes().localNode().getId());
                 // update the fact that we are the master...
                 ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
                 currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
@@ -378,14 +378,14 @@ public class NodeJoinController extends AbstractComponent {
                     final DiscoveryNode node = entry.getKey();
                     joinCallbacksToRespondTo.addAll(entry.getValue());
                     iterator.remove();
-                    if (currentState.nodes().nodeExists(node.id())) {
+                    if (currentState.nodes().nodeExists(node.getId())) {
                         logger.debug("received a join request for an existing node [{}]", node);
                     } else {
                         nodeAdded = true;
                         nodesBuilder.put(node);
                         for (DiscoveryNode existingNode : currentState.nodes()) {
                             if (node.address().equals(existingNode.address())) {
-                                nodesBuilder.remove(existingNode.id());
+                                nodesBuilder.remove(existingNode.getId());
                                 logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", node, existingNode);
                             }
                         }

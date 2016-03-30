@@ -86,7 +86,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.NODES);
         for (DiscoveryNode node : nodes) {
-            builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(node.getId(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field(Fields.NAME, node.name(), XContentBuilder.FieldCaseConversion.NONE);
             builder.endObject();
         }

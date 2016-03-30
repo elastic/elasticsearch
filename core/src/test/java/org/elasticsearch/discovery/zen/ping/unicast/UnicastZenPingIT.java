@@ -110,14 +110,14 @@ public class UnicastZenPingIT extends ESTestCase {
             logger.info("ping from UZP_A");
             ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(10));
             assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].node().id(), equalTo("UZP_B"));
+            assertThat(pingResponses[0].node().getId(), equalTo("UZP_B"));
             assertTrue(pingResponses[0].hasJoinedOnce());
 
             // ping again, this time from B,
             logger.info("ping from UZP_B");
             pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(10));
             assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].node().id(), equalTo("UZP_A"));
+            assertThat(pingResponses[0].node().getId(), equalTo("UZP_A"));
             assertFalse(pingResponses[0].hasJoinedOnce());
 
         } finally {

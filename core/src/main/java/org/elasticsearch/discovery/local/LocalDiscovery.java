@@ -129,7 +129,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
                             nodesBuilder.put(discovery.localNode());
                         }
-                        nodesBuilder.localNodeId(master.localNode().id()).masterNodeId(master.localNode().id());
+                        nodesBuilder.localNodeId(master.localNode().getId()).masterNodeId(master.localNode().getId());
                         // remove the NO_MASTER block in this case
                         ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock());
                         return ClusterState.builder(currentState).nodes(nodesBuilder).blocks(blocks).build();
@@ -155,7 +155,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
                             nodesBuilder.put(discovery.localNode());
                         }
-                        nodesBuilder.localNodeId(master.localNode().id()).masterNodeId(master.localNode().id());
+                        nodesBuilder.localNodeId(master.localNode().getId()).masterNodeId(master.localNode().getId());
                         return ClusterState.builder(currentState).nodes(nodesBuilder).build();
                     }
 
@@ -207,7 +207,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
                 final Set<String> newMembers = new HashSet<>();
                 for (LocalDiscovery discovery : clusterGroup.members()) {
-                    newMembers.add(discovery.localNode().id());
+                    newMembers.add(discovery.localNode().getId());
                 }
 
                 final LocalDiscovery master = firstMaster;
@@ -219,7 +219,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, master.localNode().id());
+                        DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, master.localNode().getId());
                         DiscoveryNodes.Delta delta = newNodes.delta(currentState.nodes());
                         if (delta.added()) {
                             logger.warn("No new nodes should be created when a new discovery view is accepted");
@@ -251,7 +251,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     @Override
     public String nodeDescription() {
-        return clusterName.value() + "/" + localNode().id();
+        return clusterName.value() + "/" + localNode().getId();
     }
 
     @Override
@@ -312,7 +312,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 synchronized (this) {
                     // we do the marshaling intentionally, to check it works well...
                     // check if we published cluster state at least once and node was in the cluster when we published cluster state the last time
-                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode().id())) {
+                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode().getId())) {
                         // both conditions are true - which means we can try sending cluster state as diffs
                         if (clusterStateDiffBytes == null) {
                             Diff diff = clusterState.diff(clusterChangedEvent.previousState());

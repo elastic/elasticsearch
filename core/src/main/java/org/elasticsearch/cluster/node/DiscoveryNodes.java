@@ -340,7 +340,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             int index = 0;
             nodesIds = new String[nodes.size()];
             for (DiscoveryNode node : this) {
-                nodesIds[index++] = node.id();
+                nodesIds[index++] = node.getId();
             }
             return nodesIds;
         } else {
@@ -362,14 +362,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     // not a node id, try and search by name
                     for (DiscoveryNode node : this) {
                         if (Regex.simpleMatch(nodeId, node.name())) {
-                            resolvedNodesIds.add(node.id());
+                            resolvedNodesIds.add(node.getId());
                         }
                     }
                     for (DiscoveryNode node : this) {
                         if (Regex.simpleMatch(nodeId, node.getHostAddress())) {
-                            resolvedNodesIds.add(node.id());
+                            resolvedNodesIds.add(node.getId());
                         } else if (Regex.simpleMatch(nodeId, node.getHostName())) {
-                            resolvedNodesIds.add(node.id());
+                            resolvedNodesIds.add(node.getId());
                         }
                     }
                     int index = nodeId.indexOf(':');
@@ -400,7 +400,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                     String attrName = entry.getKey();
                                     String attrValue = entry.getValue();
                                     if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
-                                        resolvedNodesIds.add(node.id());
+                                        resolvedNodesIds.add(node.getId());
                                     }
                                 }
                             }
@@ -415,7 +415,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public DiscoveryNodes removeDeadMembers(Set<String> newNodes, String masterNodeId) {
         Builder builder = new Builder().masterNodeId(masterNodeId).localNodeId(localNodeId);
         for (DiscoveryNode node : this) {
-            if (newNodes.contains(node.id())) {
+            if (newNodes.contains(node.getId())) {
                 builder.put(node);
             }
         }
@@ -433,12 +433,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         List<DiscoveryNode> removed = new ArrayList<>();
         List<DiscoveryNode> added = new ArrayList<>();
         for (DiscoveryNode node : other) {
-            if (!this.nodeExists(node.id())) {
+            if (!this.nodeExists(node.getId())) {
                 removed.add(node);
             }
         }
         for (DiscoveryNode node : this) {
-            if (!other.nodeExists(node.id())) {
+            if (!other.nodeExists(node.getId())) {
                 added.add(node);
             }
         }
@@ -539,7 +539,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public String shortSummary() {
             StringBuilder sb = new StringBuilder();
             if (!removed() && masterNodeChanged()) {
-                if (newMasterNode.id().equals(localNodeId)) {
+                if (newMasterNode.getId().equals(localNodeId)) {
                     // we are the master, no nodes we removed, we are actually the first master
                     sb.append("new_master ").append(newMasterNode());
                 } else {
@@ -567,13 +567,13 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             }
             if (added()) {
                 // don't print if there is one added, and it is us
-                if (!(addedNodes().size() == 1 && addedNodes().get(0).id().equals(localNodeId))) {
+                if (!(addedNodes().size() == 1 && addedNodes().get(0).getId().equals(localNodeId))) {
                     if (removed() || masterNodeChanged()) {
                         sb.append(", ");
                     }
                     sb.append("added {");
                     for (DiscoveryNode node : addedNodes()) {
-                        if (!node.id().equals(localNodeId)) {
+                        if (!node.getId().equals(localNodeId)) {
                             // don't print ourself
                             sb.append(node).append(',');
                         }
@@ -605,12 +605,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             builder.masterNodeId(in.readString());
         }
         if (localNode != null) {
-            builder.localNodeId(localNode.id());
+            builder.localNodeId(localNode.getId());
         }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             DiscoveryNode node = new DiscoveryNode(in);
-            if (localNode != null && node.id().equals(localNode.id())) {
+            if (localNode != null && node.getId().equals(localNode.getId())) {
                 // reuse the same instance of our address and local node id for faster equality
                 node = localNode;
             }
@@ -649,7 +649,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public Builder put(DiscoveryNode node) {
-            nodes.put(node.id(), node);
+            nodes.put(node.getId(), node);
             return this;
         }
 

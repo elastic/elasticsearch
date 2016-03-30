@@ -389,7 +389,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         ArrayList<DiscoveryNode> discoveryNodes = CollectionUtils.iterableAsArrayList(clusterState.nodes());
         Collections.shuffle(discoveryNodes, random());
         for (DiscoveryNode node : discoveryNodes) {
-            nodes.remove(node.id());
+            nodes.remove(node.getId());
             numNodes--;
             if (numNodes <= 0) {
                 break;

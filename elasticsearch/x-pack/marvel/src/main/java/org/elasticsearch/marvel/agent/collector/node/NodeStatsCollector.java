@@ -84,7 +84,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
         nodeStatsDoc.setClusterUUID(clusterUUID());
         nodeStatsDoc.setTimestamp(System.currentTimeMillis());
         nodeStatsDoc.setSourceNode(sourceNode);
-        nodeStatsDoc.setNodeId(sourceNode.id());
+        nodeStatsDoc.setNodeId(sourceNode.getId());
         nodeStatsDoc.setNodeMaster(isLocalNodeMaster());
         nodeStatsDoc.setNodeStats(nodeStats);
         nodeStatsDoc.setMlockall(BootstrapInfo.isMemoryLocked());

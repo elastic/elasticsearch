@@ -21,13 +21,13 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class GsubProcessorFactoryTests extends ESTestCase {
 
@@ -95,7 +95,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
             factory.create(config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[pattern] Invalid regex pattern. Unclosed character class near index 0\n[\n^"));
+            assertThat(e.getMessage(), containsString("[pattern] Invalid regex pattern. Unclosed character class"));
         }
     }
 }

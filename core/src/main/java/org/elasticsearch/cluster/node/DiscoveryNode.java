@@ -47,7 +47,7 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  */
 public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
-    public static boolean localNode(Settings settings) {
+    public static boolean isLocalNode(Settings settings) {
         if (Node.NODE_LOCAL_SETTING.exists(settings)) {
             return Node.NODE_LOCAL_SETTING.get(settings);
         }

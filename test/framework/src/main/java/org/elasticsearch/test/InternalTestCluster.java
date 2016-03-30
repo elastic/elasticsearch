@@ -329,7 +329,7 @@ public final class InternalTestCluster extends TestCluster {
         if (Strings.hasLength(System.getProperty("es.node.local"))) {
             builder.put(Node.NODE_LOCAL_SETTING.getKey(), System.getProperty("es.node.local"));
         }
-        if (DiscoveryNode.localNode(builder.build())) {
+        if (DiscoveryNode.isLocalNode(builder.build())) {
             return "local";
         } else {
             return "network";

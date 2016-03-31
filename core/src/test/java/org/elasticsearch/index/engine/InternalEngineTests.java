@@ -2070,7 +2070,11 @@ public class InternalEngineTests extends ESTestCase {
                 for (int i = 0; i < 2; i++) {
                     try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
                         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
-                        assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        if (i == 0) {
+                            assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        } else {
+                            assertEquals("3", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        }
                         assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
                         engine.recoverFromTranslog();
                         userData = engine.getLastCommittedSegmentInfos().getUserData();

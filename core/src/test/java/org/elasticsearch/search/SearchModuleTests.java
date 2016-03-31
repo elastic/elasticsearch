@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +29,9 @@ import org.elasticsearch.search.highlight.CustomHighlighter;
 import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.PlainHighlighter;
 import org.elasticsearch.search.suggest.CustomSuggester;
-import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 /**

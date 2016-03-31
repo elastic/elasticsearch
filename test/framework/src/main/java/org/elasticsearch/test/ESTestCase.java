@@ -622,7 +622,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFieldNames) {
         List<String> keys = new ArrayList<>(map.keySet());
         // even though we shuffle later, we need this to make tests reproduce on different jvms
-        //Collections.sort(keys);
+        Collections.sort(keys);
         Map<String, Object> targetMap = new TreeMap<>();
         Collections.shuffle(keys, random());
         for (String key : keys) {

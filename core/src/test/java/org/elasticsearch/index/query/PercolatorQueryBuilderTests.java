@@ -80,9 +80,9 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
     }
 
     /**
-     * prevent fields in the "document" field from being shuffled randomly, because it later is parsed to
-     * a {@link BytesReference} and even though the documents are the same, equals will fail when comparing
-     * BytesReference
+     * we don't want to shuffle the "document" field internally in {@link #testFromXContent()} because even though the
+     * documents would be functionally the same, their {@link BytesReference} representation isn't and thats what we
+     * compare when check for equality of the original and the shuffled builder
      */
     @Override
     protected Set<String> shuffleProtectedFields() {

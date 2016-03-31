@@ -27,6 +27,20 @@
         size: -4
 
 ---
+"invalid scroll_size fails":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /Failed to parse int parameter [scroll_size] with value [asdf]/
+      update_by_query:
+        index: test
+        scroll_size: asdf
+
+---
 "requests_per_second cannot be an empty string":
   - do:
       index:

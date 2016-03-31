@@ -49,7 +49,6 @@ import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -888,7 +887,7 @@ public class InternalEngine extends Engine {
 
     private Object dirtyLock(BytesRef uid) {
         int hash = Murmur3HashFunction.hash(uid.bytes, uid.offset, uid.length);
-        return dirtyLocks[MathUtils.mod(hash, dirtyLocks.length)];
+        return dirtyLocks[Math.floorMod(hash, dirtyLocks.length)];
     }
 
     private Object dirtyLock(Term uid) {

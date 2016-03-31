@@ -140,9 +140,10 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final Engine.Warmer warmer;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final SimilarityService similarityService;
-    private final EngineConfig engineConfig;
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
+    private final QueryCachingPolicy cachingPolicy;
+
 
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
@@ -229,7 +230,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings,
             bigArrays);
-        final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
@@ -237,7 +237,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
-        engineConfig = newEngineConfig(translogConfig, cachingPolicy, new IndexShardRecoveryPerformer(shardId, mapperService, logger));
         suspendableRefContainer = new SuspendableRefContainer();
         searcherWrapper = indexSearcherWrapper;
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
@@ -319,7 +318,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public QueryCachingPolicy getQueryCachingPolicy() {
-        return this.engineConfig.getQueryCachingPolicy();
+        return cachingPolicy;
     }
 
     /**
@@ -850,7 +849,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         // we still invoke any onShardInactive listeners ... we won't sync'd flush in this case because we only do that on primary and this
         // is a replica
         active.set(true);
-        return engineConfig.getTranslogRecoveryPerformer().performBatchRecovery(getEngine(), operations);
+        Engine engine = getEngine();
+        return engine.config().getTranslogRecoveryPerformer().performBatchRecovery(engine, operations);
     }
 
     /**
@@ -881,19 +881,25 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         }
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+        final EngineConfig.OpenMode openMode;
+        if (indexExists == false) {
+            openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
+        } else if (skipTranslogRecovery) {
+            openMode = EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
+        } else {
+            openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
+        }
+        final EngineConfig config = newEngineConfig(openMode, translogConfig, cachingPolicy,
+            new IndexShardRecoveryPerformer(shardId, mapperService, logger));
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
-        engineConfig.setEnableGcDeletes(false);
-        engineConfig.setCreate(indexExists == false);
-        if (skipTranslogRecovery == false) {
+        config.setEnableGcDeletes(false);
+        Engine newEngine = createNewEngine(config);
+        verifyNotClosed();
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
             // we still give sync'd flush a chance to run:
             active.set(true);
-        }
-        engineConfig.setForceNewTranslog(skipTranslogRecovery);
-        Engine newEngine = createNewEngine(engineConfig);
-        verifyNotClosed();
-        if (skipTranslogRecovery == false) {
             newEngine.recoverFromTranslog();
         }
 
@@ -945,8 +951,9 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
-        getEngine().refresh("recovery_finalization");
-        engineConfig.setEnableGcDeletes(true);
+        Engine engine = getEngine();
+        engine.refresh("recovery_finalization");
+        engine.config().setEnableGcDeletes(true);
     }
 
     /**
@@ -1378,8 +1385,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy, TranslogRecoveryPerformer translogRecoveryPerformer) {
-        return new EngineConfig(shardId,
+    private final EngineConfig newEngineConfig(EngineConfig.OpenMode openMode, TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy, TranslogRecoveryPerformer translogRecoveryPerformer) {
+        return new EngineConfig(openMode, shardId,
             threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
             indexSettings.getSettings().getAsTime(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, IndexingMemoryController.SHARD_DEFAULT_INACTIVE_TIME));

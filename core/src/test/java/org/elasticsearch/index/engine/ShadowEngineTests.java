@@ -45,7 +45,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -53,7 +52,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryService;
@@ -218,25 +216,30 @@ public class ShadowEngineTests extends ESTestCase {
 
     protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
         EngineConfig config = config(indexSettings, store, translogPath, mergePolicy);
-        config.setForceNewTranslog(true);
         return new InternalEngine(config);
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
+        final EngineConfig.OpenMode openMode;
+        try {
+            if (Lucene.indexExists(store.directory()) == false) {
+                openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
+            } else {
+                openMode = EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("can't find index?", e);
+        }
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        EngineConfig config = new EngineConfig(shardId, threadPool, indexSettings
+        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy,
                 iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(null, logger), new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
         }}, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
-        try {
-            config.setCreate(Lucene.indexExists(store.directory()) == false);
-        } catch (IOException e) {
-            throw new ElasticsearchException("can't find index?", e);
-        }
+
         return config;
     }
 

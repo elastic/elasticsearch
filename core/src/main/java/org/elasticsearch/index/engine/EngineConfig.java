@@ -64,7 +64,6 @@ public final class EngineConfig {
     private final Similarity similarity;
     private final CodecService codecService;
     private final Engine.EventListener eventListener;
-    private volatile boolean forceNewTranslog = false;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
 
@@ -90,17 +89,20 @@ public final class EngineConfig {
     }, Property.IndexScope, Property.NodeScope);
 
     private TranslogConfig translogConfig;
-    private boolean create = false;
+    private final OpenMode openMode;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool,
+    public EngineConfig(OpenMode openMode, ShardId shardId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy,Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                         TranslogConfig translogConfig, TimeValue flushMergesAfter) {
+        if (openMode == null) {
+            throw new IllegalArgumentException("openMode must not be null");
+        }
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -122,11 +124,7 @@ public final class EngineConfig {
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
         this.flushMergesAfter = flushMergesAfter;
-    }
-
-    /** if true the engine will start even if the translog id in the commit point can not be found */
-    public boolean forceNewTranslog() {
-        return forceNewTranslog;
+        this.openMode = openMode;
     }
 
     /**
@@ -278,32 +276,31 @@ public final class EngineConfig {
     }
 
     /**
-     * Iff set to <code>true</code> the engine will create a new lucene index when opening the engine.
-     * Otherwise the lucene index writer is opened in append mode. The default is <code>false</code>
-     */
-    public void setCreate(boolean create) {
-        this.create = create;
-    }
-
-    /**
-     * Iff <code>true</code> the engine should create a new lucene index when opening the engine.
-     * Otherwise the lucene index writer should be opened in append mode. The default is <code>false</code>
-     */
-    public boolean isCreate() {
-        return create;
-    }
-
-    /**
      * Returns a {@link TimeValue} at what time interval after the last write modification to the engine finished merges
      * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
      * are written after the engine became inactive from an indexing perspective.
      */
     public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
 
-    /** if set to true the engine will start even if the translog id in the commit point can not be found and a new transaction log
-     * will be created this should be used if recovery from translog should be skipped */
-    public void setForceNewTranslog(boolean forceNewTranslog) {
-        this.forceNewTranslog = forceNewTranslog;
+    /**
+     * Returns the {@link OpenMode} for this engine config.
+     */
+    public OpenMode getOpenMode() {
+        return openMode;
+    }
+
+    /**
+     * Engine open mode defines how the engine should be opened or in other words what the engine should expect
+     * to recover from. We either create a brand new engine with a new index and translog or we recover from an existing index.
+     * If the index exists we also have the ability open only the index and create a new transaction log which happens
+     * during remote recovery since we have already transferred the index files but the translog is replayed from remote. The last
+     * and safest option opens the lucene index as well as it's referenced transaction log for a translog recovery.
+     * See also {@link Engine#recoverFromTranslog()}
+     */
+    public enum OpenMode {
+        CREATE_INDEX_AND_TRANSLOG,
+        OPEN_INDEX_CREATE_TRANSLOG,
+        OPEN_INDEX_AND_TRANSLOG;
     }
 
 }

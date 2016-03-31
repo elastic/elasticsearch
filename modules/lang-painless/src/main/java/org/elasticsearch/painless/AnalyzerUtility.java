@@ -22,7 +22,9 @@ package org.elasticsearch.painless;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Metadata.ExtNodeMetadata;
 import org.elasticsearch.painless.PainlessParser.ExpressionContext;
+import org.elasticsearch.painless.PainlessParser.IdentifierContext;
 import org.elasticsearch.painless.PainlessParser.PrecedenceContext;
 
 import java.util.ArrayDeque;
@@ -49,6 +51,26 @@ class AnalyzerUtility {
      */
     static String error(final ParserRuleContext ctx) {
         return "Analyzer Error [" + ctx.getStart().getLine() + ":" + ctx.getStart().getCharPositionInLine() + "]: ";
+    }
+
+    /**
+     * A utility method to output consistent error messages for invalid types.
+     * @param ctx The ANTLR node the error occurred in.
+     * @param type The invalid type.
+     * @return The error message with tacked on line number and character position.
+     */
+    static String typeError(final ParserRuleContext ctx, final String type) {
+        return error(ctx) + "Invalid type [" + type + "].";
+    }
+
+    /**
+     * A utility method to output consistent error messages for invalid identifiers.
+     * @param ctx The ANTLR node the error occurred in.
+     * @param identifier The invalid identifier.
+     * @return The error message with tacked on line number and character position.
+     */
+    static String identifierError(final ParserRuleContext ctx, final String identifier) {
+        return error(ctx) + "Invalid identifier [" + identifier + "].";
     }
 
     /**
@@ -87,8 +109,16 @@ class AnalyzerUtility {
         return source;
     }
 
+    private final Metadata metadata;
+    private final Definition definition;
+
     private final Deque<Integer> scopes = new ArrayDeque<>();
     private final Deque<Variable> variables = new ArrayDeque<>();
+
+    AnalyzerUtility(final Metadata metadata) {
+        this.metadata = metadata;
+        definition = metadata.definition;
+    }
 
     void incrementScope() {
         scopes.push(0);
@@ -140,5 +170,25 @@ class AnalyzerUtility {
         scopes.push(update);
 
         return variable;
+    }
+
+    boolean isValidType(final IdentifierContext idctx, final boolean error) {
+        boolean valid = definition.structs.containsKey(idctx.getText());
+
+        if (!valid && error) {
+            throw new IllegalArgumentException(typeError(idctx, idctx.getText()));
+        }
+
+        return valid;
+    }
+
+    boolean isValidIdentifier(final IdentifierContext idctx, final boolean error) {
+        boolean valid = !definition.structs.containsKey(idctx.getText()) && idctx.generic() == null;
+
+        if (!valid && error) {
+            throw new IllegalArgumentException(identifierError(idctx, idctx.getText()));
+        }
+
+        return valid;
     }
 }

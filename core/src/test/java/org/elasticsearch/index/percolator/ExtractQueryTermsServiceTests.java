@@ -35,12 +35,19 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.spans.SpanFirstQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanNotQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.test.ESTestCase;
 
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -242,6 +249,56 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertThat(result.get(1).text(), equalTo("_term2"));
     }
 
+    public void testExtractQueryMetadata_spanTermQuery() {
+        // the following span queries aren't exposed in the query dsl and are therefor not supported:
+        // 1) SpanPositionRangeQuery
+        // 2) PayloadScoreQuery
+        // 3) SpanBoostQuery
+
+        // The following span queries can't be supported because of how these queries work:
+        // 1) SpanMultiTermQueryWrapper, not supported, because there is no support for MTQ typed queries yet.
+        // 2) SpanContainingQuery, is kind of range of spans and we don't know what is between the little and big terms
+        // 3) SpanWithinQuery, same reason as SpanContainingQuery
+        // 4) FieldMaskingSpanQuery is a tricky query so we shouldn't optimize this
+
+        SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
+        Set<Term> terms = ExtractQueryTermsService.extractQueryTerms(spanTermQuery1);
+        assertTermsEqual(terms, spanTermQuery1.getTerm());
+    }
+
+    public void testExtractQueryMetadata_spanNearQuery() {
+        SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
+        SpanTermQuery spanTermQuery2 = new SpanTermQuery(new Term("_field", "_very_long_term"));
+        SpanNearQuery spanNearQuery = new SpanNearQuery.Builder("_field", true)
+                .addClause(spanTermQuery1).addClause(spanTermQuery2).build();
+        Set<Term> terms = ExtractQueryTermsService.extractQueryTerms(spanNearQuery);
+        assertTermsEqual(terms, spanTermQuery2.getTerm());
+    }
+
+    public void testExtractQueryMetadata_spanOrQuery() {
+        SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
+        SpanTermQuery spanTermQuery2 = new SpanTermQuery(new Term("_field", "_very_long_term"));
+        SpanOrQuery spanOrQuery = new SpanOrQuery(spanTermQuery1, spanTermQuery2);
+        Set<Term> terms = ExtractQueryTermsService.extractQueryTerms(spanOrQuery);
+        assertTermsEqual(terms, spanTermQuery1.getTerm(), spanTermQuery2.getTerm());
+    }
+
+    public void testExtractQueryMetadata_spanFirstQuery() {
+        SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
+        SpanTermQuery spanTermQuery2 = new SpanTermQuery(new Term("_field", "_very_long_term"));
+        SpanFirstQuery spanFirstQuery = new SpanFirstQuery(spanTermQuery1, 20);
+        Set<Term> terms = ExtractQueryTermsService.extractQueryTerms(spanFirstQuery);
+        assertTermsEqual(terms, spanTermQuery1.getTerm());
+    }
+
+    public void testExtractQueryMetadata_spanNotQuery() {
+        SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
+        SpanTermQuery spanTermQuery2 = new SpanTermQuery(new Term("_field", "_very_long_term"));
+        SpanNotQuery spanNotQuery = new SpanNotQuery(spanTermQuery1, spanTermQuery2);
+        Set<Term> terms = ExtractQueryTermsService.extractQueryTerms(spanNotQuery);
+        assertTermsEqual(terms, spanTermQuery1.getTerm());
+    }
+
     public void testExtractQueryMetadata_unsupportedQuery() {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
 
@@ -328,6 +385,10 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertThat(booleanQuery.clauses().get(i).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
         assertThat(((TermQuery) booleanQuery.clauses().get(i).getQuery()).getTerm().field(), equalTo(expectedField));
         assertThat(((TermQuery) booleanQuery.clauses().get(i).getQuery()).getTerm().bytes().utf8ToString(), equalTo(expectedValue));
+    }
+
+    private static void assertTermsEqual(Set<Term> actual, Term... expected) {
+        assertEquals(new HashSet<>(Arrays.asList(expected)), actual);
     }
 
 }

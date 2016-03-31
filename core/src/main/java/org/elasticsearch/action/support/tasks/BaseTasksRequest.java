@@ -42,8 +42,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     public static final String[] ALL_NODES = Strings.EMPTY_ARRAY;
 
-    public static final long ALL_TASKS = -1L;
-
     private String[] nodesIds = ALL_NODES;
 
     private TimeValue timeout;

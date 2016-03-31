@@ -54,6 +54,7 @@
       tasks.list:
         wait_for_completion: true
         task_id: $task
+  - is_false: node_failures
 
 ---
 "Response for version conflict":

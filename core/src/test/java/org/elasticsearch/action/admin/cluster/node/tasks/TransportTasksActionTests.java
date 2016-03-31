@@ -24,8 +24,10 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -43,6 +45,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -368,6 +375,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int i = 1; i < testNodes.length; i++) {
             assertEquals(1, response.getPerNodeTasks().get(testNodes[i].discoveryNode).size());
         }
+        // There should be a single main task when grouped by tasks
+        assertEquals(1, response.getTaskGroups().size());
+        // And as many child tasks as we have nodes
+        assertEquals(testNodes.length, response.getTaskGroups().get(0).getChildTasks().size());
 
         // Check task counts using transport with filtering
         testNode = testNodes[randomIntBetween(0, testNodes.length - 1)];
@@ -378,6 +389,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (Map.Entry<DiscoveryNode, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
             assertNull(entry.getValue().get(0).getDescription());
+        }
+        // Since the main task is not in the list - all tasks should be by themselves
+        assertEquals(testNodes.length, response.getTaskGroups().size());
+        for (TaskGroup taskGroup : response.getTaskGroups()) {
+            assertEquals(0, taskGroup.getChildTasks().size());
         }
 
         // Check task counts using transport with detailed description
@@ -702,5 +718,54 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         checkLatch.countDown();
         NodesResponse responses = future.get();
         assertEquals(0, responses.failureCount());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTasksToXContentGrouping() throws Exception {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+
+        // Get the parent task
+        ListTasksRequest listTasksRequest = new ListTasksRequest();
+        listTasksRequest.setActions(ListTasksAction.NAME + "*");
+        ListTasksResponse response = testNodes[0].transportListTasksAction.execute(listTasksRequest).get();
+        assertEquals(testNodes.length + 1, response.getTasks().size());
+
+        // First group by node
+        Map<String, Object> byNodes = serialize(response, new ToXContent.MapParams(Collections.singletonMap("group_by", "nodes")));
+        byNodes = (Map<String, Object>) byNodes.get("nodes");
+        // One element on the top level
+        assertEquals(testNodes.length, byNodes.size());
+        Map<String, Object> firstNode = (Map<String, Object>) byNodes.get(testNodes[0].discoveryNode.getId());
+        firstNode = (Map<String, Object>) firstNode.get("tasks");
+        assertEquals(2, firstNode.size()); // two tasks for the first node
+        for (int i = 1; i < testNodes.length; i++) {
+            Map<String, Object> otherNode = (Map<String, Object>) byNodes.get(testNodes[i].discoveryNode.getId());
+            otherNode = (Map<String, Object>) otherNode.get("tasks");
+            assertEquals(1, otherNode.size()); // one tasks for the all other nodes
+        }
+
+        // Group by parents
+        Map<String, Object> byParent = serialize(response, new ToXContent.MapParams(Collections.singletonMap("group_by", "parents")));
+        byParent = (Map<String, Object>) byParent.get("tasks");
+        // One element on the top level
+        assertEquals(1, byParent.size()); // Only one top level task
+        Map<String, Object> topTask = (Map<String, Object>) byParent.values().iterator().next();
+        List<Object> children = (List<Object>) topTask.get("children");
+        assertEquals(testNodes.length, children.size()); // two tasks for the first node
+        for (int i = 0; i < testNodes.length; i++) {
+            Map<String, Object> child = (Map<String, Object>) children.get(i);
+            assertNull(child.get("children"));
+        }
+    }
+
+    private Map<String, Object> serialize(ToXContent response, ToXContent.Params params) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject();
+        response.toXContent(builder, params);
+        builder.endObject();
+        builder.flush();
+        logger.info(builder.string());
+        return XContentHelper.convertToMap(builder.bytes(), false).v2();
     }
 }

@@ -58,6 +58,23 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals(objectParser.toString(), "ObjectParser{name='foo', fields=[FieldParser{preferred_name=test, supportedTokens=[VALUE_STRING], type=STRING}, FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}, FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY, VALUE_STRING, VALUE_NUMBER], type=INT_ARRAY}, FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY, VALUE_STRING, VALUE_NUMBER], type=INT_ARRAY}, FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}]}");
     }
 
+    public void testEmptyObject() throws Exception {
+        XContentParser parser = XContentType.JSON.xContent().createParser("{}");
+        class TestStruct {
+            public String val = null;
+            public void setVal(String val) {
+                this.val = val;
+            }
+        }
+
+        ObjectParser<TestStruct, Void> objectParser = new ObjectParser("eggplant");
+        TestStruct s = new TestStruct();
+
+        objectParser.declareString(TestStruct::setVal, new ParseField("anything"));
+        objectParser.parse(parser, s);
+        assertNull("s.val should be null", s.val);
+    }
+
     public void testObjectOrDefault() throws IOException {
         XContentParser parser = XContentType.JSON.xContent().createParser("{\"object\" : { \"test\": 2}}");
         ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser("foo", StaticTestStruct::new);

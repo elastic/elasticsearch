@@ -227,10 +227,10 @@ public class InternalEngine extends Engine {
     }
 
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer) throws IOException {
-        final Translog.TranslogGeneration generation = loadTranslogIdFromCommit(writer);
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-
+        translogConfig.setTranslogGeneration(null);
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            final Translog.TranslogGeneration generation = loadTranslogIdFromCommit(writer);
             // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
             if (generation == null) {
                 throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
@@ -241,7 +241,10 @@ public class InternalEngine extends Engine {
             }
         }
         final Translog translog = new Translog(translogConfig);
+        final Translog.TranslogGeneration generation = translogConfig.getTranslogGeneration();
         if (generation == null || generation.translogUUID == null) {
+            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
+                + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
             if (generation == null) {
                 logger.debug("no translog ID present in the current generation - creating one");
             } else if (generation.translogUUID == null) {
@@ -249,7 +252,8 @@ public class InternalEngine extends Engine {
             }
             boolean success = false;
             try {
-                commitIndexWriter(writer, translog);
+                commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
+                    ? writer.getCommitData().get(SYNC_COMMIT_ID) : null);
                 success = true;
             } finally {
                 if (success == false) {
@@ -661,7 +665,7 @@ public class InternalEngine extends Engine {
                     try {
                         translog.prepareCommit();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        commitIndexWriter(indexWriter, translog);
+                        commitIndexWriter(indexWriter, translog, null);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
@@ -1127,10 +1131,6 @@ public class InternalEngine extends Engine {
         if (allowCommits.get() == false) {
             throw new FlushNotAllowedEngineException(shardId, "flushes are disabled - pending translog recovery");
         }
-    }
-
-    private void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
-        commitIndexWriter(writer, translog, null);
     }
 
     public void onSettingsChanged() {

@@ -100,7 +100,7 @@ public final class TranslogConfig {
      * file referenced by this generation. The translog creation will fail if this generation can't be opened.
      */
     public TranslogGeneration getTranslogGeneration() {
-        return translogGeneration;
+        return translogGeneration; // TODO make this a ctor argument on the Translog - this mutable state is aweful
     }
 
     /**

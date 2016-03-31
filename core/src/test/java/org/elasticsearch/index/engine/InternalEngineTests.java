@@ -923,7 +923,7 @@ public class InternalEngineTests extends ESTestCase {
         if (engine.config().getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG && randomBoolean()) {
             engine.recoverFromTranslog();
         }
-        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        assertEquals(engine.config().getOpenMode().toString(), engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
     }
 
     public void testSycnedFlushVanishesOnReplay() throws IOException {
@@ -1676,7 +1676,6 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
         engine.close();
-        boolean recoveredButFailed = false;
         final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
         if (directory != null) {
             // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
@@ -2046,5 +2045,64 @@ public class InternalEngineTests extends ESTestCase {
         mergeThread.join();
         logger.info("exception caught: ", throwable.get());
         assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(throwable.get()));
+    }
+
+    public void testCurrentTranslogIDisCommitted() throws IOException {
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy());
+
+            // create
+            {
+                ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+                Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(0)), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+
+                try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG))){
+                    engine.index(firstIndexRequest);
+
+                    expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog());
+                    Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                    assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                    assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                }
+            }
+            // open and recover tlog
+            {
+                for (int i = 0; i < 2; i++) {
+                    try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+                        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        engine.recoverFromTranslog();
+                        userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("3", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    }
+                }
+            }
+            // open index with new tlog
+            {
+                try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG))) {
+                    Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                    assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                    assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog());
+                }
+            }
+
+            // open and recover tlog with empty tlog
+            {
+                for (int i = 0; i < 2; i++) {
+                    try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+                        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        engine.recoverFromTranslog();
+                        userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("no changes - nothing to commit", "1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    }
+                }
+            }
+        }
     }
 }

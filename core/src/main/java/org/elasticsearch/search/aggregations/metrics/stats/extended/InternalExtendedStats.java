@@ -49,10 +49,6 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     enum Metrics {
 
         count, sum, min, max, avg, sum_of_squares, variance, std_deviation, std_upper, std_lower;

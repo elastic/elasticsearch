@@ -42,7 +42,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
     public final static Type TYPE = new Type("date_range", "drange");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalDateRange readResult(StreamInput in) throws IOException {
             InternalDateRange ranges = new InternalDateRange();
@@ -69,7 +69,6 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
     };
 
     public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 

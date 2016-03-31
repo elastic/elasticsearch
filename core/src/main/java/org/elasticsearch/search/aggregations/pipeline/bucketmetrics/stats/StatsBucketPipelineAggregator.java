@@ -47,7 +47,6 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
 
     public static void registerStreams() {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-        InternalStatsBucket.registerStreams();
     }
 
     private double sum = 0;

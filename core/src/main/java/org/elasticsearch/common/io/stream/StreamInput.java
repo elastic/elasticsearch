@@ -38,6 +38,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -708,6 +709,13 @@ public abstract class StreamInput extends InputStream {
      */
     public AggregatorBuilder<?> readAggregatorFactory() throws IOException {
         return readNamedWriteable(AggregatorBuilder.class);
+    }
+
+    /**
+     * Reads and {@link InternalAggregation} from the current stream.
+     */
+    public InternalAggregation readAggregation() throws IOException {
+        return readNamedWriteable(InternalAggregation.class);
     }
 
     /**

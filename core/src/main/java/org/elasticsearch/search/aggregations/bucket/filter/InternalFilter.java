@@ -44,10 +44,6 @@ public class InternalFilter extends InternalSingleBucketAggregation implements F
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     InternalFilter() {} // for serialization
 
     InternalFilter(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {

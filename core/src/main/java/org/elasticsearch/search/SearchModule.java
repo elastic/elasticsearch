@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -98,6 +99,7 @@ import org.elasticsearch.search.aggregations.AggregationParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenParser;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterParser;
@@ -179,12 +181,15 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucke
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.InternalPercentilesBucket;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.InternalStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.InternalExtendedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptParser;
@@ -276,6 +281,7 @@ public class SearchModule extends AbstractModule {
         registerBuiltinQueryParsers();
         registerBuiltinRescorers();
         registerBuiltinSorts();
+        registerBuiltinAggregationInternals();
     }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
@@ -340,6 +346,15 @@ public class SearchModule extends AbstractModule {
      */
     public void registerAggregatorParser(Aggregator.Parser parser) {
         aggParsers.add(parser);
+    }
+
+    /**
+     * Register an {@link InternalAggregation}, the ultimate implementation of aggregations. There isn't always a one to one correspondance
+     * between an {@link Aggregator.Parser} and and InternalAggregation.
+     */
+    public void registerInternalAggregation(BytesReference name, Writeable.Reader<InternalAggregation> reader) {
+        // TODO switch name to a String once aggregation's streams are removed.
+        namedWriteableRegistry.register(InternalAggregation.class, name.toUtf8(), reader);
     }
 
     public void registerPipelineParser(PipelineAggregator.Parser parser) {
@@ -469,6 +484,58 @@ public class SearchModule extends AbstractModule {
         bind(AggregationPhase.class).toInstance(aggPhase);
     }
 
+    private void registerBuiltinAggregationInternals() {
+        // calcs
+        registerInternalAggregation(InternalAvg.TYPE.stream(), InternalAvg.STREAM);
+        registerInternalAggregation(InternalSum.TYPE.stream(), InternalSum.STREAM);
+        registerInternalAggregation(InternalMin.TYPE.stream(), InternalMin.STREAM);
+        registerInternalAggregation(InternalMax.TYPE.stream(), InternalMax.STREAM);
+        registerInternalAggregation(InternalStats.TYPE.stream(), InternalStats.STREAM);
+        registerInternalAggregation(InternalExtendedStats.TYPE.stream(), InternalExtendedStats.STREAM);
+        registerInternalAggregation(InternalValueCount.TYPE.stream(), InternalValueCount.STREAM);
+        registerInternalAggregation(InternalTDigestPercentiles.TYPE.stream(), InternalTDigestPercentiles.STREAM);
+        registerInternalAggregation(InternalTDigestPercentileRanks.TYPE.stream(), InternalTDigestPercentileRanks.STREAM);
+        registerInternalAggregation(InternalHDRPercentiles.TYPE.stream(), InternalHDRPercentiles.STREAM);
+        registerInternalAggregation(InternalHDRPercentileRanks.TYPE.stream(), InternalHDRPercentileRanks.STREAM);
+        registerInternalAggregation(InternalCardinality.TYPE.stream(), InternalCardinality.STREAM);
+        registerInternalAggregation(InternalScriptedMetric.TYPE.stream(), InternalScriptedMetric.STREAM);
+        registerInternalAggregation(InternalGeoCentroid.TYPE.stream(), InternalGeoCentroid.STREAM);
+
+        // buckets
+        registerInternalAggregation(InternalGlobal.TYPE.stream(), InternalGlobal.STREAM);
+        registerInternalAggregation(InternalFilter.TYPE.stream(), InternalFilter.STREAM);
+        registerInternalAggregation(InternalFilters.TYPE.stream(), InternalFilters.STREAM);
+        registerInternalAggregation(InternalSampler.TYPE.stream(), InternalSampler.STREAM);
+        registerInternalAggregation(UnmappedSampler.TYPE.stream(), UnmappedSampler.STREAM);
+        registerInternalAggregation(InternalMissing.TYPE.stream(), InternalMissing.STREAM);
+        registerInternalAggregation(StringTerms.TYPE.stream(), StringTerms.STREAM);
+        registerInternalAggregation(LongTerms.TYPE.stream(), LongTerms.STREAM);
+        registerInternalAggregation(SignificantStringTerms.TYPE.stream(), SignificantStringTerms.STREAM);
+        registerInternalAggregation(SignificantLongTerms.TYPE.stream(), SignificantLongTerms.STREAM);
+        registerInternalAggregation(UnmappedSignificantTerms.TYPE.stream(), UnmappedSignificantTerms.STREAM);
+        registerInternalAggregation(InternalGeoHashGrid.TYPE.stream(), InternalGeoHashGrid.STREAM);
+        registerInternalAggregation(DoubleTerms.TYPE.stream(), DoubleTerms.STREAM);
+        registerInternalAggregation(UnmappedTerms.TYPE.stream(), UnmappedTerms.STREAM);
+        registerInternalAggregation(InternalRange.TYPE.stream(), InternalRange.STREAM);
+        registerInternalAggregation(InternalDateRange.TYPE.stream(), InternalDateRange.STREAM);
+        registerInternalAggregation(InternalIPv4Range.TYPE.stream(), InternalIPv4Range.STREAM);
+        registerInternalAggregation(InternalHistogram.TYPE.stream(), InternalHistogram.STREAM);
+        registerInternalAggregation(InternalGeoDistance.TYPE.stream(), InternalGeoDistance.STREAM);
+        registerInternalAggregation(InternalNested.TYPE.stream(), InternalNested.STREAM);
+        registerInternalAggregation(InternalReverseNested.TYPE.stream(), InternalReverseNested.STREAM);
+        registerInternalAggregation(InternalTopHits.TYPE.stream(), InternalTopHits.STREAM);
+        registerInternalAggregation(InternalGeoBounds.TYPE.stream(), InternalGeoBounds.STREAM);
+        registerInternalAggregation(InternalChildren.TYPE.stream(), InternalChildren.STREAM);
+
+        // pipline aggregations
+        registerInternalAggregation(InternalDerivative.TYPE.stream(), InternalDerivative.STREAM);
+        registerInternalAggregation(InternalSimpleValue.TYPE.stream(), InternalSimpleValue.STREAM);
+        registerInternalAggregation(InternalBucketMetricValue.TYPE.stream(), InternalBucketMetricValue.STREAM);
+        registerInternalAggregation(InternalExtendedStatsBucket.TYPE.stream(), InternalExtendedStatsBucket.STREAM);
+        registerInternalAggregation(InternalPercentilesBucket.TYPE.stream(), InternalPercentilesBucket.STREAM);
+        registerInternalAggregation(InternalStatsBucket.TYPE.stream(), InternalStatsBucket.STREAM);
+    }
+
     protected void configureSearch() {
         // configure search private classes...
         bind(DfsPhase.class).asEagerSingleton();
@@ -574,53 +641,21 @@ public class SearchModule extends AbstractModule {
     }
 
     static {
-        // calcs
-        InternalAvg.registerStreams();
-        InternalSum.registerStreams();
-        InternalMin.registerStreams();
-        InternalMax.registerStreams();
-        InternalStats.registerStreams();
-        InternalExtendedStats.registerStreams();
-        InternalValueCount.registerStreams();
-        InternalTDigestPercentiles.registerStreams();
-        InternalTDigestPercentileRanks.registerStreams();
-        InternalHDRPercentiles.registerStreams();
-        InternalHDRPercentileRanks.registerStreams();
-        InternalCardinality.registerStreams();
-        InternalScriptedMetric.registerStreams();
-        InternalGeoCentroid.registerStreams();
-
         // buckets
-        InternalGlobal.registerStreams();
-        InternalFilter.registerStreams();
         InternalFilters.registerStream();
-        InternalSampler.registerStreams();
-        UnmappedSampler.registerStreams();
-        InternalMissing.registerStreams();
         StringTerms.registerStreams();
         LongTerms.registerStreams();
-        SignificantStringTerms.registerStreams();
         SignificantLongTerms.registerStreams();
-        UnmappedSignificantTerms.registerStreams();
         InternalGeoHashGrid.registerStreams();
         DoubleTerms.registerStreams();
-        UnmappedTerms.registerStreams();
         InternalRange.registerStream();
         InternalDateRange.registerStream();
         InternalIPv4Range.registerStream();
         InternalHistogram.registerStream();
         InternalGeoDistance.registerStream();
-        InternalNested.registerStream();
-        InternalReverseNested.registerStream();
-        InternalTopHits.registerStreams();
-        InternalGeoBounds.registerStream();
-        InternalChildren.registerStream();
 
         // Pipeline Aggregations
         DerivativePipelineAggregator.registerStreams();
-        InternalDerivative.registerStreams();
-        InternalSimpleValue.registerStreams();
-        InternalBucketMetricValue.registerStreams();
         MaxBucketPipelineAggregator.registerStreams();
         MinBucketPipelineAggregator.registerStreams();
         AvgBucketPipelineAggregator.registerStreams();

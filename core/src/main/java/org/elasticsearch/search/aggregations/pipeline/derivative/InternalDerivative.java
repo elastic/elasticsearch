@@ -44,10 +44,6 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private double normalizationFactor;
 
     InternalDerivative() {

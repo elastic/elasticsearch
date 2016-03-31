@@ -48,10 +48,6 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private double max;
 
     InternalMax() {} // for serialization

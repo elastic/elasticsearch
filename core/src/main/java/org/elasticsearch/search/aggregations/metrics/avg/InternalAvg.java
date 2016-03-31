@@ -48,10 +48,6 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private double sum;
     private long count;
 

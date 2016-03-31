@@ -46,10 +46,6 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private double value;
 
     private String[] keys;

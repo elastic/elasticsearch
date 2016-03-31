@@ -41,7 +41,7 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
 
     public final static Type TYPE = new Type("ip_range", "iprange");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalIPv4Range readResult(StreamInput in) throws IOException {
             InternalIPv4Range range = new InternalIPv4Range();
@@ -67,7 +67,6 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
     };
 
     public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 

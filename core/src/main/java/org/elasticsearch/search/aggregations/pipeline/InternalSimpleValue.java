@@ -46,10 +46,6 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private double value;
 
     protected InternalSimpleValue() {

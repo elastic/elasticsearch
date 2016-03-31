@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
@@ -44,6 +45,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -145,6 +148,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final TimeValue cleanInterval;
     private final IndicesRequestCache indicesRequestCache;
     private final IndicesQueryCache indicesQueryCache;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     @Override
     protected void doStart() {
@@ -153,10 +157,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     @Inject
-    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
-                          ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
-                          IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
-                          ClusterService clusterService, MapperRegistry mapperRegistry, ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService) {
+    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, ClusterSettings clusterSettings,
+            AnalysisRegistry analysisRegistry, IndicesQueriesRegistry indicesQueriesRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, MapperRegistry mapperRegistry,
+            ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService,
+            NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -175,6 +180,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         indexingMemoryController = new IndexingMemoryController(settings, threadPool, Iterables.flatten(this));
         this.indexScopeSetting = indexScopedSettings;
         this.circuitBreakerService = circuitBreakerService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             @Override
             public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
@@ -981,7 +987,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (entity.loaded == false) { // if we have loaded this we don't need to do anything
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
-            result.readFromWithId(context.id(), bytesReference.streamInput());
+            result.readFromWithId(context.id(), new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry));
             result.shardTarget(context.shardTarget());
         }
     }

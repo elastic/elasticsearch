@@ -68,7 +68,6 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
     };
 
     public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 

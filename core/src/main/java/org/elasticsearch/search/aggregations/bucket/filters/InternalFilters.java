@@ -44,7 +44,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     public final static Type TYPE = new Type("filters");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalFilters readResult(StreamInput in) throws IOException {
             InternalFilters filters = new InternalFilters();
@@ -70,7 +70,6 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     };
 
     public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 

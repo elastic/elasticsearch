@@ -51,10 +51,6 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     UnmappedSignificantTerms() {} // for serialization
 
     public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {

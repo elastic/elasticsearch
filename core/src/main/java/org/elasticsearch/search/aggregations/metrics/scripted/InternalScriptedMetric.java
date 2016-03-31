@@ -51,10 +51,6 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private Script reduceScript;
     private Object aggregation;
 

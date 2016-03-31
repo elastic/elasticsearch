@@ -45,10 +45,6 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements G
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     InternalGlobal() {} // for serialization
 
     InternalGlobal(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {

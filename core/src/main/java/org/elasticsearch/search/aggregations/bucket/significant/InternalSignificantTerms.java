@@ -38,7 +38,7 @@ import java.util.Map;
  *
  */
 public abstract class InternalSignificantTerms<A extends InternalSignificantTerms, B extends InternalSignificantTerms.Bucket> extends
-        InternalMultiBucketAggregation<A, B> implements SignificantTerms, ToXContent, Streamable {
+        InternalMultiBucketAggregation<A, B> implements SignificantTerms {
 
     protected SignificanceHeuristic significanceHeuristic;
     protected int requiredSize;

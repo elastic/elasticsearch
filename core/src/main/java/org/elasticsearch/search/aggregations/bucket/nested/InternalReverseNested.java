@@ -44,10 +44,6 @@ public class InternalReverseNested extends InternalSingleBucketAggregation imple
         }
     };
 
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     public InternalReverseNested() {
     }
 

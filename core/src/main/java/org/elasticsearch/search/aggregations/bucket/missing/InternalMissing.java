@@ -44,11 +44,6 @@ public class InternalMissing extends InternalSingleBucketAggregation implements 
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-
     InternalMissing() {
     }
 

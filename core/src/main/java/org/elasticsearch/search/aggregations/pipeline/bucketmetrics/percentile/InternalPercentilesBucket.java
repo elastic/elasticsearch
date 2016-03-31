@@ -51,10 +51,6 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private double[] percentiles;
     private double[] percents;
 

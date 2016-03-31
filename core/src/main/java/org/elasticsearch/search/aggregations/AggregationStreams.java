@@ -18,52 +18,25 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 
 /**
- * A registry for all the dedicated streams in the aggregation module. This is to support dynamic addAggregation that
- * know how to stream themselves.
+ * Once was a registry similar to NamedWriteableRegistry. In process of being migrated to NamedWriteableRegistry.
  */
 public class AggregationStreams {
-    private static Map<BytesReference, Stream> streams = emptyMap();
-
     /**
      * A stream that knows how to read an aggregation from the input.
      */
-    public static interface Stream {
-         InternalAggregation readResult(StreamInput in) throws IOException;
-    }
+    public static interface Stream extends Writeable.Reader<InternalAggregation> {
+        InternalAggregation readResult(StreamInput in) throws IOException;
 
-    /**
-     * Registers the given stream and associate it with the given types.
-     *
-     * @param stream    The streams to register
-     * @param types     The types associated with the streams
-     */
-    public static synchronized void registerStream(Stream stream, BytesReference... types) {
-        Map<BytesReference, Stream> newStreams = new HashMap<>(streams);
-        for (BytesReference type : types) {
-            newStreams.put(type, stream);
+        // Shim so we can cut aggregations over more carefully
+        @Override
+        default InternalAggregation read(StreamInput in) throws IOException {
+            return readResult(in);
         }
-        streams = unmodifiableMap(newStreams);
     }
-
-    /**
-     * Returns the stream that is registered for the given type
-     *
-     * @param   type The given type
-     * @return  The associated stream
-     */
-    public static Stream stream(BytesReference type) {
-        return streams.get(type);
-    }
-
 }

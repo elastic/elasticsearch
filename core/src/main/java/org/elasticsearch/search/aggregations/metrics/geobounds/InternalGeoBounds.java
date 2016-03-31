@@ -195,10 +195,6 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         out.writeBoolean(wrapLongitude);
     }
 
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-    
     private static class BoundingBox {
         private final GeoPoint topLeft;
         private final GeoPoint bottomRight;

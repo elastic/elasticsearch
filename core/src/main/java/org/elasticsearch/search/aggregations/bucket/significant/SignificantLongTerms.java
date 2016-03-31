@@ -75,7 +75,6 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
     };
 
     public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 

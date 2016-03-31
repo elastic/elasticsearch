@@ -54,10 +54,6 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private int from;
     private int size;
     private TopDocs topDocs;

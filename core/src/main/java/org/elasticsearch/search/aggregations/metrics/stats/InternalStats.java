@@ -49,10 +49,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     enum Metrics {
 
         count, sum, min, max, avg;

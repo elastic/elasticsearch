@@ -50,10 +50,6 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, InternalTerms.Bu
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     UnmappedTerms() {} // for serialization
 
     public UnmappedTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,

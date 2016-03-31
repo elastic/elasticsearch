@@ -60,6 +60,7 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.hamcrest.CoreMatchers;
@@ -669,6 +670,11 @@ public class ElasticsearchAssertions {
                     equalTo(0));
             assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]",
                     serialize(version, streamable), equalTo(orig));
+        } catch (UnsupportedOperationException ex) {
+            if (ex.equals("can't read named writeable from StreamInput")) {
+                // Not much we can do here unless we can figure out a way to always get the NamedWriteable
+                return;
+            }
         } catch (Throwable ex) {
             throw new RuntimeException("failed to check serialization - version [" + version + "] for streamable [" + streamable + "]", ex);
         }

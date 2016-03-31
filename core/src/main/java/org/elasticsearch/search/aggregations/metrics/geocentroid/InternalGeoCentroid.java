@@ -49,10 +49,6 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     protected GeoPoint centroid;
     protected long count;
 

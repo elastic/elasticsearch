@@ -70,7 +70,6 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
     };
 
     public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 

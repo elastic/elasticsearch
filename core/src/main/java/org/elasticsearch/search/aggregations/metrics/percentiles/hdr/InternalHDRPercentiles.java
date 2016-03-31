@@ -48,10 +48,6 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     InternalHDRPercentiles() {
     } // for serialization
 

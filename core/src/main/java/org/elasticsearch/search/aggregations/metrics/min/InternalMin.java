@@ -48,11 +48,6 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-
     private double min;
 
     InternalMin() {} // for serialization

@@ -39,7 +39,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     public static final Type TYPE = new Type("value_count", "vcount");
 
-    private static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalValueCount readResult(StreamInput in) throws IOException {
             InternalValueCount count = new InternalValueCount();
@@ -47,10 +47,6 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
             return count;
         }
     };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
 
     private long value;
 

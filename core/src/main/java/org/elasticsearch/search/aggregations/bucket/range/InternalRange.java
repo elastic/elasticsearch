@@ -49,7 +49,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     public final static Type TYPE = new Type("range");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalRange readResult(StreamInput in) throws IOException {
             InternalRange ranges = new InternalRange();
@@ -76,7 +76,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     };
 
     public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 

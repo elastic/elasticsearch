@@ -47,10 +47,6 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     InternalTDigestPercentileRanks() {} // for serialization
 
     public InternalTDigestPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, ValueFormatter formatter,

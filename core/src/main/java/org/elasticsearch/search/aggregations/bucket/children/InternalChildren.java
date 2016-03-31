@@ -44,10 +44,6 @@ public class InternalChildren extends InternalSingleBucketAggregation implements
         }
     };
 
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     public InternalChildren() {
     }
 

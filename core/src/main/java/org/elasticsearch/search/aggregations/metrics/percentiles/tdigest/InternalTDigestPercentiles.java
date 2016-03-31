@@ -47,10 +47,6 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     InternalTDigestPercentiles() {
     } // for serialization
 

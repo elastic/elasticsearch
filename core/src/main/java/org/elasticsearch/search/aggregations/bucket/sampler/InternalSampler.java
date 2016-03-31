@@ -44,10 +44,6 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     InternalSampler() {
     } // for serialization
 

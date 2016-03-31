@@ -47,10 +47,6 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private HyperLogLogPlusPlus counts;
 
     InternalCardinality(String name, HyperLogLogPlusPlus counts, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,

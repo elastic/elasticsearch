@@ -44,10 +44,6 @@ public class InternalNested extends InternalSingleBucketAggregation implements N
         }
     };
 
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     public InternalNested() {
     }
 

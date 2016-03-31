@@ -52,7 +52,6 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
     public static void registerStreams() {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-        InternalPercentilesBucket.registerStreams();
     }
 
     private double[] percents;

@@ -46,10 +46,6 @@ public class UnmappedSampler extends InternalSampler {
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     UnmappedSampler() {
     }
 

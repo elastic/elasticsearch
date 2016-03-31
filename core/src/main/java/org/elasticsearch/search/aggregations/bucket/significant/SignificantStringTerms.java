@@ -74,12 +74,7 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
     };
 
     public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
-    }
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
     public static class Bucket extends InternalSignificantTerms.Bucket {

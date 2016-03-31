@@ -54,9 +54,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         Histogram {
 
     public static final Factory<Bucket> HISTOGRAM_FACTORY = new Factory<Bucket>();
-    final static Type TYPE = new Type("histogram", "histo");
+    public static final Type TYPE = new Type("histogram", "histo");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @SuppressWarnings("rawtypes")
         @Override
         public InternalHistogram readResult(StreamInput in) throws IOException {
@@ -88,8 +88,6 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     };
 
     public static void registerStream() {
-
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 

@@ -206,9 +206,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         } else {
             aggregations = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                BytesReference type = in.readBytesReference();
-                InternalAggregation aggregation = AggregationStreams.stream(type).readResult(in);
-                aggregations.add(aggregation);
+                aggregations.add(in.readAggregation());
             }
         }
     }
@@ -217,9 +215,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(aggregations.size());
         for (Aggregation aggregation : aggregations) {
-            InternalAggregation internal = (InternalAggregation) aggregation;
-            out.writeBytesReference(internal.type().stream());
-            internal.writeTo(out);
+            out.writeAggregation((InternalAggregation) aggregation);
         }
     }
 

@@ -20,9 +20,9 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,7 +41,7 @@ import java.util.Map;
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
-public abstract class InternalAggregation implements Aggregation, ToXContent, Streamable {
+public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
 
 
     /**
@@ -57,16 +57,12 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         private BytesReference stream;
 
         public Type(String name) {
-            this(name, new BytesArray(name));
+            this(name, name);
         }
 
         public Type(String name, String stream) {
-            this(name, new BytesArray(stream));
-        }
-
-        public Type(String name, BytesReference stream) {
             this.name = name;
-            this.stream = stream;
+            this.stream = new BytesArray(stream);
         }
 
         /**
@@ -77,8 +73,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
 
         /**
-         * @return  The name of the stream type (used for registering the aggregation stream
-         *          (see {@link AggregationStreams#registerStream(AggregationStreams.Stream, org.elasticsearch.common.bytes.BytesReference...)}).
+         * @return  The name of the aggregation when used as a NamedWriteable.
          */
         public BytesReference stream() {
             return stream;
@@ -139,6 +134,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      * @return The {@link Type} of this aggregation
      */
     public abstract Type type();
+
+    @Override
+    public String getWriteableName() {
+        return type().stream().toUtf8();
+    }
 
     /**
      * Reduces the given addAggregation to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
@@ -220,7 +220,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
-    public final void readFrom(StreamInput in) throws IOException {
+    public final InternalAggregation readFrom(StreamInput in) throws IOException {
         name = in.readString();
         metaData = in.readMap();
         int size = in.readVInt();
@@ -235,6 +235,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
             }
         }
         doReadFrom(in);
+        return this;
     }
 
     protected abstract void doReadFrom(StreamInput in) throws IOException;

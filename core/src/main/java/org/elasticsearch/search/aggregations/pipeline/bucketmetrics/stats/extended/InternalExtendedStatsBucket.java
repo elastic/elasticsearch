@@ -43,10 +43,6 @@ public class InternalExtendedStatsBucket extends InternalExtendedStats implement
         }
     };
 
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     InternalExtendedStatsBucket(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
                                             ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) {

@@ -77,7 +77,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     };
 
     public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 

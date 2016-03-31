@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -60,6 +61,9 @@ public class ClusterServiceUtils {
         clusterService.setClusterStatePublisher((event, ackListener) -> {
         });
         clusterService.start();
+        final DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes());
+        nodes.masterNodeId(clusterService.localNode().getId());
+        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
         return clusterService;
     }
 

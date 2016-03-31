@@ -6,9 +6,9 @@ The `nodes` command shows the cluster topology.
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodes
-SP4H 4727 192.168.56.30 9300 {version} {jdk} 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h d m Boneyard
-_uhJ 5134 192.168.56.10 9300 {version} {jdk} 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h d * Athena
-HfDp 4562 192.168.56.20 9300 {version} {jdk} 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h d m Zarek
+SP4H 4727 192.168.56.30 9300 {version} {jdk} 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h mdi - Boneyard
+_uhJ 5134 192.168.56.10 9300 {version} {jdk} 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h mdi * Athena
+HfDp 4562 192.168.56.20 9300 {version} {jdk} 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h mdi - Zarek
 --------------------------------------------------
 
 The first few columns tell you where your nodes live.  For sanity it
@@ -16,10 +16,10 @@ also tells you what version of ES and the JVM each one runs.
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-nodeId pid  ip            port version jdk
-u2PZ   4234 192.168.56.30 9300 {version}   {jdk}
-URzf   5443 192.168.56.10 9300 {version}   {jdk}
-ActN   3806 192.168.56.20 9300 {version}   {jdk}
+nodeId pid  ip            port version     jdk
+u2PZ   4234 192.168.56.30 9300 {version} {jdk}
+URzf   5443 192.168.56.10 9300 {version} {jdk}
+ActN   3806 192.168.56.20 9300 {version} {jdk}
 --------------------------------------------------
 
 
@@ -68,13 +68,13 @@ mode (`v`). The header name will match the supplied value (e.g.,
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodes?v&h=id,ip,port,v,m
-id   ip            port version m
-pLSN 192.168.56.30 9300 {version}   m
-k0zy 192.168.56.10 9300 {version}   m
-6Tyi 192.168.56.20 9300 {version}   *
+id   ip            port v           m
+pLSN 192.168.56.30 9300 {version} -
+k0zy 192.168.56.10 9300 {version} -
+6Tyi 192.168.56.20 9300 {version} *
 % curl 192.168.56.10:9200/_cat/nodes?h=id,ip,port,v,m
-pLSN 192.168.56.30 9300 {version} m
-k0zy 192.168.56.10 9300 {version} m
+pLSN 192.168.56.30 9300 {version} -
+k0zy 192.168.56.10 9300 {version} -
 6Tyi 192.168.56.20 9300 {version} *
 --------------------------------------------------
 
@@ -105,9 +105,9 @@ descriptors |1024
 |`load` |`l` |No |Most recent load average |0.22
 |`cpu` | |No |Recent system CPU usage as percent |12
 |`uptime` |`u` |No |Node uptime |17.3m
-|`node.role` |`r`, `role`, `dc`, `nodeRole` |Yes |Master eligible node (m);
+|`node.role` |`r`, `role`, `nodeRole` |Yes |Master eligible node (m);
 Data node (d); Ingest node (i); Coordinating node only (-) |mdi
-|`master` |`m` |Yes |Current master (*); |*
+|`master` |`m` |Yes |Elected master (*); Not elected master (-) |*
 |`name` |`n` |Yes |Node name |Venom
 |`completion.size` |`cs`, `completionSize` |No |Size of completion |0b
 |`fielddata.memory_size` |`fm`, `fielddataMemory` |No |Used fielddata

@@ -1404,12 +1404,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
     }
 
-    private final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
+    public static final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
         IndexShard newShard = newIndexShard(indexService, shard, wrapper, listeners);
         return recoverShard(newShard, shard.routingEntry());
     }
 
-    private final IndexShard recoverShard(IndexShard newShard, ShardRouting oldRouting) throws IOException {
+    public  static final IndexShard recoverShard(IndexShard newShard, ShardRouting oldRouting) throws IOException {
         ShardRouting routing = new ShardRouting(oldRouting);
         ShardRoutingHelper.reinit(routing);
         newShard.updateRoutingEntry(routing, false);
@@ -1422,7 +1422,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         return newShard;
     }
 
-    private final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
+    public  static final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
         IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(),
             shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
             indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,

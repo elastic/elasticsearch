@@ -220,20 +220,18 @@ public class InternalEngine extends Engine {
 
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer) throws IOException {
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        translogConfig.setTranslogGeneration(null);
+        Translog.TranslogGeneration generation = null;
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            final Translog.TranslogGeneration generation = loadTranslogIdFromCommit(writer);
+            generation = loadTranslogIdFromCommit(writer);
             // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
             if (generation == null) {
                 throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
             }
-            translogConfig.setTranslogGeneration(generation);
             if (generation != null && generation.translogUUID == null) {
                 throw new IndexFormatTooOldException("trasnlog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        final Translog translog = new Translog(translogConfig);
-        final Translog.TranslogGeneration generation = translogConfig.getTranslogGeneration();
+        final Translog translog = new Translog(translogConfig, generation);
         if (generation == null || generation.translogUUID == null) {
             assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
                 + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;

@@ -806,9 +806,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
-        if (mapperService.hasMapping(PercolatorFieldMapper.TYPE_NAME)) {
-            refresh("percolator_load_queries");
-        }
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);

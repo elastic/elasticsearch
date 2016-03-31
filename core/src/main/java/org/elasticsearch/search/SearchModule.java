@@ -29,7 +29,6 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.percolator.PercolatorHighlightSubFetchPhase;
 import org.elasticsearch.index.query.BoolQueryParser;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryParser;
 import org.elasticsearch.index.query.FieldMaskingSpanQueryParser;
 import org.elasticsearch.index.query.FuzzyQueryParser;
-import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryParser;
 import org.elasticsearch.index.query.GeoDistanceQueryParser;
 import org.elasticsearch.index.query.GeoDistanceRangeQueryParser;
@@ -59,10 +57,7 @@ import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryParser;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.MultiMatchQueryParser;
-import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryParser;
-import org.elasticsearch.index.query.ParentIdQueryBuilder;
 import org.elasticsearch.index.query.ParentIdQueryParser;
 import org.elasticsearch.index.query.PercolatorQueryParser;
 import org.elasticsearch.index.query.PrefixQueryParser;
@@ -85,7 +80,6 @@ import org.elasticsearch.index.query.SpanWithinQueryParser;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.index.query.TermsQueryParser;
-import org.elasticsearch.index.query.TypeQueryBuilder;
 import org.elasticsearch.index.query.TypeQueryParser;
 import org.elasticsearch.index.query.WildcardQueryParser;
 import org.elasticsearch.index.query.WrapperQueryParser;
@@ -235,16 +229,11 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
-import org.elasticsearch.search.suggest.completion.FuzzyOptions;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  *
@@ -522,7 +511,8 @@ public class SearchModule extends AbstractModule {
                 MatchPhraseQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(MatchPhrasePrefixQueryBuilder.PROTOTYPE::readFrom, MatchPhrasePrefixQueryBuilder::fromXContent,
                 MatchPhrasePrefixQueryBuilder.QUERY_NAME_FIELD);
-        registerQueryParser(new MultiMatchQueryParser(), MultiMatchQueryParser.QUERY_NAME_FIELD);
+        registerQuery(MultiMatchQueryBuilder.PROTOTYPE::readFrom, MultiMatchQueryBuilder::fromXContent,
+                MultiMatchQueryBuilder.QUERY_NAME_FIELD);
         registerQueryParser(new NestedQueryParser(), NestedQueryParser.QUERY_NAME_FIELD);
         registerQueryParser(new HasChildQueryParser(), HasChildQueryParser.QUERY_NAME_FIELD);
         registerQueryParser(new HasParentQueryParser(), HasParentQueryParser.QUERY_NAME_FIELD);

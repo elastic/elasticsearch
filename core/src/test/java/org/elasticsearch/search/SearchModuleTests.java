@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.highlight.CustomHighlighter;
 import org.elasticsearch.search.highlight.Highlighter;
@@ -80,7 +81,7 @@ public class SearchModuleTests extends ModuleTestCase {
     public void testRegisterQueryParserDuplicate() {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
         try {
-            module.buildQueryParserRegistry();
+            module.registerQueryParser(new TermQueryParser(), TermQueryParser.QUERY_NAME_FIELD);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(),
                     containsString("already registered for name [term] while trying to register [org.elasticsearch.index."));

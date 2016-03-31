@@ -156,15 +156,7 @@ public class InternalEngine extends Engine {
             manager = createSearcherManager();
             this.searcherManager = manager;
             this.versionMap.setManager(searcherManager);
-            try {
-                if (openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG) {
-                    // make sure we point at the latest translog from now on..
-                    commitIndexWriter(writer, translog, lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID));
-                }
-            } catch (IOException | EngineException ex) {
-                throw new EngineCreationFailureException(shardId, "failed to recover from translog", ex);
-            }
-            // don't allow commits unitl we are done with recovering
+            // don't allow commits until we are done with recovering
             allowCommits.compareAndSet(true, openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
             success = true;
         } finally {

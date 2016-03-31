@@ -267,12 +267,31 @@ routing set to `cat`.
 POST /_reindex
 {
   "source": {
-    "index": "source"
+    "index": "source",
     "query": {
       "match": {
         "company": "cat"
       }
     }
+  },
+  "dest": {
+    "index": "dest",
+    "routing": "=cat"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+By default `_reindex` uses scroll batches of 100. You can change the
+batch size with the `size` field in the `source` element:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "source",
+    "size": 1000
   },
   "dest": {
     "index": "dest",

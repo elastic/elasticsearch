@@ -79,9 +79,9 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
         for (int i = 0; i < responsesLength; i++) {
             SimulateDocumentResult<?> simulateDocumentResult;
             if (verbose) {
-                simulateDocumentResult = SimulateDocumentVerboseResult.readSimulateDocumentVerboseResultFrom(in);
+                simulateDocumentResult = new SimulateDocumentVerboseResult(in);
             } else {
-                simulateDocumentResult = SimulateDocumentBaseResult.readSimulateDocumentSimpleResult(in);
+                simulateDocumentResult = new SimulateDocumentBaseResult(in);
             }
             results.add(simulateDocumentResult);
         }

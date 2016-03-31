@@ -45,7 +45,7 @@ public class SimulateDocumentSimpleResultTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         simulateDocumentBaseResult.writeTo(out);
         StreamInput streamInput = StreamInput.wrap(out.bytes());
-        SimulateDocumentBaseResult otherSimulateDocumentBaseResult = SimulateDocumentBaseResult.readSimulateDocumentSimpleResult(streamInput);
+        SimulateDocumentBaseResult otherSimulateDocumentBaseResult = new SimulateDocumentBaseResult(streamInput);
 
         assertThat(otherSimulateDocumentBaseResult.getIngestDocument(), equalTo(simulateDocumentBaseResult.getIngestDocument()));
         if (isFailure) {

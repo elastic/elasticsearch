@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.exporter.local;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
@@ -24,8 +23,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
@@ -151,7 +148,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         // if this is not the master, we'll just look to see if the monitoring timestamped template is already
         // installed and if so, if it has a compatible version. If it is (installed and compatible)
         // we'll be able to start this exporter. Otherwise, we'll just wait for a new cluster state.
-        if (!clusterService.localNode().masterNode()) {
+        if (!clusterService.localNode().isMasterNode()) {
             // We only need to check the index template for timestamped indices
             if (!templateInstalled) {
                 // the template for timestamped indices is not yet installed in the given cluster state, we'll wait.
@@ -253,7 +250,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             return;
         }
 
-        if (clusterService.localNode().masterNode()) {
+        if (clusterService.localNode().isMasterNode()) {
             // Reference date time will be compared to index.creation_date settings,
             // that's why it must be in UTC
             DateTime expiration = new DateTime(DateTimeZone.UTC).minus(retention.millis());

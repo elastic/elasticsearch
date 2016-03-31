@@ -109,7 +109,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
     ExportBulk openBulk() {
         List<ExportBulk> bulks = new ArrayList<>();
         for (Exporter exporter : exporters) {
-            if (exporter.masterOnly() && !clusterService.localNode().masterNode()) {
+            if (exporter.masterOnly() && !clusterService.localNode().isMasterNode()) {
                 // the exporter is supposed to only run on the master node, but we're not
                 // the master node... so skipping
                 continue;

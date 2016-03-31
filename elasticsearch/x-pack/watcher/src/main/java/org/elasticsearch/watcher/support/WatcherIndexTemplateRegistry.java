@@ -103,7 +103,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     }
 
     private void updateConfig(TemplateConfig config, Settings settings) {
-        if (clusterService.localNode().masterNode() == false) {
+        if (clusterService.localNode().isMasterNode() == false) {
             // Only the node that runs or will run Watcher should update the templates. Otherwise unnecessary put template
             // calls would happen
             return;

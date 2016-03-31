@@ -383,7 +383,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
             XContentBuilder builder = toXContent(testQuery, randomFrom(XContentType.values()));
-            XContentBuilder shuffled = shuffleXContent(builder, provideShuffleproofFields());
+            XContentBuilder shuffled = shuffleXContent(builder, shuffleProtectedFields());
             assertParsedQuery(shuffled.bytes(), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
@@ -393,10 +393,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * subclasses should override this method in case some fields in xContent should be protected from random
-     * shuffling in the {@link #testFromXContent()} test case
+     * Subclasses can override this method and return a set of fields which should be protected from
+     * recursive random shuffling in the {@link #testFromXContent()} test case
      */
-    protected Set<String> provideShuffleproofFields() {
+    protected Set<String> shuffleProtectedFields() {
         return Collections.emptySet();
     }
 

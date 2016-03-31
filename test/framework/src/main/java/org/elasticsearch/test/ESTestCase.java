@@ -78,7 +78,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
@@ -605,23 +604,31 @@ public abstract class ESTestCase extends LuceneTestCase {
         return tempList.subList(0, size);
     }
 
+    /**
+     * Randomly shuffles the fields inside objects in the {@link XContentBuilder} passed in.
+     * Recursively goes through inner objects and also shuffles them. Exceptions for this
+     * recursive shuffling behavior can be made by passing in the names of fields which
+     * internally should stay untouched.
+     */
     public static XContentBuilder shuffleXContent(XContentBuilder builder, Set<String> exceptFieldNames) throws IOException {
         BytesReference bytes = builder.bytes();
         XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes);
         // use ordered maps for reproducibility
-        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), exceptFieldNames, random());
-        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), exceptFieldNames);
+        XContentBuilder jsonBuilder = XContentFactory.contentBuilder(builder.contentType());
         return jsonBuilder.map(shuffledMap);
     }
 
-    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFieldNames, Random r) {
+    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFieldNames) {
         List<String> keys = new ArrayList<>(map.keySet());
+        // even though we shuffle later, we need this to make tests reproduce on different jvms
+        //Collections.sort(keys);
         Map<String, Object> targetMap = new TreeMap<>();
         Collections.shuffle(keys, random());
         for (String key : keys) {
             Object value = map.get(key);
             if (value instanceof Map && exceptFieldNames.contains(key) == false) {
-                targetMap.put(key, shuffleMap((Map) value, exceptFieldNames, r));
+                targetMap.put(key, shuffleMap((Map) value, exceptFieldNames));
             } else {
                 targetMap.put(key, value);
             }

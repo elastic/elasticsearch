@@ -24,6 +24,7 @@ import junit.framework.AssertionFailedError;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -63,13 +64,13 @@ public class ESTestCaseTests extends ESTestCase {
 
     public void testShuffleXContent() throws IOException {
         Map<String, Object> randomStringObjectMap = randomStringObjectMap(5);
-        XContentBuilder builder = XContentFactory.jsonBuilder();
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(randomStringObjectMap);
         XContentBuilder shuffleXContent = shuffleXContent(builder, Collections.emptySet());
         XContentParser parser = XContentFactory.xContent(shuffleXContent.bytes()).createParser(shuffleXContent.bytes());
         Map<String, Object> resultMap = parser.map();
         assertEquals("both maps should contain the same mappings", randomStringObjectMap, resultMap);
-        assertNotEquals("Both builders string representations should be different", builder.string(), shuffleXContent.string());
+        assertNotEquals("Both builders string representations should be different", builder.bytes(), shuffleXContent.bytes());
     }
 
     private static Map<String, Object> randomStringObjectMap(int depth) {

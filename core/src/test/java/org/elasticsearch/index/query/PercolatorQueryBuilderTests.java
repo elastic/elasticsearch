@@ -38,7 +38,6 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -46,6 +45,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<PercolatorQueryBuilder> {
 
+    private static final Set<String> SHUFFLE_PROTECTED_FIELDS =
+            Collections.singleton(PercolatorQueryParser.DOCUMENT_FIELD.getPreferredName());
     private String indexedDocumentIndex;
     private String indexedDocumentType;
     private String indexedDocumentId;
@@ -84,10 +85,8 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
      * BytesReference
      */
     @Override
-    protected Set<String> provideShuffleproofFields() {
-        Set<String> fieldNames = new HashSet<>();
-        fieldNames.add(PercolatorQueryParser.DOCUMENT_FIELD.getPreferredName());
-        return fieldNames;
+    protected Set<String> shuffleProtectedFields() {
+        return SHUFFLE_PROTECTED_FIELDS;
     }
 
     @Override

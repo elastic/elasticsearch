@@ -294,7 +294,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
                                 DiscoveryNodes nodes = currentState.nodes();
-                                final Version createdVersion = Version.smallest(version, nodes.smallestNonClientNodeVersion());
+                                final Version createdVersion = Version.smallest(version, nodes.getSmallestNonClientNodeVersion());
                                 indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
                             }
 

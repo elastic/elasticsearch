@@ -103,6 +103,6 @@ public class GeoShapeIntegrationTests extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexShardRoutingTable shard = state.getRoutingTable().index(index).shard(0);
         String nodeId = shard.assignedShards().get(0).currentNodeId();
-        return state.getNodes().get(nodeId).name();
+        return state.getNodes().get(nodeId).getName();
     }
 }

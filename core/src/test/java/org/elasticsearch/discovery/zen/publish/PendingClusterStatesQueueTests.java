@@ -108,18 +108,18 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         List<ClusterStateContext> committedContexts = randomCommitStates(queue);
         ClusterState randomCommitted = randomFrom(committedContexts).state;
         queue.markAsProcessed(randomCommitted);
-        final String processedMaster = randomCommitted.nodes().masterNodeId();
+        final String processedMaster = randomCommitted.nodes().getMasterNodeId();
 
         // now check that queue doesn't contain anything pending from another master
         for (ClusterStateContext context : queue.pendingStates) {
-            final String pendingMaster = context.state.nodes().masterNodeId();
+            final String pendingMaster = context.state.nodes().getMasterNodeId();
             assertThat("found a cluster state from [" + pendingMaster
                             + "], after a state from [" + processedMaster + "] was processed",
                     pendingMaster, equalTo(processedMaster));
         }
         // and check all committed contexts from another master were failed
         for (ClusterStateContext context : committedContexts) {
-            if (context.state.nodes().masterNodeId().equals(processedMaster) == false) {
+            if (context.state.nodes().getMasterNodeId().equals(processedMaster) == false) {
                 assertThat(((MockListener) context.listener).failure, notNullValue());
             }
         }

@@ -175,7 +175,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             if (connectedNodes.containsKey(node)) {
                 return;
             }
-            final LocalTransport targetTransport = transports.get(node.address());
+            final LocalTransport targetTransport = transports.get(node.getAddress());
             if (targetTransport == null) {
                 throw new ConnectTransportException(node, "Failed to connect");
             }
@@ -202,7 +202,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
             TransportRequestOptions options) throws IOException, TransportException {
-        final Version version = Version.smallest(node.version(), this.version);
+        final Version version = Version.smallest(node.getVersion(), this.version);
 
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
             stream.setVersion(version);

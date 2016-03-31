@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -191,7 +190,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .build();
         Node build = new MockNode(settings, getVersion(), getPlugins());
         build.start();
-        assertThat(DiscoveryNode.localNode(build.settings()), is(true));
+        assertThat(DiscoveryNode.isLocalNode(build.settings()), is(true));
         return build;
     }
 

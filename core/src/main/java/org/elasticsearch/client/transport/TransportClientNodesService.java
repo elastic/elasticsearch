@@ -138,7 +138,7 @@ public class TransportClientNodesService extends AbstractComponent {
     public List<TransportAddress> transportAddresses() {
         List<TransportAddress> lstBuilder = new ArrayList<>();
         for (DiscoveryNode listedNode : listedNodes) {
-            lstBuilder.add(listedNode.address());
+            lstBuilder.add(listedNode.getAddress());
         }
         return Collections.unmodifiableList(lstBuilder);
     }
@@ -164,7 +164,7 @@ public class TransportClientNodesService extends AbstractComponent {
             for (TransportAddress transportAddress : transportAddresses) {
                 boolean found = false;
                 for (DiscoveryNode otherNode : listedNodes) {
-                    if (otherNode.address().equals(transportAddress)) {
+                    if (otherNode.getAddress().equals(transportAddress)) {
                         found = true;
                         logger.debug("address [{}] already exists with [{}], ignoring...", transportAddress, otherNode);
                         break;
@@ -198,7 +198,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
             List<DiscoveryNode> builder = new ArrayList<>();
             for (DiscoveryNode otherNode : listedNodes) {
-                if (!otherNode.address().equals(transportAddress)) {
+                if (!otherNode.getAddress().equals(transportAddress)) {
                     builder.add(otherNode);
                 } else {
                     logger.debug("removing address [{}]", otherNode);
@@ -383,7 +383,7 @@ public class TransportClientNodesService extends AbstractComponent {
                         // use discovered information but do keep the original transport address,
                         // so people can control which address is exactly used.
                         DiscoveryNode nodeWithInfo = livenessResponse.getDiscoveryNode();
-                        newNodes.add(new DiscoveryNode(nodeWithInfo.name(), nodeWithInfo.id(), nodeWithInfo.getHostName(),
+                        newNodes.add(new DiscoveryNode(nodeWithInfo.getName(), nodeWithInfo.getId(), nodeWithInfo.getHostName(),
                                 nodeWithInfo.getHostAddress(), listedNode.getAddress(), nodeWithInfo.getAttributes(),
                                 nodeWithInfo.getRoles(), nodeWithInfo.getVersion()));
                     } else {
@@ -491,11 +491,11 @@ public class TransportClientNodesService extends AbstractComponent {
             for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
                 if (!ignoreClusterName && !clusterName.equals(entry.getValue().getClusterName())) {
                     logger.warn("node {} not part of the cluster {}, ignoring...",
-                            entry.getValue().getState().nodes().localNode(), clusterName);
+                            entry.getValue().getState().nodes().getLocalNode(), clusterName);
                     newFilteredNodes.add(entry.getKey());
                     continue;
                 }
-                for (ObjectCursor<DiscoveryNode> cursor : entry.getValue().getState().nodes().dataNodes().values()) {
+                for (ObjectCursor<DiscoveryNode> cursor : entry.getValue().getState().nodes().getDataNodes().values()) {
                     newNodes.add(cursor.value);
                 }
             }

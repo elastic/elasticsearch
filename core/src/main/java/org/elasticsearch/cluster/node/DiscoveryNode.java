@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -47,7 +46,7 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  */
 public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
-    public static boolean localNode(Settings settings) {
+    public static boolean isLocalNode(Settings settings) {
         if (Node.NODE_LOCAL_SETTING.exists(settings)) {
             return Node.NODE_LOCAL_SETTING.get(settings);
         }
@@ -68,19 +67,17 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return Node.NODE_DATA_SETTING.get(settings) || Node.NODE_MASTER_SETTING.get(settings);
     }
 
-    public static boolean masterNode(Settings settings) {
+    public static boolean isMasterNode(Settings settings) {
         return Node.NODE_MASTER_SETTING.get(settings);
     }
 
-    public static boolean dataNode(Settings settings) {
+    public static boolean isDataNode(Settings settings) {
         return Node.NODE_DATA_SETTING.get(settings);
     }
 
-    public static boolean ingestNode(Settings settings) {
+    public static boolean isIngestNode(Settings settings) {
         return Node.NODE_INGEST_SETTING.get(settings);
     }
-
-    public static final List<DiscoveryNode> EMPTY_LIST = Collections.emptyList();
 
     private final String nodeName;
     private final String nodeId;
@@ -210,43 +207,22 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     /**
      * The address that the node can be communicated with.
      */
-    public TransportAddress address() {
-        return address;
-    }
-
-    /**
-     * The address that the node can be communicated with.
-     */
     public TransportAddress getAddress() {
-        return address();
-    }
-
-    /**
-     * The unique id of the node.
-     */
-    public String id() {
-        return nodeId;
+        return address;
     }
 
     /**
      * The unique id of the node.
      */
     public String getId() {
-        return id();
-    }
-
-    /**
-     * The name of the node.
-     */
-    public String name() {
-        return this.nodeName;
+        return nodeId;
     }
 
     /**
      * The name of the node.
      */
     public String getName() {
-        return name();
+        return this.nodeName;
     }
 
     /**
@@ -259,29 +235,15 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     /**
      * Should this node hold data (shards) or not.
      */
-    public boolean dataNode() {
-        return roles.contains(Role.DATA);
-    }
-
-    /**
-     * Should this node hold data (shards) or not.
-     */
     public boolean isDataNode() {
-        return dataNode();
-    }
-
-    /**
-     * Can this node become master or not.
-     */
-    public boolean masterNode() {
-        return roles.contains(Role.MASTER);
+        return roles.contains(Role.DATA);
     }
 
     /**
      * Can this node become master or not.
      */
     public boolean isMasterNode() {
-        return masterNode();
+        return roles.contains(Role.MASTER);
     }
 
     /**
@@ -299,7 +261,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return roles;
     }
 
-    public Version version() {
+    public Version getVersion() {
         return this.version;
     }
 
@@ -309,10 +271,6 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
     public String getHostAddress() {
         return this.hostAddress;
-    }
-
-    public Version getVersion() {
-        return this.version;
     }
 
     @Override
@@ -377,9 +335,9 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(id(), XContentBuilder.FieldCaseConversion.NONE);
-        builder.field("name", name());
-        builder.field("transport_address", address().toString());
+        builder.startObject(getId(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.field("name", getName());
+        builder.field("transport_address", getAddress().toString());
 
         builder.startObject("attributes");
         for (Map.Entry<String, String> entry : attributes.entrySet()) {

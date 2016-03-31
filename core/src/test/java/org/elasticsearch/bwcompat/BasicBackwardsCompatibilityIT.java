@@ -38,7 +38,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -259,7 +258,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
-                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
+                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
                     }
                 }
@@ -450,7 +449,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
 
     public Version getMasterVersion() {
-        return client().admin().cluster().prepareState().get().getState().nodes().masterNode().getVersion();
+        return client().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getVersion();
     }
 
     public void testDeleteRoutingRequired() throws ExecutionException, InterruptedException, IOException {

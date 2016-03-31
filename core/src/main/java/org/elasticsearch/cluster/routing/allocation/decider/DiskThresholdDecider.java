@@ -519,7 +519,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         if (includeRelocations) {
             long relocatingShardsSize = sizeOfRelocatingShards(node, clusterInfo, true, usage.getPath());
-            DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().name(), usage.getPath(),
+            DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().getName(), usage.getPath(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
             if (logger.isTraceEnabled()) {
                 logger.trace("usage without relocations: {}", usage);
@@ -539,7 +539,7 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     public DiskUsage averageUsage(RoutingNode node, ImmutableOpenMap<String, DiskUsage> usages) {
         if (usages.size() == 0) {
-            return new DiskUsage(node.nodeId(), node.node().name(), "_na_", 0, 0);
+            return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", 0, 0);
         }
         long totalBytes = 0;
         long freeBytes = 0;
@@ -547,7 +547,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             totalBytes += du.value.getTotalBytes();
             freeBytes += du.value.getFreeBytes();
         }
-        return new DiskUsage(node.nodeId(), node.node().name(), "_na_", totalBytes / usages.size(), freeBytes / usages.size());
+        return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", totalBytes / usages.size(), freeBytes / usages.size());
     }
 
     /**
@@ -618,7 +618,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Allow allocation regardless if only a single data node is available
-        if (allocation.nodes().dataNodes().size() <= 1) {
+        if (allocation.nodes().getDataNodes().size() <= 1) {
             if (logger.isTraceEnabled()) {
                 logger.trace("only a single data node is present, allowing allocation");
             }

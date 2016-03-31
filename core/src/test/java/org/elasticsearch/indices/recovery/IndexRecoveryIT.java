@@ -297,12 +297,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         long nodeBThrottling = Long.MAX_VALUE;
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-            if (nodeStats.getNode().name().equals(nodeA)) {
+            if (nodeStats.getNode().getName().equals(nodeA)) {
                 assertThat("node A should have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(1));
                 assertThat("node A should not have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(0));
                 nodeAThrottling = recoveryStats.throttleTime().millis();
             }
-            if (nodeStats.getNode().name().equals(nodeB)) {
+            if (nodeStats.getNode().getName().equals(nodeB)) {
                 assertThat("node B should not have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(0));
                 assertThat("node B should have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(1));
                 nodeBThrottling = recoveryStats.throttleTime().millis();
@@ -319,10 +319,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 assertThat(statsResponse.getNodes(), arrayWithSize(2));
                 for (NodeStats nodeStats : statsResponse.getNodes()) {
                     final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-                    if (nodeStats.getNode().name().equals(nodeA)) {
+                    if (nodeStats.getNode().getName().equals(nodeA)) {
                         assertThat("node A throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeAThrottling));
                     }
-                    if (nodeStats.getNode().name().equals(nodeB)) {
+                    if (nodeStats.getNode().getName().equals(nodeB)) {
                         assertThat("node B throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeBThrottling));
                     }
                 }
@@ -350,10 +350,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().name().equals(nodeA)) {
+            if (nodeStats.getNode().getName().equals(nodeA)) {
                 assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
-            if (nodeStats.getNode().name().equals(nodeB)) {
+            if (nodeStats.getNode().getName().equals(nodeB)) {
                 assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
         }
@@ -369,10 +369,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().name().equals(nodeA)) {
+            if (nodeStats.getNode().getName().equals(nodeA)) {
                 assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
-            if (nodeStats.getNode().name().equals(nodeB)) {
+            if (nodeStats.getNode().getName().equals(nodeB)) {
                 assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
         }
@@ -561,7 +561,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureSearchable(indexName);
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().id();
+        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().getId();
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 

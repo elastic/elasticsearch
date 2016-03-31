@@ -164,7 +164,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
                         @Override
                         public void onFailure(Throwable t) {
-                            onFirstPhaseResult(shardIndex, shard, node.id(), shardIt, t);
+                            onFirstPhaseResult(shardIndex, shard, node.getId(), shardIt, t);
                         }
                     });
             }

@@ -381,8 +381,8 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final String masterNode = internalCluster().getMasterName();
         final String nonMasterNode = nodes.get(0).equals(masterNode) ? nodes.get(1) : nodes.get(0);
 
-        final String masterId = internalCluster().clusterService(masterNode).localNode().id();
-        final String nonMasterId = internalCluster().clusterService(nonMasterNode).localNode().id();
+        final String masterId = internalCluster().clusterService(masterNode).localNode().getId();
+        final String nonMasterId = internalCluster().clusterService(nonMasterNode).localNode().getId();
 
         final int numShards = scaledRandomIntBetween(2, 10);
         assertAcked(prepareCreate("test")

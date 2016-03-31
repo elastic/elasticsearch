@@ -72,10 +72,10 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
     public void testNodes() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
-        assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(cluster().size()));
+        assertThat(clusterStateResponse.getState().nodes().getNodes().size(), is(cluster().size()));
 
         ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear().get();
-        assertThat(clusterStateResponseFiltered.getState().nodes().nodes().size(), is(0));
+        assertThat(clusterStateResponseFiltered.getState().nodes().getNodes().size(), is(0));
     }
 
     public void testMetadata() throws Exception {

@@ -164,8 +164,8 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
             for (Map.Entry<DiscoveryNode, List<TaskInfo>> entry : getPerNodeTasks().entrySet()) {
                 DiscoveryNode node = entry.getKey();
                 builder.startObject(node.getId(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.field("name", node.name());
-                builder.field("transport_address", node.address().toString());
+                builder.field("name", node.getName());
+                builder.field("transport_address", node.getAddress().toString());
                 builder.field("host", node.getHostName());
                 builder.field("ip", node.getAddress());
 

@@ -84,7 +84,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         String excludedNodeId = null;
         for (NodeInfo nodeInfo : nodesInfo) {
             if (nodeInfo.getNode().isDataNode()) {
-                excludedNodeId = nodeInfo.getNode().id();
+                excludedNodeId = nodeInfo.getNode().getId();
                 break;
             }
         }
@@ -102,7 +102,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
                         assert clusterState.nodes() != null;
-                        if (shardRouting.unassigned() == false && clusterState.nodes().get(shardRouting.currentNodeId()).id().equals(excludedNodeId)) {
+                        if (shardRouting.unassigned() == false && clusterState.nodes().get(shardRouting.currentNodeId()).getId().equals(excludedNodeId)) {
                             //if the shard is still there it must be relocating and all nodes need to know, since the request was acknowledged
                             //reroute happens as part of the update settings and we made sure no throttling comes into the picture via settings
                             assertThat(shardRouting.relocating(), equalTo(true));
@@ -127,7 +127,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         String excludedNodeId = null;
         for (NodeInfo nodeInfo : nodesInfo) {
             if (nodeInfo.getNode().isDataNode()) {
-                excludedNodeId = nodeInfo.getNode().id();
+                excludedNodeId = nodeInfo.getNode().getId();
                 break;
             }
         }

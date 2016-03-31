@@ -78,7 +78,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
                     transportClient.admin().cluster().state(clusterStateRequest, future);
                     clusterState = future.get().getState();
                 }
-                assertThat(clusterState.nodes().size(), greaterThanOrEqualTo(size - j));
+                assertThat(clusterState.nodes().getSize(), greaterThanOrEqualTo(size - j));
                 assertThat(transportClient.connectedNodes().size(), greaterThanOrEqualTo(size - j));
             }
         }

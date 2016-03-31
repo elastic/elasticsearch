@@ -387,7 +387,7 @@ public class NetworkModule extends AbstractModule {
         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
 
         transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, NETTY_TRANSPORT);
-        String defaultTransport = DiscoveryNode.localNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
+        String defaultTransport = DiscoveryNode.isLocalNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
 
         if (transportClient) {

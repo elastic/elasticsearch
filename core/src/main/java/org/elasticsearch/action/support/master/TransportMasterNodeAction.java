@@ -131,7 +131,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         protected void doStart() {
             final ClusterState clusterState = observer.observedState();
             final DiscoveryNodes nodes = clusterState.nodes();
-            if (nodes.localNodeMaster() || localExecute(request)) {
+            if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
                 // check for block, if blocked, retry, else, execute locally
                 final ClusterBlockException blockException = checkBlock(request, clusterState);
                 if (blockException != null) {
@@ -168,12 +168,12 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     });
                 }
             } else {
-                if (nodes.masterNode() == null) {
+                if (nodes.getMasterNode() == null) {
                     logger.debug("no known master node, scheduling a retry");
                     retry(null, MasterNodeChangePredicate.INSTANCE);
                 } else {
-                    taskManager.registerChildTask(task, nodes.masterNode().getId());
-                    transportService.sendRequest(nodes.masterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener) {
+                    taskManager.registerChildTask(task, nodes.getMasterNode().getId());
+                    transportService.sendRequest(nodes.getMasterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener) {
                         @Override
                         public Response newInstance() {
                             return newResponse();
@@ -185,7 +185,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             if (cause instanceof ConnectTransportException) {
                                 // we want to retry here a bit to see if a new master is elected
                                 logger.debug("connection exception while trying to forward request with action name [{}] to master node [{}], scheduling a retry. Error: [{}]",
-                                        actionName, nodes.masterNode(), exp.getDetailedMessage());
+                                        actionName, nodes.getMasterNode(), exp.getDetailedMessage());
                                 retry(cause, MasterNodeChangePredicate.INSTANCE);
                             } else {
                                 listener.onFailure(exp);

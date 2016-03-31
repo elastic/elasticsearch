@@ -97,11 +97,11 @@ public class PublishClusterStateActionTests extends ESTestCase {
             this.service = service;
             this.listener = listener;
             this.logger = logger;
-            this.clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().put(discoveryNode).localNodeId(discoveryNode.id()).build()).build();
+            this.clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().put(discoveryNode).localNodeId(discoveryNode.getId()).build()).build();
         }
 
         public MockNode setAsMaster() {
-            this.clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).masterNodeId(discoveryNode.id())).build();
+            this.clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).masterNodeId(discoveryNode.getId())).build();
             return this;
         }
 
@@ -118,12 +118,12 @@ public class PublishClusterStateActionTests extends ESTestCase {
         @Override
         public void onNewClusterState(String reason) {
             ClusterState newClusterState = action.pendingStatesQueue().getNextClusterStateToProcess();
-            logger.debug("[{}] received version [{}], uuid [{}]", discoveryNode.name(), newClusterState.version(), newClusterState.stateUUID());
+            logger.debug("[{}] received version [{}], uuid [{}]", discoveryNode.getName(), newClusterState.version(), newClusterState.stateUUID());
             if (listener != null) {
                 ClusterChangedEvent event = new ClusterChangedEvent("", newClusterState, clusterState);
                 listener.clusterChanged(event);
             }
-            if (clusterState.nodes().masterNode() == null || newClusterState.supersedes(clusterState)) {
+            if (clusterState.nodes().getMasterNode() == null || newClusterState.supersedes(clusterState)) {
                 clusterState = newClusterState;
             }
             action.pendingStatesQueue().markAsProcessed(newClusterState);
@@ -306,8 +306,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 .put(nodeA.discoveryNode)
                 .put(nodeB.discoveryNode)
                 .put(nodeC.discoveryNode)
-                .masterNodeId(nodeB.discoveryNode.id())
-                .localNodeId(nodeB.discoveryNode.id())
+                .masterNodeId(nodeB.discoveryNode.getId())
+                .localNodeId(nodeB.discoveryNode.getId())
                 .build();
         previousClusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         clusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).incrementVersion().build();
@@ -358,7 +358,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         });
 
         // Initial cluster state
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.id()).masterNodeId(nodeA.discoveryNode.id()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.getId()).masterNodeId(nodeA.discoveryNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
 
         // cluster state update - add nodeB
@@ -420,7 +420,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         for (MockNode node : nodes.values()) {
             assertSameState(node.clusterState, clusterState);
-            assertThat(node.clusterState.nodes().localNode(), equalTo(node.discoveryNode));
+            assertThat(node.clusterState.nodes().getLocalNode(), equalTo(node.discoveryNode));
         }
     }
 
@@ -485,7 +485,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         for (int i = 0; i < dataNodes; i++) {
             discoveryNodesBuilder.put(createMockNode("data_" + i, dataSettings).discoveryNode);
         }
-        discoveryNodesBuilder.localNodeId(master.discoveryNode.id()).masterNodeId(master.discoveryNode.id());
+        discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
         MetaData metaData = MetaData.EMPTY_META_DATA;
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).nodes(discoveryNodes).build();
@@ -562,7 +562,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         logger.info("--> expecting commit to {}. good nodes [{}], errors [{}], timeouts [{}]. min_master_nodes [{}]",
                 expectedBehavior, goodNodes + 1, errorNodes, timeOutNodes, minMasterNodes);
 
-        discoveryNodesBuilder.localNodeId(master.discoveryNode.id()).masterNodeId(master.discoveryNode.id());
+        discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
         MetaData metaData = MetaData.EMPTY_META_DATA;
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).nodes(discoveryNodes).build();
@@ -623,7 +623,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         try {
             MockNode otherNode = createMockNode("otherNode");
             state = ClusterState.builder(node.clusterState).nodes(
-                    DiscoveryNodes.builder(node.nodes()).put(otherNode.discoveryNode).localNodeId(otherNode.discoveryNode.id()).build()
+                    DiscoveryNodes.builder(node.nodes()).put(otherNode.discoveryNode).localNodeId(otherNode.discoveryNode.getId()).build()
             ).incrementVersion().build();
             node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state with existent but wrong local node");
@@ -696,7 +696,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockNode master = createMockNode("master", settings);
         MockNode node = createMockNode("node", settings);
         ClusterState state = ClusterState.builder(master.clusterState)
-                .nodes(DiscoveryNodes.builder(master.clusterState.nodes()).put(node.discoveryNode).masterNodeId(master.discoveryNode.id())).build();
+                .nodes(DiscoveryNodes.builder(master.clusterState.nodes()).put(node.discoveryNode).masterNodeId(master.discoveryNode.getId())).build();
 
         for (int i = 0; i < 10; i++) {
             state = ClusterState.builder(state).incrementVersion().build();

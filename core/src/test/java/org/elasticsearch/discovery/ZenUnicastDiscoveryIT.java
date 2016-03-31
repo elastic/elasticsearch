@@ -92,11 +92,11 @@ public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
         DiscoveryNode masterDiscoNode = null;
         for (String node : nodes) {
             ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertThat(state.nodes().size(), equalTo(currentNumNodes));
+            assertThat(state.nodes().getSize(), equalTo(currentNumNodes));
             if (masterDiscoNode == null) {
-                masterDiscoNode = state.nodes().masterNode();
+                masterDiscoNode = state.nodes().getMasterNode();
             } else {
-                assertThat(masterDiscoNode.equals(state.nodes().masterNode()), equalTo(true));
+                assertThat(masterDiscoNode.equals(state.nodes().getMasterNode()), equalTo(true));
             }
         }
     }

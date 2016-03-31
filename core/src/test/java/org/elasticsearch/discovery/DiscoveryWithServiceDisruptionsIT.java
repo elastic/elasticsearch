@@ -401,8 +401,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             // assert nodes are identical
             try {
                 assertEquals("unequal versions", state.version(), nodeState.version());
-                assertEquals("unequal node count", state.nodes().size(), nodeState.nodes().size());
-                assertEquals("different masters ", state.nodes().masterNodeId(), nodeState.nodes().masterNodeId());
+                assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
+                assertEquals("different masters ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
                 assertEquals("different meta data version", state.metaData().version(), nodeState.metaData().version());
                 if (!state.routingTable().prettyPrint().equals(nodeState.routingTable().prettyPrint())) {
                     fail("different routing");
@@ -626,8 +626,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                     DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
                     if (!Objects.equals(previousMaster, currentMaster)) {
                         logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(), event.previousState());
-                        String previousMasterNodeName = previousMaster != null ? previousMaster.name() : null;
-                        String currentMasterNodeName = currentMaster != null ? currentMaster.name() : null;
+                        String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
+                        String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
                         masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
                     }
                 }
@@ -638,7 +638,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         internalCluster().getInstance(ClusterService.class, oldMasterNode).add(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                if (event.state().nodes().masterNodeId() == null) {
+                if (event.state().nodes().getMasterNodeId() == null) {
                     oldMasterNodeSteppedDown.countDown();
                 }
             }
@@ -846,7 +846,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
-        TransportService masterTranspotService = internalCluster().getInstance(TransportService.class, discoveryNodes.masterNode().getName());
+        TransportService masterTranspotService = internalCluster().getInstance(TransportService.class, discoveryNodes.getMasterNode().getName());
 
         logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, masterNode);
         MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nonMasterNode);
@@ -856,7 +856,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         logger.info("blocking cluster state publishing from master [{}] to non master [{}]", masterNode, nonMasterNode);
         MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
-        TransportService localTransportService = internalCluster().getInstance(TransportService.class, discoveryNodes.localNode().getName());
+        TransportService localTransportService = internalCluster().getInstance(TransportService.class, discoveryNodes.getLocalNode().getName());
         if (randomBoolean()) {
             masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME);
         } else {
@@ -1175,7 +1175,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             @Override
             public void run() {
                 ClusterState state = getNodeClusterState(node);
-                assertNull("node [" + node + "] still has [" + state.nodes().masterNode() + "] as master", state.nodes().masterNode());
+                assertNull("node [" + node + "] still has [" + state.nodes().getMasterNode() + "] as master", state.nodes().getMasterNode());
                 if (expectedBlocks != null) {
                     for (ClusterBlockLevel level : expectedBlocks.levels()) {
                         assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock(level));
@@ -1191,10 +1191,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             public void run() {
                 ClusterState state = getNodeClusterState(node);
                 String masterNode = null;
-                if (state.nodes().masterNode() != null) {
-                    masterNode = state.nodes().masterNode().name();
+                if (state.nodes().getMasterNode() != null) {
+                    masterNode = state.nodes().getMasterNode().getName();
                 }
-                logger.trace("[{}] master is [{}]", node, state.nodes().masterNode());
+                logger.trace("[{}] master is [{}]", node, state.nodes().getMasterNode());
                 assertThat("node [" + node + "] still has [" + masterNode + "] as master",
                         oldMasterNode, not(equalTo(masterNode)));
             }
@@ -1205,8 +1205,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         for (String node : nodes) {
             ClusterState state = getNodeClusterState(node);
             String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
-            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().size(), equalTo(nodes.size()));
-            String otherMasterNodeName = state.nodes().masterNode() != null ? state.nodes().masterNode().name() : null;
+            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
+            String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
             assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
         }
     }

@@ -75,7 +75,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
             int expectedOps = 0;
             this.nodes = clusterState.nodes();
             if (request.getScrollIds().size() == 1 && "_all".equals(request.getScrollIds().get(0))) {
-                expectedOps = nodes.size();
+                expectedOps = nodes.getSize();
             } else {
                 for (String parsedScrollId : request.getScrollIds()) {
                     ScrollIdForNode[] context = parseScrollId(parsedScrollId).getContext();

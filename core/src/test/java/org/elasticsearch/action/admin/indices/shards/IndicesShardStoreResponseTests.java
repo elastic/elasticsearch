@@ -111,7 +111,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
                         assertThat(eitherLegacyVersionOrAllocationIdSet, equalTo(true));
                         assertThat(storeInfo.containsKey("allocation"), equalTo(true));
                         assertThat(((String) storeInfo.get("allocation")), equalTo(storeStatus.getAllocationStatus().value()));
-                        assertThat(storeInfo.containsKey(storeStatus.getNode().id()), equalTo(true));
+                        assertThat(storeInfo.containsKey(storeStatus.getNode().getId()), equalTo(true));
                         if (storeStatus.getStoreException() != null) {
                             assertThat(storeInfo.containsKey("store_exception"), equalTo(true));
                         }

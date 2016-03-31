@@ -329,7 +329,7 @@ public final class InternalTestCluster extends TestCluster {
         if (Strings.hasLength(System.getProperty("es.node.local"))) {
             builder.put(Node.NODE_LOCAL_SETTING.getKey(), System.getProperty("es.node.local"));
         }
-        if (DiscoveryNode.localNode(builder.build())) {
+        if (DiscoveryNode.isLocalNode(builder.build())) {
             return "local";
         } else {
             return "network";
@@ -1363,7 +1363,7 @@ public final class InternalTestCluster extends TestCluster {
         try {
             Client client = viaNode != null ? client(viaNode) : client();
             ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
-            return state.nodes().masterNode().name();
+            return state.nodes().getMasterNode().getName();
         } catch (Throwable e) {
             logger.warn("Can't fetch cluster state", e);
             throw new RuntimeException("Can't get master node " + e.getMessage(), e);
@@ -1643,15 +1643,15 @@ public final class InternalTestCluster extends TestCluster {
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return DiscoveryNode.dataNode(nodeAndClient.node.settings());
+            return DiscoveryNode.isDataNode(nodeAndClient.node.settings());
         }
     }
 
     private static final class DataOrMasterNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return DiscoveryNode.dataNode(nodeAndClient.node.settings()) ||
-                    DiscoveryNode.masterNode(nodeAndClient.node.settings());
+            return DiscoveryNode.isDataNode(nodeAndClient.node.settings()) ||
+                    DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
         }
     }
 
@@ -1671,8 +1671,8 @@ public final class InternalTestCluster extends TestCluster {
     private static final class NoDataNoMasterNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return DiscoveryNode.masterNode(nodeAndClient.node.settings()) == false &&
-                DiscoveryNode.dataNode(nodeAndClient.node.settings()) == false;
+            return DiscoveryNode.isMasterNode(nodeAndClient.node.settings()) == false &&
+                DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;
         }
     }
 

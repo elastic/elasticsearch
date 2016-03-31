@@ -122,7 +122,7 @@ public class FlushIT extends ESIntegTestCase {
         String newNodeName = internalCluster().startNode();
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         ShardRouting shardRouting = clusterState.getRoutingTable().index("test").shard(0).iterator().next();
-        String currentNodeName = clusterState.nodes().resolveNode(shardRouting.currentNodeId()).name();
+        String currentNodeName = clusterState.nodes().resolveNode(shardRouting.currentNodeId()).getName();
         assertFalse(currentNodeName.equals(newNodeName));
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, currentNodeName, newNodeName)).get();
 

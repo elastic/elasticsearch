@@ -265,7 +265,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             builder.metaData(metaBuilder);
         }
         if (numNodesToRemove > 0) {
-            final int discoveryNodesSize = previousState.getNodes().size();
+            final int discoveryNodesSize = previousState.getNodes().getSize();
             final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(previousState.getNodes());
             for (int i = 0; i < numNodesToRemove && i < discoveryNodesSize; i++) {
                 nodesBuilder.remove(NODE_ID_PREFIX + i);

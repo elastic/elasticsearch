@@ -73,26 +73,26 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
     private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target,
                                          RoutingAllocation allocation) {
         final RoutingNode source = routingNodes.node(sourceNodeId);
-        if (target.node().version().onOrAfter(source.node().version())) {
+        if (target.node().getVersion().onOrAfter(source.node().getVersion())) {
             /* we can allocate if we can recover from a node that is younger or on the same version
              * if the primary is already running on a newer version that won't work due to possible
              * differences in the lucene index format etc.*/
             return allocation.decision(Decision.YES, NAME, "target node version [%s] is the same or newer than source node version [%s]",
-                    target.node().version(), source.node().version());
+                    target.node().getVersion(), source.node().getVersion());
         } else {
             return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the source node version [%s]",
-                    target.node().version(), source.node().version());
+                    target.node().getVersion(), source.node().getVersion());
         }
     }
 
     private Decision isVersionCompatible(RestoreSource restoreSource, final RoutingNode target, RoutingAllocation allocation) {
-        if (target.node().version().onOrAfter(restoreSource.version())) {
+        if (target.node().getVersion().onOrAfter(restoreSource.version())) {
             /* we can allocate if we can restore from a snapshot that is older or on the same version */
             return allocation.decision(Decision.YES, NAME, "target node version [%s] is the same or newer than snapshot version [%s]",
-                target.node().version(), restoreSource.version());
+                target.node().getVersion(), restoreSource.version());
         } else {
             return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the snapshot version [%s]",
-                target.node().version(), restoreSource.version());
+                target.node().getVersion(), restoreSource.version());
         }
     }
 }

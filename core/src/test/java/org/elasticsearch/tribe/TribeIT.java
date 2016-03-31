@@ -427,8 +427,8 @@ public class TribeIT extends ESIntegTestCase {
             @Override
             public void run() {
                 DiscoveryNodes tribeNodes = tribeNode.client().admin().cluster().prepareState().get().getState().getNodes();
-                assertThat(countDataNodesForTribe("t1", tribeNodes), equalTo(internalCluster().client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()));
-                assertThat(countDataNodesForTribe("t2", tribeNodes), equalTo(cluster2.client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()));
+                assertThat(countDataNodesForTribe("t1", tribeNodes), equalTo(internalCluster().client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size()));
+                assertThat(countDataNodesForTribe("t2", tribeNodes), equalTo(cluster2.client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size()));
             }
         });
     }
@@ -436,7 +436,7 @@ public class TribeIT extends ESIntegTestCase {
     private int countDataNodesForTribe(String tribeName, DiscoveryNodes nodes) {
         int count = 0;
         for (DiscoveryNode node : nodes) {
-            if (!node.dataNode()) {
+            if (!node.isDataNode()) {
                 continue;
             }
             if (tribeName.equals(node.getAttributes().get("tribe.name"))) {

@@ -477,7 +477,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private static List<ShardRouting> collectAttributeShards(AttributesKey key, DiscoveryNodes nodes, ArrayList<ShardRouting> from) {
         final ArrayList<ShardRouting> to = new ArrayList<>();
         for (final String attribute : key.attributes) {
-            final String localAttributeValue = nodes.localNode().getAttributes().get(attribute);
+            final String localAttributeValue = nodes.getLocalNode().getAttributes().get(attribute);
             if (localAttributeValue != null) {
                 for (Iterator<ShardRouting> iterator = from.iterator(); iterator.hasNext(); ) {
                     ShardRouting fromShard = iterator.next();

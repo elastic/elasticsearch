@@ -74,7 +74,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        String[] nodesIds = clusterService.state().nodes().masterNodes().keys().toArray(String.class);
+        String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 

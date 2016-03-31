@@ -406,7 +406,7 @@ public class AllocationService extends AbstractComponent {
      */
     private void applyNewNodes(RoutingAllocation allocation) {
         final RoutingNodes routingNodes = allocation.routingNodes();
-        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().dataNodes().values()) {
+        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
             DiscoveryNode node = cursor.value;
             if (!routingNodes.isKnown(node)) {
                 routingNodes.addNode(node);
@@ -418,7 +418,7 @@ public class AllocationService extends AbstractComponent {
         boolean changed = false;
         for (RoutingNodes.RoutingNodesIterator it = allocation.routingNodes().nodes(); it.hasNext(); ) {
             RoutingNode node = it.next();
-            if (allocation.nodes().dataNodes().containsKey(node.nodeId())) {
+            if (allocation.nodes().getDataNodes().containsKey(node.nodeId())) {
                 // its a live node, continue
                 continue;
             }

@@ -58,12 +58,12 @@ public class OperationRouting extends AbstractComponent {
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing, @Nullable String preference) {
-        return preferenceActiveShardIterator(shards(clusterState, index, id, routing), clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+        return preferenceActiveShardIterator(shards(clusterState, index, id, routing), clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-        return preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+        return preferenceActiveShardIterator(indexShard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
     }
 
     public int searchShardsCount(ClusterState clusterState, String[] concreteIndices, @Nullable Map<String, Set<String>> routing) {
@@ -75,7 +75,7 @@ public class OperationRouting extends AbstractComponent {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
-            ShardIterator iterator = preferenceActiveShardIterator(shard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+            ShardIterator iterator = preferenceActiveShardIterator(shard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
             if (iterator != null) {
                 set.add(iterator);
             }
@@ -230,7 +230,7 @@ public class OperationRouting extends AbstractComponent {
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {
-        if (!nodes.dataNodes().keys().contains(nodeId)) {
+        if (!nodes.getDataNodes().keys().contains(nodeId)) {
             throw new IllegalArgumentException("No data node with id[" + nodeId + "] found");
         }
     }

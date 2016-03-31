@@ -45,7 +45,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 
         logger.info("--> start one node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         // We expect having 1 node as part of the cluster, let's test that
         checkNumberOfNodes(1);
@@ -58,7 +58,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 
         logger.info("--> start one node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         // We expect having 1 node as part of the cluster, let's test that
         checkNumberOfNodes(1);

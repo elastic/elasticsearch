@@ -93,10 +93,10 @@ public class CapturingTransport implements Transport {
     public Map<String, List<CapturedRequest>> capturedRequestsByTargetNode() {
         Map<String, List<CapturedRequest>> map = new HashMap<>();
         for (CapturedRequest request : capturedRequests) {
-            List<CapturedRequest> nodeList = map.get(request.node.id());
+            List<CapturedRequest> nodeList = map.get(request.node.getId());
             if (nodeList == null) {
                 nodeList = new ArrayList<>();
-                map.put(request.node.id(), nodeList);
+                map.put(request.node.getId(), nodeList);
             }
             nodeList.add(request);
         }

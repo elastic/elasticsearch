@@ -186,7 +186,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterState state = internalCluster().getInstance(ClusterService.class).state();
         DiscoveryNode node = null;
         for (DiscoveryNode discoveryNode : state.nodes()) {
-            if (discoveryNode.name().equals(noneMasterNode)) {
+            if (discoveryNode.getName().equals(noneMasterNode)) {
                 node = discoveryNode;
             }
         }
@@ -197,7 +197,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                         emptySet(), Version.CURRENT)).masterNodeId("abc");
         ClusterState.Builder builder = ClusterState.builder(state);
         builder.nodes(nodes);
-        BytesReference bytes = PublishClusterStateAction.serializeFullClusterState(builder.build(), node.version());
+        BytesReference bytes = PublishClusterStateAction.serializeFullClusterState(builder.build(), node.getVersion());
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
@@ -235,7 +235,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterState stateWithCustomMetaData = ClusterState.builder(state).metaData(mdBuilder).build();
 
         final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
-        DiscoveryNode node = state.nodes().localNode();
+        DiscoveryNode node = state.nodes().getLocalNode();
         zenDiscovery.handleJoinRequest(node, stateWithCustomMetaData, new MembershipAction.JoinCallback() {
             @Override
             public void onSuccess() {

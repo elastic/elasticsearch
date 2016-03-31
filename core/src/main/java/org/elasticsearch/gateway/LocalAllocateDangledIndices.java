@@ -76,7 +76,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
 
     public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
         ClusterState clusterState = clusterService.state();
-        DiscoveryNode masterNode = clusterState.nodes().masterNode();
+        DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
         if (masterNode == null) {
             listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
             return;

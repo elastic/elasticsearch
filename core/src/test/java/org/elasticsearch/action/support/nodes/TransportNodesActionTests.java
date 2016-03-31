@@ -68,7 +68,7 @@ public class TransportNodesActionTests extends ESTestCase {
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        int numNodes = clusterService.state().getNodes().size();
+        int numNodes = clusterService.state().getNodes().getSize();
         // check a request was sent to the right number of nodes
         assertEquals(numNodes, capturedRequests.size());
     }
@@ -80,7 +80,7 @@ public class TransportNodesActionTests extends ESTestCase {
             nodeSelectors.add(randomFrom(NodeSelector.values()).selector);
         }
         int numNodeIds = randomIntBetween(0, 3);
-        String[] nodeIds = clusterService.state().nodes().nodes().keys().toArray(String.class);
+        String[] nodeIds = clusterService.state().nodes().getNodes().keys().toArray(String.class);
         for (int i = 0; i < numNodeIds; i++) {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
@@ -135,8 +135,8 @@ public class TransportNodesActionTests extends ESTestCase {
             discoBuilder = discoBuilder.put(node);
             discoveryNodes.add(node);
         }
-        discoBuilder.localNodeId(randomFrom(discoveryNodes).id());
-        discoBuilder.masterNodeId(randomFrom(discoveryNodes).id());
+        discoBuilder.localNodeId(randomFrom(discoveryNodes).getId());
+        discoBuilder.masterNodeId(randomFrom(discoveryNodes).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(CLUSTER_NAME);
         stateBuilder.nodes(discoBuilder);
         ClusterState clusterState = stateBuilder.build();

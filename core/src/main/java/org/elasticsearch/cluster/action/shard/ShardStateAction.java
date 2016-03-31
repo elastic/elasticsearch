@@ -92,7 +92,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     private void sendShardAction(final String actionName, final ClusterStateObserver observer, final ShardRoutingEntry shardRoutingEntry, final Listener listener) {
-        DiscoveryNode masterNode = observer.observedState().nodes().masterNode();
+        DiscoveryNode masterNode = observer.observedState().nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("{} no master known for action [{}] for shard [{}]", shardRoutingEntry.getShardRouting().shardId(), actionName, shardRoutingEntry.getShardRouting());
             waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);

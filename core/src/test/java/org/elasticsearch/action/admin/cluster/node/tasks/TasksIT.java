@@ -188,7 +188,7 @@ public class TasksIT extends ESIntegTestCase {
 
         logger.debug("number of shards, total: [{}], primaries: [{}] ", numberOfShards.totalNumShards, numberOfShards.numPrimaries);
         logger.debug("main events {}", numberOfEvents(RefreshAction.NAME, Tuple::v1));
-        logger.debug("main event node {}", findEvents(RefreshAction.NAME, Tuple::v1).get(0).getNode().name());
+        logger.debug("main event node {}", findEvents(RefreshAction.NAME, Tuple::v1).get(0).getNode().getName());
         logger.debug("[s] events {}", numberOfEvents(RefreshAction.NAME + "[s]", Tuple::v1));
         logger.debug("[s][*] events {}", numberOfEvents(RefreshAction.NAME + "[s][*]", Tuple::v1));
         logger.debug("nodes with the index {}", internalCluster().nodesInclude("test"));
@@ -436,7 +436,7 @@ public class TasksIT extends ESIntegTestCase {
             DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
             RecordingTaskManagerListener listener = new RecordingTaskManagerListener(node, Strings.splitStringToArray(actionMasks, ','));
             ((MockTaskManager) internalCluster().getInstance(TransportService.class, nodeName).getTaskManager()).addListener(listener);
-            RecordingTaskManagerListener oldListener = listeners.put(new Tuple<>(node.name(), actionMasks), listener);
+            RecordingTaskManagerListener oldListener = listeners.put(new Tuple<>(node.getName(), actionMasks), listener);
             assertNull(oldListener);
         }
     }

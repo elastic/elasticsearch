@@ -94,10 +94,10 @@ public class NodeJoinControllerTests extends ESTestCase {
         super.setUp();
         clusterService = createClusterService(threadPool);
         final DiscoveryNodes initialNodes = clusterService.state().nodes();
-        final DiscoveryNode localNode = initialNodes.localNode();
+        final DiscoveryNode localNode = initialNodes.getLocalNode();
         // make sure we have a master
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
-                DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.id())));
+                DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
         nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
                 new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
                 Settings.EMPTY);
@@ -208,7 +208,7 @@ public class NodeJoinControllerTests extends ESTestCase {
                 nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
-                        assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
+                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                         electionFuture.markAsDone();
                     }
 
@@ -256,7 +256,7 @@ public class NodeJoinControllerTests extends ESTestCase {
                 nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
-                        assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
+                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                         electionFuture.markAsDone();
                     }
 
@@ -374,7 +374,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueMillis(1), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
-                assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
+                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                 latch.countDown();
             }
 
@@ -492,7 +492,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
-                assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
+                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                 latch.countDown();
             }
 
@@ -555,9 +555,9 @@ public class NodeJoinControllerTests extends ESTestCase {
         logger.info("assert for [{}] in:\n{}", expectedNodes, state.prettyPrint());
         DiscoveryNodes discoveryNodes = state.nodes();
         for (DiscoveryNode node : expectedNodes) {
-            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.id()), equalTo(node));
+            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.getId()), equalTo(node));
         }
-        assertThat(discoveryNodes.size(), equalTo(expectedNodes.size()));
+        assertThat(discoveryNodes.getSize(), equalTo(expectedNodes.size()));
     }
 
     static class SimpleFuture extends BaseFuture<Void> {

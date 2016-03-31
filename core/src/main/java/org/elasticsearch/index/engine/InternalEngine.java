@@ -113,9 +113,12 @@ public class InternalEngine extends Engine {
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
+    private final EngineConfig.OpenMode openMode;
+    private final AtomicBoolean allowCommits = new AtomicBoolean(true);
 
-    public InternalEngine(EngineConfig engineConfig, boolean skipInitialTranslogRecovery) throws EngineException {
+    public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
+        openMode = engineConfig.getOpenMode();
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
@@ -132,14 +135,11 @@ public class InternalEngine extends Engine {
             }
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
-            final Translog.TranslogGeneration translogGeneration;
             try {
-                final boolean create = engineConfig.isCreate();
-                writer = createWriter(create);
+                writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer, create || skipInitialTranslogRecovery || engineConfig.forceNewTranslog());
-                translogGeneration = translog.getGeneration();
-                assert translogGeneration != null;
+                translog = openTranslog(engineConfig, writer);
+                assert translog.getGeneration() != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
@@ -151,20 +151,13 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
+
             this.translog = translog;
             manager = createSearcherManager();
             this.searcherManager = manager;
             this.versionMap.setManager(searcherManager);
-            try {
-                if (skipInitialTranslogRecovery) {
-                    // make sure we point at the latest translog from now on..
-                    commitIndexWriter(writer, translog, lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID));
-                } else {
-                    recoverFromTranslog(engineConfig, translogGeneration);
-                }
-            } catch (IOException | EngineException ex) {
-                throw new EngineCreationFailureException(shardId, "failed to recover from translog", ex);
-            }
+            // don't allow commits until we are done with recovering
+            allowCommits.compareAndSet(true, openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
             success = true;
         } finally {
             if (success == false) {
@@ -179,11 +172,57 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
-    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, boolean createNew) throws IOException {
-        final Translog.TranslogGeneration generation = loadTranslogIdFromCommit(writer);
-        final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
+    @Override
+    public InternalEngine recoverFromTranslog() throws IOException {
+        flushLock.lock();
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            if (openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+                throw new IllegalStateException("Can't recover from translog with open mode: " + openMode);
+            }
+            if (allowCommits.get()) {
+                throw new IllegalStateException("Engine has already been recovered");
+            }
+            try {
+                recoverFromTranslog(engineConfig.getTranslogRecoveryPerformer());
+            } catch (Throwable t) {
+                allowCommits.set(false); // just play safe and never allow commits on this
+                failEngine("failed to recover from translog", t);
+                throw t;
+            }
+        } finally {
+            flushLock.unlock();
+        }
+        return this;
+    }
 
-        if (createNew == false) {
+    private void recoverFromTranslog(TranslogRecoveryPerformer handler) throws IOException {
+        Translog.TranslogGeneration translogGeneration = translog.getGeneration();
+        final int opsRecovered;
+        try {
+            Translog.Snapshot snapshot = translog.newSnapshot();
+            opsRecovered = handler.recoveryFromSnapshot(this, snapshot);
+        } catch (Throwable e) {
+            throw new EngineException(shardId, "failed to recover from translog", e);
+        }
+        // flush if we recovered something or if we have references to older translogs
+        // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
+        assert allowCommits.get() == false : "commits are allowed but shouldn't";
+        allowCommits.set(true); // we are good - now we can commit
+        if (opsRecovered > 0) {
+            logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
+                opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
+            flush(true, true);
+        } else if (translog.isCurrent(translogGeneration) == false) {
+            commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+        }
+    }
+
+    private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer) throws IOException {
+        final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
+        translogConfig.setTranslogGeneration(null);
+        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            final Translog.TranslogGeneration generation = loadTranslogIdFromCommit(writer);
             // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
             if (generation == null) {
                 throw new IllegalStateException("no translog generation present in commit data but translog is expected to exist");
@@ -194,7 +233,10 @@ public class InternalEngine extends Engine {
             }
         }
         final Translog translog = new Translog(translogConfig);
+        final Translog.TranslogGeneration generation = translogConfig.getTranslogGeneration();
         if (generation == null || generation.translogUUID == null) {
+            assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
+                + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
             if (generation == null) {
                 logger.debug("no translog ID present in the current generation - creating one");
             } else if (generation.translogUUID == null) {
@@ -202,7 +244,8 @@ public class InternalEngine extends Engine {
             }
             boolean success = false;
             try {
-                commitIndexWriter(writer, translog);
+                commitIndexWriter(writer, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
+                    ? writer.getCommitData().get(SYNC_COMMIT_ID) : null);
                 success = true;
             } finally {
                 if (success == false) {
@@ -217,27 +260,6 @@ public class InternalEngine extends Engine {
     public Translog getTranslog() {
         ensureOpen();
         return translog;
-    }
-
-    protected void recoverFromTranslog(EngineConfig engineConfig, Translog.TranslogGeneration translogGeneration) throws IOException {
-        int opsRecovered = 0;
-        final TranslogRecoveryPerformer handler = engineConfig.getTranslogRecoveryPerformer();
-        try {
-            Translog.Snapshot snapshot = translog.newSnapshot();
-            opsRecovered = handler.recoveryFromSnapshot(this, snapshot);
-        } catch (Throwable e) {
-            throw new EngineException(shardId, "failed to recover from translog", e);
-        }
-
-        // flush if we recovered something or if we have references to older translogs
-        // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
-        if (opsRecovered > 0) {
-            logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
-                    opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
-            flush(true, true);
-        } else if (translog.isCurrent(translogGeneration) == false) {
-            commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
-        }
     }
 
     /**
@@ -556,6 +578,7 @@ public class InternalEngine extends Engine {
         }
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
+            ensureCanFlush();
             if (indexWriter.hasUncommittedChanges()) {
                 logger.trace("can't sync commit [{}]. have pending changes", syncId);
                 return SyncedFlushResult.PENDING_OPERATIONS;
@@ -579,6 +602,7 @@ public class InternalEngine extends Engine {
         boolean renewed = false;
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
+            ensureCanFlush();
             String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
             if (syncId != null && translog.totalOperations() == 0 && indexWriter.hasUncommittedChanges()) {
                 logger.trace("start renewing sync commit [{}]", syncId);
@@ -629,10 +653,11 @@ public class InternalEngine extends Engine {
             }
             try {
                 if (indexWriter.hasUncommittedChanges() || force) {
+                    ensureCanFlush();
                     try {
                         translog.prepareCommit();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        commitIndexWriter(indexWriter, translog);
+                        commitIndexWriter(indexWriter, translog, null);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
@@ -1072,6 +1097,7 @@ public class InternalEngine extends Engine {
     }
 
     private void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
+        ensureCanFlush();
         try {
             Translog.TranslogGeneration translogGeneration = translog.getGeneration();
             logger.trace("committing writer with translog id [{}]  and sync id [{}] ", translogGeneration.translogFileGeneration, syncId);
@@ -1089,8 +1115,14 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
-        commitIndexWriter(writer, translog, null);
+    private void ensureCanFlush() {
+        // translog recover happens after the engine is fully constructed
+        // if we are in this stage we have to prevent flushes from this
+        // engine otherwise we might loose documents if the flush succeeds
+        // and the translog recover fails we we "commit" the translog on flush.
+        if (allowCommits.get() == false) {
+            throw new FlushNotAllowedEngineException(shardId, "flushes are disabled - pending translog recovery");
+        }
     }
 
     public void onSettingsChanged() {

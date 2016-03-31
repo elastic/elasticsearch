@@ -1343,4 +1343,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
     }
 
+    /**
+     * Returns the translog uuid used to associate a lucene index with a translog.
+     */
+    public String getTranslogUUID() {
+        return translogUUID;
+    }
+
 }

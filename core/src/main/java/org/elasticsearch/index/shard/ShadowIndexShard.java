@@ -29,7 +29,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -81,10 +80,9 @@ public final class ShadowIndexShard extends IndexShard {
     }
 
     @Override
-    protected Engine newEngine(boolean skipInitialTranslogRecovery, EngineConfig config) {
+    protected Engine newEngine(EngineConfig config) {
         assert this.shardRouting.primary() == false;
-        assert skipInitialTranslogRecovery : "can not recover from gateway";
-        config.setCreate(false); // hardcoded - we always expect an index to be present
+        assert config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
         return engineFactory.newReadOnlyEngine(config);
     }
 

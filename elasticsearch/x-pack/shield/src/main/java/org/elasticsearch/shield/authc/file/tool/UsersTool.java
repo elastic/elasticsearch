@@ -320,10 +320,13 @@ public class UsersTool extends MultiCommand {
     static void listUsersAndRoles(Terminal terminal, Environment env, String username) throws Exception {
         Settings esusersSettings = Realms.fileRealmSettings(env.settings());
         Path userRolesFilePath = FileUserRolesStore.resolveFile(esusersSettings, env);
-        Set<String> knownRoles = FileRolesStore.parseFileForRoleNames(userRolesFilePath, null);
         Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
+
         Path userFilePath = FileUserPasswdStore.resolveFile(esusersSettings, env);
         Set<String> users = FileUserPasswdStore.parseFile(userFilePath, null).keySet();
+
+        Path rolesFilePath = FileRolesStore.resolveFile(env.settings(), env);
+        Set<String> knownRoles = FileRolesStore.parseFileForRoleNames(rolesFilePath, null);
 
         if (username != null) {
             if (!users.contains(username)) {

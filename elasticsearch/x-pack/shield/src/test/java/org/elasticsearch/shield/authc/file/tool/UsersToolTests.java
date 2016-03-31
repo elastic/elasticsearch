@@ -351,6 +351,9 @@ public class UsersToolTests extends CommandTestCase {
         assertTrue(output, output.contains("test_admin"));
         assertTrue(output, output.contains("existing_user2"));
         assertTrue(output, output.contains("test_r1"));
+
+        // output should not contain '*' which indicates unknown role
+        assertFalse(output, output.contains("*"));
     }
 
     public void testListSingleUser() throws Exception {
@@ -359,6 +362,9 @@ public class UsersToolTests extends CommandTestCase {
         assertTrue(output, output.contains("test_admin"));
         assertFalse(output, output.contains("existing_user2"));
         assertFalse(output, output.contains("test_r1"));
+
+        // output should not contain '*' which indicates unknown role
+        assertFalse(output, output.contains("*"));
     }
 
     public void testListUnknownRoles() throws Exception {
@@ -382,5 +388,8 @@ public class UsersToolTests extends CommandTestCase {
         assertTrue(output, output.contains("existing_user3"));
         output = execute("list");
         assertTrue(output, output.contains("existing_user3"));
+
+        // output should not contain '*' which indicates unknown role
+        assertFalse(output, output.contains("*"));
     }
 }

@@ -60,6 +60,8 @@ for (Map.Entry<String, ClusterIndexHealth> index : clusterHealthResponse.getIndi
 }
 ---------------
 
+Also `ClusterHealthStatus` has been moved from `org.elasticsearch.action.admin.cluster.health` to `org.elasticsearch.cluster.health`.
+
 [float]
 === Cloud AWS Plugin
 

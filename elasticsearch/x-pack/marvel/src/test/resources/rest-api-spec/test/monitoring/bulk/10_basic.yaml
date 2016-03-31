@@ -1,14 +1,6 @@
 ---
 setup:
   - do:
-      # Reduce the interval time so that monitoring
-      # indices are created faster
-      cluster.put_settings:
-          body:
-              transient:
-                  xpack.monitoring.agent.interval: 1s
-              flat_settings: true
-  - do:
       # Waits for the monitoring data index to be available:
       # it indicates that the local exporter is ready
       cluster.health:
@@ -50,16 +42,11 @@ setup:
       indices.refresh: {}
 
   - do:
-      count:
+      search:
         index: .monitoring-kibana-*
+        type:  test_type
 
-  - match: {count: 2}
-
----
-"Bulk indexing of monitoring data using default type":
-  # Get the current version
-  - do: {info: {}}
-  - set: {version.number: version}
+  - match: { hits.total: 2 }
 
   - do:
       monitoring.bulk:

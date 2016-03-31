@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -37,6 +38,8 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,6 +76,18 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
         } else {
             return new PercolatorQueryBuilder(docType, documentSource);
         }
+    }
+
+    /**
+     * prevent fields in the "document" field from being shuffled randomly, because it later is parsed to
+     * a {@link BytesReference} and even though the documents are the same, equals will fail when comparing
+     * BytesReference
+     */
+    @Override
+    protected Set<String> provideShuffleproofFields() {
+        Set<String> fieldNames = new HashSet<>();
+        fieldNames.add(PercolatorQueryParser.DOCUMENT_FIELD.getPreferredName());
+        return fieldNames;
     }
 
     @Override
@@ -132,6 +147,7 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
 
     // overwrite this test, because adding bogus field to the document part is valid and that would make the test fail
     // (the document part represents the document being percolated and any key value pair is allowed there)
+    @Override
     public void testUnknownObjectException() throws IOException {
         String validQuery = createTestQueryBuilder().toString();
         int endPos = validQuery.indexOf("document");

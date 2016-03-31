@@ -27,7 +27,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -226,7 +225,7 @@ public class OperationRouting extends AbstractComponent {
         } else {
             hash = Murmur3HashFunction.hash(routing);
         }
-        return MathUtils.mod(hash, indexMetaData.getNumberOfShards());
+        return Math.floorMod(hash, indexMetaData.getNumberOfShards());
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {

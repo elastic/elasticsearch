@@ -744,7 +744,7 @@ public class HighlightBuilderTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return HighlightBuilder.PROTOTYPE.readFrom(in);
+                return new HighlightBuilder(in);
             }
         }
     }

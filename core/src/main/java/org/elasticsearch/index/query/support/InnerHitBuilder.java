@@ -166,7 +166,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 sorts.add(in.readSortBuilder());
             }
         }
-        highlightBuilder = in.readOptionalWriteable(HighlightBuilder.PROTOTYPE::readFrom);
+        highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         query = in.readQuery();
         innerHitsBuilder = in.readOptionalWriteable(InnerHitsBuilder.PROTO::readFrom);
     }

@@ -60,10 +60,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
-public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> implements Writeable<HighlightBuilder> {
-
-    public static final HighlightBuilder PROTOTYPE = new HighlightBuilder();
-
+public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> {
     /** default for whether to highlight fields based on the source even if stored separately */
     public static final boolean DEFAULT_FORCE_SOURCE = false;
     /** default for whether a field should be highlighted only if a query matches that field */
@@ -113,6 +110,32 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     private String encoder;
 
     private boolean useExplicitFieldOrder = false;
+
+    public HighlightBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public HighlightBuilder(StreamInput in) throws IOException {
+        super(in);
+        encoder(in.readOptionalString());
+        useExplicitFieldOrder(in.readBoolean());
+        int fields = in.readVInt();
+        for (int i = 0; i < fields; i++) {
+            field(new Field(in));
+        }
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(encoder);
+        out.writeBoolean(useExplicitFieldOrder);
+        out.writeVInt(fields.size());
+        for (int i = 0; i < fields.size(); i++) {
+            fields.get(i).writeTo(out);
+        }
+    }
 
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
@@ -393,32 +416,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 Objects.equals(fields, other.fields);
     }
 
-    @Override
-    public HighlightBuilder readFrom(StreamInput in) throws IOException {
-        HighlightBuilder highlightBuilder = new HighlightBuilder();
-        highlightBuilder.readOptionsFrom(in)
-                .encoder(in.readOptionalString())
-                .useExplicitFieldOrder(in.readBoolean());
-        int fields = in.readVInt();
-        for (int i = 0; i < fields; i++) {
-            highlightBuilder.field(Field.PROTOTYPE.readFrom(in));
-        }
-        return highlightBuilder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        writeOptionsTo(out);
-        out.writeOptionalString(encoder);
-        out.writeBoolean(useExplicitFieldOrder);
-        out.writeVInt(fields.size());
-        for (int i = 0; i < fields.size(); i++) {
-            fields.get(i).writeTo(out);
-        }
-    }
-
-    public static class Field extends AbstractHighlighterBuilder<Field> implements Writeable<Field> {
-        static final Field PROTOTYPE = new Field("_na_");
+    public static class Field extends AbstractHighlighterBuilder<Field> {
         static final NamedObjectParser<Field, QueryParseContext> PARSER;
         static {
             ObjectParser<Field, QueryParseContext> parser = new ObjectParser<>("highlight_field");
@@ -436,6 +434,23 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
         public Field(String name) {
             this.name = name;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public Field(StreamInput in) throws IOException {
+            super(in);
+            name = in.readString();
+            fragmentOffset(in.readVInt());
+            matchedFields(in.readOptionalStringArray());
+        }
+
+        @Override
+        protected  void doWriteTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeVInt(fragmentOffset);
+            out.writeOptionalStringArray(matchedFields);
         }
 
         public String name() {
@@ -483,32 +498,12 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                     Objects.equals(fragmentOffset, other.fragmentOffset) &&
                     Arrays.equals(matchedFields, other.matchedFields);
         }
-
-        @Override
-        public Field readFrom(StreamInput in) throws IOException {
-            Field field = new Field(in.readString());
-            field.fragmentOffset(in.readVInt());
-            field.matchedFields(in.readOptionalStringArray());
-            field.readOptionsFrom(in);
-            return field;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeVInt(fragmentOffset);
-            out.writeOptionalStringArray(matchedFields);
-            writeOptionsTo(out);
-        }
     }
 
     public enum Order implements Writeable<Order> {
         NONE, SCORE;
 
-        static Order PROTOTYPE = NONE;
-
-        @Override
-        public Order readFrom(StreamInput in) throws IOException {
+        public static Order readFromStream(StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown Order ordinal [" + ordinal + "]");

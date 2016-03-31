@@ -1216,9 +1216,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.fieldNames = fieldNames;
         }
         builder.from = in.readVInt();
-        if (in.readBoolean()) {
-            builder.highlightBuilder = HighlightBuilder.PROTOTYPE.readFrom(in);
-        }
+        builder.highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         boolean hasIndexBoost = in.readBoolean();
         if (hasIndexBoost) {
             int size = in.readVInt();
@@ -1320,11 +1318,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             }
         }
         out.writeVInt(from);
-        boolean hasHighlightBuilder = highlightBuilder != null;
-        out.writeBoolean(hasHighlightBuilder);
-        if (hasHighlightBuilder) {
-            highlightBuilder.writeTo(out);
-        }
+        out.writeOptionalWriteable(highlightBuilder);
         boolean hasIndexBoost = indexBoost != null;
         out.writeBoolean(hasIndexBoost);
         if (hasIndexBoost) {

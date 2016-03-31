@@ -49,6 +49,7 @@ import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonHash;
 import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -292,8 +293,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .bytes());
             fail();
         } catch (MapperParsingException e) {
-            assertTrue(e.getRootCause() instanceof NumberFormatException);
-            assertTrue(e.getRootCause().toString().contains("java.lang.NumberFormatException: For input string: \"-\""));
+            assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
+            assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
         }
 
         try {
@@ -304,8 +305,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .bytes());
             fail();
         } catch (MapperParsingException e) {
-            assertTrue(e.getRootCause() instanceof NumberFormatException);
-            assertTrue(e.getRootCause().toString().contains("java.lang.NumberFormatException: For input string: \"-\""));
+            assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
+            assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
         }
 
         try {
@@ -316,8 +317,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .bytes());
             fail();
         } catch (MapperParsingException e) {
-            assertTrue(e.getRootCause() instanceof NumberFormatException);
-            assertTrue(e.getRootCause().toString().contains("java.lang.NumberFormatException: For input string: \"-\""));
+            assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
+            assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
         }
     }
 

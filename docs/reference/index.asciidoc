@@ -1,8 +1,8 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:       3.0.0-beta1
-:major-version: 3.x
+:version:       5.0.0-alpha1
+:major-version: 5.x
 :branch:        master
 :jdk:           1.8.0_25
 :defguide:      https://www.elastic.co/guide/en/elasticsearch/guide/current

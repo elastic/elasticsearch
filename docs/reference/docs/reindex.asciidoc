@@ -154,7 +154,7 @@ POST /_reindex
     "index": ["twitter", "blog"],
     "type": ["tweet", "post"]
   },
-  "index": {
+  "dest": {
     "index": "all_together"
   }
 }
@@ -274,7 +274,7 @@ POST /_reindex
       }
     }
   },
-  "index": {
+  "dest": {
     "index": "dest",
     "routing": "=cat"
   }
@@ -292,7 +292,7 @@ POST /_reindex
   "source": {
     "index": "source"
   },
-  "index": {
+  "dest": {
     "index": "dest",
     "pipeline": "some_ingest_pipeline"
   }
@@ -394,7 +394,7 @@ While Reindex is running you can fetch their status using the
 
 [source,js]
 --------------------------------------------------
-POST /_tasks/?pretty&detailed=true&actions=*reindex
+GET /_tasks/?pretty&detailed=true&actions=*reindex
 --------------------------------------------------
 // AUTOSENSE
 

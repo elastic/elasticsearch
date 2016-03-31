@@ -64,7 +64,6 @@ import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasks
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetAliasesAction;
-import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.head.RestAliasesExistAction;
 import org.elasticsearch.rest.action.admin.indices.alias.put.RestIndexPutAliasAction;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
@@ -202,7 +201,6 @@ public class NetworkModule extends AbstractModule {
         RestIndexDeleteAliasesAction.class,
         RestIndexPutAliasAction.class,
         RestIndicesAliasesAction.class,
-        RestGetIndicesAliasesAction.class,
         RestCreateIndexAction.class,
         RestDeleteIndexAction.class,
         RestCloseIndexAction.class,

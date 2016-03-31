@@ -882,6 +882,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         final EngineConfig.OpenMode openMode;
+        /* by default we recover and index and replay the translog but if the index
+         * doesn't exist we create everything from the scratch. Yet, if the index
+         * doesn't exist we don't need to worry about the skipTranslogRecovery since
+         * there is no translog on a non-existing index.
+         * The skipTranslogRecovery invariant is used if we do remote recovery since
+         * there the translog isn't local but on the remote host, hence we can skip it.
+         */
         if (indexExists == false) {
             openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
         } else if (skipTranslogRecovery) {

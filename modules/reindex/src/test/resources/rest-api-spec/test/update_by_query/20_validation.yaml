@@ -35,7 +35,7 @@
         id:      1
         body:    { "text": "test" }
   - do:
-      catch: /Failed to parse int parameter [scroll_size] with value [asdf]/
+      catch: /Failed to parse int parameter \[scroll_size\] with value \[asdf\]/
       update_by_query:
         index: test
         scroll_size: asdf

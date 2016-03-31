@@ -19,13 +19,13 @@ import java.util.List;
 /**
  * User/password realm that is backed by an Elasticsearch index
  */
-public class ESNativeRealm extends CachingUsernamePasswordRealm {
+public class NativeRealm extends CachingUsernamePasswordRealm {
 
-    public static final String TYPE = "esnative";
+    public static final String TYPE = "native";
 
-    final ESNativeUsersStore userStore;
+    final NativeUsersStore userStore;
 
-    public ESNativeRealm(RealmConfig config, ESNativeUsersStore usersStore) {
+    public NativeRealm(RealmConfig config, NativeUsersStore usersStore) {
         super(TYPE, config);
         this.userStore = usersStore;
         usersStore.addListener(new Listener());
@@ -46,7 +46,7 @@ public class ESNativeRealm extends CachingUsernamePasswordRealm {
         return userStore.verifyPassword(token.principal(), token.credentials());
     }
 
-    class Listener implements ESNativeUsersStore.ChangeListener {
+    class Listener implements NativeUsersStore.ChangeListener {
 
         @Override
         public void onUsersChanged(List<String> usernames) {
@@ -56,14 +56,14 @@ public class ESNativeRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    public static class Factory extends Realm.Factory<ESNativeRealm> {
+    public static class Factory extends Realm.Factory<NativeRealm> {
 
         private final Settings settings;
         private final Environment env;
-        private final ESNativeUsersStore userStore;
+        private final NativeUsersStore userStore;
 
         @Inject
-        public Factory(Settings settings, Environment env, ESNativeUsersStore userStore) {
+        public Factory(Settings settings, Environment env, NativeUsersStore userStore) {
             super(TYPE, true);
             this.settings = settings;
             this.env = env;
@@ -71,12 +71,12 @@ public class ESNativeRealm extends CachingUsernamePasswordRealm {
         }
 
         @Override
-        public ESNativeRealm create(RealmConfig config) {
-            return new ESNativeRealm(config, userStore);
+        public NativeRealm create(RealmConfig config) {
+            return new NativeRealm(config, userStore);
         }
 
         @Override
-        public ESNativeRealm createDefault(String name) {
+        public NativeRealm createDefault(String name) {
             RealmConfig config = new RealmConfig(name, Settings.EMPTY, settings, env);
             return create(config);
         }

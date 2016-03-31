@@ -81,7 +81,7 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
                         AggregationBuilders
                                 .dateHistogram("minutes").field("_timestamp").interval(TimeUnit.MILLISECONDS.convert(5, TimeUnit.SECONDS))
                                 .order(Histogram.Order.COUNT_DESC)
-                                .subAggregation(AggregationBuilders.terms("status").field("status").size(3)));
+                                .subAggregation(AggregationBuilders.terms("status").field("status.keyword").size(3)));
         SearchResponse unmetResponse = builder.get();
 
         ExecutableScriptCondition condition =

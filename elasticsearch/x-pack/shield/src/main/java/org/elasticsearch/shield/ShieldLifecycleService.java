@@ -16,8 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
-import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
-import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
+import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
+import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -36,24 +36,24 @@ public class ShieldLifecycleService extends AbstractComponent implements Cluster
     private final Settings settings;
     private final ThreadPool threadPool;
     private final IndexAuditTrail indexAuditTrail;
-    private final ESNativeUsersStore esUserStore;
-    private final ESNativeRolesStore esRolesStore;
+    private final NativeUsersStore nativeUserStore;
+    private final NativeRolesStore nativeRolesStore;
 
     @Inject
     public ShieldLifecycleService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
-                                  IndexAuditTrail indexAuditTrail, ESNativeUsersStore esUserStore,
-                                  ESNativeRolesStore esRolesStore, Provider<InternalClient> clientProvider) {
+                                  IndexAuditTrail indexAuditTrail, NativeUsersStore nativeUserStore,
+                                  NativeRolesStore nativeRolesStore, Provider<InternalClient> clientProvider) {
         super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.indexAuditTrail = indexAuditTrail;
-        this.esUserStore = esUserStore;
-        this.esRolesStore = esRolesStore;
-        // TODO: define a common interface for these and delegate from one place. esUserStore store is it's on cluster
+        this.nativeUserStore = nativeUserStore;
+        this.nativeRolesStore = nativeRolesStore;
+        // TODO: define a common interface for these and delegate from one place. nativeUserStore store is it's on cluster
         // state listener , but is also activated from this clusterChanged method
         clusterService.add(this);
-        clusterService.add(esUserStore);
-        clusterService.add(esRolesStore);
+        clusterService.add(nativeUserStore);
+        clusterService.add(nativeRolesStore);
         clusterService.add(new ShieldTemplateService(settings, clusterService, clientProvider, threadPool));
         clusterService.addLifecycleListener(new LifecycleListener() {
 
@@ -73,7 +73,7 @@ public class ShieldLifecycleService extends AbstractComponent implements Cluster
     public void clusterChanged(ClusterChangedEvent event) {
         final boolean master = event.localNodeMaster();
         try {
-            if (esUserStore.canStart(event.state(), master)) {
+            if (nativeUserStore.canStart(event.state(), master)) {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Throwable throwable) {
@@ -83,7 +83,7 @@ public class ShieldLifecycleService extends AbstractComponent implements Cluster
 
                     @Override
                     public void doRun() {
-                        esUserStore.start();
+                        nativeUserStore.start();
                     }
                 });
             }
@@ -92,7 +92,7 @@ public class ShieldLifecycleService extends AbstractComponent implements Cluster
         }
 
         try {
-            if (esRolesStore.canStart(event.state(), master)) {
+            if (nativeRolesStore.canStart(event.state(), master)) {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Throwable throwable) {
@@ -102,7 +102,7 @@ public class ShieldLifecycleService extends AbstractComponent implements Cluster
 
                     @Override
                     public void doRun() {
-                        esRolesStore.start();
+                        nativeRolesStore.start();
                     }
                 });
             }
@@ -137,12 +137,12 @@ public class ShieldLifecycleService extends AbstractComponent implements Cluster
 
     public void stop() {
         try {
-            esUserStore.stop();
+            nativeUserStore.stop();
         } catch (Exception e) {
             logger.error("failed to stop native user module", e);
         }
         try {
-            esRolesStore.stop();
+            nativeRolesStore.stop();
         } catch (Exception e) {
             logger.error("failed to stop native roles module", e);
         }

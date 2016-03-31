@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.esusers;
+package org.elasticsearch.shield.authc.file;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -16,6 +16,7 @@ import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.shield.support.Validation;
+import org.elasticsearch.shield.support.Validation.Users;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -59,7 +60,7 @@ public class FileUserPasswdStore {
         file = resolveFile(config.settings(), config.env());
         users = parseFileLenient(file, logger);
         if (users.isEmpty() && logger.isDebugEnabled()) {
-            logger.debug("realm [esusers] has no users");
+            logger.debug("realm [file] has no users");
         }
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
@@ -117,7 +118,7 @@ public class FileUserPasswdStore {
     }
 
     /**
-     * parses the esusers file. Should never return {@code null}, if the file doesn't exist an
+     * parses the users file. Should never return {@code null}, if the file doesn't exist an
      * empty map is returned
      */
     public static Map<String, char[]> parseFile(Path path, @Nullable ESLogger logger) {
@@ -155,7 +156,7 @@ public class FileUserPasswdStore {
                 continue;
             }
             String username = line.substring(0, i);
-            Validation.Error validationError = Validation.ESUsers.validateUsername(username);
+            Validation.Error validationError = Users.validateUsername(username);
             if (validationError != null) {
                 logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(),
                         validationError);
@@ -166,7 +167,7 @@ public class FileUserPasswdStore {
         }
 
         if (users.isEmpty()) {
-            logger.warn("no users found in users file [{}]. use bin/xpack/esusers to add users and role mappings", path.toAbsolutePath());
+            logger.warn("no users found in users file [{}]. use bin/x-pack/users to add users and role mappings", path.toAbsolutePath());
         }
         return unmodifiableMap(users);
     }

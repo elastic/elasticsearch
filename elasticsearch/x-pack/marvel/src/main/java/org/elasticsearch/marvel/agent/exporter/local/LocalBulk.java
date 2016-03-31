@@ -20,34 +20,36 @@ import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- *
+ * LocalBulk exports monitoring data in the local cluster using bulk requests. Its usage is not thread safe since the
+ * {@link LocalBulk#add(Collection)},  {@link LocalBulk#flush()} and  {@link LocalBulk#onClose()} methods are not synchronized.
  */
 public class LocalBulk extends ExportBulk {
 
     private final ESLogger logger;
     private final MonitoringClientProxy client;
     private final ResolversRegistry resolvers;
+    private final AtomicBoolean closed;
 
-    BulkRequestBuilder requestBuilder;
-    AtomicReference<State> state = new AtomicReference<>();
+    private BulkRequestBuilder requestBuilder;
+
 
     public LocalBulk(String name, ESLogger logger, MonitoringClientProxy client, ResolversRegistry resolvers) {
         super(name);
         this.logger = logger;
         this.client = client;
         this.resolvers = resolvers;
-        state.set(State.ACTIVE);
+        this.closed = new AtomicBoolean(false);
     }
 
     @Override
-    public synchronized ExportBulk add(Collection<MonitoringDoc> docs) throws ExportException {
+    public ExportBulk add(Collection<MonitoringDoc> docs) throws ExportException {
         ExportException exception = null;
 
         for (MonitoringDoc doc : docs) {
-            if (state.get() != State.ACTIVE) {
+            if (closed.get()) {
                 return this;
             }
             if (requestBuilder == null) {
@@ -68,7 +70,7 @@ public class LocalBulk extends ExportBulk {
                 if (exception == null) {
                     exception = new ExportException("failed to add documents to export bulk [{}]", name);
                 }
-                exception.addExportException(new ExportException("failed to add document [{}]", e,  doc, name));
+                exception.addExportException(new ExportException("failed to add document [{}]", e, doc, name));
             }
         }
 
@@ -81,7 +83,7 @@ public class LocalBulk extends ExportBulk {
 
     @Override
     public void flush() throws ExportException {
-        if (state.get() != State.ACTIVE || requestBuilder == null || requestBuilder.numberOfActions() == 0) {
+        if (closed.get() || requestBuilder == null || requestBuilder.numberOfActions() == 0) {
             return;
         }
         try {
@@ -111,17 +113,10 @@ public class LocalBulk extends ExportBulk {
         }
     }
 
-    void terminate() {
-        state.set(State.TERMINATING);
-        synchronized (this) {
+    @Override
+    protected void onClose() throws Exception {
+        if (closed.compareAndSet(false, true)) {
             requestBuilder = null;
-            state.compareAndSet(State.TERMINATING, State.TERMINATED);
         }
-    }
-
-    enum State {
-        ACTIVE,
-        TERMINATING,
-        TERMINATED
     }
 }

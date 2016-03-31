@@ -19,7 +19,7 @@ import org.elasticsearch.shield.ShieldTemplateService;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.RoleDescriptor;
-import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
+import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -65,7 +65,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         ensureGreen(ShieldTemplateService.SECURITY_INDEX_NAME);
 
         // warm up the caches on every node
-        for (ESNativeRolesStore rolesStore : internalCluster().getInstances(ESNativeRolesStore.class)) {
+        for (NativeRolesStore rolesStore : internalCluster().getInstances(NativeRolesStore.class)) {
             for (String role : roles) {
                 assertThat(rolesStore.role(role), notNullValue());
             }
@@ -112,7 +112,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         final boolean refresh = randomBoolean();
         for (String role : toModify) {
             UpdateResponse response = internalClient().prepareUpdate().setId(role).setIndex(ShieldTemplateService.SECURITY_INDEX_NAME)
-                    .setType(ESNativeRolesStore.ROLE_DOC_TYPE)
+                    .setType(NativeRolesStore.ROLE_DOC_TYPE)
                     .setDoc("run_as", new String[] { role })
                     .setRefresh(refresh)
                     .get();
@@ -156,7 +156,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         logger.debug("--> deleting role [{}]", role);
         final boolean refresh = randomBoolean();
         DeleteResponse response = internalClient()
-                .prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME, ESNativeRolesStore.ROLE_DOC_TYPE, role)
+                .prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME, NativeRolesStore.ROLE_DOC_TYPE, role)
                 .setRefresh(refresh)
                 .get();
         assertThat(response.isFound(), is(true));

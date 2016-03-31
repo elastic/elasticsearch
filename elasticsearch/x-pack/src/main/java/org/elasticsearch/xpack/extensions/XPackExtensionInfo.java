@@ -15,7 +15,7 @@ import java.nio.file.Path;
 import java.util.Properties;
 
 public class XPackExtensionInfo {
-    public static final String XPACK_EXTENSION_PROPERTIES = "xpack-extension-descriptor.properties";
+    public static final String XPACK_EXTENSION_PROPERTIES = "x-pack-extension-descriptor.properties";
 
     private String name;
     private String description;

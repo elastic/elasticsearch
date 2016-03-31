@@ -53,7 +53,7 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
             assertThat(nodeStatsMarvelDoc.getSourceNode(), notNullValue());
 
             assertThat(nodeStatsMarvelDoc.getNodeId(),
-                    equalTo(internalCluster().getInstance(ClusterService.class, node).localNode().id()));
+                    equalTo(internalCluster().getInstance(ClusterService.class, node).localNode().getId()));
             assertThat(nodeStatsMarvelDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
             assertThat(nodeStatsMarvelDoc.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
             assertNotNull(nodeStatsMarvelDoc.isDiskThresholdDeciderEnabled());

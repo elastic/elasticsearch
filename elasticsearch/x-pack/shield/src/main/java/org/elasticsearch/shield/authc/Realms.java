@@ -10,8 +10,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 
 import java.util.ArrayList;
@@ -135,11 +135,11 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     }
 
     /**
-     * returns the settings for the internal realm of the given type. Typically, internal realms may or may
-     * not be configured. If they are not configured, they work OOTB using default settings. If they are
-     * configured, there can only be one configured for an internal realm.
+     * returns the settings for the {@link FileRealm}. Typically, this realms may or may
+     * not be configured. If it is not configured, it will work OOTB using default settings. If it is
+     * configured, there can only be one configured instance.
      */
-    public static Settings internalRealmSettings(Settings settings, String realmType) {
+    public static Settings fileRealmSettings(Settings settings) {
         Settings realmsSettings = settings.getAsSettings("shield.authc.realms");
         Settings result = null;
         for (String name : realmsSettings.names()) {
@@ -148,10 +148,10 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             if (type == null) {
                 throw new IllegalArgumentException("missing realm type for [" + name + "] realm");
             }
-            if (type.equals(realmType)) {
+            if (FileRealm.TYPE.equals(type)) {
                 if (result != null) {
-                    throw new IllegalArgumentException("multiple [" + realmType + "] realms are configured. only one [" + realmType +
-                            "] may be configured");
+                    throw new IllegalArgumentException("multiple [" + FileRealm.TYPE +
+                            "]realms are configured. only one may be configured");
                 }
                 result = realmSettings;
             }
@@ -160,13 +160,13 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     }
 
     private void addInternalRealms(List<Realm> realms) {
-        Realm.Factory indexRealmFactory = factories.get(ESNativeRealm.TYPE);
+        Realm.Factory indexRealmFactory = factories.get(NativeRealm.TYPE);
         if (indexRealmFactory != null) {
-            realms.add(indexRealmFactory.createDefault("default_" + ESNativeRealm.TYPE));
+            realms.add(indexRealmFactory.createDefault("default_" + NativeRealm.TYPE));
         }
-        Realm.Factory esUsersRealm = factories.get(ESUsersRealm.TYPE);
+        Realm.Factory esUsersRealm = factories.get(FileRealm.TYPE);
         if (esUsersRealm != null) {
-            realms.add(esUsersRealm.createDefault("default_" + ESUsersRealm.TYPE));
+            realms.add(esUsersRealm.createDefault("default_" + FileRealm.TYPE));
         }
     }
 }

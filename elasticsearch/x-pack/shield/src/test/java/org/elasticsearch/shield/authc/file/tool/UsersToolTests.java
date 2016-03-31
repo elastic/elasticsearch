@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.esusers.tool;
+package org.elasticsearch.shield.authc.file.tool;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,11 +28,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-public class ESUsersToolTests extends CommandTestCase {
+public class UsersToolTests extends CommandTestCase {
 
     // the mock filesystem we use so permissions/users/groups can be modified
     static FileSystem jimfs;
@@ -56,7 +57,7 @@ public class ESUsersToolTests extends CommandTestCase {
     public void setupHome() throws IOException {
         Path homeDir = jimfs.getPath("eshome");
         IOUtils.rm(homeDir);
-        confDir = homeDir.resolve("config").resolve("xpack");
+        confDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(confDir);
         Files.write(confDir.resolve("users"), Arrays.asList(
             "existing_user:" + new String(Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray()))),
@@ -77,7 +78,7 @@ public class ESUsersToolTests extends CommandTestCase {
         ), StandardCharsets.UTF_8);
         settingsBuilder = Settings.builder()
             .put("path.home", homeDir)
-            .put("shield.authc.realms.esusers.type", "esusers");
+            .put("shield.authc.realms.file.type", "file");
     }
 
     @AfterClass
@@ -89,7 +90,7 @@ public class ESUsersToolTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        return new ESUsersTool(new Environment(settingsBuilder.build()));
+        return new UsersTool(new Environment(settingsBuilder.build()));
     }
 
     /** checks the user exists with the given password */
@@ -166,7 +167,7 @@ public class ESUsersToolTests extends CommandTestCase {
 
     public void testParseInvalidUsername() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            ESUsersTool.parseUsername(Collections.singletonList("$34dkl"));
+            UsersTool.parseUsername(Collections.singletonList("$34dkl"));
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid username"));
@@ -174,7 +175,7 @@ public class ESUsersToolTests extends CommandTestCase {
 
     public void testParseUsernameMissing() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-           ESUsersTool.parseUsername(Collections.emptyList());
+           UsersTool.parseUsername(Collections.emptyList());
         });
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Missing username argument"));
@@ -182,7 +183,7 @@ public class ESUsersToolTests extends CommandTestCase {
 
     public void testParseUsernameExtraArgs() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            ESUsersTool.parseUsername(Arrays.asList("username", "extra"));
+            UsersTool.parseUsername(Arrays.asList("username", "extra"));
         });
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Expected a single username argument"));
@@ -190,7 +191,7 @@ public class ESUsersToolTests extends CommandTestCase {
 
     public void testParseInvalidPasswordOption() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            ESUsersTool.parsePassword(terminal, "123");
+            UsersTool.parsePassword(terminal, "123");
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid password"));
@@ -199,7 +200,7 @@ public class ESUsersToolTests extends CommandTestCase {
     public void testParseInvalidPasswordInput() throws Exception {
         terminal.addSecretInput("123");
         UserError e = expectThrows(UserError.class, () -> {
-            ESUsersTool.parsePassword(terminal, null);
+            UsersTool.parsePassword(terminal, null);
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid password"));
@@ -209,28 +210,28 @@ public class ESUsersToolTests extends CommandTestCase {
         terminal.addSecretInput("password1");
         terminal.addSecretInput("password2");
         UserError e = expectThrows(UserError.class, () -> {
-            ESUsersTool.parsePassword(terminal, null);
+            UsersTool.parsePassword(terminal, null);
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Password mismatch"));
     }
 
     public void testParseUnknownRole() throws Exception {
-        ESUsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "test_r1,r2,r3");
+        UsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "test_r1,r2,r3");
         String output = terminal.getOutput();
         assertTrue(output, output.contains("The following roles [r2,r3] are unknown"));
     }
 
     public void testParseInvalidRole() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            ESUsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "$345");
+            UsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "$345");
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid role [$345]"));
     }
 
     public void testParseMultipleRoles() throws Exception {
-        String[] roles = ESUsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "test_r1,test_r2");
+        String[] roles = UsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "test_r1,test_r2");
         assertEquals(Objects.toString(roles), 2, roles.length);
         assertEquals("test_r1", roles[0]);
         assertEquals("test_r2", roles[1]);

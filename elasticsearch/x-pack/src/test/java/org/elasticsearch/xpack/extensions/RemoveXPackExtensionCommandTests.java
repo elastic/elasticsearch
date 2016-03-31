@@ -30,7 +30,7 @@ public class RemoveXPackExtensionCommandTests extends ESTestCase {
     }
 
     Path createExtensionDir(Environment env) throws IOException {
-        Path path = env.pluginsFile().resolve("xpack").resolve("extensions");
+        Path path = env.pluginsFile().resolve("x-pack").resolve("extensions");
         return Files.createDirectories(path);
     }
 

@@ -9,7 +9,7 @@ SYNOPSIS
 DESCRIPTION
 
     Generates the system key and stores in the system_key file. By default
-    it will be stored in 'config/xpack/system_key' file. If the file location
+    it will be stored in 'config/x-pack/system_key' file. If the file location
     is customized in the elasticsearch.yml (under the 'shield.system_key.file'
     setting), the generated key will be stored in that custom location.
 

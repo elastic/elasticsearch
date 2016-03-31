@@ -7,25 +7,22 @@ package org.elasticsearch.marvel.agent.exporter.local;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
@@ -39,6 +36,7 @@ import org.joda.time.DateTimeZone;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -56,8 +54,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private final ResolversRegistry resolvers;
     private final CleanerService cleanerService;
 
-    private volatile LocalBulk bulk;
-    private volatile boolean active = true;
+    private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
 
     /** Version number of built-in templates **/
     private final Integer templateVersion;
@@ -76,13 +73,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
 
         resolvers = new ResolversRegistry(config.settings());
-        bulk = resolveBulk(clusterService.state(), bulk);
         clusterService.add(this);
         cleanerService.add(this);
-    }
-
-    LocalBulk getBulk() {
-        return bulk;
     }
 
     ResolversRegistry getResolvers() {
@@ -91,51 +83,31 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        LocalBulk currentBulk = bulk;
-        LocalBulk newBulk = resolveBulk(event.state(), currentBulk);
-
-        // yes, this method will always be called by the cluster event loop thread
-        // but we need to sync with the {@code #close()} mechanism
-        synchronized (this) {
-            if (active) {
-                bulk = newBulk;
-            } else if (newBulk != null) {
-                newBulk.terminate();
-            }
-            if (currentBulk == null && bulk != null) {
-                logger.debug("local exporter [{}] - started!", name());
-            }
-            if (bulk != currentBulk && currentBulk != null) {
-                logger.debug("local exporter [{}] - stopped!", name());
-                currentBulk.terminate();
-            }
+        if (state.get() == State.INITIALIZED) {
+            resolveBulk(event.state());
         }
     }
 
     @Override
     public ExportBulk openBulk() {
-        return bulk;
+        if (state.get() !=  State.RUNNING) {
+            return null;
+        }
+        return resolveBulk(clusterService.state());
     }
 
-    // requires synchronization due to cluster state update events (see above)
     @Override
-    public synchronized void close() {
-        active = false;
-        clusterService.remove(this);
-        cleanerService.remove(this);
-        if (bulk != null) {
-            try {
-                bulk.terminate();
-                bulk = null;
-            } catch (Exception e) {
-                logger.error("local exporter [{}] - failed to cleanly close bulk", e, name());
-            }
+    public void doClose() {
+        if (state.getAndSet(State.TERMINATED) != State.TERMINATED) {
+            logger.debug("local exporter [{}] - stopped", name());
+            clusterService.remove(this);
+            cleanerService.remove(this);
         }
     }
 
-    LocalBulk resolveBulk(ClusterState clusterState, LocalBulk currentBulk) {
+    LocalBulk resolveBulk(ClusterState clusterState) {
         if (clusterService.localNode() == null || clusterState == null) {
-            return currentBulk;
+            return null;
         }
 
         if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -151,47 +123,52 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         // if this is not the master, we'll just look to see if the monitoring timestamped template is already
         // installed and if so, if it has a compatible version. If it is (installed and compatible)
         // we'll be able to start this exporter. Otherwise, we'll just wait for a new cluster state.
-        if (!clusterService.localNode().masterNode()) {
+        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
             // We only need to check the index template for timestamped indices
-            if (!templateInstalled) {
+            if (templateInstalled == false) {
                 // the template for timestamped indices is not yet installed in the given cluster state, we'll wait.
                 logger.debug("local exporter [{}] - monitoring index template does not exist, so service cannot start", name());
                 return null;
             }
 
-            // ok.. we have a compatible template... we can start
+            logger.debug("local exporter [{}] - monitoring index template found, service can start", name());
+
+        } else {
+
+            // we are on master
+            //
+            // Check that there is nothing that could block metadata updates
+            if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
+                logger.debug("local exporter [{}] - waiting until metadata writes are unblocked", name());
+                return null;
+            }
+
+            // Install the index template for timestamped indices first, so that other nodes can ship data
+            if (templateInstalled == false) {
+                logger.debug("local exporter [{}] - could not find existing monitoring template for timestamped indices, " +
+                        "installing a new one", name());
+                putTemplate(templateName, MarvelTemplateUtils.loadTimestampedIndexTemplate());
+                // we'll get that template on the next cluster state update
+                return null;
+            }
+
+            // Install the index template for data index
+            templateName = MarvelTemplateUtils.dataTemplateName(templateVersion);
+            if (hasTemplate(templateName, clusterState) == false) {
+                logger.debug("local exporter [{}] - could not find existing monitoring template for data index, " +
+                        "installing a new one", name());
+                putTemplate(templateName, MarvelTemplateUtils.loadDataIndexTemplate());
+                // we'll get that template on the next cluster state update
+                return null;
+            }
+
+            logger.debug("local exporter [{}] - monitoring index template found on master node, service can start", name());
+        }
+
+        if (state.compareAndSet(State.INITIALIZED, State.RUNNING)) {
             logger.debug("local exporter [{}] - started!", name());
-            return currentBulk != null ? currentBulk : new LocalBulk(name(), logger, client, resolvers);
         }
-
-        // we are on master
-        //
-        // Check that there is nothing that could block metadata updates
-        if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
-            logger.debug("local exporter [{}] - waiting until metadata writes are unblocked", name());
-            return null;
-        }
-
-        // Install the index template for timestamped indices first, so that other nodes can ship data
-        if (!templateInstalled) {
-            logger.debug("local exporter [{}] - could not find existing monitoring template for timestamped indices, installing a new one",
-                    name());
-            putTemplate(templateName, MarvelTemplateUtils.loadTimestampedIndexTemplate());
-            // we'll get that template on the next cluster state update
-            return null;
-        }
-
-        // Install the index template for data index
-        templateName = MarvelTemplateUtils.dataTemplateName(templateVersion);
-        if (!hasTemplate(templateName, clusterState)) {
-            logger.debug("local exporter [{}] - could not find existing monitoring template for data index, installing a new one", name());
-            putTemplate(templateName, MarvelTemplateUtils.loadDataIndexTemplate());
-            // we'll get that template on the next cluster state update
-            return null;
-        }
-
-        // ok.. we have a compatible templates... we can start
-        return currentBulk != null ? currentBulk : new LocalBulk(name(), logger, client, resolvers);
+        return new LocalBulk(name(), logger, client, resolvers);
     }
 
     /**
@@ -248,12 +225,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     @Override
     public void onCleanUpIndices(TimeValue retention) {
-        if (bulk == null) {
+        if (state.get() != State.RUNNING) {
             logger.debug("local exporter [{}] - not ready yet", name());
             return;
         }
 
-        if (clusterService.localNode().masterNode()) {
+        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
             // Reference date time will be compared to index.creation_date settings,
             // that's why it must be in UTC
             DateTime expiration = new DateTime(DateTimeZone.UTC).minus(retention.millis());
@@ -347,5 +324,11 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         public LocalExporter create(Config config) {
             return new LocalExporter(config, client, clusterService, cleanerService);
         }
+    }
+
+    enum State {
+        INITIALIZED,
+        RUNNING,
+        TERMINATED
     }
 }

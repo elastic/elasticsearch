@@ -9,11 +9,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Collections;
 import org.elasticsearch.shield.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 
+import java.util.Collections;
+import java.util.Set;
+
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -104,5 +106,53 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(merge2.getFields(), nullValue());
         assertThat(merge2.isGranted(), is(true));
         assertThat(merge1.getQueries(), nullValue());
+    }
+
+    public void testMergeNotGrantedAndGranted() {
+        final Set<String> notGrantedFields = randomFrom(null, Collections.<String>emptySet(), Collections.singleton("baz"));
+        final Set<BytesReference> notGrantedQueries = randomFrom(null, Collections.<BytesReference>emptySet(),
+                Collections.<BytesReference>singleton(new BytesArray(new byte[] { randomByte() })));
+        final IndexAccessControl indexAccessControl = new IndexAccessControl(false, notGrantedFields, notGrantedQueries);
+
+        final BytesReference query1 = new BytesArray(new byte[] { 0x1 });
+        final Set<String> fields =
+                randomFrom(null, Collections.singleton("foo"), Sets.newHashSet("foo", "bar"), Collections.<String>emptySet());
+        final Set<BytesReference> queries =
+                randomFrom(null, Collections.singleton(query1), Collections.<BytesReference>emptySet());
+        final IndexAccessControl other = new IndexAccessControl(true, fields, queries);
+
+        IndexAccessControl merged = indexAccessControl.merge(other);
+        assertThat(merged.isGranted(), is(true));
+        assertThat(merged.getFields(), equalTo(fields));
+        assertThat(merged.getQueries(), equalTo(queries));
+
+        merged = other.merge(indexAccessControl);
+        assertThat(merged.isGranted(), is(true));
+        assertThat(merged.getFields(), equalTo(fields));
+        assertThat(merged.getQueries(), equalTo(queries));
+    }
+
+    public void testMergeNotGranted() {
+        final Set<String> notGrantedFields = randomFrom(null, Collections.<String>emptySet(), Collections.singleton("baz"));
+        final Set<BytesReference> notGrantedQueries = randomFrom(null, Collections.<BytesReference>emptySet(),
+                Collections.<BytesReference>singleton(new BytesArray(new byte[] { randomByte() })));
+        final IndexAccessControl indexAccessControl = new IndexAccessControl(false, notGrantedFields, notGrantedQueries);
+
+        final BytesReference query1 = new BytesArray(new byte[] { 0x1 });
+        final Set<String> fields =
+                randomFrom(null, Collections.singleton("foo"), Sets.newHashSet("foo", "bar"), Collections.<String>emptySet());
+        final Set<BytesReference> queries =
+                randomFrom(null, Collections.singleton(query1), Collections.<BytesReference>emptySet());
+        final IndexAccessControl other = new IndexAccessControl(false, fields, queries);
+
+        IndexAccessControl merged = indexAccessControl.merge(other);
+        assertThat(merged.isGranted(), is(false));
+        assertThat(merged.getFields(), equalTo(notGrantedFields));
+        assertThat(merged.getQueries(), equalTo(notGrantedQueries));
+
+        merged = other.merge(indexAccessControl);
+        assertThat(merged.isGranted(), is(false));
+        assertThat(merged.getFields(), equalTo(fields));
+        assertThat(merged.getQueries(), equalTo(queries));
     }
 }

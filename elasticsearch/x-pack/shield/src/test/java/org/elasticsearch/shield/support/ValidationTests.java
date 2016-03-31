@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.support;
 
+import org.elasticsearch.shield.support.Validation.Users;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -49,7 +50,7 @@ public class ValidationTests extends ESTestCase {
     public void testESUsersValidateUsername() throws Exception {
         int length = randomIntBetween(1, 30);
         String name = new String(generateValidName(length));
-        assertThat(Validation.ESUsers.validateUsername(name), nullValue());
+        assertThat(Users.validateUsername(name), nullValue());
     }
 
     public void testESUsersValidateUsernameInvalidLength() throws Exception {
@@ -58,22 +59,22 @@ public class ValidationTests extends ESTestCase {
         if (length > 0) {
             name = generateValidName(length);
         }
-        assertThat(Validation.ESUsers.validateUsername(new String(name)), notNullValue());
+        assertThat(Users.validateUsername(new String(name)), notNullValue());
     }
 
     public void testESUsersValidateUsernameInvalidCharacters() throws Exception {
         int length = randomIntBetween(1, 30); // valid length
         String name = new String(generateInvalidName(length));
-        assertThat(Validation.ESUsers.validateUsername(name), notNullValue());
+        assertThat(Users.validateUsername(name), notNullValue());
     }
 
     public void testESUsersValidatePassword() throws Exception {
         String passwd = randomAsciiOfLength(randomIntBetween(0, 20));
         logger.info("{}[{}]", passwd, passwd.length());
         if (passwd.length() >= 6) {
-            assertThat(Validation.ESUsers.validatePassword(passwd.toCharArray()), nullValue());
+            assertThat(Users.validatePassword(passwd.toCharArray()), nullValue());
         } else {
-            assertThat(Validation.ESUsers.validatePassword(passwd.toCharArray()), notNullValue());
+            assertThat(Users.validatePassword(passwd.toCharArray()), notNullValue());
         }
     }
 
@@ -89,13 +90,13 @@ public class ValidationTests extends ESTestCase {
         if (length > 0) {
             name = generateValidName(length);
         }
-        assertThat(Validation.ESUsers.validateUsername(new String(name)), notNullValue());
+        assertThat(Users.validateUsername(new String(name)), notNullValue());
     }
 
     public void testRolesValidateRoleNameInvalidCharacters() throws Exception {
         int length = randomIntBetween(1, 30); // valid length
         String name = new String(generateInvalidName(length));
-        assertThat(Validation.ESUsers.validateUsername(name), notNullValue());
+        assertThat(Users.validateUsername(name), notNullValue());
     }
 
     private static char[] generateValidName(int length) {

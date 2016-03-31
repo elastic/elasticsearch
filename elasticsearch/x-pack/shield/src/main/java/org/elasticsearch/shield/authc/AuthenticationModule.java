@@ -8,8 +8,8 @@ package org.elasticsearch.shield.authc;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
-import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
 import org.elasticsearch.shield.support.AbstractShieldModule;
@@ -25,11 +25,11 @@ import java.util.Map.Entry;
  */
 public class AuthenticationModule extends AbstractShieldModule.Node {
 
-    static final List<String> INTERNAL_REALM_TYPES = Arrays.asList(ESUsersRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE,
-            PkiRealm.TYPE);
+    static final List<String> INTERNAL_REALM_TYPES =
+            Arrays.asList(NativeRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
 
-    private final Map<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> customRealms = new
-            HashMap<>();
+    private final Map<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> customRealms =
+            new HashMap<>();
 
     private Class<? extends AuthenticationFailureHandler> authcFailureHandler = null;
 
@@ -40,8 +40,8 @@ public class AuthenticationModule extends AbstractShieldModule.Node {
     @Override
     protected void configureNode() {
         MapBinder<String, Realm.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Realm.Factory.class);
-        mapBinder.addBinding(ESUsersRealm.TYPE).to(ESUsersRealm.Factory.class).asEagerSingleton();
-        mapBinder.addBinding(ESNativeRealm.TYPE).to(ESNativeRealm.Factory.class).asEagerSingleton();
+        mapBinder.addBinding(FileRealm.TYPE).to(FileRealm.Factory.class).asEagerSingleton();
+        mapBinder.addBinding(NativeRealm.TYPE).to(NativeRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(ActiveDirectoryRealm.TYPE).to(ActiveDirectoryRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(LdapRealm.TYPE).to(LdapRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(PkiRealm.TYPE).to(PkiRealm.Factory.class).asEagerSingleton();

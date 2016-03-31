@@ -9,8 +9,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authc.esnative.ESNativeRealm;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -42,8 +42,8 @@ public class RealmsTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         factories = new HashMap<>();
-        factories.put(ESUsersRealm.TYPE, new DummyRealm.Factory(ESUsersRealm.TYPE, true));
-        factories.put(ESNativeRealm.TYPE, new DummyRealm.Factory(ESNativeRealm.TYPE, true));
+        factories.put(FileRealm.TYPE, new DummyRealm.Factory(FileRealm.TYPE, true));
+        factories.put(NativeRealm.TYPE, new DummyRealm.Factory(NativeRealm.TYPE, true));
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             DummyRealm.Factory factory = new DummyRealm.Factory("type_" + i, rarely());
             factories.put("type_" + i, factory);
@@ -82,9 +82,9 @@ public class RealmsTests extends ESTestCase {
 
     public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
         Settings settings = Settings.builder()
-                .put("shield.authc.realms.realm_1.type", ESUsersRealm.TYPE)
+                .put("shield.authc.realms.realm_1.type", FileRealm.TYPE)
                 .put("shield.authc.realms.realm_1.order", 0)
-                .put("shield.authc.realms.realm_2.type", ESUsersRealm.TYPE)
+                .put("shield.authc.realms.realm_2.type", FileRealm.TYPE)
                 .put("shield.authc.realms.realm_2.order", 1)
                 .put("path.home", createTempDir())
                 .build();
@@ -93,7 +93,7 @@ public class RealmsTests extends ESTestCase {
             new Realms(settings, env, factories, shieldLicenseState).start();
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("multiple [esusers] realms are configured"));
+            assertThat(e.getMessage(), containsString("multiple [file] realms are configured"));
         }
     }
 
@@ -105,12 +105,12 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
         assertThat(realm, notNullValue());
-        assertThat(realm.type(), equalTo(ESNativeRealm.TYPE));
-        assertThat(realm.name(), equalTo("default_" + ESNativeRealm.TYPE));
+        assertThat(realm.type(), equalTo(NativeRealm.TYPE));
+        assertThat(realm.name(), equalTo("default_" + NativeRealm.TYPE));
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
-        assertThat(realm.type(), equalTo(ESUsersRealm.TYPE));
-        assertThat(realm.name(), equalTo("default_" + ESUsersRealm.TYPE));
+        assertThat(realm.type(), equalTo(FileRealm.TYPE));
+        assertThat(realm.name(), equalTo("default_" + FileRealm.TYPE));
         assertThat(iter.hasNext(), is(false));
     }
 
@@ -145,7 +145,7 @@ public class RealmsTests extends ESTestCase {
         i = 0;
         when(shieldLicenseState.customRealmsEnabled()).thenReturn(false);
         for (Realm realm : realms) {
-            assertThat(realm.type, isOneOf(ESUsersRealm.TYPE, ESNativeRealm.TYPE));
+            assertThat(realm.type, isOneOf(FileRealm.TYPE, NativeRealm.TYPE));
             i++;
         }
         assertThat(i, is(2));
@@ -213,12 +213,12 @@ public class RealmsTests extends ESTestCase {
             Integer index = orderToIndex.get(realm.order());
             if (index == null) {
                 // Default realms are inserted when factories size is 1 and enabled is false
-                assertThat(realm.type(), equalTo(ESNativeRealm.TYPE));
-                assertThat(realm.name(), equalTo("default_" + ESNativeRealm.TYPE));
+                assertThat(realm.type(), equalTo(NativeRealm.TYPE));
+                assertThat(realm.name(), equalTo("default_" + NativeRealm.TYPE));
                 assertThat(iterator.hasNext(), is(true));
                 realm = iterator.next();
-                assertThat(realm.type(), equalTo(ESUsersRealm.TYPE));
-                assertThat(realm.name(), equalTo("default_" + ESUsersRealm.TYPE));
+                assertThat(realm.type(), equalTo(FileRealm.TYPE));
+                assertThat(realm.name(), equalTo("default_" + FileRealm.TYPE));
                 assertThat(iterator.hasNext(), is(false));
             } else {
                 assertThat(realm.type(), equalTo("type_" + index));
@@ -275,7 +275,7 @@ public class RealmsTests extends ESTestCase {
 
             @Override
             public DummyRealm createDefault(String name) {
-                if (type().equals(ESNativeRealm.TYPE) || type().equals(ESUsersRealm.TYPE)) {
+                if (type().equals(NativeRealm.TYPE) || type().equals(FileRealm.TYPE)) {
                     return new DummyRealm(type(), new RealmConfig(name, Settings.EMPTY,
                             Settings.builder().put("path.home", createTempDir()).build()));
                 }

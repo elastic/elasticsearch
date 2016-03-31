@@ -25,7 +25,7 @@ import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -68,14 +70,32 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     public static final String MONITORING_INDICES_PREFIX = MonitoringIndexNameResolver.PREFIX + MonitoringIndexNameResolver.DELIMITER;
 
+    /**
+     * Enables individual tests to control the behavior.
+     * <p>
+     * Control this by overriding {@link #enableShield()}, which defaults to enabling it randomly.
+     */
+    // SCARY: This needs to be static or lots of tests randomly fail, but it's not used statically!
     protected static Boolean shieldEnabled;
+    /**
+     * Enables individual tests to control the behavior.
+     * <p>
+     * Control this by overriding {@link #enableWatcher()}, which defaults to disabling it (this will change!).
+     */
+    protected Boolean watcherEnabled;
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (shieldEnabled == null) {
             shieldEnabled = enableShield();
         }
-        logger.info("--> shield {}", shieldEnabled ? "enabled" : "disabled");
+        if (watcherEnabled == null) {
+            watcherEnabled = enableWatcher();
+        }
+
+        logger.debug("--> shield {}", shieldEnabled ? "enabled" : "disabled");
+        logger.debug("--> watcher {}", watcherEnabled ? "enabled" : "disabled");
+
         return super.buildTestCluster(scope, seed);
     }
 
@@ -83,9 +103,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-
-                //TODO: for now lets isolate monitoring tests from watcher (randomize this later)
-                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), watcherEnabled)
                 // we do this by default in core, but for monitoring this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 
@@ -150,11 +168,32 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         return templates;
     }
 
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        startCollection();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        stopCollection();
+        super.tearDown();
+    }
+
     /**
-     * Override and returns {@code false} to force running without shield
+     * Override and return {@code false} to force running without Security.
      */
     protected boolean enableShield() {
         return randomBoolean();
+    }
+
+    /**
+     * Override and return {@code false} to force running without Watcher.
+     */
+    protected boolean enableWatcher() {
+        // Once randomDefault() becomes the default again, then this should only be actively disabled when
+        // trying to figure out exactly how many indices are at play
+        return false;
     }
 
     protected void stopCollection() {
@@ -340,6 +379,15 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
      * it recurses to check if 'bar' exists in the sub-map.
      */
     protected void assertContains(String field, Map<String, Object> values) {
+        assertContains(field, values, null);
+    }
+
+    /**
+     * Checks if a field exist in a map of values. If the field contains a dot like 'foo.bar'
+     * it checks that 'foo' exists in the map of values and that it points to a sub-map. Then
+     * it recurses to check if 'bar' exists in the sub-map.
+     */
+    protected void assertContains(String field, Map<String, Object> values, String parent) {
         assertNotNull("field name should not be null", field);
         assertNotNull("values map should not be null", values);
 
@@ -351,19 +399,28 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             assertTrue(Strings.hasText(segment));
 
             boolean fieldExists = values.containsKey(segment);
-            assertTrue("expecting field [" + segment + "] to be present in monitoring document", fieldExists);
+            assertTrue("expecting field [" + rebuildName(parent, segment) + "] to be present in monitoring document", fieldExists);
 
             Object value = values.get(segment);
             String next = field.substring(point + 1);
             if (next.length() > 0) {
                 assertTrue(value instanceof Map);
-                assertContains(next, (Map<String, Object>) value);
+                assertContains(next, (Map<String, Object>) value, rebuildName(parent, segment));
             } else {
                 assertFalse(value instanceof Map);
             }
         } else {
-            assertTrue("expecting field [" + field + "] to be present in monitoring document", values.containsKey(field));
+            assertTrue("expecting field [" + rebuildName(parent, field) + "] to be present in monitoring document",
+                       values.containsKey(field));
         }
+    }
+
+    private String rebuildName(String parent, String field) {
+        if (Strings.isEmpty(parent)) {
+            return field;
+        }
+
+        return parent + "." + field;
     }
 
     protected void updateMarvelInterval(long value, TimeUnit timeUnit) {
@@ -469,10 +526,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 Files.createDirectories(folder);
 
                 builder.put("shield.enabled", true)
-                        .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
-                        .put("shield.authc.realms.esusers.order", 0)
-                        .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
-                        .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
+                        .put("shield.authc.realms.file.type", FileRealm.TYPE)
+                        .put("shield.authc.realms.file.order", 0)
+                        .put("shield.authc.realms.file.files.users", writeFile(folder, "users", USERS))
+                        .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
                         .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
                         .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
                         .put("shield.authc.sign_user_header", false)

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authz.esnative;
+package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -74,7 +74,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  *
  * No caching is done by this class, it is handled at a higher level
  */
-public class ESNativeRolesStore extends AbstractComponent implements RolesStore, ClusterStateListener {
+public class NativeRolesStore extends AbstractComponent implements RolesStore, ClusterStateListener {
 
     public enum State {
         INITIALIZED,
@@ -101,14 +101,14 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
     private volatile boolean shieldIndexExists = false;
 
     @Inject
-    public ESNativeRolesStore(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool) {
+    public NativeRolesStore(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool) {
         super(settings);
         this.clientProvider = clientProvider;
         this.threadPool = threadPool;
     }
 
     public boolean canStart(ClusterState clusterState, boolean master) {
-        if (state() != ESNativeRolesStore.State.INITIALIZED) {
+        if (state() != NativeRolesStore.State.INITIALIZED) {
             return false;
         }
 
@@ -489,7 +489,7 @@ public class ESNativeRolesStore extends AbstractComponent implements RolesStore,
 
             // hold a reference to the client since the poller may run after the class is stopped (we don't interrupt it running) and
             // we reset when we test which sets the client to null...
-            final Client client = ESNativeRolesStore.this.client;
+            final Client client = NativeRolesStore.this.client;
 
             logger.trace("starting polling of roles index to check for changes");
             SearchResponse response = null;

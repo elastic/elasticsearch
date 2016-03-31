@@ -11,17 +11,17 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
+import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteUserAction extends HandledTransportAction<DeleteUserRequest, DeleteUserResponse> {
 
-    private final ESNativeUsersStore usersStore;
+    private final NativeUsersStore usersStore;
 
     @Inject
     public TransportDeleteUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, ESNativeUsersStore usersStore,
+                                     IndexNameExpressionResolver indexNameExpressionResolver, NativeUsersStore usersStore,
                                      TransportService transportService) {
         super(settings, DeleteUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 DeleteUserRequest::new);

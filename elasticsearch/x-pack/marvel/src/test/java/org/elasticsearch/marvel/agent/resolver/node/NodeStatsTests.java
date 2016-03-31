@@ -11,13 +11,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
-import org.elasticsearch.marvel.agent.resolver.node.NodeStatsResolver;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.After;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -63,21 +63,44 @@ public class NodeStatsTests extends MarvelIntegTestCase {
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
-        String[] filters = NodeStatsResolver.FILTERS;
+
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.sourceAsMap();
 
-            for (String filter : filters) {
+            for (String filter : nodeStatsFilters(watcherEnabled)) {
                 if (Constants.WINDOWS) {
                     // load average is unavailable on Windows
                     if ("node_stats.os.cpu.load_average.1m".equals(filter)) {
                         continue;
                     }
                 }
+
                 assertContains(filter, fields);
             }
         }
 
         logger.debug("--> node stats successfully collected");
+    }
+
+    /**
+     * Optionally exclude {@link NodeStatsResolver#FILTERS} that require Watcher to be enabled.
+     *
+     * @param includeWatcher {@code true} to keep watcher filters.
+     * @return Never {@code null} or empty.
+     * @see #watcherEnabled
+     */
+    private static String[] nodeStatsFilters(boolean includeWatcher) {
+        if (includeWatcher) {
+            return NodeStatsResolver.FILTERS;
+        }
+
+        return Arrays.stream(NodeStatsResolver.FILTERS).filter(s -> s.contains("watcher") == false).toArray(String[]::new);
+    }
+
+    @Override
+    protected boolean enableWatcher() {
+        // currently this is the only Monitoring test that expects Watcher to be enabled.
+        // Once this becomes the default, then this should be removed.
+        return randomBoolean();
     }
 }

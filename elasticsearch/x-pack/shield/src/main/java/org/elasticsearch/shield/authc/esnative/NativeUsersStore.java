@@ -80,7 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * No caching is done by this class, it is handled at a higher level
  */
-public class ESNativeUsersStore extends AbstractComponent implements ClusterStateListener {
+public class NativeUsersStore extends AbstractComponent implements ClusterStateListener {
 
     public enum State {
         INITIALIZED,
@@ -111,7 +111,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
     private volatile boolean shieldIndexExists = false;
 
     @Inject
-    public ESNativeUsersStore(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool) {
+    public NativeUsersStore(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool) {
         super(settings);
         this.clientProvider = clientProvider;
         this.threadPool = threadPool;
@@ -605,7 +605,7 @@ public class ESNativeUsersStore extends AbstractComponent implements ClusterStat
 
             // hold a reference to the client since the poller may run after the class is stopped (we don't interrupt it running) and
             // we reset when we test which sets the client to null...
-            final Client client = ESNativeUsersStore.this.client;
+            final Client client = NativeUsersStore.this.client;
 
             logger.trace("starting polling of user index to check for changes");
             // create a copy of all known users

@@ -7,8 +7,8 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
-import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
+import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
+import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.shield.client.SecurityClient;
 import org.junit.After;
 import org.junit.Before;
@@ -23,20 +23,20 @@ public abstract class NativeRealmIntegTestCase extends ShieldIntegTestCase {
 
     @Before
     public void ensureNativeStoresStarted() throws Exception {
-        for (ESNativeUsersStore store : internalCluster().getInstances(ESNativeUsersStore.class)) {
+        for (NativeUsersStore store : internalCluster().getInstances(NativeUsersStore.class)) {
             assertBusy(new Runnable() {
                 @Override
                 public void run() {
-                    assertThat(store.state(), is(ESNativeUsersStore.State.STARTED));
+                    assertThat(store.state(), is(NativeUsersStore.State.STARTED));
                 }
             });
         }
 
-        for (ESNativeRolesStore store : internalCluster().getInstances(ESNativeRolesStore.class)) {
+        for (NativeRolesStore store : internalCluster().getInstances(NativeRolesStore.class)) {
             assertBusy(new Runnable() {
                 @Override
                 public void run() {
-                    assertThat(store.state(), is(ESNativeRolesStore.State.STARTED));
+                    assertThat(store.state(), is(NativeRolesStore.State.STARTED));
                 }
             });
         }
@@ -44,25 +44,25 @@ public abstract class NativeRealmIntegTestCase extends ShieldIntegTestCase {
 
     @After
     public void stopESNativeStores() throws Exception {
-        for (ESNativeUsersStore store : internalCluster().getInstances(ESNativeUsersStore.class)) {
+        for (NativeUsersStore store : internalCluster().getInstances(NativeUsersStore.class)) {
             store.stop();
             // the store may already be stopping so wait until it is stopped
             assertBusy(new Runnable() {
                 @Override
                 public void run() {
-                    assertThat(store.state(), isOneOf(ESNativeUsersStore.State.STOPPED, ESNativeUsersStore.State.FAILED));
+                    assertThat(store.state(), isOneOf(NativeUsersStore.State.STOPPED, NativeUsersStore.State.FAILED));
                 }
             });
             store.reset();
         }
 
-        for (ESNativeRolesStore store : internalCluster().getInstances(ESNativeRolesStore.class)) {
+        for (NativeRolesStore store : internalCluster().getInstances(NativeRolesStore.class)) {
             store.stop();
             // the store may already be stopping so wait until it is stopped
             assertBusy(new Runnable() {
                 @Override
                 public void run() {
-                    assertThat(store.state(), isOneOf(ESNativeRolesStore.State.STOPPED, ESNativeRolesStore.State.FAILED));
+                    assertThat(store.state(), isOneOf(NativeRolesStore.State.STOPPED, NativeRolesStore.State.FAILED));
                 }
             });
             store.reset();

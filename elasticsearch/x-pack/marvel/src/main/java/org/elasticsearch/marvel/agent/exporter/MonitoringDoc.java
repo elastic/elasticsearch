@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,6 +14,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Base class for all monitoring documents.
@@ -107,23 +108,20 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
         private String transportAddress;
         private String ip;
         private String name;
-        private ImmutableOpenMap<String, String> attributes;
+        private Map<String, String> attributes;
 
         public Node(String uuid, String host, String transportAddress, String ip, String name,
-                    ImmutableOpenMap<String, String> attributes) {
+                    Map<String, String> attributes) {
             this.uuid = uuid;
             this.host = host;
             this.transportAddress = transportAddress;
             this.ip = ip;
             this.name = name;
-
-            ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
-            if (attributes != null) {
-                for (ObjectObjectCursor<String, String> entry : attributes) {
-                    builder.put(entry.key.intern(), entry.value.intern());
-                }
+            if (attributes == null) {
+                this.attributes = new HashMap<>();
+            } else {
+                this.attributes = Collections.unmodifiableMap(attributes);
             }
-            this.attributes = builder.build();
         }
 
         public Node(StreamInput in) throws IOException {
@@ -133,11 +131,10 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
             ip = in.readOptionalString();
             name = in.readOptionalString();
             int size = in.readVInt();
-            ImmutableOpenMap.Builder<String, String> attributes = ImmutableOpenMap.builder(size);
+            this.attributes = new HashMap<>();
             for (int i = 0; i < size; i++) {
-                attributes.put(in.readOptionalString(), in.readOptionalString());
+                attributes.put(in.readString(), in.readString());
             }
-            this.attributes = attributes.build();
         }
 
         public String getUUID() {
@@ -160,7 +157,7 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
             return name;
         }
 
-        public ImmutableOpenMap<String, String> getAttributes() {
+        public Map<String, String> getAttributes() {
             return attributes;
         }
 
@@ -174,8 +171,8 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
             builder.field(Fields.NAME, getName());
 
             builder.startObject(Fields.ATTRIBUTES);
-            for (ObjectObjectCursor<String, String> attr : getAttributes()) {
-                builder.field(attr.key, attr.value);
+            for (Map.Entry<String, String> entry : getAttributes().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
             return builder.endObject();
@@ -190,9 +187,9 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
             out.writeOptionalString(name);
             if (attributes != null) {
                 out.writeVInt(attributes.size());
-                for (ObjectObjectCursor<String, String> entry : attributes) {
-                    out.writeOptionalString(entry.key);
-                    out.writeOptionalString(entry.value);
+                for (Map.Entry<String, String> entry : attributes.entrySet()) {
+                    out.writeString(entry.getKey());
+                    out.writeString(entry.getValue());
                 }
             } else {
                 out.writeVInt(0);

@@ -3,35 +3,21 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.esusers;
+package org.elasticsearch.shield.authc.file;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
 
 import java.util.Locale;
 
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -48,17 +34,14 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class ESUsersRealmTests extends ESTestCase {
-    private Client client;
-    private AdminClient adminClient;
+public class FileRealmTests extends ESTestCase {
+
     private FileUserPasswdStore userPasswdStore;
     private FileUserRolesStore userRolesStore;
     private Settings globalSettings;
 
     @Before
     public void init() throws Exception {
-        client = mock(Client.class);
-        adminClient = mock(AdminClient.class);
         userPasswdStore = mock(FileUserPasswdStore.class);
         userRolesStore = mock(FileUserRolesStore.class);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
@@ -67,8 +50,8 @@ public class ESUsersRealmTests extends ESTestCase {
     public void testAuthenticate() throws Exception {
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
-        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
-        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
         User user = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         assertThat(user, notNullValue());
         assertThat(user.principal(), equalTo("user1"));
@@ -81,22 +64,22 @@ public class ESUsersRealmTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
                 .build();
-        RealmConfig config = new RealmConfig("esusers-test", settings, globalSettings);
+        RealmConfig config = new RealmConfig("file-test", settings, globalSettings);
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
-        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
         User user1 = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         User user2 = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         assertThat(user1, sameInstance(user2));
     }
 
     public void testAuthenticateCachingRefresh() throws Exception {
-        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings);
         userPasswdStore = spy(new UserPasswdStore(config));
         userRolesStore = spy(new UserRolesStore(config));
         doReturn(true).when(userPasswdStore).verifyPassword("user1", SecuredStringTests.build("test123"));
         doReturn(new String[] { "role1", "role2" }).when(userRolesStore).roles("user1");
-        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
         User user1 = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         User user2 = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         assertThat(user1, sameInstance(user2));
@@ -113,10 +96,10 @@ public class ESUsersRealmTests extends ESTestCase {
     }
 
     public void testToken() throws Exception {
-        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings);
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
-        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         UsernamePasswordToken.putTokenHeader(threadContext, new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
@@ -131,8 +114,8 @@ public class ESUsersRealmTests extends ESTestCase {
     public void testLookup() throws Exception {
         when(userPasswdStore.userExists("user1")).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
-        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
-        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
 
         User user = realm.lookupUser("user1");
 
@@ -146,8 +129,8 @@ public class ESUsersRealmTests extends ESTestCase {
     public void testLookupCaching() throws Exception {
         when(userPasswdStore.userExists("user1")).thenReturn(true);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
-        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
-        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
 
         User user = realm.lookupUser("user1");
         User user1 = realm.lookupUser("user1");
@@ -157,12 +140,12 @@ public class ESUsersRealmTests extends ESTestCase {
     }
 
     public void testLookupCachingWithRefresh() throws Exception {
-        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
+        RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings);
         userPasswdStore = spy(new UserPasswdStore(config));
         userRolesStore = spy(new UserRolesStore(config));
         doReturn(true).when(userPasswdStore).userExists("user1");
         doReturn(new String[] { "role1", "role2" }).when(userRolesStore).roles("user1");
-        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
         User user1 = realm.lookupUser("user1");
         User user2 = realm.lookupUser("user1");
         assertThat(user1, sameInstance(user2));

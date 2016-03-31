@@ -19,6 +19,18 @@ import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = TEST, transportClientRatio = 0, numClientNodes = 0, numDataNodes = 0)
 public class MarvelPluginTests extends MarvelIntegTestCase {
+
+
+    @Override
+    protected void startCollection() {
+        // do nothing as marvel is sometime unbound
+    }
+
+    @Override
+    protected void stopCollection() {
+        // do nothing as marvel is sometime unbound
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()

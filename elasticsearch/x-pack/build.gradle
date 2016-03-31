@@ -5,7 +5,7 @@ group 'org.elasticsearch.plugin'
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
-  name 'xpack'
+  name 'x-pack'
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
 }
@@ -112,16 +112,16 @@ bundlePlugin {
     include 'LICENSE.txt'
     include 'NOTICE.txt'
   }
-  from('bin/xpack') {
+  from('bin/x-pack') {
     into 'bin'
   }
-  from('shield/bin/xpack') {
+  from('shield/bin/x-pack') {
     into 'bin'
   }
-  from('shield/config/xpack') {
+  from('shield/config/x-pack') {
     into 'config'
   }
-  from('watcher/bin/xpack') {
+  from('watcher/bin/x-pack') {
     into 'bin'
   }
 }
@@ -130,7 +130,8 @@ integTest {
   // TODO: fix this rest test to not depend on a hardcoded port!
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
   cluster {
-    setupCommand 'setupDummyUser', 'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    setting 'xpack.monitoring.agent.interval', '3s'
+    setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
         ant.get(src: "http://${node.httpUri()}",
@@ -158,7 +159,7 @@ artifacts {
 }
 
 run {
-  setupCommand 'setupDummyUser', 'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+  setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

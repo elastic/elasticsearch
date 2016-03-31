@@ -38,6 +38,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -48,7 +50,7 @@ public class IndicesStatsResolverTests extends MonitoringIndexNameResolverTestCa
         IndicesStatsMonitoringDoc doc = new IndicesStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         doc.setIndicesStats(randomIndicesStats());
         return doc;
     }
@@ -62,7 +64,7 @@ public class IndicesStatsResolverTests extends MonitoringIndexNameResolverTestCa
         IndicesStatsMonitoringDoc doc = newMarvelDoc();
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(1437580442979L);
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
 
         IndicesStatsResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MarvelTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));

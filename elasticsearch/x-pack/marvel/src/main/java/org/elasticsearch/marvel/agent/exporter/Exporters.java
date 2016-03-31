@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -19,13 +18,15 @@ import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static java.util.Collections.emptyMap;
 
 /**
  *
@@ -35,8 +36,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
     private final Map<String, Exporter.Factory> factories;
     private final ClusterService clusterService;
 
-    private volatile CurrentExporters exporters = CurrentExporters.EMPTY;
-    private volatile Settings exporterSettings;
+    private final AtomicReference<Map<String, Exporter>> exporters;
 
     @Inject
     public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
@@ -46,51 +46,28 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         super(settings);
         this.factories = factories;
         this.clusterService = clusterService;
-        exporterSettings = MarvelSettings.EXPORTERS_SETTINGS.get(settings);
+        this.exporters = new AtomicReference<>(emptyMap());
         clusterSettings.addSettingsUpdateConsumer(MarvelSettings.EXPORTERS_SETTINGS, this::setExportersSetting);
     }
 
-    private synchronized void setExportersSetting(Settings exportersSetting) {
-        this.exporterSettings = exportersSetting;
+    private void setExportersSetting(Settings exportersSetting) {
         if (this.lifecycleState() == Lifecycle.State.STARTED) {
-
-            CurrentExporters existing = exporters;
-            Settings updatedSettings = exportersSetting;
-            if (updatedSettings.names().isEmpty()) {
+            if (exportersSetting.names().isEmpty()) {
                 return;
             }
-            this.exporters = initExporters(Settings.builder()
-                    .put(existing.settings)
-                    .put(updatedSettings)
-                    .build());
-            existing.close(logger);
+            Map<String, Exporter> updated = initExporters(exportersSetting);
+            closeExporters(logger, this.exporters.getAndSet(updated));
         }
     }
 
     @Override
     protected void doStart() {
-        synchronized (this) {
-            exporters = initExporters(exporterSettings);
-        }
+        exporters.set(initExporters(MarvelSettings.EXPORTERS_SETTINGS.get(settings)));
     }
 
     @Override
     protected void doStop() {
-        ElasticsearchException exception = null;
-        for (Exporter exporter : exporters) {
-            try {
-                exporter.close();
-            } catch (Exception e) {
-                logger.error("exporter [{}] failed to close cleanly", e, exporter.name());
-                if (exception == null) {
-                    exception = new ElasticsearchException("failed to cleanly close exporters");
-                }
-                exception.addSuppressed(e);
-            }
-        }
-        if (exception != null) {
-            throw exception;
-        }
+        closeExporters(logger, exporters.get());
     }
 
     @Override
@@ -98,18 +75,28 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
     }
 
     public Exporter getExporter(String name) {
-        return exporters.get(name);
+        return exporters.get().get(name);
     }
 
     @Override
     public Iterator<Exporter> iterator() {
-        return exporters.iterator();
+        return exporters.get().values().iterator();
+    }
+
+    static void closeExporters(ESLogger logger, Map<String, Exporter> exporters) {
+        for (Exporter exporter : exporters.values()) {
+            try {
+                exporter.close();
+            } catch (Exception e) {
+                logger.error("failed to close exporter [{}]", e, exporter.name());
+            }
+        }
     }
 
     ExportBulk openBulk() {
         List<ExportBulk> bulks = new ArrayList<>();
-        for (Exporter exporter : exporters) {
-            if (exporter.masterOnly() && !clusterService.localNode().masterNode()) {
+        for (Exporter exporter : this) {
+            if (exporter.masterOnly() && clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
                 // the exporter is supposed to only run on the master node, but we're not
                 // the master node... so skipping
                 continue;
@@ -128,8 +115,7 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
         return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks);
     }
 
-    // TODO only rebuild the exporters that need to be updated according to settings
-    CurrentExporters initExporters(Settings settings) {
+    Map<String, Exporter> initExporters(Settings settings) {
         Set<String> singletons = new HashSet<>();
         Map<String, Exporter> exporters = new HashMap<>();
         boolean hasDisabled = false;
@@ -173,59 +159,26 @@ public class Exporters extends AbstractLifecycleComponent<Exporters> implements 
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 
-        return new CurrentExporters(settings, exporters);
+        return exporters;
     }
 
     /**
      * Exports a collection of monitoring documents using the configured exporters
      */
-    public synchronized void export(Collection<MonitoringDoc> docs) throws ExportException {
+    public void export(Collection<MonitoringDoc> docs) throws ExportException {
         if (this.lifecycleState() != Lifecycle.State.STARTED) {
             throw new ExportException("Export service is not started");
         }
         if (docs != null && docs.size() > 0) {
             ExportBulk bulk = openBulk();
             if (bulk == null) {
-                logger.debug("exporters are either not ready or faulty");
-                return;
+                throw new ExportException("exporters are either not ready or faulty");
             }
 
             try {
                 bulk.add(docs);
             } finally {
                 bulk.close(lifecycleState() == Lifecycle.State.STARTED);
-            }
-        }
-    }
-
-    static class CurrentExporters implements Iterable<Exporter> {
-
-        static final CurrentExporters EMPTY = new CurrentExporters(Settings.EMPTY, Collections.emptyMap());
-
-        final Settings settings;
-        final Map<String, Exporter> exporters;
-
-        public CurrentExporters(Settings settings, Map<String, Exporter> exporters) {
-            this.settings = settings;
-            this.exporters = exporters;
-        }
-
-        @Override
-        public Iterator<Exporter> iterator() {
-            return exporters.values().iterator();
-        }
-
-        public Exporter get(String name) {
-            return exporters.get(name);
-        }
-
-        void close(ESLogger logger) {
-            for (Exporter exporter : exporters.values()) {
-                try {
-                    exporter.close();
-                } catch (Exception e) {
-                    logger.error("failed to close exporter [{}]", e, exporter.name());
-                }
             }
         }
     }

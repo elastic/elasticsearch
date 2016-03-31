@@ -10,4 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: xpack  }
+    - match:  { nodes.$master.plugins.0.name: x-pack  }

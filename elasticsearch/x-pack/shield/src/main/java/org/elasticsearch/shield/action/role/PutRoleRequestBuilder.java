@@ -26,7 +26,8 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
 
     public PutRoleRequestBuilder source(String name, BytesReference source) throws Exception {
         RoleDescriptor descriptor = RoleDescriptor.parse(name, source);
-        request.name(descriptor.getName());
+        assert name.equals(descriptor.getName());
+        request.name(name);
         request.cluster(descriptor.getClusterPrivileges());
         request.addIndex(descriptor.getIndicesPrivileges());
         request.runAs(descriptor.getRunAs());

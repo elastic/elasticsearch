@@ -57,10 +57,12 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
 
     private final Task.Status status;
 
+    private final boolean cancellable;
+
     private final TaskId parentTaskId;
 
     public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status, long startTime,
-                    long runningTimeNanos, TaskId parentTaskId) {
+                    long runningTimeNanos, boolean cancellable, TaskId parentTaskId) {
         this.node = node;
         this.taskId = new TaskId(node.getId(), id);
         this.type = type;
@@ -69,6 +71,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         this.status = status;
         this.startTime = startTime;
         this.runningTimeNanos = runningTimeNanos;
+        this.cancellable = cancellable;
         this.parentTaskId = parentTaskId;
     }
 
@@ -85,6 +88,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         }
         startTime = in.readLong();
         runningTimeNanos = in.readLong();
+        cancellable = in.readBoolean();
         parentTaskId = new TaskId(in);
     }
 
@@ -135,6 +139,13 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
     }
 
     /**
+     * Returns true if the task supports cancellation
+     */
+    public boolean isCancellable() {
+        return cancellable;
+    }
+
+    /**
      * Returns the parent task id
      */
     public TaskId getParentTaskId() {
@@ -161,6 +172,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         }
         out.writeLong(startTime);
         out.writeLong(runningTimeNanos);
+        out.writeBoolean(cancellable);
         parentTaskId.writeTo(out);
     }
 
@@ -178,6 +190,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         }
         builder.dateValueField("start_time_in_millis", "start_time", startTime);
         builder.timeValueField("running_time_in_nanos", "running_time", runningTimeNanos, TimeUnit.NANOSECONDS);
+        builder.field("cancellable", cancellable);
         if (parentTaskId.isSet()) {
             builder.field("parent_task_id", parentTaskId.toString());
         }

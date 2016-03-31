@@ -28,6 +28,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -146,6 +147,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         List<Throwable> errors = new CopyOnWriteArrayList<>();
         AtomicBoolean done = new AtomicBoolean();
         int threads = between(1, 10);
+        CyclicBarrier waitForShutdown = new CyclicBarrier(threads);
 
         /*
          * We never end up waiting this long because the test rethrottles over and over again, ratcheting down the delay a random amount
@@ -188,6 +190,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
                         rethrottles += 1;
                     }
                     logger.info("Rethrottled [{}] times", rethrottles);
+                    waitForShutdown.await();
                 } catch (Exception e) {
                     errors.add(e);
                 }

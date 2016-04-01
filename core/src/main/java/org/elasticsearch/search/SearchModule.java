@@ -301,6 +301,8 @@ public class SearchModule extends AbstractModule {
     /**
      * Register a query.
      *
+     * @param names all names by which this query might be parsed. The first name is special as it is the name by under which the reader is
+     *        registered. So it is the name that the query should use as its {@link NamedWriteable#getWriteableName()}.
      * @param reader the reader registered for this query's builder. Typically a reference to a constructor that takes a
      *        {@link org.elasticsearch.common.io.stream.StreamInput}
      * @param queryParser the parser the reads the query builder from xcontent
@@ -314,9 +316,10 @@ public class SearchModule extends AbstractModule {
         namedWriteableRegistry.register(QueryBuilder.class, queryName.getPreferredName(), reader);
     }
 
+
     /**
-     * Register a query.
-     * TODO remove this in favor of registerQuery and rename innerRegisterQueryParser
+     * Register a query via it's parser's prototype.
+     * TODO remove this in favor of registerQuery
      */
     public void registerQueryParser(QueryParser<?> queryParser, ParseField queryName) {
         innerRegisterQueryParser(queryParser, queryName);

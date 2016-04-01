@@ -78,6 +78,14 @@ GET /_tasks/oTUltX4IQMOUUVeiohTt8A:12345?wait_for_completion=true&timeout=10s
 --------------------------------------------------
 // AUTOSENSE
 
+Tasks can be also listed using _cat version of the list tasks command, which accepts the same arguments
+as the standard list tasks command.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/tasks
+--------------------------------------------------
+// AUTOSENSE
 
 [float]
 === Task Cancellation

@@ -111,6 +111,7 @@ import org.elasticsearch.rest.action.cat.RestRepositoriesAction;
 import org.elasticsearch.rest.action.cat.RestSegmentsAction;
 import org.elasticsearch.rest.action.cat.RestShardsAction;
 import org.elasticsearch.rest.action.cat.RestSnapshotAction;
+import org.elasticsearch.rest.action.cat.RestTasksAction;
 import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
@@ -284,6 +285,7 @@ public class NetworkModule extends AbstractModule {
         RestShardsAction.class,
         RestMasterAction.class,
         RestNodesAction.class,
+        RestTasksAction.class,
         RestIndicesAction.class,
         RestSegmentsAction.class,
         // Fully qualified to prevent interference with rest.action.count.RestCountAction

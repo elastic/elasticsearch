@@ -1,17 +1,17 @@
 {
-  "tasks.list": {
+  "cat.tasks": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_tasks",
-      "paths": ["/_tasks", "/_tasks/{task_id}"],
+      "path": "/_cat/tasks",
+      "paths": ["/_cat/tasks"],
       "parts": {
-        "task_id": {
-          "type": "string",
-          "description": "Return the task with specified id (node_id:task_number)"
-        }
       },
       "params": {
+        "format": {
+          "type" : "string",
+          "description" : "a short version of the Accept header, e.g. json, yaml"
+        },
         "node_id": {
           "type": "list",
           "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
@@ -29,20 +29,23 @@
           "description": "Return tasks with specified parent node."
         },
         "parent_task": {
-          "type" : "string",
-          "description" : "Return tasks with specified parent task id (node_id:task_number). Set to -1 to return all."
+          "type" : "number",
+          "description" : "Return tasks with specified parent task id. Set to -1 to return all."
         },
-        "wait_for_completion": {
+        "h": {
+            "type": "list",
+            "description" : "Comma-separated list of column names to display"
+        },
+        "help": {
           "type": "boolean",
-          "description": "Wait for the matching tasks to complete (default: false)"
+          "description": "Return help information",
+          "default": false
         },
-        "group_by": {
-          "type" : "enum",
-          "description": "Group tasks by nodes or parent/child relationships",
-          "options" : ["nodes", "parents"],
-          "default" : "nodes"
+        "v": {
+          "type": "boolean",
+          "description": "Verbose mode. Display column headers",
+          "default": false
         }
-
       }
     },
     "body": null

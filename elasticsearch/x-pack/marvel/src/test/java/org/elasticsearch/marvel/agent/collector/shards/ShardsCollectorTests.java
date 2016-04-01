@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ShardsCollectorTests extends AbstractCollectorTestCase {
 
@@ -132,11 +133,16 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
             assertThat(shardDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
             assertThat(shardDoc.getClusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
             assertThat(shardDoc.getTimestamp(), greaterThan(0L));
-            assertThat(shardDoc.getSourceNode(), notNullValue());
             assertThat(shardDoc.getClusterStateUUID(), equalTo(clusterState.stateUUID()));
 
             ShardRouting shardRouting = shardDoc.getShardRouting();
             assertNotNull(shardRouting);
+
+            if (shardRouting.assignedToNode()) {
+                assertThat(shardDoc.getSourceNode(), notNullValue());
+            } else {
+                assertThat(shardDoc.getSourceNode(), nullValue());
+            }
         }
 
         // Checks that a correct number of ShardMarvelDoc documents has been created for each index

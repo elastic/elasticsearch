@@ -47,7 +47,7 @@ public final class ProcessService extends AbstractComponent {
         processStatsCache = new ProcessStatsCache(refreshInterval, probe.processStats());
         this.info = probe.processInfo();
         this.info.refreshInterval = refreshInterval.millis();
-        logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
+        logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
     public ProcessInfo info() {

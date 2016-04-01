@@ -46,7 +46,7 @@ public class FsService extends AbstractComponent {
         this.probe = new FsProbe(settings, nodeEnvironment);
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         fsStatsCache = new FsInfoCache(refreshInterval, probe.stats());
-        logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
+        logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
     public FsInfo stats() {

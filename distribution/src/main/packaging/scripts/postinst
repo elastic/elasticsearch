@@ -61,9 +61,9 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
 
     elif command -v chkconfig >/dev/null; then
         echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using chkconfig"
-        echo " sudo chkconfig --add elasticsearch"
+        echo " sudo -i chkconfig --add elasticsearch"
         echo "### You can start elasticsearch service by executing"
-        echo " sudo service elasticsearch start"
+        echo " sudo -i service elasticsearch start"
 
     elif command -v update-rc.d >/dev/null; then
         echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using chkconfig"

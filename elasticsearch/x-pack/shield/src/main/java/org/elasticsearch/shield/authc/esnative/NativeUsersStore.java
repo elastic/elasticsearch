@@ -39,7 +39,6 @@ import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -56,7 +55,9 @@ import org.elasticsearch.shield.action.user.PutUserRequest;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.SecurityClient;
+import org.elasticsearch.shield.support.SelfReschedulingRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
@@ -67,7 +68,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -103,7 +103,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     private final Provider<InternalClient> clientProvider;
     private final ThreadPool threadPool;
 
-    private ScheduledFuture<?> versionChecker;
+    private SelfReschedulingRunnable userPoller;
     private Client client;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
@@ -455,8 +455,9 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 } catch (Exception e) {
                     logger.warn("failed to do initial poll of users", e);
                 }
-                versionChecker = threadPool.scheduleWithFixedDelay(poller,
-                        settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L)));
+                userPoller = new SelfReschedulingRunnable(poller, threadPool,
+                        settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L)), Names.GENERIC, logger);
+                userPoller.start();
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -468,7 +469,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     public void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             try {
-                FutureUtils.cancel(versionChecker);
+                userPoller.stop();
             } catch (Throwable t) {
                 state.set(State.FAILED);
                 throw t;

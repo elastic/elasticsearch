@@ -30,7 +30,6 @@ import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -46,9 +45,10 @@ import org.elasticsearch.shield.action.role.DeleteRoleRequest;
 import org.elasticsearch.shield.action.role.PutRoleRequest;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.permission.Role;
-import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.shield.client.SecurityClient;
+import org.elasticsearch.shield.support.SelfReschedulingRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,7 +58,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -96,7 +95,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     private SecurityClient securityClient;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
-    private ScheduledFuture<?> versionChecker;
+    private SelfReschedulingRunnable rolesPoller;
 
     private volatile boolean shieldIndexExists = false;
 
@@ -144,7 +143,8 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     logger.warn("failed to perform initial poll of roles index [{}]. scheduling again in [{}]", e,
                             ShieldTemplateService.SECURITY_INDEX_NAME, pollInterval);
                 }
-                versionChecker = threadPool.scheduleWithFixedDelay(poller, pollInterval);
+                rolesPoller = new SelfReschedulingRunnable(poller, threadPool, pollInterval, Names.GENERIC, logger);
+                rolesPoller.start();
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -156,7 +156,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     public void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             try {
-                FutureUtils.cancel(versionChecker);
+                rolesPoller.stop();
             } finally {
                 state.set(State.STOPPED);
             }

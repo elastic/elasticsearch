@@ -174,3 +174,7 @@ thirdPartyAudit.excludes = [
 
 // someone figure out what the x-plugins logic should be
 licenseHeaders.enabled = false
+
+forbiddenApisMain {
+  signaturesURLs += [file('signatures.txt').toURI().toURL()]
+}

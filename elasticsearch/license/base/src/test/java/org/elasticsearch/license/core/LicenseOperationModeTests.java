@@ -7,6 +7,8 @@ package org.elasticsearch.license.core;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
+
 import static org.elasticsearch.license.core.License.OperationMode;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -52,7 +54,7 @@ public class LicenseOperationModeTests extends ESTestCase {
             try {
                 OperationMode.resolve(type);
 
-                fail(String.format("[%s] should not be recognized as an operation mode", type));
+                fail(String.format(Locale.ROOT, "[%s] should not be recognized as an operation mode", type));
             }
             catch (IllegalArgumentException e) {
                 assertThat(e.getMessage(), equalTo("unknown type [" + type + "]"));

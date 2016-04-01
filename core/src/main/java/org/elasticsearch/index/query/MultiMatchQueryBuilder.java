@@ -49,7 +49,8 @@ import java.util.TreeMap;
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
 public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
-    public static final String NAME = "multi_match";
+    public static final String[] NAMES = new String[] {"multi_match", "multiMatch"};
+    public static final String NAME = NAMES[0];
     public static final MultiMatchQueryBuilder PROTOTYPE = new MultiMatchQueryBuilder("");
 
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;

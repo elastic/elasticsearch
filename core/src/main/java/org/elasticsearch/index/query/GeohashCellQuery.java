@@ -60,7 +60,6 @@ import java.util.Objects;
  */
 public class GeohashCellQuery {
 
-    public static final String NAME = "geohash_cell";
     public static final ParseField NEIGHBORS_FIELD = new ParseField("neighbors");
     public static final ParseField PRECISION_FIELD = new ParseField("precision");
     public static final boolean DEFAULT_NEIGHBORS = false;
@@ -96,6 +95,8 @@ public class GeohashCellQuery {
      * <code>false</code>.
      */
     public static class Builder extends AbstractQueryBuilder<Builder> {
+        public static final String NAME = "geohash_cell";
+
         // we need to store the geohash rather than the corresponding point,
         // because a transformation from a geohash to a point an back to the
         // geohash will extend the accuracy of the hash to max precision
@@ -271,7 +272,7 @@ public class GeohashCellQuery {
 
     public static class Parser implements QueryParser<Builder> {
 
-        public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+        public static final ParseField QUERY_NAME_FIELD = new ParseField(Builder.NAME);
 
         @Inject
         public Parser() {
@@ -290,7 +291,8 @@ public class GeohashCellQuery {
 
             XContentParser.Token token;
             if ((token = parser.currentToken()) != Token.START_OBJECT) {
-                throw new ElasticsearchParseException("failed to parse [{}] query. expected an object but found [{}] instead", NAME, token);
+                throw new ElasticsearchParseException("failed to parse [{}] query. expected an object but found [{}] instead", Builder.NAME,
+                        token);
             }
 
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
@@ -334,12 +336,12 @@ public class GeohashCellQuery {
                                 geohash = GeoUtils.parseGeoPoint(parser).geohash();
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[" + NAME +
+                            throw new ParsingException(parser.getTokenLocation(), "[" + Builder.NAME +
                                     "] field name already set to [" + fieldName + "] but found [" + field + "]");
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] query. unexpected token [{}]", NAME, token);
+                    throw new ElasticsearchParseException("failed to parse [{}] query. unexpected token [{}]", Builder.NAME, token);
                 }
             }
             Builder builder = new Builder(fieldName, geohash);

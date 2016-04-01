@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -60,8 +61,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -114,6 +117,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -121,7 +125,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
@@ -382,8 +388,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
             XContentBuilder builder = toXContent(testQuery, randomFrom(XContentType.values()));
-            XContentBuilder shuffled = shuffleXContent(builder, shuffleProtectedFields());
-            assertParsedQuery(shuffled.bytes(), testQuery);
+            builder = randomizeName(shuffleXContent(builder, shuffleProtectedFields()), testQuery);
+            assertParsedQuery(builder.bytes(), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
                 assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue(), ParseFieldMatcher.EMPTY);
@@ -407,6 +413,45 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         query.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder;
     }
+
+    /**
+     * Randomize the name of a query builder. Note that this can change the meaning of the query builder. Like <code>match</code> can turn
+     * into <code>match_phrase</code>.
+     */
+    private XContentBuilder randomizeName(XContentBuilder builder, QueryBuilder<?> query) throws IOException {
+        String newName = randomFrom(getSupportedNames(query));
+        if (newName.equals(query.getName())) {
+            return builder;
+        }
+        Tuple<XContentType, Map<String, Object>> t = XContentHelper.convertToMap(builder.bytes(), true);
+        Object queryAsMap = t.v2().remove(query.getName());
+        if (queryAsMap == null) {
+            throw new IllegalArgumentException(
+                    "Test query claimed to have name [" + query.getName() + "] but instead wrote [" + t.v2() + "]");
+        }
+        t.v2().put(newName, queryAsMap);
+        builder = XContentFactory.contentBuilder(t.v1());
+        builder.map(t.v2());
+        return builder;
+    }
+
+    /**
+     * Get a list of all supported names for a query builder class. Uses reflection and naming conventions so it is brittle.
+     */
+    protected List<String> getSupportedNames(QueryBuilder<?> query) {
+        try {
+            return Arrays.asList((String[]) query.getClass().getField("NAMES").get(null));
+        } catch (Exception pluralException) {
+            try {
+                return singletonList((String) query.getClass().getField("NAME").get(null));
+            } catch (Exception singularException) {
+                IllegalArgumentException e = new IllegalArgumentException("Expected a public static void NAMES field");
+                e.addSuppressed(pluralException);
+                throw e;
+            }
+        }
+    }
+
 
     /**
      * Test that unknown field trigger ParsingException.

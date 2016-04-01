@@ -61,7 +61,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public static final FunctionScoreQueryBuilder PROTOTYPE = new FunctionScoreQueryBuilder(EmptyQueryBuilder.PROTOTYPE,
             new FunctionScoreQueryBuilder.FilterFunctionBuilder[0]);
 
-    public static final String NAME = "function_score";
+    public static final String[] NAMES = new String[] {"function_score", "functionScore"};
+    public static final String NAME = NAMES[0];
 
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 

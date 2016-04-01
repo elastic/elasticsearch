@@ -31,8 +31,6 @@ import java.util.Locale;
 public enum Operator implements Writeable<Operator> {
     OR, AND;
 
-    private static final Operator PROTOTYPE = OR;
-
     public BooleanClause.Occur toBooleanClauseOccur() {
         switch (this) {
             case OR:
@@ -55,17 +53,12 @@ public enum Operator implements Writeable<Operator> {
         }
     }
 
-    @Override
-    public Operator readFrom(StreamInput in) throws IOException {
+    public static Operator readOperatorFrom(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown Operator ordinal [" + ordinal + "]");
         }
         return values()[ordinal];
-    }
-
-    public static Operator readOperatorFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
     }
 
     @Override

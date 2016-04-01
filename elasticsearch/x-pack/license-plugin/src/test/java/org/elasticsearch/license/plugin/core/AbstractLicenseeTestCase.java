@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -50,7 +51,7 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
         // test it
         String[] messages = licensee.acknowledgmentMessages(fromLicense, toLicense);
 
-        assertThat(messages.length, equalTo(0));
+        assertThat(fromToMessage(fromMode, toMode), messages.length, equalTo(0));
     }
 
     /**
@@ -155,6 +156,17 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
      */
     public static <T> T randomFrom(T[] values, Predicate<T> filter) {
         return randomFrom(Arrays.stream(values).filter(filter).collect(Collectors.toList()));
+    }
+
+    /**
+     * Get a message to show with assertions for license transition.
+     *
+     * @param fromMode Coming "from" mode
+     * @param toMode Going "to" mode
+     * @return Never {@code null}.
+     */
+    public static String fromToMessage(OperationMode fromMode, OperationMode toMode) {
+        return String.format(Locale.ROOT, "From [%s] to [%s]", fromMode, toMode);
     }
 
     public static class SimpleLicenseeRegistry extends AbstractComponent implements LicenseeRegistry {

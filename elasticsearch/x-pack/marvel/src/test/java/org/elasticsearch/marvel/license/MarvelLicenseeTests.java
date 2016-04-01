@@ -38,10 +38,13 @@ public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
     }
 
     public void testAcknowledgementMessagesToBasicFromNotBasicNotesLimits() {
-        String[] messages = ackLicenseChange(randomModeExcept(OperationMode.BASIC), OperationMode.BASIC, licensee);
+        OperationMode from = randomModeExcept(OperationMode.BASIC);
+        OperationMode to = OperationMode.BASIC;
+
+        String[] messages = ackLicenseChange(from, to, licensee);
 
         // leaving messages up to inspection
-        assertThat(messages.length, equalTo(2));
+        assertThat(fromToMessage(from, to), messages.length, equalTo(2));
     }
 
     public void testCollectionEnabledIsTrueForActiveState() {

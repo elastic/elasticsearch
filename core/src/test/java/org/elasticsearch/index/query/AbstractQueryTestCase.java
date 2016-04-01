@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -381,12 +382,21 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
             XContentBuilder builder = toXContent(testQuery, randomFrom(XContentType.values()));
-            assertParsedQuery(builder.bytes(), testQuery);
+            XContentBuilder shuffled = shuffleXContent(builder, shuffleProtectedFields());
+            assertParsedQuery(shuffled.bytes(), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
                 assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue(), ParseFieldMatcher.EMPTY);
             }
         }
+    }
+
+    /**
+     * Subclasses can override this method and return a set of fields which should be protected from
+     * recursive random shuffling in the {@link #testFromXContent()} test case
+     */
+    protected Set<String> shuffleProtectedFields() {
+        return Collections.emptySet();
     }
 
     protected static XContentBuilder toXContent(QueryBuilder<?> query, XContentType contentType) throws IOException {

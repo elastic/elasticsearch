@@ -525,7 +525,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + MatchQueryBuilder.NAME + "] query malformed, no field");
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[" + MatchQueryBuilder.NAME + "] query malformed, no field");
         }
         String fieldName = parser.currentName();
 
@@ -565,7 +566,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                             type = MatchQuery.Type.PHRASE_PREFIX;
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + MatchQueryBuilder.NAME + "] query does not support type " + tStr);
+                                    "[" + NAME + "] query does not support type " + tStr);
                         }
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
                         analyzer = parser.text();
@@ -605,11 +606,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
-                                "[" + MatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]");
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "[" + MatchQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
                 }
             }
             parser.nextToken();

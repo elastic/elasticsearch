@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
@@ -43,7 +44,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -61,7 +61,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -117,7 +116,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -125,9 +124,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
-import static java.util.Collections.singletonList;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
@@ -419,7 +417,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * into <code>match_phrase</code>.
      */
     private XContentBuilder randomizeName(XContentBuilder builder, QueryBuilder<?> query) throws IOException {
-        String newName = randomFrom(getSupportedNames(query));
+        String newName = RandomPicks.randomFrom(random(), getSupportedNames(query));
         if (newName.equals(query.getName())) {
             return builder;
         }
@@ -432,18 +430,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         t.v2().put(newName, queryAsMap);
         builder = XContentFactory.contentBuilder(t.v1());
         builder.map(t.v2());
+        logger.debug("Switched from [{}] to [{}]", query.getWriteableName(), newName);
         return builder;
     }
 
     /**
      * Get a list of all supported names for a query builder class. Uses reflection and naming conventions so it is brittle.
      */
-    protected List<String> getSupportedNames(QueryBuilder<?> query) {
+    protected Collection<String> getSupportedNames(QueryBuilder<?> query) {
         try {
-            return Arrays.asList((String[]) query.getClass().getField("NAMES").get(null));
+            return ((QueryBuilder.Names) query.getClass().getField("NAMES").get(null)).all();
         } catch (Exception pluralException) {
+            // TODO remove this backup when we remove support for registering by prototype
             try {
-                return singletonList((String) query.getClass().getField("NAME").get(null));
+                return singleton((String) query.getClass().getField("NAME").get(null));
             } catch (Exception singularException) {
                 IllegalArgumentException e = new IllegalArgumentException("Expected a public static void NAMES field");
                 e.addSuppressed(pluralException);

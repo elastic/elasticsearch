@@ -21,9 +21,18 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableSet;
 
 public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteable<QB>, ToXContent {
 
@@ -96,4 +105,54 @@ public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteabl
         return builder;
     }
 
+    /**
+     * Names under which the QueryBuilder is registered. QueryBuilders should have a public static final NAMES member declaring all the
+     * names that the query uses.
+     */
+    public static class Names {
+        private final String primary;
+        private final Set<String> all;
+
+        /**
+         * Names under which the QueryBuilder is registered.
+         *
+         * @param primary this is the name that the query builder outputs with
+         *        {@link QueryBuilder#toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params)} and that it uses as
+         *        it's {@link QueryBuilder#getWriteableName()}.
+         * @param alternatives names that can be used for the query in XContent. Sometimes these are just deprecated names for the same
+         *        query like <code>multiMatch</code> is a deprecated name for <code>multi_match</code>. Sometimes these alternate forms that
+         *        effect parsing like <code>match_phrase</code> is just a <code>match</code> query with some settings tweaked.
+         */
+        public Names(String primary, String... alternatives) {
+            this.primary = primary;
+            Set<String> all = new HashSet<>(alternatives.length + 1);
+            all.add(primary);
+            for (String alternative: alternatives) {
+                boolean added = all.add(alternative);
+                if (false == added) {
+                    throw new IllegalArgumentException(
+                            "Alternative name [" + alternative + "] is listed twice or is the same as a primary name");
+                }
+            }
+            this.all = unmodifiableSet(all);
+        }
+
+        /**
+         * Fetch the primary name of this query. This is the name that the query builder outputs with
+         * {@link QueryBuilder#toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params)} and that it
+         * uses as it's {@link QueryBuilder#getWriteableName()}.
+         */
+        public String primary() {
+            return primary;
+        }
+
+        /**
+         * All names the might refer to this query builder in XContent. Sometimes these are just deprecated names for the same query like
+         * <code>multiMatch</code> is a deprecated name for <code>multi_match</code>. Sometimes these alternate forms that effect parsing
+         * like <code>match_phrase</code> is just a <code>match</code> query with some settings tweaked.
+         */
+        public Set<String> all() {
+            return all;
+        }
+    }
 }

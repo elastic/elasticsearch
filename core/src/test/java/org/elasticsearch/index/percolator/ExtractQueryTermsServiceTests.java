@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.BlendedTermQuery;
@@ -32,10 +33,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
@@ -54,7 +53,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ExtractQueryTermsServiceTests extends ESTestCase {
@@ -285,7 +283,6 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_spanFirstQuery() {
         SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
-        SpanTermQuery spanTermQuery2 = new SpanTermQuery(new Term("_field", "_very_long_term"));
         SpanFirstQuery spanFirstQuery = new SpanFirstQuery(spanTermQuery1, 20);
         Set<Term> terms = ExtractQueryTermsService.extractQueryTerms(spanFirstQuery);
         assertTermsEqual(terms, spanTermQuery1.getTerm());
@@ -331,28 +328,27 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         memoryIndex.addField("field4", "123", new WhitespaceAnalyzer());
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
-        Query query = ExtractQueryTermsService.createQueryTermsQuery(indexReader, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD);
-        assertThat(query, instanceOf(TermsQuery.class));
+        TermsQuery query = (TermsQuery)
+                ExtractQueryTermsService.createQueryTermsQuery(indexReader, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD);
 
-        // no easy way to get to the terms in TermsQuery,
-        // if there a less then 16 terms then it gets rewritten to bq and then we can easily check the terms
-        BooleanQuery booleanQuery = (BooleanQuery) ((ConstantScoreQuery) query.rewrite(indexReader)).getQuery();
-        assertThat(booleanQuery.clauses().size(), equalTo(15));
-        assertClause(booleanQuery, 0, QUERY_TERMS_FIELD, "_field3\u0000me");
-        assertClause(booleanQuery, 1, QUERY_TERMS_FIELD, "_field3\u0000unhide");
-        assertClause(booleanQuery, 2, QUERY_TERMS_FIELD, "field1\u0000brown");
-        assertClause(booleanQuery, 3, QUERY_TERMS_FIELD, "field1\u0000dog");
-        assertClause(booleanQuery, 4, QUERY_TERMS_FIELD, "field1\u0000fox");
-        assertClause(booleanQuery, 5, QUERY_TERMS_FIELD, "field1\u0000jumps");
-        assertClause(booleanQuery, 6, QUERY_TERMS_FIELD, "field1\u0000lazy");
-        assertClause(booleanQuery, 7, QUERY_TERMS_FIELD, "field1\u0000over");
-        assertClause(booleanQuery, 8, QUERY_TERMS_FIELD, "field1\u0000quick");
-        assertClause(booleanQuery, 9, QUERY_TERMS_FIELD, "field1\u0000the");
-        assertClause(booleanQuery, 10, QUERY_TERMS_FIELD, "field2\u0000more");
-        assertClause(booleanQuery, 11, QUERY_TERMS_FIELD, "field2\u0000some");
-        assertClause(booleanQuery, 12, QUERY_TERMS_FIELD, "field2\u0000text");
-        assertClause(booleanQuery, 13, QUERY_TERMS_FIELD, "field4\u0000123");
-        assertClause(booleanQuery, 14, UNKNOWN_QUERY_FIELD, "");
+        PrefixCodedTerms terms = query.getTermData();
+        assertThat(terms.size(), equalTo(15L));
+        PrefixCodedTerms.TermIterator termIterator = terms.iterator();
+        assertTermIterator(termIterator, "_field3\u0000me", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "_field3\u0000unhide", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field1\u0000brown", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field1\u0000dog", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field1\u0000fox", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field1\u0000jumps", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field1\u0000lazy", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field1\u0000over", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field1\u0000quick", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field1\u0000the", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field2\u0000more", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field2\u0000some", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field2\u0000text", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "field4\u0000123", QUERY_TERMS_FIELD);
+        assertTermIterator(termIterator, "", UNKNOWN_QUERY_FIELD);
     }
 
     public void testSelectTermsListWithHighestSumOfTermLength() {
@@ -381,10 +377,9 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertThat(result, sameInstance(expected));
     }
 
-    private void assertClause(BooleanQuery booleanQuery, int i, String expectedField, String expectedValue) {
-        assertThat(booleanQuery.clauses().get(i).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(((TermQuery) booleanQuery.clauses().get(i).getQuery()).getTerm().field(), equalTo(expectedField));
-        assertThat(((TermQuery) booleanQuery.clauses().get(i).getQuery()).getTerm().bytes().utf8ToString(), equalTo(expectedValue));
+    private void assertTermIterator(PrefixCodedTerms.TermIterator termIterator, String expectedValue, String expectedField) {
+        assertThat(termIterator.next().utf8ToString(), equalTo(expectedValue));
+        assertThat(termIterator.field(), equalTo(expectedField));
     }
 
     private static void assertTermsEqual(Set<Term> actual, Term... expected) {

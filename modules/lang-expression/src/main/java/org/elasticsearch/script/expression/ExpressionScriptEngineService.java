@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -246,7 +247,8 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     protected ValueSource getDateMethodValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String methodName, int calendarType) {
-        if (!(fieldType instanceof DateFieldMapper.DateFieldType)) {
+        if (fieldType instanceof LegacyDateFieldMapper.DateFieldType == false
+                && fieldType instanceof DateFieldMapper.DateFieldType == false) {
             throw new IllegalArgumentException("Member method [" + methodName + "] can only be used with a date field type, not the field [" + fieldName + "].");
         }
 

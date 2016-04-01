@@ -45,11 +45,13 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.TestSearchContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -57,6 +59,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -70,14 +73,21 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SimpleDateMappingTests extends ESSingleNodeTestCase {
+public class LegacyDateMappingTests extends ESSingleNodeTestCase {
+
+    private static final Settings BW_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     public void testAutomaticDateParser() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").endObject()
                 .endObject().endObject().string();
 
-        IndexService index = createIndex("test");
+        IndexService index = createIndex("test", BW_SETTINGS);
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
@@ -95,12 +105,12 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
 
         defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
-        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
-        DateFieldMapper dateFieldMapper = (DateFieldMapper)fieldMapper;
+        assertThat(fieldMapper, instanceOf(LegacyDateFieldMapper.class));
+        LegacyDateFieldMapper dateFieldMapper = (LegacyDateFieldMapper)fieldMapper;
         assertEquals("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", dateFieldMapper.fieldType().dateTimeFormatter().format());
         assertEquals(1265587200000L, dateFieldMapper.fieldType().dateTimeFormatter().parser().parseMillis("1265587200000"));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field2");
-        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(LegacyDateFieldMapper.class));
 
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date1");
         assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
@@ -168,16 +178,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
     int i = 0;
 
     private DocumentMapper mapper(String indexName, String type, String mapping) throws IOException {
-        return mapper(indexName, type, mapping, Version.CURRENT);
-    }
-
-    private DocumentMapper mapper(String indexName, String type, String mapping, Version version) throws IOException {
-        IndexService index;
-        if (version.equals(Version.CURRENT)) {
-            index = createIndex(indexName);
-        } else {
-            index = createIndex(indexName, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build());
-        }
+        IndexService index = createIndex(indexName, BW_SETTINGS);
         client().admin().indices().preparePutMapping(indexName).setType(type).setSource(mapping).get();
         return index.mapperService().documentMapper(type);
     }
@@ -253,7 +254,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
             .field("date_field", "10:00:00")
             .endObject()
             .bytes());
-        assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis())));
+        assertThat(((LegacyLongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis())));
 
         LegacyNumericRangeQuery<Long> rangeQuery;
         try {
@@ -279,7 +280,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
                 .field("date_field", "Jan 02 10:00:00")
                 .endObject()
                 .bytes());
-        assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis())));
+        assertThat(((LegacyLongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis())));
 
         LegacyNumericRangeQuery<Long> rangeQuery;
         try {
@@ -336,7 +337,10 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         }
 
         // Unless the global ignore_malformed option is set to true
-        Settings indexSettings = Settings.builder().put("index.mapping.ignore_malformed", true).build();
+        Settings indexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0)
+                .put("index.mapping.ignore_malformed", true)
+                .build();
         defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -379,16 +383,16 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = mapper("test1", "type", initialMapping);
         DocumentMapper mergeMapper = mapper("test2", "type", updatedMapping);
 
-        assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(DateFieldMapper.class)));
-        DateFieldMapper initialDateFieldMapper = (DateFieldMapper) defaultMapper.mappers().getMapper("field");
+        assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(LegacyDateFieldMapper.class)));
+        LegacyDateFieldMapper initialDateFieldMapper = (LegacyDateFieldMapper) defaultMapper.mappers().getMapper("field");
         Map<String, String> config = getConfigurationViaXContent(initialDateFieldMapper);
         assertThat(config.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy"));
 
         defaultMapper = defaultMapper.merge(mergeMapper.mapping(), false);
 
-        assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(DateFieldMapper.class)));
+        assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(LegacyDateFieldMapper.class)));
 
-        DateFieldMapper mergedFieldMapper = (DateFieldMapper) defaultMapper.mappers().getMapper("field");
+        LegacyDateFieldMapper mergedFieldMapper = (LegacyDateFieldMapper) defaultMapper.mappers().getMapper("field");
         Map<String, String> mergedConfig = getConfigurationViaXContent(mergedFieldMapper);
         assertThat(mergedConfig.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy||yyyy-MM-dd'T'HH:mm:ss.SSSZZ"));
     }
@@ -409,7 +413,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, docValuesType(doc, "date_field"));
     }
 
-    private Map<String, String> getConfigurationViaXContent(DateFieldMapper dateFieldMapper) throws IOException {
+    private Map<String, String> getConfigurationViaXContent(LegacyDateFieldMapper dateFieldMapper) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         dateFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         Map<String, Object> dateFieldMapperMap;
@@ -462,9 +466,9 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
                 .endObject().endObject().string();
 
-        IndexService index = createIndex("test");
+        IndexService index = createIndex("test", BW_SETTINGS);
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
-        assertDateFormat(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.format());
+        assertDateFormat(LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.format());
         DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
         // also test normal date

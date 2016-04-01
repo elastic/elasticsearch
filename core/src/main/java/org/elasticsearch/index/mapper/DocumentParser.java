@@ -29,6 +29,7 @@ import java.util.List;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -37,13 +38,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyIntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
@@ -622,42 +624,91 @@ final class DocumentParser implements Closeable {
             if (builder == null) {
                 builder = new KeywordFieldMapper.Builder(currentFieldName);
             }
-        } else if (fieldType instanceof DateFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
-            if (builder == null) {
-                builder = new DateFieldMapper.Builder(currentFieldName);
-            }
-        } else if (fieldType.numericType() != null) {
-            switch (fieldType.numericType()) {
-            case LONG:
+        } else {
+            switch (fieldType.typeName()) {
+            case "date":
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
+                if (builder == null) {
+                    builder = newDateBuilder(currentFieldName, null, Version.indexCreated(context.indexSettings()));
+                }
+                break;
+            case "long":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                 if (builder == null) {
-                    builder = new LongFieldMapper.Builder(currentFieldName);
+                    builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                 }
                 break;
-            case DOUBLE:
+            case "double":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                 if (builder == null) {
-                    builder = new DoubleFieldMapper.Builder(currentFieldName);
+                    builder = newDoubleBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                 }
                 break;
-            case INT:
+            case "integer":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "integer");
                 if (builder == null) {
-                    builder = new IntegerFieldMapper.Builder(currentFieldName);
+                    builder = newIntBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                 }
                 break;
-            case FLOAT:
+            case "float":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
                 if (builder == null) {
-                    builder = new FloatFieldMapper.Builder(currentFieldName);
+                    builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                 }
                 break;
             default:
-                throw new AssertionError("Unexpected numeric type " + fieldType.numericType());
+                break;
             }
         }
         return builder;
+    }
+
+    private static Mapper.Builder<?, ?> newLongBuilder(String name, Version indexCreated) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
+        } else {
+            return new LegacyLongFieldMapper.Builder(name);
+        }
+    }
+
+    private static Mapper.Builder<?, ?> newIntBuilder(String name, Version indexCreated) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.INTEGER);
+        } else {
+            return new LegacyIntegerFieldMapper.Builder(name);
+        }
+    }
+
+    private static Mapper.Builder<?, ?> newDoubleBuilder(String name, Version indexCreated) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.DOUBLE);
+        } else {
+            return new LegacyDoubleFieldMapper.Builder(name);
+        }
+    }
+
+    private static Mapper.Builder<?, ?> newFloatBuilder(String name, Version indexCreated) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
+        } else {
+            return new LegacyFloatFieldMapper.Builder(name);
+        }
+    }
+
+    private static Mapper.Builder<?, ?> newDateBuilder(String name, FormatDateTimeFormatter dateTimeFormatter, Version indexCreated) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
+            if (dateTimeFormatter != null) {
+                builder.dateTimeFormatter(dateTimeFormatter);
+            }
+            return builder;
+        } else {
+            LegacyDateFieldMapper.Builder builder = new LegacyDateFieldMapper.Builder(name);
+            if (dateTimeFormatter != null) {
+                builder.dateTimeFormatter(dateTimeFormatter);
+            }
+            return builder;
+        }
     }
 
     private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context, XContentParser.Token token, String currentFieldName) throws IOException {
@@ -681,7 +732,7 @@ final class DocumentParser implements Closeable {
                             dateTimeFormatter.parser().parseMillis(text);
                             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
                             if (builder == null) {
-                                builder = new DateFieldMapper.Builder(currentFieldName).dateTimeFormatter(dateTimeFormatter);
+                                builder = newDateBuilder(currentFieldName, dateTimeFormatter, Version.indexCreated(context.indexSettings()));
                             }
                             return builder;
                         } catch (Exception e) {
@@ -696,7 +747,7 @@ final class DocumentParser implements Closeable {
                     Long.parseLong(text);
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                     if (builder == null) {
-                        builder = new LongFieldMapper.Builder(currentFieldName);
+                        builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                     }
                     return builder;
                 } catch (NumberFormatException e) {
@@ -706,7 +757,7 @@ final class DocumentParser implements Closeable {
                     Double.parseDouble(text);
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                     if (builder == null) {
-                        builder = new FloatFieldMapper.Builder(currentFieldName);
+                        builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                     }
                     return builder;
                 } catch (NumberFormatException e) {
@@ -724,7 +775,7 @@ final class DocumentParser implements Closeable {
             if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                 if (builder == null) {
-                    builder = new LongFieldMapper.Builder(currentFieldName);
+                    builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                 }
                 return builder;
             } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
@@ -733,7 +784,7 @@ final class DocumentParser implements Closeable {
                     // no templates are defined, we use float by default instead of double
                     // since this is much more space-efficient and should be enough most of
                     // the time
-                    builder = new FloatFieldMapper.Builder(currentFieldName);
+                    builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                 }
                 return builder;
             }

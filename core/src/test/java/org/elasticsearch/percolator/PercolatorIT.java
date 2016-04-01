@@ -170,7 +170,7 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     public void testSimple2() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=long,doc_values=true", "field2", "type=text"));
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=long", "field2", "type=text"));
         ensureGreen();
 
         // introduce the doc

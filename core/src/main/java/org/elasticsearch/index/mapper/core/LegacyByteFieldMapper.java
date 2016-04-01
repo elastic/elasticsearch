@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
@@ -52,39 +51,40 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeShortValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeByteValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
  *
  */
-public class ShortFieldMapper extends NumberFieldMapper {
+public class LegacyByteFieldMapper extends LegacyNumberFieldMapper {
 
-    public static final String CONTENT_TYPE = "short";
-    public static final int DEFAULT_PRECISION_STEP = 8;
+    public static final String CONTENT_TYPE = "byte";
 
-    public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final MappedFieldType FIELD_TYPE = new ShortFieldType();
+    public static class Defaults extends LegacyNumberFieldMapper.Defaults {
+        public static final MappedFieldType FIELD_TYPE = new ByteFieldType();
 
         static {
             FIELD_TYPE.freeze();
         }
     }
 
-    public static class Builder extends NumberFieldMapper.Builder<Builder, ShortFieldMapper> {
+    public static class Builder extends LegacyNumberFieldMapper.Builder<Builder, LegacyByteFieldMapper> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, DEFAULT_PRECISION_STEP);
+            super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_8_BIT);
             builder = this;
         }
 
         @Override
-        public ShortFieldMapper build(BuilderContext context) {
+        public LegacyByteFieldMapper build(BuilderContext context) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+                throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
+            }
             setupFieldType(context);
-            ShortFieldMapper fieldMapper = new ShortFieldMapper(name, fieldType, defaultFieldType,
-                    ignoreMalformed(context), coerce(context),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (ShortFieldMapper) fieldMapper.includeInAll(includeInAll);
+            LegacyByteFieldMapper fieldMapper = new LegacyByteFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return (LegacyByteFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override
@@ -96,7 +96,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ShortFieldMapper.Builder builder = new ShortFieldMapper.Builder(name);
+            LegacyByteFieldMapper.Builder builder = new LegacyByteFieldMapper.Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -106,7 +106,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(nodeShortValue(propNode));
+                    builder.nullValue(nodeByteValue(propNode));
                     iterator.remove();
                 }
             }
@@ -114,19 +114,18 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
     }
 
-    static final class ShortFieldType extends NumberFieldType {
-
-        public ShortFieldType() {
+    static final class ByteFieldType extends NumberFieldType {
+        public ByteFieldType() {
             super(LegacyNumericType.INT);
         }
 
-        protected ShortFieldType(ShortFieldType ref) {
+        protected ByteFieldType(ByteFieldType ref) {
             super(ref);
         }
 
         @Override
         public NumberFieldType clone() {
-            return new ShortFieldType(this);
+            return new ByteFieldType(this);
         }
 
         @Override
@@ -135,22 +134,22 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Short nullValue() {
-            return (Short)super.nullValue();
+        public Byte nullValue() {
+            return (Byte)super.nullValue();
         }
 
         @Override
-        public Short valueForSearch(Object value) {
+        public Byte valueForSearch(Object value) {
             if (value == null) {
                 return null;
             }
-            return ((Number) value).shortValue();
+            return ((Number) value).byteValue();
         }
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
-            LegacyNumericUtils.intToPrefixCoded(parseValue(value), 0, bytesRef);  // 0 because of exact match
+            LegacyNumericUtils.intToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
             return bytesRef.get();
         }
 
@@ -164,8 +163,8 @@ public class ShortFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            short iValue = parseValue(value);
-            short iSim = fuzziness.asShort();
+            byte iValue = parseValue(value);
+            byte iSim = fuzziness.asByte();
             return LegacyNumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
@@ -189,29 +188,29 @@ public class ShortFieldMapper extends NumberFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.SHORT);
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.BYTE);
         }
     }
 
-    protected ShortFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    protected LegacyByteFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                              Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
-    public ShortFieldType fieldType() {
-        return (ShortFieldType) super.fieldType();
+    public ByteFieldType fieldType() {
+        return (ByteFieldType) super.fieldType();
     }
 
-    private static short parseValue(Object value) {
+    private static byte parseValue(Object value) {
         if (value instanceof Number) {
-            return ((Number) value).shortValue();
+            return ((Number) value).byteValue();
         }
         if (value instanceof BytesRef) {
-            return Short.parseShort(((BytesRef) value).utf8ToString());
+            return Byte.parseByte(((BytesRef) value).utf8ToString());
         }
-        return Short.parseShort(value.toString());
+        return Byte.parseByte(value.toString());
     }
 
     @Override
@@ -221,7 +220,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
 
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        short value;
+        byte value;
         float boost = fieldType().boost();
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
@@ -238,13 +237,13 @@ public class ShortFieldMapper extends NumberFieldMapper {
                     }
                     value = fieldType().nullValue();
                 } else {
-                    value = Short.parseShort(sExternalValue);
+                    value = Byte.parseByte(sExternalValue);
                 }
             } else {
-                value = ((Number) externalValue).shortValue();
+                value = ((Number) externalValue).byteValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().name(), Short.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Byte.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -261,14 +260,14 @@ public class ShortFieldMapper extends NumberFieldMapper {
                     && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                Short objValue = fieldType().nullValue();
+                Byte objValue = fieldType().nullValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.shortValue(coerce.value());
+                                objValue = (byte) parser.shortValue(coerce.value());
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
@@ -283,14 +282,14 @@ public class ShortFieldMapper extends NumberFieldMapper {
                 }
                 value = objValue;
             } else {
-                value = parser.shortValue(coerce.value());
+                value = (byte) parser.shortValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
             }
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomShortNumericField field = new CustomShortNumericField(value, fieldType());
+            CustomByteNumericField field = new CustomByteNumericField(value, fieldType());
             if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 field.setBoost(boost);
             }
@@ -310,7 +309,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().numericPrecisionStep() != DEFAULT_PRECISION_STEP) {
+        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_8_BIT) {
             builder.field("precision_step", fieldType().numericPrecisionStep());
         }
         if (includeDefaults || fieldType().nullValue() != null) {
@@ -321,14 +320,13 @@ public class ShortFieldMapper extends NumberFieldMapper {
         } else if (includeDefaults) {
             builder.field("include_in_all", false);
         }
-
     }
 
-    public static class CustomShortNumericField extends CustomNumericField {
+    public static class CustomByteNumericField extends CustomNumericField {
 
-        private final short number;
+        private final byte number;
 
-        public CustomShortNumericField(short number, NumberFieldType fieldType) {
+        public CustomByteNumericField(byte number, MappedFieldType fieldType) {
             super(number, fieldType);
             this.number = number;
         }
@@ -343,7 +341,7 @@ public class ShortFieldMapper extends NumberFieldMapper {
 
         @Override
         public String numericAsString() {
-            return Short.toString(number);
+            return Byte.toString(number);
         }
     }
 }

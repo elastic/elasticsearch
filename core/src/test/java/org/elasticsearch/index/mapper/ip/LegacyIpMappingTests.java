@@ -19,13 +19,19 @@
 
 package org.elasticsearch.index.mapper.ip;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -36,14 +42,21 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class SimpleIpMappingTests extends ESSingleNodeTestCase {
+public class LegacyIpMappingTests extends ESSingleNodeTestCase {
+
+    private static final Settings BW_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     public void testSimpleMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("ip").field("type", "ip").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -56,12 +69,12 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testThatValidIpCanBeConvertedToLong() throws Exception {
-        assertThat(IpFieldMapper.ipToLong("127.0.0.1"), is(2130706433L));
+        assertThat(LegacyIpFieldMapper.ipToLong("127.0.0.1"), is(2130706433L));
     }
 
     public void testThatInvalidIpThrowsException() throws Exception {
         try {
-            IpFieldMapper.ipToLong("127.0.011.1111111");
+            LegacyIpFieldMapper.ipToLong("127.0.011.1111111");
             fail("Expected ip address parsing to fail but did not happen");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not a valid ip address"));
@@ -70,7 +83,7 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
 
     public void testThatIpv6AddressThrowsException() throws Exception {
         try {
-            IpFieldMapper.ipToLong("2001:db8:0:8d3:0:8a2e:70:7344");
+            LegacyIpFieldMapper.ipToLong("2001:db8:0:8d3:0:8a2e:70:7344");
             fail("Expected ip address parsing to fail but did not happen");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not a valid ipv4 address"));
@@ -83,7 +96,7 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
                 .field("ignore_malformed", false).endObject().startObject("field3").field("type", "ip").endObject().endObject().endObject()
                 .endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1",
                 XContentFactory.jsonBuilder().startObject().field("field1", "").field("field2", "10.20.30.40").endObject().bytes());
@@ -104,7 +117,10 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
         }
 
         // Unless the global ignore_malformed option is set to true
-        Settings indexSettings = Settings.builder().put("index.mapping.ignore_malformed", true).build();
+        Settings indexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0)
+                .put("index.mapping.ignore_malformed", true)
+                .build();
         defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
         assertThat(doc.rootDoc().getField("field3"), nullValue());

@@ -31,7 +31,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -358,15 +357,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-        if (numericType() != null) {
-            throw new QueryShardException(context, "Cannot use regular expression to filter numeric field [" + name + "]");
-        }
-
-        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
-        if (method != null) {
-            query.setRewriteMethod(method);
-        }
-        return query;
+        throw new QueryShardException(context, "Can only use regular expression on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
     public Query nullValueQuery() {

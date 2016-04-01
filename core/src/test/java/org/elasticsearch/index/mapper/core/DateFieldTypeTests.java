@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.index.mapper.core;
 
-import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.LegacyLongField;
+import java.io.IOException;
+import java.util.Locale;
+
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -37,10 +39,6 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.util.Locale;
-import java.util.concurrent.TimeUnit;
-
 public class DateFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
@@ -53,19 +51,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("format", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldMapper.DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+                ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
             }
         });
         addModifier(new Modifier("locale", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldMapper.DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
-            }
-        });
-        addModifier(new Modifier("numeric_resolution", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((DateFieldMapper.DateFieldType)ft).setTimeUnit(TimeUnit.HOURS);
+                ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
             }
         });
     }
@@ -105,10 +97,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        long instant1 = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12").getMillis();
-        long instant2 = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-03").getMillis();
+        long instant1 = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12").getMillis();
+        long instant2 = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-03").getMillis();
         Document doc = new Document();
-        LegacyLongField field = new LegacyLongField("my_date", instant1, Store.NO);
+        LongPoint field = new LongPoint("my_date", instant1);
         doc.add(field);
         w.addDocument(doc);
         field.setLongValue(instant2);
@@ -116,7 +108,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         DateFieldType ft = new DateFieldType();
         ft.setName("my_date");
-        DateMathParser alternateFormat = new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER);
+        DateMathParser alternateFormat = new DateMathParser(LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER);
         doTestIsFieldWithinQuery(ft, reader, null, null);
         doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
@@ -126,7 +118,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() {
         MappedFieldType ft = createDefaultFieldType();
-        long instant = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12T14:10:55").getMillis();
+        long instant = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12T14:10:55").getMillis();
         assertEquals("2015-10-12T14:10:55.000Z",
                 ft.docValueFormat(null, DateTimeZone.UTC).format(instant));
         assertEquals("2015-10-12T15:10:55.000+01:00",
@@ -137,14 +129,14 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", false, null));
         assertEquals(instant,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", true, null));
-        assertEquals(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-13").getMillis() - 1,
+        assertEquals(LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-13").getMillis() - 1,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12||/d", true, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
         String date = "2015-10-12T12:09:55.000Z";
-        long instant = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
+        long instant = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
         assertEquals(date, ft.valueForSearch(instant));
     }
 }

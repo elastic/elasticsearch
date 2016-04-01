@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoHashUtils;
@@ -28,14 +29,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.index.mapper.ip.LegacyIpFieldMapper;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -238,7 +243,7 @@ public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
 
         @Override
         public String format(long value) {
-            return IpFieldMapper.longToIp(value);
+            return LegacyIpFieldMapper.longToIp(value);
         }
 
         @Override
@@ -248,12 +253,15 @@ public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
 
         @Override
         public String format(BytesRef value) {
-            throw new UnsupportedOperationException();
+            byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+            InetAddress inet = InetAddressPoint.decode(bytes);
+            return NetworkAddress.format(inet);
         }
 
         @Override
         public long parseLong(String value, boolean roundUp, Callable<Long> now) {
-            return IpFieldMapper.ipToLong(value);
+            // TODO: throw exception in 6.0
+            return LegacyIpFieldMapper.ipToLong(value);
         }
 
         @Override

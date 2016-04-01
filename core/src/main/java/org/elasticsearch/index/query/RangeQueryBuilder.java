@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -437,7 +438,14 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         Query query = null;
         MappedFieldType mapper = context.fieldMapper(this.fieldName);
         if (mapper != null) {
-            if (mapper instanceof DateFieldMapper.DateFieldType) {
+            if (mapper instanceof LegacyDateFieldMapper.DateFieldType) {
+                DateMathParser forcedDateParser = null;
+                if (this.format  != null) {
+                    forcedDateParser = new DateMathParser(this.format);
+                }
+                query = ((LegacyDateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
+                        timeZone, forcedDateParser);
+            } else if (mapper instanceof DateFieldMapper.DateFieldType) {
                 DateMathParser forcedDateParser = null;
                 if (this.format  != null) {
                     forcedDateParser = new DateMathParser(this.format);

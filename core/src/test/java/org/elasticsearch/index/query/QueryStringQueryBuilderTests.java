@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -32,6 +33,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
@@ -349,9 +351,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryNumericRangeQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME).toQuery(createShardContext());
-        LegacyNumericRangeQuery fuzzyQuery = (LegacyNumericRangeQuery) query;
-        assertThat(fuzzyQuery.getMin().longValue(), equalTo(12L));
-        assertThat(fuzzyQuery.getMax().longValue(), equalTo(12L));
+        if (getIndexVersionCreated().onOrAfter(Version.V_5_0_0)) {
+            assertEquals(IntPoint.newExactQuery(INT_FIELD_NAME, 12), query);
+        } else {
+            LegacyNumericRangeQuery fuzzyQuery = (LegacyNumericRangeQuery) query;
+            assertThat(fuzzyQuery.getMin().longValue(), equalTo(12L));
+            assertThat(fuzzyQuery.getMax().longValue(), equalTo(12L));
+        }
     }
 
     public void testTimezone() throws Exception {

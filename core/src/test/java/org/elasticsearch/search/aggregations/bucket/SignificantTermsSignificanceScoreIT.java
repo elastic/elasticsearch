@@ -94,7 +94,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testPlugin() throws Exception {
-        String type = randomBoolean() ? "text" : "long";
+        String type = randomBoolean() ? "text" : "keyword";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -257,7 +257,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testXContentResponse() throws Exception {
-        String type = randomBoolean() ? "text" : "long";
+        String type = randomBoolean() ? "text" : "keyword";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -279,12 +279,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         XContentBuilder responseBuilder = XContentFactory.jsonBuilder();
         classes.toXContent(responseBuilder, null);
-        String result = null;
-        if (type.equals("long")) {
-            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":0,\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":1,\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
-        } else {
-            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
-        }
+        String result = "\"class\"{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
         assertThat(responseBuilder.string(), equalTo(result));
 
     }
@@ -333,7 +328,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testBackgroundVsSeparateSet() throws Exception {
-        String type = randomBoolean() ? "text" : "long";
+        String type = randomBoolean() ? "text" : "keyword";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
         testBackgroundVsSeparateSet(new MutualInformation(true, true), new MutualInformation(true, false));
@@ -460,7 +455,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testScriptScore() throws ExecutionException, InterruptedException, IOException {
-        indexRandomFrequencies01(randomBoolean() ? "text" : "long");
+        indexRandomFrequencies01(randomBoolean() ? "text" : "keyword");
         ScriptHeuristic scriptHeuristic = getScriptSignificanceHeuristic();
         ensureYellow();
         SearchResponse response = client().prepareSearch(INDEX_NAME)

@@ -64,7 +64,7 @@ public enum ValueType implements Writeable<ValueType> {
         }
     },
     DATE((byte) 5, "date", "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class,
-            new DocValueFormat.DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateTimeZone.UTC)) {
+            new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateTimeZone.UTC)) {
         @Override
         public boolean isNumeric() {
             return true;

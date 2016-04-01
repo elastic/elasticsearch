@@ -54,8 +54,9 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
                             .startObject("field5").field("type", "long").field("store", true).endObject()
                             .startObject("field6").field("type", "double").field("store", true).endObject()
                             .startObject("field7").field("type", "ip").field("store", true).endObject()
-                            .startObject("field8").field("type", "date").field("store", true).endObject()
-                            .startObject("field9").field("type", "boolean").field("store", true).endObject()
+                            .startObject("field8").field("type", "ip").field("store", true).endObject()
+                            .startObject("field9").field("type", "date").field("store", true).endObject()
+                            .startObject("field10").field("type", "boolean").field("store", true).endObject()
                         .endObject()
                     .endObject()
                 .endObject()
@@ -71,8 +72,9 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
                     .startArray("field5").value(1).value(2).value(3).endArray()
                     .field("field6", 1.1)
                     .field("field7", "192.168.1.1")
-                    .field("field8", "2016-04-05")
-                    .field("field9", true)
+                    .field("field8", "2001:db8::2:1")
+                    .field("field9", "2016-04-05")
+                    .field("field10", true)
                 .endObject()
                 .bytes());
 
@@ -85,7 +87,7 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
                 Collections.emptySet(), Collections.singletonList("field*"), false);
         searcher.doc(0, fieldsVisitor);
         fieldsVisitor.postProcess(mapper);
-        assertThat(fieldsVisitor.fields().size(), equalTo(9));
+        assertThat(fieldsVisitor.fields().size(), equalTo(10));
         assertThat(fieldsVisitor.fields().get("field1").size(), equalTo(1));
         assertThat(fieldsVisitor.fields().get("field1").get(0), equalTo((byte) 1));
 
@@ -110,10 +112,13 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         assertThat(fieldsVisitor.fields().get("field7").get(0), equalTo("192.168.1.1"));
 
         assertThat(fieldsVisitor.fields().get("field8").size(), equalTo(1));
-        assertThat(fieldsVisitor.fields().get("field8").get(0), equalTo("2016-04-05T00:00:00.000Z"));
+        assertThat(fieldsVisitor.fields().get("field8").get(0), equalTo("2001:db8::2:1"));
 
         assertThat(fieldsVisitor.fields().get("field9").size(), equalTo(1));
-        assertThat(fieldsVisitor.fields().get("field9").get(0), equalTo(true));
+        assertThat(fieldsVisitor.fields().get("field9").get(0), equalTo("2016-04-05T00:00:00.000Z"));
+
+        assertThat(fieldsVisitor.fields().get("field10").size(), equalTo(1));
+        assertThat(fieldsVisitor.fields().get("field10").get(0), equalTo(true));
 
         reader.close();
         writer.close();

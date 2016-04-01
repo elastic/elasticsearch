@@ -28,3 +28,6 @@ java.security.MessageDigest#clone() @ use org.elasticsearch.common.hash.MessageD
 
 @defaultMessage this should not have been added to lucene in the first place
 org.apache.lucene.index.IndexReader#getCombinedCoreAndDeletesKey()
+
+@defaultMessage Soon to be removed
+org.apache.lucene.document.FieldType#numericType()

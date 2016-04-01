@@ -41,6 +41,8 @@ way to do this is to upgrade to Elasticsearch 2.3 or later and to use the
 * <<breaking_50_packaging>>
 * <<breaking_50_plugins>>
 * <<breaking_50_fs>>
+* <<breaking_50_aggregations_changes>>
+
 
 include::migrate_5_0/search.asciidoc[]
 
@@ -65,3 +67,5 @@ include::migrate_5_0/packaging.asciidoc[]
 include::migrate_5_0/plugins.asciidoc[]
 
 include::migrate_5_0/fs.asciidoc[]
+
+include::migrate_5_0/aggregations.asciidoc[]

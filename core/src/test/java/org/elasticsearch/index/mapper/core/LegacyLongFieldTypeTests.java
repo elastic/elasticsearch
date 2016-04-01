@@ -21,31 +21,31 @@ package org.elasticsearch.index.mapper.core;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper.IntegerFieldType;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper.LongFieldType;
 import org.junit.Before;
 
 import java.io.IOException;
 
-public class IntegerFieldTypeTests extends FieldTypeTestCase {
+public class LegacyLongFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new IntegerFieldMapper.IntegerFieldType();
+        return new LegacyLongFieldMapper.LongFieldType();
     }
 
     @Before
     public void setupProperties() {
-        setDummyNullValue(10);
+        setDummyNullValue((long)10);
     }
 
     public void testIsFieldWithinQuery() throws IOException {
-        IntegerFieldType ft = new IntegerFieldType();
+        LongFieldType ft = new LongFieldType();
         // current impl ignores args and shourd always return INTERSECTS
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomInt(), randomInt(),
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomLong(), randomLong(),
                 randomBoolean(), randomBoolean(), null, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals(Integer.valueOf(3), ft.valueForSearch(Integer.valueOf(3)));
+        assertEquals(Long.valueOf(3), ft.valueForSearch(Long.valueOf(3)));
     }
 }

@@ -147,10 +147,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
-        static final Item PROTOTYPE = new Item();
-
         public Item() {
-
         }
 
         Item(Item copy) {
@@ -197,6 +194,41 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             this.index = index;
             this.type = type;
             this.doc = doc.bytes();
+        }
+
+        /**
+         * Read from a stream.
+         */
+        Item(StreamInput in) throws IOException {
+            index = in.readOptionalString();
+            type = in.readOptionalString();
+            if (in.readBoolean()) {
+                doc = (BytesReference) in.readGenericValue();
+            } else {
+                id = in.readString();
+            }
+            fields = in.readOptionalStringArray();
+            perFieldAnalyzer = (Map<String, String>) in.readGenericValue();
+            routing = in.readOptionalString();
+            version = in.readLong();
+            versionType = VersionType.readVersionTypeFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(index);
+            out.writeOptionalString(type);
+            out.writeBoolean(doc != null);
+            if (doc != null) {
+                out.writeGenericValue(doc);
+            } else {
+                out.writeString(id);
+            }
+            out.writeOptionalStringArray(fields);
+            out.writeGenericValue(perFieldAnalyzer);
+            out.writeOptionalString(routing);
+            out.writeLong(version);
+            versionType.writeTo(out);
         }
 
         public String index() {
@@ -402,45 +434,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }
-        }
-
-        @Override
-        public Item readFrom(StreamInput in) throws IOException {
-            Item item = new Item();
-            item.index = in.readOptionalString();
-            item.type = in.readOptionalString();
-            if (in.readBoolean()) {
-                item.doc = (BytesReference) in.readGenericValue();
-            } else {
-                item.id = in.readString();
-            }
-            item.fields = in.readOptionalStringArray();
-            item.perFieldAnalyzer = (Map<String, String>) in.readGenericValue();
-            item.routing = in.readOptionalString();
-            item.version = in.readLong();
-            item.versionType = VersionType.readVersionTypeFrom(in);
-            return item;
-        }
-
-        public static Item readItemFrom(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(index);
-            out.writeOptionalString(type);
-            out.writeBoolean(doc != null);
-            if (doc != null) {
-                out.writeGenericValue(doc);
-            } else {
-                out.writeString(id);
-            }
-            out.writeOptionalStringArray(fields);
-            out.writeGenericValue(perFieldAnalyzer);
-            out.writeOptionalString(routing);
-            out.writeLong(version);
-            versionType.writeTo(out);
         }
 
         @Override
@@ -989,7 +982,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         int size = in.readVInt();
         Item[] items = new Item[size];
         for (int i = 0; i < size; i++) {
-            items[i] = Item.readItemFrom(in);
+            items[i] = new Item(in);
         }
         return items;
     }

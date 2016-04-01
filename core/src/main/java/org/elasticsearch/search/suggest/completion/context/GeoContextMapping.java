@@ -44,8 +44,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.spatial.util.GeoHashUtils.addNeighbors;
-import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.addNeighbors;
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
 /**
  * A {@link ContextMapping} that uses a geo location/area as a

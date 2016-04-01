@@ -88,7 +88,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoEncodingUtils.mortonHash(51.0, 42.0)));
+            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoEncodingUtils.mortonHash(42.0, 51.0)));
         }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
@@ -146,7 +146,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoEncodingUtils.mortonHash(51.0, 42.0)));
+            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoEncodingUtils.mortonHash(42.0, 51.0)));
         }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
@@ -208,7 +208,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoEncodingUtils.mortonHash(51.0, 42.0)));
+            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoEncodingUtils.mortonHash(42.0, 51.0)));
         }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());

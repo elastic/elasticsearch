@@ -257,7 +257,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
             GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
         normDistance = GeoUtils.maxRadialDistance(center, normDistance);
-        return new GeoPointDistanceQuery(fieldType.name(), encoding, center.lon(), center.lat(), normDistance);
+        return new GeoPointDistanceQuery(fieldType.name(), encoding, center.lat(), center.lon(), normDistance);
     }
 
     @Override

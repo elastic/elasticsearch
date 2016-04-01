@@ -38,7 +38,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.apache.lucene.spatial.util.GeoHashUtils.addNeighbors;
+import static org.elasticsearch.common.geo.GeoHashUtils.addNeighbors;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;
 import static org.hamcrest.Matchers.equalTo;

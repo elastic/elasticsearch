@@ -165,7 +165,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         // if index created V_2_3 > use prefix encoded postings format
         final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
             GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
-        return new GeoPointInPolygonQuery(fieldType.name(), encoding, lons, lats);
+        return new GeoPointInPolygonQuery(fieldType.name(), encoding, lats, lons);
     }
 
     @Override

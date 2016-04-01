@@ -129,7 +129,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
             GeoUtils.normalizePoint(point);
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            context.doc().add(new GeoPointField(fieldType().name(), point.lon(), point.lat(), fieldType() ));
+            context.doc().add(new GeoPointField(fieldType().name(), point.lat(), point.lon(), fieldType()));
         }
         super.parse(context, point, geoHash);
     }

@@ -538,7 +538,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
             factory.fieldNames = fieldNames;
         }
         factory.from = in.readVInt();
-        in.readOptionalWriteable(HighlightBuilder::new);
+        factory.highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         if (in.readBoolean()) {
             int size = in.readVInt();
             List<ScriptField> scriptFields = new ArrayList<>(size);

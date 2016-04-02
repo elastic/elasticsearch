@@ -406,8 +406,8 @@ public class PublishClusterStateAction extends AbstractComponent {
         if (lastSeenClusterState != null && lastSeenClusterState.supersedes(incomingState)) {
             final String message = String.format(
                     Locale.ROOT,
-                    "received older cluster state version [%s] from current master " +
-                        "with uuid [%s] than last seen cluster state [%s] from current master with uuid [%s]",
+                    "received cluster state from current master superseded by last seen cluster state; " +
+                            "received version [%s] with uuid [%s], last seen version [%s] with uuid [%s]",
                     incomingState.version(),
                     incomingState.stateUUID(),
                     lastSeenClusterState.version(),

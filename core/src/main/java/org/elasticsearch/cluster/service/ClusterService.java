@@ -219,8 +219,12 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             }
         }
         ThreadPool.terminate(updateTasksExecutor, 10, TimeUnit.SECONDS);
-        postAppliedListeners.stream().filter(listener -> listener instanceof TimeoutClusterStateListener)
-                .forEach(listener -> ((TimeoutClusterStateListener) listener).onClose());
+        // close timeout listeners that did not have an ongoing timeout
+        postAppliedListeners
+                .stream()
+                .filter(listener -> listener instanceof TimeoutClusterStateListener)
+                .map(listener -> (TimeoutClusterStateListener)listener)
+                .forEach(TimeoutClusterStateListener::onClose);
         remove(localNodeMasterListeners);
     }
 

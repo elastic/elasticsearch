@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.esnative;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -34,6 +35,7 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for the ESNativeUsersStore and ESNativeRolesStore
@@ -396,5 +398,25 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         } catch (ValidationException v) {
             assertThat(v.getMessage().contains("password"), is(true));
         }
+    }
+
+    public void testUsersAndRolesDoNotInterfereWithIndicesStats() throws Exception {
+        client().prepareIndex("foo", "bar").setSource("ignore", "me").get();
+
+        SecurityClient client = securityClient();
+        if (randomBoolean()) {
+            client.preparePutUser("joe", "s3krit".toCharArray(), ShieldSettingsSource.DEFAULT_ROLE).get();
+        } else {
+            client.preparePutRole("read_role")
+                    .cluster("none")
+                    .addIndices(new String[]{"*"}, new String[]{"read"}, null, null)
+                    .get();
+        }
+
+        IndicesStatsResponse response = client().admin().indices().prepareStats("foo", ShieldTemplateService.SECURITY_INDEX_NAME).get();
+        assertThat(response.getIndices().size(), is(2));
+        assertThat(response.getIndices().get(ShieldTemplateService.SECURITY_INDEX_NAME), notNullValue());
+        assertThat(response.getIndices().get(ShieldTemplateService.SECURITY_INDEX_NAME).getIndex(),
+                is(ShieldTemplateService.SECURITY_INDEX_NAME));
     }
 }

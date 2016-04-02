@@ -59,6 +59,8 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     public static final String INDICES_PERMISSIONS_KEY = "_indices_permissions";
     static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
 
+    private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
+
     private final ClusterService clusterService;
     private final RolesStore rolesStore;
     private final AuditTrail auditTrail;
@@ -218,8 +220,10 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             throw denial(user, action, request);
         } else if (indicesAccessControl.getIndexPermissions(ShieldTemplateService.SECURITY_INDEX_NAME) != null
                 && indicesAccessControl.getIndexPermissions(ShieldTemplateService.SECURITY_INDEX_NAME).isGranted()
-                && XPackUser.is(user) == false) {
-            // only the XPackUser is allowed to work with this index, but we should allow health/stats through
+                && XPackUser.is(user) == false
+                && MONITOR_INDEX_PREDICATE.test(action) == false) {
+            // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
+            // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]", user.principal(), action,
                     ShieldTemplateService.SECURITY_INDEX_NAME);
             throw denial(user, action, request);

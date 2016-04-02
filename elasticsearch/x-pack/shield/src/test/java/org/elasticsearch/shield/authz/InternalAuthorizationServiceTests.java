@@ -15,6 +15,20 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
+import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -495,6 +509,8 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         requests.add(new Tuple<>(TermVectorsAction.NAME, new TermVectorsRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest().addAlias("shield_alias",
                 ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(
+                new Tuple<>(UpdateSettingsAction.NAME, new UpdateSettingsRequest().indices(ShieldTemplateService.SECURITY_INDEX_NAME)));
 
         for (Tuple<String, TransportRequest> requestTuple : requests) {
             String action = requestTuple.v1();
@@ -518,6 +534,38 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         request = new ClusterHealthRequest(ShieldTemplateService.SECURITY_INDEX_NAME, "foo", "bar");
         internalAuthorizationService.authorize(user, ClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request);
+    }
+
+    public void testGrantedNonXPackUserCanExecuteMonitoringOperationsAgainstSecurityIndex() {
+        User user = new User("all_access_user", "all_access");
+        when(rolesStore.role("all_access")).thenReturn(Role.builder("all_access")
+                .add(IndexPrivilege.ALL, "*")
+                .cluster(ClusterPrivilege.ALL)
+                .build());
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.builder()
+                .put(new IndexMetaData.Builder(ShieldTemplateService.SECURITY_INDEX_NAME)
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build());
+
+        List<Tuple<String, ? extends TransportRequest>> requests = new ArrayList<>();
+        requests.add(new Tuple<>(IndicesStatsAction.NAME, new IndicesStatsRequest().indices(ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(RecoveryAction.NAME, new RecoveryRequest().indices(ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(IndicesSegmentsAction.NAME,
+                new IndicesSegmentsRequest().indices(ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(GetSettingsAction.NAME, new GetSettingsRequest().indices(ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(IndicesShardStoresAction.NAME,
+                new IndicesShardStoresRequest().indices(ShieldTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(UpgradeStatusAction.NAME, new UpgradeStatusRequest().indices(ShieldTemplateService.SECURITY_INDEX_NAME)));
+
+        for (Tuple<String, ? extends TransportRequest> requestTuple : requests) {
+            String action = requestTuple.v1();
+            TransportRequest request = requestTuple.v2();
+            internalAuthorizationService.authorize(user, action, request);
+            verify(auditTrail).accessGranted(user, action, request);
+        }
     }
 
     public void testXPackUserCanExecuteOperationAgainstShieldIndex() {

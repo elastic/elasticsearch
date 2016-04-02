@@ -532,7 +532,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
 
             if (timedout) {
-                markAsFailed("timed out waiting for commit (commit timeout [" + commitTimeout + "]");
+                markAsFailed("timed out waiting for commit (commit timeout [" + commitTimeout + "])");
             }
             if (isCommitted() == false) {
                 throw new Discovery.FailedToCommitClusterStateException("{} enough masters to ack sent cluster state. [{}] left",

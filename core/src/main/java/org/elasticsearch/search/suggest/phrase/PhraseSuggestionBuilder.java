@@ -60,8 +60,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
     private static final String SUGGESTION_NAME = "phrase";
 
-    public static final PhraseSuggestionBuilder PROTOTYPE = new PhraseSuggestionBuilder("_na_");
-
     protected static final ParseField MAXERRORS_FIELD = new ParseField("max_errors");
     protected static final ParseField RWE_LIKELIHOOD_FIELD = new ParseField("real_word_error_likelihood");
     protected static final ParseField SEPARATOR_FIELD = new ParseField("separator");
@@ -119,6 +117,76 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         collatePrune = in.collatePrune;
         model = in.model;
         generators.putAll(in.generators);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    PhraseSuggestionBuilder(StreamInput in) throws IOException {
+        super(in);
+        maxErrors = in.readFloat();
+        realWordErrorLikelihood = in.readFloat();
+        confidence = in.readFloat();
+        gramSize = in.readOptionalVInt();
+        if (in.readBoolean()) {
+            model = in.readPhraseSuggestionSmoothingModel();
+        }
+        forceUnigrams = in.readBoolean();
+        tokenLimit = in.readVInt();
+        preTag = in.readOptionalString();
+        postTag = in.readOptionalString();
+        separator = in.readString();
+        if (in.readBoolean()) {
+            collateQuery = Template.readTemplate(in);
+        }
+        collateParams = in.readMap();
+        collatePrune = in.readOptionalBoolean();
+        int generatorsEntries = in.readVInt();
+        for (int i = 0; i < generatorsEntries; i++) {
+            String type = in.readString();
+            int numberOfGenerators = in.readVInt();
+            List<CandidateGenerator> generatorsList = new ArrayList<>(numberOfGenerators);
+            for (int g = 0; g < numberOfGenerators; g++) {
+                DirectCandidateGeneratorBuilder generator = new DirectCandidateGeneratorBuilder(in);
+                generatorsList.add(generator);
+            }
+            generators.put(type, generatorsList);
+        }
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeFloat(maxErrors);
+        out.writeFloat(realWordErrorLikelihood);
+        out.writeFloat(confidence);
+        out.writeOptionalVInt(gramSize);
+        boolean hasModel = model != null;
+        out.writeBoolean(hasModel);
+        if (hasModel) {
+            out.writePhraseSuggestionSmoothingModel(model);
+        }
+        out.writeBoolean(forceUnigrams);
+        out.writeVInt(tokenLimit);
+        out.writeOptionalString(preTag);
+        out.writeOptionalString(postTag);
+        out.writeString(separator);
+        if (collateQuery != null) {
+            out.writeBoolean(true);
+            collateQuery.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeMap(collateParams);
+        out.writeOptionalBoolean(collatePrune);
+        out.writeVInt(this.generators.size());
+        for (Entry<String, List<CandidateGenerator>> entry : this.generators.entrySet()) {
+            out.writeString(entry.getKey());
+            List<CandidateGenerator> generatorsList = entry.getValue();
+            out.writeVInt(generatorsList.size());
+            for (CandidateGenerator generator : generatorsList) {
+                generator.writeTo(out);
+            }
+        }
     }
 
     /**
@@ -422,8 +490,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         return builder;
     }
 
-    @Override
-    protected PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+    static PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         PhraseSuggestionBuilder tmpSuggestion = new PhraseSuggestionBuilder("_na_");
         ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
@@ -464,7 +531,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                 if (parseFieldMatcher.match(currentFieldName, DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD)) {
                     // for now we only have a single type of generators
                     while ((token = parser.nextToken()) == Token.START_OBJECT) {
-                        tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PROTOTYPE.fromXContent(parseContext));
+                        tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.fromXContent(parseContext));
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -578,10 +645,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
             suggestionContext.setCollatePrune(this.collatePrune);
         }
 
-        if (suggestionContext.model() == null) {
-            suggestionContext.setModel(StupidBackoffScorer.FACTORY);
-        }
-
         if (this.gramSize == null || suggestionContext.generators().isEmpty()) {
             final ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils
                     .getShingleFilterFactory(suggestionContext.getAnalyzer());
@@ -624,75 +687,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeFloat(maxErrors);
-        out.writeFloat(realWordErrorLikelihood);
-        out.writeFloat(confidence);
-        out.writeOptionalVInt(gramSize);
-        boolean hasModel = model != null;
-        out.writeBoolean(hasModel);
-        if (hasModel) {
-            out.writePhraseSuggestionSmoothingModel(model);
-        }
-        out.writeBoolean(forceUnigrams);
-        out.writeVInt(tokenLimit);
-        out.writeOptionalString(preTag);
-        out.writeOptionalString(postTag);
-        out.writeString(separator);
-        if (collateQuery != null) {
-            out.writeBoolean(true);
-            collateQuery.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeMap(collateParams);
-        out.writeOptionalBoolean(collatePrune);
-        out.writeVInt(this.generators.size());
-        for (Entry<String, List<CandidateGenerator>> entry : this.generators.entrySet()) {
-            out.writeString(entry.getKey());
-            List<CandidateGenerator> generatorsList = entry.getValue();
-            out.writeVInt(generatorsList.size());
-            for (CandidateGenerator generator : generatorsList) {
-                generator.writeTo(out);
-            }
-        }
-    }
-
-    @Override
-    public PhraseSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
-        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(field);
-        builder.maxErrors = in.readFloat();
-        builder.realWordErrorLikelihood = in.readFloat();
-        builder.confidence = in.readFloat();
-        builder.gramSize = in.readOptionalVInt();
-        if (in.readBoolean()) {
-            builder.model = in.readPhraseSuggestionSmoothingModel();
-        }
-        builder.forceUnigrams = in.readBoolean();
-        builder.tokenLimit = in.readVInt();
-        builder.preTag = in.readOptionalString();
-        builder.postTag = in.readOptionalString();
-        builder.separator = in.readString();
-        if (in.readBoolean()) {
-            builder.collateQuery = Template.readTemplate(in);
-        }
-        builder.collateParams = in.readMap();
-        builder.collatePrune = in.readOptionalBoolean();
-        int generatorsEntries = in.readVInt();
-        for (int i = 0; i < generatorsEntries; i++) {
-            String type = in.readString();
-            int numberOfGenerators = in.readVInt();
-            List<CandidateGenerator> generatorsList = new ArrayList<>(numberOfGenerators);
-            for (int g = 0; g < numberOfGenerators; g++) {
-                DirectCandidateGeneratorBuilder generator = DirectCandidateGeneratorBuilder.PROTOTYPE.readFrom(in);
-                generatorsList.add(generator);
-            }
-            builder.generators.put(type, generatorsList);
-        }
-        return builder;
-    }
-
-    @Override
     protected boolean doEquals(PhraseSuggestionBuilder other) {
         return Objects.equals(maxErrors, other.maxErrors) &&
                 Objects.equals(separator, other.separator) &&
@@ -722,8 +716,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      */
     public interface CandidateGenerator extends Writeable<CandidateGenerator>, ToXContent {
         String getType();
-
-        CandidateGenerator fromXContent(QueryParseContext parseContext) throws IOException;
 
         PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException;
     }

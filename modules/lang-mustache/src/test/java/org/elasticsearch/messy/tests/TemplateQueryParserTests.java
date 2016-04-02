@@ -116,10 +116,6 @@ public class TemplateQueryParserTests extends ESTestCase {
                     protected void configureSearch() {
                         // skip so we don't need transport
                     }
-                    @Override
-                    protected void configureSuggesters() {
-                        // skip so we don't need IndicesService
-                    }
                 },
                 scriptModule,
                 new IndexSettingsModule(index, settings),
@@ -153,7 +149,7 @@ public class TemplateQueryParserTests extends ESTestCase {
             }
         });
         IndicesQueriesRegistry indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        context = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, null);
+        context = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, null, null);
     }
 
     @Override

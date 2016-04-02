@@ -76,6 +76,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -222,14 +224,14 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             totalIndexShards += numberOfShards;
             for (int j = 0; j < numberOfShards; j++) {
                 final ShardId shardId = new ShardId(index, "_na_", ++shardIndex);
-                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), true, ShardRoutingState.STARTED);
+                ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.getId(), true, ShardRoutingState.STARTED);
                 IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(shardId);
                 indexShard.addShard(shard);
                 indexRoutingTable.addIndexShard(indexShard.build());
             }
         }
-        discoBuilder.localNodeId(newNode(0).id());
-        discoBuilder.masterNodeId(newNode(numberOfNodes - 1).id());
+        discoBuilder.localNodeId(newNode(0).getId());
+        discoBuilder.masterNodeId(newNode(numberOfNodes - 1).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName(TEST_CLUSTER));
         stateBuilder.nodes(discoBuilder);
         final IndexMetaData.Builder indexMetaData = IndexMetaData.builder(index)
@@ -244,7 +246,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
+        return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
     }
 
     @AfterClass
@@ -316,9 +318,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Request request = new Request(new String[]{TEST_INDEX});
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
+        DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
-        builder.remove(masterNode.id());
+        builder.remove(masterNode.getId());
 
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
 
@@ -330,7 +332,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt.asUnordered()) {
-            if (!shard.currentNodeId().equals(masterNode.id())) {
+            if (!shard.currentNodeId().equals(masterNode.getId())) {
                 set.add(shard.currentNodeId());
             }
         }
@@ -401,9 +403,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final boolean simulateFailedMasterNode = rarely();
         DiscoveryNode failedMasterNode = null;
         if (simulateFailedMasterNode) {
-            failedMasterNode = clusterService.state().nodes().masterNode();
+            failedMasterNode = clusterService.state().nodes().getMasterNode();
             DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
-            builder.remove(failedMasterNode.id());
+            builder.remove(failedMasterNode.getId());
             builder.masterNodeId(null);
 
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
@@ -451,7 +453,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             }
         }
         if (simulateFailedMasterNode) {
-            totalShards += map.get(failedMasterNode.id()).size();
+            totalShards += map.get(failedMasterNode.getId()).size();
         }
 
         Response response = listener.get();

@@ -567,7 +567,7 @@ public class GeoFilterIT extends ESIntegTestCase {
     }
 
     protected static String randomhash(int length) {
-        return randomhash(getRandom(), length);
+        return randomhash(random(), length);
     }
 
     protected static String randomhash(Random random) {
@@ -575,7 +575,7 @@ public class GeoFilterIT extends ESIntegTestCase {
     }
 
     protected static String randomhash() {
-        return randomhash(getRandom());
+        return randomhash(random());
     }
 
     protected static String randomhash(Random random, int length) {

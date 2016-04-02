@@ -53,7 +53,7 @@ public class UpdateByQueryBasicTests extends UpdateByQueryTestCase {
 
         // Limit with size
         UpdateByQueryRequestBuilder request = request().source("test").size(3).refresh(true);
-        request.source().addSort("foo", SortOrder.ASC);
+        request.source().addSort("foo.keyword", SortOrder.ASC);
         assertThat(request.get(), responseMatcher().updated(3));
         // Only the first three documents are updated because of sort
         assertEquals(4, client().prepareGet("test", "test", "1").get().getVersion());

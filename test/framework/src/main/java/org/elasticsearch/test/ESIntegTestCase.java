@@ -101,7 +101,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -111,7 +110,6 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesRequestCache;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -345,7 +343,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             default:
                 fail("Unknown Scope: [" + currentClusterScope + "]");
         }
-        cluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
+        cluster().beforeTest(random(), getPerTestTransportClientRatio());
         cluster().wipe(excludeTemplates());
         randomIndexTemplate();
     }
@@ -367,10 +365,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
             Settings.Builder randomSettingsBuilder =
-                    setRandomIndexSettings(getRandom(), Settings.builder());
+                    setRandomIndexSettings(random(), Settings.builder());
             if (isInternalCluster()) {
                 // this is only used by mock plugins and if the cluster is not internal we just can't set it
-                randomSettingsBuilder.put(INDEX_TEST_SEED_SETTING.getKey(), getRandom().nextLong());
+                randomSettingsBuilder.put(INDEX_TEST_SEED_SETTING.getKey(), random().nextLong());
             }
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
@@ -609,7 +607,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         Client client = cluster().client();
         if (frequently()) {
-            client = new RandomizingClient(client, getRandom());
+            client = new RandomizingClient(client, random());
         }
         return client;
     }
@@ -617,7 +615,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static Client dataNodeClient() {
         Client client = internalCluster().dataNodeClient();
         if (frequently()) {
-            client = new RandomizingClient(client, getRandom());
+            client = new RandomizingClient(client, random());
         }
         return client;
     }
@@ -1048,7 +1046,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
             Map<String, Object> masterStateMap = convertToMap(masterClusterState);
             int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
-            String masterId = masterClusterState.nodes().masterNodeId();
+            String masterId = masterClusterState.nodes().getMasterNodeId();
             for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
@@ -1058,7 +1056,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                 // Check that the non-master node has the same version of the cluster state as the master and
                 // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version() && masterId.equals(localClusterState.nodes().masterNodeId())) {
+                if (masterClusterState.version() == localClusterState.version() && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
                         assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
                         // We cannot compare serialization bytes since serialization order of maps is not guaranteed
@@ -1318,7 +1316,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
 
-        Random random = getRandom();
+        Random random = random();
         Set<String> indicesSet = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {
             indicesSet.add(builder.request().index());
@@ -1889,7 +1887,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
-                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
+                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         nodes.add(name);
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
                     }
@@ -1992,7 +1990,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * of the provided index.
      */
     protected String routingKeyForShard(String index, String type, int shard) {
-        return internalCluster().routingKeyForShard(resolveIndex(index), type, shard, getRandom());
+        return internalCluster().routingKeyForShard(resolveIndex(index), type, shard, random());
     }
 
     /**

@@ -228,7 +228,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
                 @Override
                 public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(nodes.localNode()));
+                    listener.onFailure(new NodeClosedException(nodes.getLocalNode()));
                 }
 
                 @Override

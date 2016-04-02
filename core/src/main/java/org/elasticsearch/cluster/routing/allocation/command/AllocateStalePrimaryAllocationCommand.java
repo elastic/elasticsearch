@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
@@ -92,7 +91,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
         final RoutingNodes routingNodes = allocation.routingNodes();
-        RoutingNode routingNode = routingNodes.node(discoNode.id());
+        RoutingNode routingNode = routingNodes.node(discoNode.getId());
         if (routingNode == null) {
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }

@@ -41,8 +41,8 @@ import org.elasticsearch.painless.PainlessParser.ExtnewContext;
 import org.elasticsearch.painless.PainlessParser.ExtprecContext;
 import org.elasticsearch.painless.PainlessParser.ExtstartContext;
 import org.elasticsearch.painless.PainlessParser.ExtstringContext;
-import org.elasticsearch.painless.PainlessParser.ExttypeContext;
 import org.elasticsearch.painless.PainlessParser.ExtvarContext;
+import org.elasticsearch.painless.PainlessParser.IdentifierContext;
 
 import java.util.Arrays;
 import java.util.List;
@@ -80,7 +80,6 @@ class AnalyzerExternal {
     void processExtstart(final ExtstartContext ctx) {
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
-        final ExttypeContext typectx = ctx.exttype();
         final ExtvarContext varctx = ctx.extvar();
         final ExtnewContext newctx = ctx.extnew();
         final ExtstringContext stringctx = ctx.extstring();
@@ -91,9 +90,6 @@ class AnalyzerExternal {
         } else if (castctx != null) {
             metadata.createExtNodeMetadata(ctx, castctx);
             analyzer.visit(castctx);
-        } else if (typectx != null) {
-            metadata.createExtNodeMetadata(ctx, typectx);
-            analyzer.visit(typectx);
         } else if (varctx != null) {
             metadata.createExtNodeMetadata(ctx, varctx);
             analyzer.visit(varctx);
@@ -115,7 +111,6 @@ class AnalyzerExternal {
 
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
-        final ExttypeContext typectx = ctx.exttype();
         final ExtvarContext varctx = ctx.extvar();
         final ExtnewContext newctx = ctx.extnew();
         final ExtstringContext stringctx = ctx.extstring();
@@ -133,9 +128,6 @@ class AnalyzerExternal {
         } else if (castctx != null) {
             metadata.createExtNodeMetadata(parent, castctx);
             analyzer.visit(castctx);
-        } else if (typectx != null) {
-            metadata.createExtNodeMetadata(parent, typectx);
-            analyzer.visit(typectx);
         } else if (varctx != null) {
             metadata.createExtNodeMetadata(parent, varctx);
             analyzer.visit(varctx);
@@ -171,7 +163,6 @@ class AnalyzerExternal {
 
         final ExtprecContext precctx = ctx.extprec();
         final ExtcastContext castctx = ctx.extcast();
-        final ExttypeContext typectx = ctx.exttype();
         final ExtvarContext varctx = ctx.extvar();
         final ExtnewContext newctx = ctx.extnew();
         final ExtstringContext stringctx = ctx.extstring();
@@ -182,9 +173,6 @@ class AnalyzerExternal {
         } else if (castctx != null) {
             metadata.createExtNodeMetadata(parent, castctx);
             analyzer.visit(castctx);
-        } else if (typectx != null) {
-            metadata.createExtNodeMetadata(parent, typectx);
-            analyzer.visit(typectx);
         } else if (varctx != null) {
             metadata.createExtNodeMetadata(parent, varctx);
             analyzer.visit(varctx);
@@ -349,25 +337,6 @@ class AnalyzerExternal {
         }
     }
 
-    void processExttype(final ExttypeContext ctx) {
-        final ExtNodeMetadata typeenmd = metadata.getExtNodeMetadata(ctx);
-        final ParserRuleContext parent = typeenmd.parent;
-        final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
-
-        if (parentemd.current != null) {
-            throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Unexpected static type.");
-        }
-
-        final String typestr = ctx.TYPE().getText();
-        typeenmd.type = definition.getType(typestr);
-        parentemd.current = typeenmd.type;
-        parentemd.statik = true;
-
-        final ExtdotContext dotctx = ctx.extdot();
-        metadata.createExtNodeMetadata(parent, dotctx);
-        analyzer.visit(dotctx);
-    }
-
     void processExtcall(final ExtcallContext ctx) {
         final ExtNodeMetadata callenmd = metadata.getExtNodeMetadata(ctx);
         final ParserRuleContext parent = callenmd.parent;
@@ -445,34 +414,56 @@ class AnalyzerExternal {
         final ParserRuleContext parent = varenmd.parent;
         final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
-        final String name = ctx.ID().getText();
+        final IdentifierContext idctx = ctx.identifier();
+        final String id = idctx.getText();
 
         final ExtdotContext dotctx = ctx.extdot();
         final ExtbraceContext bracectx = ctx.extbrace();
 
-        if (parentemd.current != null) {
-            throw new IllegalStateException(AnalyzerUtility.error(ctx) + "Unexpected variable [" + name + "] load.");
-        }
+        final boolean type = utility.isValidType(idctx, false);
 
-        varenmd.last = parentemd.scope == 0 && dotctx == null && bracectx == null;
+        if (type) {
+            if (parentemd.current != null || dotctx == null || bracectx != null) {
+                throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Unexpected static type [" + id + "].");
+            }
 
-        final Variable variable = utility.getVariable(name);
+            varenmd.type = definition.getType(id);
+            parentemd.current = varenmd.type;
+            parentemd.statik = true;
 
-        if (variable == null) {
-            throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Unknown variable [" + name + "].");
-        }
-
-        varenmd.target = variable.slot;
-        varenmd.type = variable.type;
-        analyzeLoadStoreExternal(ctx);
-        parentemd.current = varenmd.type;
-
-        if (dotctx != null) {
             metadata.createExtNodeMetadata(parent, dotctx);
             analyzer.visit(dotctx);
-        } else if (bracectx != null) {
-            metadata.createExtNodeMetadata(parent, bracectx);
-            analyzer.visit(bracectx);
+        } else {
+            utility.isValidIdentifier(idctx, true);
+
+            if (parentemd.current != null) {
+                throw new IllegalStateException(AnalyzerUtility.error(ctx) + "Unexpected variable [" + id + "] load.");
+            }
+
+            varenmd.last = parentemd.scope == 0 && dotctx == null && bracectx == null;
+
+            final Variable variable = utility.getVariable(id);
+
+            if (variable == null) {
+                throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Unknown variable [" + id + "].");
+            }
+
+            if ("_score".equals(id)) {
+                metadata.scoreValueUsed = true;
+            }
+
+            varenmd.target = variable.slot;
+            varenmd.type = variable.type;
+            analyzeLoadStoreExternal(ctx);
+            parentemd.current = varenmd.type;
+
+            if (dotctx != null) {
+                metadata.createExtNodeMetadata(parent, dotctx);
+                analyzer.visit(dotctx);
+            } else if (bracectx != null) {
+                metadata.createExtNodeMetadata(parent, bracectx);
+                analyzer.visit(bracectx);
+            }
         }
     }
 
@@ -650,20 +641,19 @@ class AnalyzerExternal {
         final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
         final ExtdotContext dotctx = ctx.extdot();
-        final ExtbraceContext bracectx = ctx.extbrace();
+        newenmd.last = parentemd.scope == 0 && dotctx == null;
 
-        newenmd.last = parentemd.scope == 0 && dotctx == null && bracectx == null;
-
-        final String name = ctx.TYPE().getText();
-        final Struct struct = definition.structs.get(name);
+        final IdentifierContext idctx = ctx.identifier();
+        final String type = idctx.getText();
+        utility.isValidType(idctx, true);
 
         if (parentemd.current != null) {
             throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Unexpected new call.");
-        } else if (struct == null) {
-            throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Specified type [" + name + "] not found.");
         } else if (newenmd.last && parentemd.storeExpr != null) {
             throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Cannot assign a value to a new call.");
         }
+
+        final Struct struct = definition.structs.get(type);
 
         final boolean newclass = ctx.arguments() != null;
         final boolean newarray = !ctx.expression().isEmpty();
@@ -712,7 +702,7 @@ class AnalyzerExternal {
         }
 
         if (size != types.length) {
-            throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "When calling [" + name + "] on type " +
+            throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "When calling constructor on type " +
                 "[" + struct.name + "] expected [" + types.length + "] arguments," +
                 " but found [" + arguments.size() + "].");
         }
@@ -728,9 +718,6 @@ class AnalyzerExternal {
         if (dotctx != null) {
             metadata.createExtNodeMetadata(parent, dotctx);
             analyzer.visit(dotctx);
-        } else if (bracectx != null) {
-            metadata.createExtNodeMetadata(parent, bracectx);
-            analyzer.visit(bracectx);
         }
     }
 
@@ -739,7 +726,7 @@ class AnalyzerExternal {
         final ParserRuleContext parent = memberenmd.parent;
         final ExternalMetadata parentemd = metadata.getExternalMetadata(parent);
 
-        final String string = ctx.STRING().getText();
+        final String string = ctx.STRING().getText().substring(1, ctx.STRING().getText().length() - 1);
 
         final ExtdotContext dotctx = ctx.extdot();
         final ExtbraceContext bracectx = ctx.extbrace();

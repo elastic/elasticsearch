@@ -538,9 +538,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
             factory.fieldNames = fieldNames;
         }
         factory.from = in.readVInt();
-        if (in.readBoolean()) {
-            factory.highlightBuilder = HighlightBuilder.PROTOTYPE.readFrom(in);
-        }
+        factory.highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         if (in.readBoolean()) {
             int size = in.readVInt();
             List<ScriptField> scriptFields = new ArrayList<>(size);
@@ -584,11 +582,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
             }
         }
         out.writeVInt(from);
-        boolean hasHighlighter = highlightBuilder != null;
-        out.writeBoolean(hasHighlighter);
-        if (hasHighlighter) {
-            highlightBuilder.writeTo(out);
-        }
+        out.writeOptionalWriteable(highlightBuilder);
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {

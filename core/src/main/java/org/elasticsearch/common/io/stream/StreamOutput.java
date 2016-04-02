@@ -146,6 +146,19 @@ public abstract class StreamOutput extends OutputStream {
         bytes.writeTo(this);
     }
 
+    /**
+     * Writes an optional bytes reference including a length header. Use this if you need to differentiate between null and empty bytes
+     * references. Use {@link #writeBytesReference(BytesReference)} and {@link StreamInput#readBytesReference()} if you do not.
+     */
+    public void writeOptionalBytesReference(@Nullable BytesReference bytes) throws IOException {
+        if (bytes == null) {
+            writeVInt(0);
+            return;
+        }
+        writeVInt(bytes.length() + 1);
+        bytes.writeTo(this);
+    }
+
     public void writeBytesRef(BytesRef bytes) throws IOException {
         if (bytes == null) {
             writeVInt(0);

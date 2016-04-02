@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +29,9 @@ import org.elasticsearch.search.highlight.CustomHighlighter;
 import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.PlainHighlighter;
 import org.elasticsearch.search.suggest.CustomSuggester;
-import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 /**
@@ -48,7 +47,7 @@ public class SearchModuleTests extends ModuleTestCase {
        }
 
        try {
-           module.registerSuggester("term", PhraseSuggester.PROTOTYPE);
+           module.registerSuggester("term", PhraseSuggester.INSTANCE);
        } catch (IllegalArgumentException e) {
            assertEquals(e.getMessage(), "Can't register the same [suggester] more than once for [term]");
        }
@@ -57,12 +56,9 @@ public class SearchModuleTests extends ModuleTestCase {
     public void testRegisterSuggester() {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
         module.registerSuggester("custom", CustomSuggester.PROTOTYPE);
-        try {
-            module.registerSuggester("custom", CustomSuggester.PROTOTYPE);
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [suggester] more than once for [custom]");
-        }
-        assertMapMultiBinding(module, Suggester.class, CustomSuggester.class);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> module.registerSuggester("custom", CustomSuggester.PROTOTYPE));
+        assertEquals("Can't register the same [suggester] more than once for [custom]", e.getMessage());
     }
 
     public void testRegisterHighlighter() {

@@ -68,6 +68,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -184,17 +186,18 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterState state = internalCluster().getInstance(ClusterService.class).state();
         DiscoveryNode node = null;
         for (DiscoveryNode discoveryNode : state.nodes()) {
-            if (discoveryNode.name().equals(noneMasterNode)) {
+            if (discoveryNode.getName().equals(noneMasterNode)) {
                 node = discoveryNode;
             }
         }
         assert node != null;
 
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(state.nodes())
-                .put(new DiscoveryNode("abc", new LocalTransportAddress("abc"), Version.CURRENT)).masterNodeId("abc");
+                .put(new DiscoveryNode("abc", new LocalTransportAddress("abc"), emptyMap(),
+                        emptySet(), Version.CURRENT)).masterNodeId("abc");
         ClusterState.Builder builder = ClusterState.builder(state);
         builder.nodes(nodes);
-        BytesReference bytes = PublishClusterStateAction.serializeFullClusterState(builder.build(), node.version());
+        BytesReference bytes = PublishClusterStateAction.serializeFullClusterState(builder.build(), node.getVersion());
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
@@ -232,7 +235,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterState stateWithCustomMetaData = ClusterState.builder(state).metaData(mdBuilder).build();
 
         final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
-        DiscoveryNode node = state.nodes().localNode();
+        DiscoveryNode node = state.nodes().getLocalNode();
         zenDiscovery.handleJoinRequest(node, stateWithCustomMetaData, new MembershipAction.JoinCallback() {
             @Override
             public void onSuccess() {
@@ -278,7 +281,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         String nodeName = internalCluster().startNode(nodeSettings, Version.V_5_0_0_alpha1);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
-        DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0), Version.V_2_0_0);
+        DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0),
+                emptyMap(), emptySet(), Version.V_2_0_0);
         final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
         zenDiscovery.handleJoinRequest(node, clusterService.state(), new MembershipAction.JoinCallback() {
             @Override
@@ -298,9 +302,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     public void testJoinElectedMaster_incompatibleMinVersion() {
         ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.V_5_0_0_alpha1);
 
-        DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.V_5_0_0_alpha1);
+        DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(),
+                Collections.singleton(DiscoveryNode.Role.MASTER), Version.V_5_0_0_alpha1);
         assertThat(electMasterService.electMaster(Collections.singletonList(node)), sameInstance(node));
-        node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.V_2_0_0);
+        node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(), emptySet(), Version.V_2_0_0);
         assertThat("Can't join master because version 2.0.0 is lower than the minimum compatable version 5.0.0 can support", electMasterService.electMaster(Collections.singletonList(node)), nullValue());
     }
 

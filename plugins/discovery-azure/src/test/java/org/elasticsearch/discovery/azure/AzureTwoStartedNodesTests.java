@@ -46,11 +46,11 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
 
         logger.info("--> start first node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         logger.info("--> start another node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);
@@ -64,11 +64,11 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
 
         logger.info("--> start first node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         logger.info("--> start another node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);

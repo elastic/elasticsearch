@@ -168,8 +168,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
-        final QueryShardContext queryShardContext = indexService.newQueryShardContext();
-        queryShardContext.setTypes(request.types());
 
         boolean valid;
         String explanation = null;
@@ -182,7 +180,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
                 parseFieldMatcher, SearchService.NO_TIMEOUT, fetchPhase);
         SearchContext.setCurrent(searchContext);
         try {
-            searchContext.parsedQuery(queryShardContext.toQuery(request.query()));
+            searchContext.parsedQuery(searchContext.getQueryShardContext().toQuery(request.query()));
             searchContext.preProcess();
 
             valid = true;

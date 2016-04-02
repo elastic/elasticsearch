@@ -120,7 +120,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.admin().indices().prepareFlush().execute().addListener(new AssertingActionListener<>(FlushAction.NAME, client.threadPool()));
     }
 
-    public void testOverideHeader() throws Exception {
+    public void testOverrideHeader() throws Exception {
         String key1Val = randomAsciiOfLength(5);
         Map<String, String> expected = new HashMap<>();
         expected.put("key1", key1Val);

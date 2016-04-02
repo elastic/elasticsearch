@@ -43,7 +43,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
@@ -112,7 +111,6 @@ public class TransportClient extends AbstractClient {
                     .put(NettyTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
                     .put(InternalSettingsPreparer.prepareSettings(settings))
                     .put(NetworkService.NETWORK_SERVER.getKey(), false)
-                    .put(Node.NODE_CLIENT_SETTING.getKey(), true)
                     .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
             return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
         }

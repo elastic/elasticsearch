@@ -175,7 +175,7 @@ public class CancelAllocationCommand implements AllocationCommand {
     public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
         boolean found = false;
-        for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
+        for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.getId()); it.hasNext(); ) {
             ShardRouting shardRouting = it.next();
             if (!shardRouting.shardId().getIndex().getName().equals(index)) {
                 continue;

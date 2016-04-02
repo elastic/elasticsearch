@@ -380,7 +380,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void handleResponse(PreSyncedFlushResponse response) {
-                    Engine.CommitId existing = commitIds.putIfAbsent(node.id(), response.commitId());
+                    Engine.CommitId existing = commitIds.putIfAbsent(node.getId(), response.commitId());
                     assert existing == null : "got two answers for node [" + node + "]";
                     // count after the assert so we won't decrement twice in handleException
                     if (countDown.countDown()) {

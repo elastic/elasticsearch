@@ -17,24 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch.innerhits;
+package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class InnerHitsSubSearchContext {
-    private final String name;
-    private final SubSearchContext subSearchContext;
+public class RethrottleAction extends Action<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> {
+    public static final RethrottleAction INSTANCE = new RethrottleAction();
+    public static final String NAME = "cluster:admin/reindex/rethrottle";
 
-    public InnerHitsSubSearchContext(String name, SubSearchContext subSearchContext) {
-        this.name = name;
-        this.subSearchContext = subSearchContext;
+    private RethrottleAction() {
+        super(NAME);
     }
 
-    public String getName() {
-        return name;
+    @Override
+    public RethrottleRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RethrottleRequestBuilder(client, this);
     }
 
-    public SubSearchContext getSubSearchContext() {
-        return subSearchContext;
+    @Override
+    public ListTasksResponse newResponse() {
+        return new ListTasksResponse();
     }
 }

@@ -225,7 +225,7 @@ final class StoreRecovery {
             indexShard.performTranslogRecovery(indexShouldExists);
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
-        } catch (EngineException e) {
+        } catch (EngineException | IOException e) {
             throw new IndexShardRecoveryException(shardId, "failed to recovery from gateway", e);
         } finally {
             store.decRef();

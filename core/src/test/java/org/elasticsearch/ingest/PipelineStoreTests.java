@@ -45,8 +45,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -209,8 +210,10 @@ public class PipelineStoreTests extends ESTestCase {
     public void testValidate() throws Exception {
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}},{\"remove\" : {\"field\": \"_field\"}}]}"));
 
-        DiscoveryNode node1 = new DiscoveryNode("_node_id1", new LocalTransportAddress("_id"), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("_node_id2", new LocalTransportAddress("_id"), Version.CURRENT);
+        DiscoveryNode node1 = new DiscoveryNode("_node_id1", new LocalTransportAddress("_id"),
+                emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("_node_id2", new LocalTransportAddress("_id"),
+                emptyMap(), emptySet(), Version.CURRENT);
         Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
         ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
@@ -235,7 +238,8 @@ public class PipelineStoreTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("Ingest info is empty"));
         }
 
-        DiscoveryNode discoveryNode = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT);
+        DiscoveryNode discoveryNode = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"),
+                emptyMap(), emptySet(), Version.CURRENT);
         IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
         store.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
     }

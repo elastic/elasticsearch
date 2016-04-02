@@ -83,7 +83,7 @@ import java.util.stream.Stream;
  * </p>
  * <p>
  * When a translog is opened the checkpoint is use to retrieve the latest translog file generation and subsequently to open the last written file to recovery operations.
- * The {@link org.elasticsearch.index.translog.Translog.TranslogGeneration} on {@link TranslogConfig#getTranslogGeneration()} given when the translog is opened is compared against
+ * The {@link org.elasticsearch.index.translog.Translog.TranslogGeneration}, given when the translog is opened / constructed is compared against
  * the latest generation and all consecutive translog files singe the given generation and the last generation in the checkpoint will be recovered and preserved until the next
  * generation is committed using {@link Translog#commit()}. In the common case the translog file generation in the checkpoint and the generation passed to the translog on creation are
  * the same. The only situation when they can be different is when an actual translog commit fails in between {@link Translog#prepareCommit()} and {@link Translog#commit()}. In such a case
@@ -130,19 +130,23 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final TranslogConfig config;
     private final String translogUUID;
 
-
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogConfig} has
      * a non-null {@link org.elasticsearch.index.translog.Translog.TranslogGeneration}. If the generation is null this method
      * us destructive and will delete all files in the translog path given.
      *
+     * @param config the configuration of this translog
+     * @param translogGeneration the translog generation to open. If this is <code>null</code> a new translog is created. If non-null
+     * the translog tries to open the given translog generation. The generation is treated as the last generation referenced
+     * form already committed data. This means all operations that have not yet been committed should be in the translog
+     * file referenced by this generation. The translog creation will fail if this generation can't be opened.
+     *
      * @see TranslogConfig#getTranslogPath()
+     *
      */
-    public Translog(TranslogConfig config) throws IOException {
+    public Translog(TranslogConfig config, TranslogGeneration translogGeneration) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
-        TranslogGeneration translogGeneration = config.getTranslogGeneration();
-
         if (translogGeneration == null || translogGeneration.translogUUID == null) { // legacy case
             translogUUID = Strings.randomBase64UUID();
         } else {
@@ -1341,6 +1345,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /** Reads and returns the current checkpoint */
     final Checkpoint readCheckpoint() throws IOException {
         return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
+    }
+
+    /**
+     * Returns the translog uuid used to associate a lucene index with a translog.
+     */
+    public String getTranslogUUID() {
+        return translogUUID;
     }
 
 }

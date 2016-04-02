@@ -72,7 +72,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testSerialization() throws Exception {
-        UnassignedInfo meta = new UnassignedInfo(RandomPicks.randomFrom(getRandom(), UnassignedInfo.Reason.values()), randomBoolean() ? randomAsciiOfLength(4) : null);
+        UnassignedInfo meta = new UnassignedInfo(RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values()), randomBoolean() ? randomAsciiOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         out.close();
@@ -273,7 +273,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testUnassignedDelayOnlyNodeLeftNonNodeLeftReason() throws Exception {
         EnumSet<UnassignedInfo.Reason> reasons = EnumSet.allOf(UnassignedInfo.Reason.class);
         reasons.remove(UnassignedInfo.Reason.NODE_LEFT);
-        UnassignedInfo unassignedInfo = new UnassignedInfo(RandomPicks.randomFrom(getRandom(), reasons), null);
+        UnassignedInfo unassignedInfo = new UnassignedInfo(RandomPicks.randomFrom(random(), reasons), null);
         long delay = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "10h").build(), Settings.EMPTY);
         assertThat(delay, equalTo(0L));

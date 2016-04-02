@@ -20,12 +20,15 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.percolator.PercolatorHighlightSubFetchPhase;
 import org.elasticsearch.index.query.BoolQueryParser;
@@ -49,7 +52,7 @@ import org.elasticsearch.index.query.IdsQueryParser;
 import org.elasticsearch.index.query.IndicesQueryParser;
 import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.index.query.MatchNoneQueryParser;
-import org.elasticsearch.index.query.MatchQueryParser;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryParser;
 import org.elasticsearch.index.query.MultiMatchQueryParser;
 import org.elasticsearch.index.query.NestedQueryParser;
@@ -57,6 +60,7 @@ import org.elasticsearch.index.query.ParentIdQueryParser;
 import org.elasticsearch.index.query.PercolatorQueryParser;
 import org.elasticsearch.index.query.PrefixQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryStringQueryParser;
 import org.elasticsearch.index.query.RangeQueryParser;
@@ -77,10 +81,9 @@ import org.elasticsearch.index.query.TermsQueryParser;
 import org.elasticsearch.index.query.TypeQueryParser;
 import org.elasticsearch.index.query.WildcardQueryParser;
 import org.elasticsearch.index.query.WrapperQueryParser;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
@@ -224,14 +227,6 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.Laplace;
-import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.search.suggest.phrase.StupidBackoff;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -249,7 +244,7 @@ public class SearchModule extends AbstractModule {
     private final Set<Aggregator.Parser> aggParsers = new HashSet<>();
     private final Set<PipelineAggregator.Parser> pipelineAggParsers = new HashSet<>();
     private final Highlighters highlighters = new Highlighters();
-    private final Suggesters suggesters = new Suggesters();
+    private final Suggesters suggesters;
     /**
      * Function score parsers constructed on registration. This is ok because
      * they don't have any dependencies.
@@ -260,6 +255,7 @@ public class SearchModule extends AbstractModule {
      * at configure time because they depend on things that are registered by
      * plugins (function score parsers).
      */
+    private final List<QueryRegistration<?>> queries = new ArrayList<>();
     private final List<Supplier<QueryParser<?>>> queryParsers = new ArrayList<>();
     private final Set<Class<? extends FetchSubPhase>> fetchSubPhases = new HashSet<>();
     private final Set<SignificanceHeuristicParser> heuristicParsers = new HashSet<>();
@@ -274,6 +270,7 @@ public class SearchModule extends AbstractModule {
     public SearchModule(Settings settings, NamedWriteableRegistry namedWriteableRegistry) {
         this.settings = settings;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        suggesters = new Suggesters(namedWriteableRegistry);
 
         registerBuiltinFunctionScoreParsers();
         registerBuiltinQueryParsers();
@@ -286,8 +283,7 @@ public class SearchModule extends AbstractModule {
     }
 
     public void registerSuggester(String key, Suggester<?> suggester) {
-        suggesters.registerExtension(key, suggester.getClass());
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, suggester.getBuilderPrototype());
+        suggesters.register(key, suggester);
     }
 
     /**
@@ -304,6 +300,23 @@ public class SearchModule extends AbstractModule {
         namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, sfb);
     }
 
+    /**
+     * Register a query.
+     *
+     * @param reader the reader registered for this query's builder. Typically a reference to a constructor that takes a
+     *        {@link org.elasticsearch.common.io.stream.StreamInput}
+     * @param parser the parser the reads the query builder from xcontent
+     * @param names all names by which this query might be parsed. The first name is special as it is the name by under which the reader is
+     *        registered. So it is the name that the query should use as its {@link NamedWriteable#getWriteableName()}.
+     */
+    public <QB extends QueryBuilder<QB>> void registerQuery(Writeable.Reader<QB> reader, QueryParser<QB> parser, String... names) {
+        queries.add(new QueryRegistration<QB>(names, reader, parser));
+    }
+
+    /**
+     * Register a query.
+     * TODO remove this in favor of registerQuery
+     */
     public void registerQueryParser(Supplier<QueryParser<?>> parser) {
         queryParsers.add(parser);
     }
@@ -337,10 +350,10 @@ public class SearchModule extends AbstractModule {
     protected void configure() {
         IndicesQueriesRegistry indicesQueriesRegistry = buildQueryParserRegistry();
         bind(IndicesQueriesRegistry.class).toInstance(indicesQueriesRegistry);
+        bind(Suggesters.class).toInstance(suggesters);
         configureSearch();
         configureAggs(indicesQueriesRegistry);
         configureHighlighters();
-        configureSuggesters();
         configureFetchSubPhase();
         configureShapes();
     }
@@ -364,28 +377,30 @@ public class SearchModule extends AbstractModule {
 
     public IndicesQueriesRegistry buildQueryParserRegistry() {
         Map<String, QueryParser<?>> queryParsersMap = new HashMap<>();
+
+        // TODO remove this when we retire registerQueryParser
         for (Supplier<QueryParser<?>> parserSupplier : queryParsers) {
-            QueryParser<? extends QueryBuilder> parser = parserSupplier.get();
+            QueryParser<? extends QueryBuilder<?>> parser = parserSupplier.get();
             for (String name: parser.names()) {
                 Object oldValue = queryParsersMap.putIfAbsent(name, parser);
                 if (oldValue != null) {
                     throw new IllegalArgumentException("Query parser [" + oldValue + "] already registered for name [" + name + "] while trying to register [" + parser + "]");
                 }
             }
-            @SuppressWarnings("unchecked") NamedWriteable<? extends QueryBuilder> qb = parser.getBuilderPrototype();
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, qb);
+            namedWriteableRegistry.registerPrototype(QueryBuilder.class, parser.getBuilderPrototype());
+        }
+
+        for (QueryRegistration<?> query : queries) {
+            QueryParser<? extends QueryBuilder<?>> parser = query.parser;
+            for (String name: query.names) {
+                Object oldValue = queryParsersMap.putIfAbsent(name, parser);
+                if (oldValue != null) {
+                    throw new IllegalArgumentException("Query parser [" + oldValue + "] already registered for name [" + name + "] while trying to register [" + parser + "]");
+                }
+            }
+            namedWriteableRegistry.register(QueryBuilder.class, query.names[0], query.reader);
         }
         return new IndicesQueriesRegistry(settings, queryParsersMap);
-    }
-
-    protected void configureSuggesters() {
-        suggesters.bind(binder());
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
     }
 
     protected void configureHighlighters() {
@@ -498,7 +513,8 @@ public class SearchModule extends AbstractModule {
     }
 
     private void registerBuiltinQueryParsers() {
-        registerQueryParser(MatchQueryParser::new);
+        registerQuery(MatchQueryBuilder.PROTOTYPE::readFrom, MatchQueryBuilder::fromXContent, MatchQueryBuilder.NAME,
+                "match_phrase", "matchPhrase", "match_phrase_prefix", "matchPhrasePrefix", "matchFuzzy", "match_fuzzy", "fuzzy_match");
         registerQueryParser(MultiMatchQueryParser::new);
         registerQueryParser(NestedQueryParser::new);
         registerQueryParser(HasChildQueryParser::new);
@@ -508,7 +524,8 @@ public class SearchModule extends AbstractModule {
         registerQueryParser(MatchAllQueryParser::new);
         registerQueryParser(QueryStringQueryParser::new);
         registerQueryParser(BoostingQueryParser::new);
-        BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
+        BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count",
+                settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
         registerQueryParser(BoolQueryParser::new);
         registerQueryParser(TermQueryParser::new);
         registerQueryParser(TermsQueryParser::new);
@@ -531,8 +548,10 @@ public class SearchModule extends AbstractModule {
         registerQueryParser(IndicesQueryParser::new);
         registerQueryParser(CommonTermsQueryParser::new);
         registerQueryParser(SpanMultiTermQueryParser::new);
-        // This is delayed until configure time to give plugins a chance to register parsers
-        registerQueryParser(() -> new FunctionScoreQueryParser(new ScoreFunctionParserMapper(functionScoreParsers)));
+        QueryParser<FunctionScoreQueryBuilder> functionScoreParser = (QueryParseContext c) -> FunctionScoreQueryBuilder
+                .fromXContent((String name) -> functionScoreParsers.get(name), c);
+        registerQuery(FunctionScoreQueryBuilder.PROTOTYPE::readFrom, functionScoreParser, FunctionScoreQueryBuilder.NAME,
+                Strings.toCamelCase(FunctionScoreQueryBuilder.NAME));
         registerQueryParser(SimpleQueryStringParser::new);
         registerQueryParser(TemplateQueryParser::new);
         registerQueryParser(TypeQueryParser::new);
@@ -614,5 +633,21 @@ public class SearchModule extends AbstractModule {
         BucketScriptPipelineAggregator.registerStreams();
         BucketSelectorPipelineAggregator.registerStreams();
         SerialDiffPipelineAggregator.registerStreams();
+    }
+
+    public Suggesters getSuggesters() {
+        return suggesters;
+    }
+
+    private static class QueryRegistration<QB extends QueryBuilder<QB>> {
+        private final String[] names;
+        private final Writeable.Reader<QB> reader;
+        private final QueryParser<QB> parser;
+
+        private QueryRegistration(String[] names, Reader<QB> reader, QueryParser<QB> parser) {
+            this.names = names;
+            this.reader = reader;
+            this.parser = parser;
+        }
     }
 }

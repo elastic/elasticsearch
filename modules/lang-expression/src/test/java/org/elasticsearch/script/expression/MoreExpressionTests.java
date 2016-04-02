@@ -56,6 +56,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -408,7 +409,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
 
     public void testStringSpecialValueVariable() throws Exception {
         // i.e. expression script for term aggregations, which is not allowed
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("doc", "text", "type=keyword").get());
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1").setSource("text", "hello"),

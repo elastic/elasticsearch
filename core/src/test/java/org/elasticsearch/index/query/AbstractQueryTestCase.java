@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -255,11 +256,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     protected void configureSearch() {
                         // Skip me
                     }
-
-                    @Override
-                    protected void configureSuggesters() {
-                        // Skip me
-                    }
                 },
                 new AbstractModule() {
                     @Override
@@ -292,7 +288,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         });
         PercolatorQueryCache percolatorQueryCache = new PercolatorQueryCache(idxSettings, () -> queryShardContext);
         indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        queryShardContext = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, percolatorQueryCache);
+        queryShardContext = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, percolatorQueryCache, null);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
@@ -346,7 +342,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     @After
     public void afterTest() {
-        queryShardContext.setFieldStatsProvider(null);
         clientInvocationHandler.delegate = null;
         SearchContext.removeCurrent();
     }
@@ -387,12 +382,21 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
             XContentBuilder builder = toXContent(testQuery, randomFrom(XContentType.values()));
-            assertParsedQuery(builder.bytes(), testQuery);
+            XContentBuilder shuffled = shuffleXContent(builder, shuffleProtectedFields());
+            assertParsedQuery(shuffled.bytes(), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
                 assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue(), ParseFieldMatcher.EMPTY);
             }
         }
+    }
+
+    /**
+     * Subclasses can override this method and return a set of fields which should be protected from
+     * recursive random shuffling in the {@link #testFromXContent()} test case
+     */
+    protected Set<String> shuffleProtectedFields() {
+        return Collections.emptySet();
     }
 
     protected static XContentBuilder toXContent(QueryBuilder<?> query, XContentType contentType) throws IOException {
@@ -642,12 +646,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @SuppressWarnings("unchecked")
     protected <QB extends QueryBuilder> QB assertSerialization(QB testQuery) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            testQuery.writeTo(output);
+            output.writeQuery(testQuery);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryParser<?> queryParser = queryParser(testQuery.getName());
-                assertNotNull("queryparser not found for query: [" + testQuery.getName() + "]", queryParser);
-                QueryBuilder<?> prototype = queryParser.getBuilderPrototype();
-                QueryBuilder<?> deserializedQuery = prototype.readFrom(in);
+                QueryBuilder<?> deserializedQuery = in.readQuery();
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
                 assertNotSame(deserializedQuery, testQuery);
@@ -690,38 +691,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    private QueryParser<?> queryParser(String queryId) {
-        QueryParser<?> queryParser = indicesQueriesRegistry.queryParsers().get(queryId);
-        if (queryParser == null && EmptyQueryBuilder.NAME.equals(queryId)) {
-            return new QueryParser() {
-                @Override
-                public String[] names() {
-                    return new String[]{EmptyQueryBuilder.NAME};
-                }
-
-                @Override
-                public QueryBuilder<?> fromXContent(QueryParseContext parseContext) throws IOException {
-                    return new EmptyQueryBuilder();
-                }
-
-                @Override
-                public QueryBuilder getBuilderPrototype() {
-                    return EmptyQueryBuilder.PROTOTYPE;
-                }
-            };
-        }
-        return queryParser;
-    }
-
     //we use the streaming infra to create a copy of the query provided as argument
+    @SuppressWarnings("unchecked")
     protected QB copyQuery(QB query) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            query.writeTo(output);
+            output.writeQuery(query);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<?> prototype = queryParser(query.getName()).getBuilderPrototype();
-                @SuppressWarnings("unchecked")
-                QB secondQuery = (QB) prototype.readFrom(in);
-                return secondQuery;
+                return (QB) in.readQuery();
             }
         }
     }
@@ -849,7 +825,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     public static String randomGeohash(int minPrecision, int maxPrecision) {
-        return geohashGenerator.ofStringLength(getRandom(), minPrecision, maxPrecision);
+        return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
     public static class GeohashGenerator extends CodepointSetGenerator {

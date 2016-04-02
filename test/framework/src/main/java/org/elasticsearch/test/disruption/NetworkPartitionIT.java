@@ -36,7 +36,7 @@ public class NetworkPartitionIT extends ESIntegTestCase {
     public void testNetworkPartitionWithNodeShutdown() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String[] nodeNames = internalCluster().getNodeNames();
-        NetworkPartition networkPartition = new NetworkUnresponsivePartition(nodeNames[0], nodeNames[1], getRandom());
+        NetworkPartition networkPartition = new NetworkUnresponsivePartition(nodeNames[0], nodeNames[1], random());
         internalCluster().setDisruptionScheme(networkPartition);
         networkPartition.startDisrupting();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames[0]));

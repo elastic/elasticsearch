@@ -30,11 +30,14 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,9 +50,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ClusterName clusterName = new ClusterName("abc");
 
         DiscoveryNodes.Builder currentNodes = DiscoveryNodes.builder();
-        currentNodes.masterNodeId("a").put(new DiscoveryNode("a", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        currentNodes.masterNodeId("a").put(new DiscoveryNode("a", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         DiscoveryNodes.Builder newNodes = DiscoveryNodes.builder();
-        newNodes.masterNodeId("a").put(new DiscoveryNode("a", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        newNodes.masterNodeId("a").put(new DiscoveryNode("a", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
 
         ClusterState.Builder currentState = ClusterState.builder(clusterName);
         currentState.nodes(currentNodes);
@@ -67,7 +70,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         assertFalse("should not ignore, because new state's version is higher to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
 
         currentNodes = DiscoveryNodes.builder();
-        currentNodes.masterNodeId("b").put(new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        currentNodes.masterNodeId("b").put(new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         ;
         // version isn't taken into account, so randomize it to ensure this.
         if (randomBoolean()) {
@@ -104,13 +107,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ArrayList<DiscoveryNode> masterNodes = new ArrayList<>();
         ArrayList<DiscoveryNode> allNodes = new ArrayList<>();
         for (int i = randomIntBetween(10, 20); i >= 0; i--) {
-            Map<String, String> attrs = new HashMap<>();
-            for (String attr : randomSubsetOf(
-                    Arrays.asList(DiscoveryNode.INGEST_ATTR, DiscoveryNode.DATA_ATTR, DiscoveryNode.MASTER_ATTR))) {
-                attrs.put(attr, randomBoolean() + "");
-            }
-
-            DiscoveryNode node = new DiscoveryNode("node_" + i, "id_" + i, DummyTransportAddress.INSTANCE, attrs, Version.CURRENT);
+            Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
+            DiscoveryNode node = new DiscoveryNode("node_" + i, "id_" + i, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+                    roles, Version.CURRENT);
             responses.add(new ZenPing.PingResponse(node, randomBoolean() ? null : node, new ClusterName("test"), randomBoolean()));
             allNodes.add(node);
             if (node.isMasterNode()) {

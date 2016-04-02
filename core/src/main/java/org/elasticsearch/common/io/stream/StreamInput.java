@@ -116,6 +116,19 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional bytes reference from this stream. It might hold an actual reference to the underlying bytes of the stream. Use this
+     * only if you must differentiate null from empty. Use {@link StreamInput#readBytesReference()} and
+     * {@link StreamOutput#writeBytesReference(BytesReference)} if you do not.
+     */
+    public BytesReference readOptionalBytesReference() throws IOException {
+        int length = readVInt() - 1;
+        if (length < 0) {
+            return null;
+        }
+        return readBytesReference(length);
+    }
+
+    /**
      * Reads a bytes reference from this stream, might hold an actual reference to the underlying
      * bytes of the stream.
      */

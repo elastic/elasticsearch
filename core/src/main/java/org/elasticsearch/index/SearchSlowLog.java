@@ -25,13 +25,14 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.concurrent.TimeUnit;
 
 /**
  */
-public final class SearchSlowLog {
+public final class SearchSlowLog implements SearchOperationListener {
 
     private boolean reformat;
 
@@ -116,7 +117,7 @@ public final class SearchSlowLog {
         this.queryLogger.setLevel(level.name());
         this.fetchLogger.setLevel(level.name());
     }
-
+    @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
             queryLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
@@ -129,6 +130,7 @@ public final class SearchSlowLog {
         }
     }
 
+    @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
             fetchLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));

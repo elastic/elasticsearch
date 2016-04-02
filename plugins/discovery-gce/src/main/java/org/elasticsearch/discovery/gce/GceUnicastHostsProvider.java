@@ -42,9 +42,12 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  *
@@ -55,7 +58,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
      * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
      */
     public static final Setting<List<String>> TAGS_SETTING =
-            Setting.listSetting("discovery.gce.tags", Collections.emptyList(), Function.identity(), Property.NodeScope);
+            Setting.listSetting("discovery.gce.tags", emptyList(), Function.identity(), Property.NodeScope);
 
     static final class Status {
         private static final String TERMINATED = "TERMINATED";
@@ -240,7 +243,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         for (TransportAddress transportAddress : addresses) {
                             logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
                                     ip_private, transportAddress, status);
-                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, transportAddress, version.minimumCompatibilityVersion()));
+                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, transportAddress,
+                                    emptyMap(), emptySet(), version.minimumCompatibilityVersion()));
                         }
                     }
                 } catch (Exception e) {

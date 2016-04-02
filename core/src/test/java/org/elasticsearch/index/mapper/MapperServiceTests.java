@@ -30,15 +30,21 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.function.Function;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -135,4 +141,51 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertFalse(indexService.mapperService().hasMapping(MapperService.DEFAULT_MAPPING));
     }
 
+    public void testTotalFieldsExceedsLimit() throws Throwable {
+        Function<String, String> mapping = type -> {
+            try {
+                return XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
+                    .startObject("field1").field("type", "string")
+                    .endObject().endObject().endObject().endObject().string();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
+        createIndex("test1").mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
+        //set total number of fields to 1 to trigger an exception
+        try {
+            createIndex("test2", Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build())
+                .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Limit of total fields [1] in index [test2] has been exceeded"));
+        }
+    }
+
+    public void testMappingDepthExceedsLimit() throws Throwable {
+        CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "text")
+                    .endObject()
+                .endObject().endObject().bytes());
+        IndexService indexService1 = createIndex("test1", Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build());
+        // no exception
+        indexService1.mapperService().merge("type", simpleMapping, MergeReason.MAPPING_UPDATE, false);
+
+        CompressedXContent objectMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("object1")
+                        .field("type", "object")
+                    .endObject()
+                .endObject().endObject().bytes());
+
+        IndexService indexService2 = createIndex("test2");
+        // no exception
+        indexService2.mapperService().merge("type", objectMapping, MergeReason.MAPPING_UPDATE, false);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> indexService1.mapperService().merge("type2", objectMapping, MergeReason.MAPPING_UPDATE, false));
+        assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
+    }
 }

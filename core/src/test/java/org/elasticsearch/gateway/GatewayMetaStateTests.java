@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -31,9 +32,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
 
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
@@ -81,8 +81,10 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         RoutingTable routingTableNewClusterState = strategy.reroute(init, "reroute").routingTable();
         if (initializing == false) {
             // pretend all initialized, nothing happened
-            ClusterState temp = ClusterState.builder(init).routingTable(routingTableNewClusterState).metaData(metaDataOldClusterState).build();
-            routingTableNewClusterState = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
+            ClusterState temp = ClusterState.builder(init).routingTable(routingTableNewClusterState)
+                    .metaData(metaDataOldClusterState).build();
+            routingTableNewClusterState = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING))
+                    .routingTable();
             routingTableOldClusterState = routingTableNewClusterState;
 
         } else {
@@ -101,7 +103,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .routingTable(routingTableOldClusterState)
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
-        newClusterState = ClusterState.builder(previousClusterState).routingTable(routingTableNewClusterState).metaData(metaDataNewClusterState).version(previousClusterState.getVersion() + 1).build();
+        newClusterState = ClusterState.builder(previousClusterState).routingTable(routingTableNewClusterState)
+                .metaData(metaDataNewClusterState).version(previousClusterState.getVersion() + 1).build();
 
         ClusterChangedEvent event = new ClusterChangedEvent("test", newClusterState, previousClusterState);
         assertThat(event.state().version(), equalTo(event.previousState().version() + 1));
@@ -133,7 +136,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .build();
         RoutingTable routingTableInitializing = strategy.reroute(init, "reroute").routingTable();
         ClusterState temp = ClusterState.builder(init).routingTable(routingTableInitializing).build();
-        RoutingTable routingTableStarted = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
+        RoutingTable routingTableStarted = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING))
+                .routingTable();
 
         // create new meta data either with version changed or not
         MetaData metaDataStarted = MetaData.builder()
@@ -142,7 +146,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
         // create the cluster states with meta data and routing tables as computed before
         MetaData metaDataClosed = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).state(IndexMetaData.State.CLOSE).numberOfShards(5).numberOfReplicas(2)).version(metaDataStarted.version() + 1)
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).state(IndexMetaData.State.CLOSE)
+                        .numberOfShards(5).numberOfReplicas(2)).version(metaDataStarted.version() + 1)
                 .build();
         previousClusterState = ClusterState.builder(init)
                 .metaData(metaDataStarted)
@@ -160,13 +165,9 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
     }
 
     private DiscoveryNodes.Builder generateDiscoveryNodes(boolean masterEligible) {
-        Map<String, String> masterNodeAttributes = new HashMap<>();
-        masterNodeAttributes.put("master", "true");
-        masterNodeAttributes.put("data", "true");
-        Map<String, String> dataNodeAttributes = new HashMap<>();
-        dataNodeAttributes.put("master", "false");
-        dataNodeAttributes.put("data", "true");
-        return DiscoveryNodes.builder().put(newNode("node1", masterEligible ? masterNodeAttributes : dataNodeAttributes)).put(newNode("master_node", masterNodeAttributes)).localNodeId("node1").masterNodeId(masterEligible ? "node1" : "master_node");
+        Set<DiscoveryNode.Role> dataOnlyRoles = Collections.singleton(DiscoveryNode.Role.DATA);
+        return DiscoveryNodes.builder().put(newNode("node1", masterEligible ? MASTER_DATA_ROLES : dataOnlyRoles))
+                .put(newNode("master_node", MASTER_DATA_ROLES)).localNodeId("node1").masterNodeId(masterEligible ? "node1" : "master_node");
     }
 
     public void assertState(ClusterChangedEvent event,
@@ -180,7 +181,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         }
         Set<Index> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(),event.previousState(), oldIndicesList);
         // third, get the actual write info
-        Iterator<GatewayMetaState.IndexMetaWriteInfo> indices = GatewayMetaState.resolveStatesToBeWritten(oldIndicesList, newIndicesList, inMemoryMetaData, event.state().metaData()).iterator();
+        Iterator<GatewayMetaState.IndexMetaWriteInfo> indices = GatewayMetaState.resolveStatesToBeWritten(oldIndicesList, newIndicesList,
+                inMemoryMetaData, event.state().metaData()).iterator();
 
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));

@@ -28,10 +28,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 
 import java.io.IOException;
@@ -82,10 +82,12 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
      */
     @Override
     protected NestedQueryBuilder doCreateTestQueryBuilder() {
-        InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(STRING_FIELD_NAME, SortOrder.ASC);
         return new NestedQueryBuilder("nested1", RandomQueryBuilder.createQuery(random()),
                 RandomPicks.randomFrom(random(), ScoreMode.values()),
-                SearchContext.current() == null ? null : new QueryInnerHits("inner_hits_name", innerHit));
+                SearchContext.current() == null ? null : new InnerHitBuilder()
+                        .setName(randomAsciiOfLengthBetween(1, 10))
+                        .setSize(randomIntBetween(0, 100))
+                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME).order(SortOrder.ASC)));
     }
 
     @Override

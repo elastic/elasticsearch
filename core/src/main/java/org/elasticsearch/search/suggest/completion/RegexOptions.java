@@ -67,12 +67,23 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
     private int flagsValue;
     private int maxDeterminizedStates;
 
-    private RegexOptions() {
-    }
-
     private RegexOptions(int flagsValue, int maxDeterminizedStates) {
         this.flagsValue = flagsValue;
         this.maxDeterminizedStates = maxDeterminizedStates;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    RegexOptions(StreamInput in) throws IOException {
+        this.flagsValue = in.readVInt();
+        this.maxDeterminizedStates = in.readVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(flagsValue);
+        out.writeVInt(maxDeterminizedStates);
     }
 
     /**
@@ -124,25 +135,6 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
         builder.field(MAX_DETERMINIZED_STATES.getPreferredName(), maxDeterminizedStates);
         builder.endObject();
         return builder;
-    }
-
-    public static RegexOptions readRegexOptions(StreamInput in) throws IOException {
-        RegexOptions regexOptions = new RegexOptions();
-        regexOptions.readFrom(in);
-        return regexOptions;
-    }
-
-    @Override
-    public RegexOptions readFrom(StreamInput in) throws IOException {
-        this.flagsValue = in.readVInt();
-        this.maxDeterminizedStates = in.readVInt();
-        return this;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(flagsValue);
-        out.writeVInt(maxDeterminizedStates);
     }
 
     /**

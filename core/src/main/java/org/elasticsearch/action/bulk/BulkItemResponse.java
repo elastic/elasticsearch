@@ -85,8 +85,6 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
         static final String CAUSE_FIELD = "cause";
         static final String STATUS_FIELD = "status";
 
-        public static final Failure PROTOTYPE = new Failure(null, null, null, null);
-
         private final String index;
         private final String type;
         private final String id;
@@ -100,6 +98,26 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
             this.cause = t;
             this.status = ExceptionsHelper.status(t);
         }
+
+        /**
+         * Read from a stream.
+         */
+        public Failure(StreamInput in) throws IOException {
+            index = in.readString();
+            type = in.readString();
+            id = in.readOptionalString();
+            cause = in.readThrowable();
+            status = ExceptionsHelper.status(cause);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(getIndex());
+            out.writeString(getType());
+            out.writeOptionalString(getId());
+            out.writeThrowable(getCause());
+        }
+
 
         /**
          * The index name of the action.
@@ -141,19 +159,6 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
          */
         public Throwable getCause() {
             return cause;
-        }
-
-        @Override
-        public Failure readFrom(StreamInput in) throws IOException {
-            return new Failure(in.readString(), in.readString(), in.readOptionalString(), in.readThrowable());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getIndex());
-            out.writeString(getType());
-            out.writeOptionalString(getId());
-            out.writeThrowable(getCause());
         }
 
         @Override
@@ -305,7 +310,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
         }
 
         if (in.readBoolean()) {
-            failure = Failure.PROTOTYPE.readFrom(in);
+            failure = new Failure(in);
         }
     }
 

@@ -158,12 +158,12 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 NodeGatewayStartedShards nodeShardState = nodesToAllocate.yesNodeShards.get(0);
                 logger.debug("[{}][{}]: allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodeShardState.getNode());
                 changed = true;
-                unassignedIterator.initialize(nodeShardState.getNode().id(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             } else if (nodesToAllocate.throttleNodeShards.isEmpty() == true && nodesToAllocate.noNodeShards.isEmpty() == false) {
                 NodeGatewayStartedShards nodeShardState = nodesToAllocate.noNodeShards.get(0);
                 logger.debug("[{}][{}]: forcing allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodeShardState.getNode());
                 changed = true;
-                unassignedIterator.initialize(nodeShardState.getNode().id(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             } else {
                 // we are throttling this, but we have enough to allocate to this node, ignore it for now
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodesToAllocate.throttleNodeShards);
@@ -187,7 +187,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             DiscoveryNode node = nodeShardState.getNode();
             String allocationId = nodeShardState.allocationId();
 
-            if (ignoreNodes.contains(node.id())) {
+            if (ignoreNodes.contains(node.getId())) {
                 continue;
             }
 
@@ -272,7 +272,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         List<NodeGatewayStartedShards> throttledNodeShards = new ArrayList<>();
         List<NodeGatewayStartedShards> noNodeShards = new ArrayList<>();
         for (NodeGatewayStartedShards nodeShardState : nodeShardStates) {
-            RoutingNode node = allocation.routingNodes().node(nodeShardState.getNode().id());
+            RoutingNode node = allocation.routingNodes().node(nodeShardState.getNode().getId());
             if (node == null) {
                 continue;
             }
@@ -302,7 +302,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             long version = nodeShardState.legacyVersion();
             DiscoveryNode node = nodeShardState.getNode();
 
-            if (ignoreNodes.contains(node.id())) {
+            if (ignoreNodes.contains(node.getId())) {
                 continue;
             }
 

@@ -1,7 +1,7 @@
 [[ingest]]
 == Ingest Plugins
 
-The ingest plugins extend Elaticsearch by providing additional ingest node capabilities.
+The ingest plugins extend Elasticsearch by providing additional ingest node capabilities.
 
 [float]
 === Core Ingest Plugins

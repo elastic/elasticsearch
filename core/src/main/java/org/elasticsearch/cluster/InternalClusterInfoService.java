@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -166,7 +167,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         // Check whether it was a data node that was added
         boolean dataNodeAdded = false;
         for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
-            if (addedNode.dataNode()) {
+            if (addedNode.isDataNode()) {
                 dataNodeAdded = true;
                 break;
             }
@@ -181,7 +182,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
         if (this.isMaster && event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-                if (removedNode.dataNode()) {
+                if (removedNode.isDataNode()) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Removing node from cluster info: {}", removedNode.getId());
                     }
@@ -307,7 +308,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             @Override
             public void onFailure(Throwable e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
                         if (logger.isTraceEnabled()) {
@@ -337,7 +338,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             @Override
             public void onFailure(Throwable e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
                         if (logger.isTraceEnabled()) {
@@ -395,7 +396,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages) {
         for (NodeStats nodeStats : nodeStatsArray) {
             if (nodeStats.getFs() == null) {
-                logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().name());
+                logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().getName());
             } else {
                 FsInfo.Path leastAvailablePath = null;
                 FsInfo.Path mostAvailablePath = null;
@@ -409,7 +410,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                         mostAvailablePath = info;
                     }
                 }
-                String nodeId = nodeStats.getNode().id();
+                String nodeId = nodeStats.getNode().getId();
                 String nodeName = nodeStats.getNode().getName();
                 if (logger.isTraceEnabled()) {
                     logger.trace("node: [{}], most available: total disk: {}, available disk: {} / least available: total disk: {}, available disk: {}",

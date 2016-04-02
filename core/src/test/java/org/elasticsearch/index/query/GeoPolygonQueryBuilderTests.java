@@ -122,7 +122,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         // returns null. This is if there is an error generating the polygon. So
         // in this case keep trying until we successfully generate one
         while (shapeBuilder == null) {
-            shapeBuilder = RandomShapeGenerator.createShapeWithin(getRandom(), null, ShapeType.POLYGON);
+            shapeBuilder = RandomShapeGenerator.createShapeWithin(random(), null, ShapeType.POLYGON);
         }
         JtsGeometry shape = (JtsGeometry) shapeBuilder.build();
         Coordinate[] coordinates = shape.getGeom().getCoordinates();

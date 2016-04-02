@@ -99,9 +99,11 @@ the nodes listed and connected. Defaults to `5s`.
 
 
 [[client-connected-to-client-node]]
-=== Connecting a Client to a Client Node
+=== Connecting a Client to a Coordinating Only Node
 
-You can start locally a {ref}/modules-node.html#client-node[Client Node] and then simply create
-a <<transport-client,`TransportClient`>> in your application which connects to this Client Node.
+You can start locally a {ref}/modules-node.html#coordinating-only-node[Coordinating Only Node]
+and then simply create a <<transport-client,`TransportClient`>> in your
+application which connects to this Coordinating Only Node.
 
-This way, the client node will be able to load whatever plugin you need (think about discovery plugins for example).
+This way, the coordinating only node will be able to load whatever plugin you
+need (think about discovery plugins for example).

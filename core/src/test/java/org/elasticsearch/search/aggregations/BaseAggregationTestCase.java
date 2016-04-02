@@ -173,11 +173,6 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
                     protected void configureSearch() {
                         // Skip me
                     }
-
-                    @Override
-                    protected void configureSuggesters() {
-                        // Skip me
-                    }
                 },
                 new IndexSettingsModule(index, settings),
 
@@ -254,9 +249,9 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 AggregatorBuilder deserializedQuery = namedWriteableRegistry.getReader(AggregatorBuilder.class, testAgg.getWriteableName())
                         .read(in);
-                assertEquals(deserializedQuery, testAgg);
-                assertEquals(deserializedQuery.hashCode(), testAgg.hashCode());
-                assertNotSame(deserializedQuery, testAgg);
+                assertEquals(testAgg, deserializedQuery);
+                assertEquals(testAgg.hashCode(), deserializedQuery.hashCode());
+                assertNotSame(testAgg, deserializedQuery);
             }
         }
     }

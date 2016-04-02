@@ -47,7 +47,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     public static final ParseField NESTED_FILTER = new ParseField("nested_filter");
     public static final ParseField MISSING = new ParseField("missing");
     public static final ParseField ORDER = new ParseField("order");
-    public static final ParseField REVERSE = new ParseField("reverse");
     public static final ParseField SORT_MODE = new ParseField("mode");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
 
@@ -350,11 +349,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     nestedPath = parser.text();
                 } else if (context.parseFieldMatcher().match(currentFieldName, MISSING)) {
                     missing = parser.objectText();
-                } else if (context.parseFieldMatcher().match(currentFieldName, REVERSE)) {
-                    if (parser.booleanValue()) {
-                        order = SortOrder.DESC;
-                    }
-                    // else we keep the default ASC
                 } else if (context.parseFieldMatcher().match(currentFieldName, ORDER)) {
                     String sortOrder = parser.text();
                     if ("asc".equals(sortOrder)) {
@@ -362,14 +356,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     } else if ("desc".equals(sortOrder)) {
                         order = SortOrder.DESC;
                     } else {
-                        throw new IllegalStateException("Sort order " + sortOrder + " not supported.");
+                        throw new ParsingException(parser.getTokenLocation(), "Sort order [{}] not supported.", sortOrder);
                     }
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_MODE)) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (context.parseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
                     unmappedType = parser.text();
                 } else {
-                    throw new IllegalArgumentException("Option " + currentFieldName + " not supported.");
+                    throw new ParsingException(parser.getTokenLocation(), "Option [{}] not supported.", currentFieldName);
                 }
             }
         }

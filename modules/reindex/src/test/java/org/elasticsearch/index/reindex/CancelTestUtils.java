@@ -51,7 +51,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 /**
- * Utilities for testing reindex and update-by-query cancelation. This whole class isn't thread safe. Luckily we run out tests in separate
+ * Utilities for testing reindex and update-by-query cancellation. This whole class isn't thread safe. Luckily we run out tests in separate
  * jvms.
  */
 public class CancelTestUtils {

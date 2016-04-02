@@ -27,14 +27,14 @@ import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidat
 import java.io.IOException;
 
 //TODO public for tests
-public final class LinearInterpoatingScorer extends WordScorer {
+public final class LinearInterpolatingScorer extends WordScorer {
 
     private final double unigramLambda;
     private final double bigramLambda;
     private final double trigramLambda;
 
-    public LinearInterpoatingScorer(IndexReader reader, Terms terms, String field,  double realWordLikelyhood, BytesRef separator, double trigramLambda, double bigramLambda, double unigramLambda)
-            throws IOException {
+    public LinearInterpolatingScorer(IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator,
+            double trigramLambda, double bigramLambda, double unigramLambda) throws IOException {
         super(reader, terms, field, realWordLikelyhood, separator);
         double sum = unigramLambda + bigramLambda + trigramLambda;
         this.unigramLambda = unigramLambda / sum;
@@ -61,7 +61,7 @@ public final class LinearInterpoatingScorer extends WordScorer {
         if (count < 1) {
             return unigramLambda * scoreUnigram(word);
         }
-        return bigramLambda * (count / (0.5d+w_1.frequency)) + unigramLambda * scoreUnigram(word);
+        return bigramLambda * (count / (0.5d + w_1.frequency)) + unigramLambda * scoreUnigram(word);
     }
 
     @Override
@@ -72,6 +72,7 @@ public final class LinearInterpoatingScorer extends WordScorer {
             return scoreBigram(w, w_1);
         }
         SuggestUtils.join(separator, spare, w.term, w_1.term);
-        return trigramLambda * (count / (1.d+frequency(spare.get()))) + scoreBigram(w, w_1);
+        return trigramLambda * (count / (1.d + frequency(spare.get()))) + scoreBigram(w, w_1);
     }
+
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -40,6 +39,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
+
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -101,21 +102,21 @@ public class RestNodeAttrsAction extends AbstractCatAction {
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {
-            NodeInfo info = nodesInfo.getNodesMap().get(node.id());
-            for(ObjectObjectCursor<String, String> att : node.attributes()) {
+            NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
+            for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
                 table.startRow();
-                table.addCell(node.name());
-                table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
+                table.addCell(node.getName());
+                table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
                 table.addCell(info == null ? null : info.getProcess().getId());
                 table.addCell(node.getHostName());
                 table.addCell(node.getHostAddress());
-                if (node.address() instanceof InetSocketTransportAddress) {
-                    table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+                if (node.getAddress() instanceof InetSocketTransportAddress) {
+                    table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
                 } else {
                     table.addCell("-");
                 }
-                table.addCell(att.key);
-                table.addCell(att.value);
+                table.addCell(attrEntry.getKey());
+                table.addCell(attrEntry.getValue());
                 table.endRow();
             }
         }

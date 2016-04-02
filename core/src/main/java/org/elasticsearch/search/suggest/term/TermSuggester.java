@@ -27,7 +27,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -39,7 +41,9 @@ import java.util.List;
 
 public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
-    public static final TermSuggester PROTOTYPE = new TermSuggester();
+    public static final TermSuggester INSTANCE = new TermSuggester();
+
+    private TermSuggester() {}
 
     @Override
     public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexSearcher searcher, CharsRefBuilder spare)
@@ -79,6 +83,16 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
        return result;
     }
 
+    @Override
+    public SuggestionBuilder<?> innerFromXContent(QueryParseContext context) throws IOException {
+        return TermSuggestionBuilder.innerFromXContent(context);
+    }
+
+    @Override
+    public SuggestionBuilder<?> read(StreamInput in) throws IOException {
+        return new TermSuggestionBuilder(in);
+    }
+
     private static class Token {
 
         public final Term term;
@@ -92,10 +106,4 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         }
 
     }
-
-    @Override
-    public SuggestionBuilder<?> getBuilderPrototype() {
-        return TermSuggestionBuilder.PROTOTYPE;
-    }
-
 }

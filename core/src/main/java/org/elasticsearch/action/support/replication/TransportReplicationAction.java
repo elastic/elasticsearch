@@ -450,7 +450,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
             final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
             taskManager.registerChildTask(task, node.getId());
-            if (primary.currentNodeId().equals(state.nodes().localNodeId())) {
+            if (primary.currentNodeId().equals(state.nodes().getLocalNodeId())) {
                 performLocalAction(state, primary, node);
             } else {
                 performRemoteAction(state, primary, node);
@@ -521,7 +521,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         private void handleBlockException(ClusterBlockException blockException) {
             if (blockException.retryable()) {
-                logger.trace("cluster is blocked ({}), scheduling a retry", blockException.getMessage());
+                logger.trace("cluster is blocked, scheduling a retry", blockException);
                 retry(blockException);
             } else {
                 finishAsFailed(blockException);
@@ -553,7 +553,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         final Throwable cause = exp.unwrapCause();
                         if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException ||
                             (isPrimaryAction && retryPrimaryException(cause))) {
-                            logger.trace("received an error from node [{}] for request [{}], scheduling a retry", exp, node.id(), request);
+                            logger.trace("received an error from node [{}] for request [{}], scheduling a retry", exp, node.getId(), request);
                             retry(exp);
                         } else {
                             finishAsFailed(exp);
@@ -911,12 +911,12 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
                 // we never execute replication operation locally as primary operation has already completed locally
                 // hence, we ignore any local shard for replication
-                if (nodes.localNodeId().equals(shard.currentNodeId()) == false) {
+                if (nodes.getLocalNodeId().equals(shard.currentNodeId()) == false) {
                     onLocalShard.accept(shard);
                 }
                 // send operation to relocating shard
                 // local shard can be a relocation target of a primary that is in relocated state
-                if (shard.relocating() && nodes.localNodeId().equals(shard.relocatingNodeId()) == false) {
+                if (shard.relocating() && nodes.getLocalNodeId().equals(shard.relocatingNodeId()) == false) {
                     onRelocatingShard.accept(shard);
                 }
             }

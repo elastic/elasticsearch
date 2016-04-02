@@ -29,9 +29,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -53,7 +55,9 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
     private static final String SUGGESTION_TEMPLATE_VAR_NAME = "suggestion";
 
-    public static final PhraseSuggester PROTOTYPE = new PhraseSuggester();
+    public static final PhraseSuggester INSTANCE = new PhraseSuggester();
+
+    private PhraseSuggester() {}
 
     /*
      * More Ideas:
@@ -144,8 +148,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     }
 
     @Override
-    public SuggestionBuilder<?> getBuilderPrototype() {
-        return PhraseSuggestionBuilder.PROTOTYPE;
+    public SuggestionBuilder<?> innerFromXContent(QueryParseContext context) throws IOException {
+        return PhraseSuggestionBuilder.innerFromXContent(context);
     }
 
+    @Override
+    public SuggestionBuilder<?> read(StreamInput in) throws IOException {
+        return new PhraseSuggestionBuilder(in);
+    }
 }

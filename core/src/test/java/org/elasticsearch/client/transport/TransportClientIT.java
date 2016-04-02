@@ -46,7 +46,7 @@ public class TransportClientIT extends ESIntegTestCase {
         String nodeName = internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
 
         TransportClient client = (TransportClient) internalCluster().client(nodeName);
-        assertThat(client.connectedNodes().get(0).dataNode(), equalTo(false));
+        assertThat(client.connectedNodes().get(0).isDataNode(), equalTo(false));
 
     }
 
@@ -72,7 +72,7 @@ public class TransportClientIT extends ESIntegTestCase {
             }
 
             for (DiscoveryNode discoveryNode : nodeService.listedNodes()) {
-                assertThat(discoveryNode.id(), startsWith("#transport#-"));
+                assertThat(discoveryNode.getId(), startsWith("#transport#-"));
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
             }
 

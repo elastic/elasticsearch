@@ -79,13 +79,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
-import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -197,6 +195,13 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
+    public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode) {
+        return new EngineConfig(openMode, config.getShardId(), config.getThreadPool(), config.getIndexSettings(), config.getWarmer(),
+            config.getStore(), config.getDeletionPolicy(), config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
+            new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(), config.getQueryCache(),
+            config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter());
+    }
+
     @Override
     @After
     public void tearDown() throws Exception {
@@ -252,26 +257,40 @@ public class InternalEngineTests extends ESTestCase {
 
     protected Translog createTranslog(Path translogPath) throws IOException {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
-        return new Translog(translogConfig);
+        return new Translog(translogConfig, null);
     }
 
     protected SnapshotDeletionPolicy createSnapshotDeletionPolicy() {
         return new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
     }
 
-    protected InternalEngine createEngine(Store store, Path translogPath) {
+    protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
         return createEngine(defaultSettings, store, translogPath, newMergePolicy());
     }
 
-    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
-        return new InternalEngine(config(indexSettings, store, translogPath, mergePolicy), false);
+    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) throws IOException {
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy);
+        InternalEngine internalEngine = new InternalEngine(config);
+        if (config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            internalEngine.recoverFromTranslog();
+        }
+        return internalEngine;
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-
-        EngineConfig config = new EngineConfig(shardId, threadPool, indexSettings
+        final EngineConfig.OpenMode openMode;
+        try {
+            if (Lucene.indexExists(store.directory()) == false) {
+                openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
+            } else {
+                openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("can't find index?", e);
+        }
+        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy,
                 iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), new Engine.EventListener() {
             @Override
@@ -279,11 +298,7 @@ public class InternalEngineTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         }, new TranslogHandler(shardId.getIndexName(), logger), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
-        try {
-            config.setCreate(Lucene.indexExists(store.directory()) == false);
-        } catch (IOException e) {
-            throw new ElasticsearchException("can't find index?", e);
-        }
+
         return config;
     }
 
@@ -501,7 +516,7 @@ public class InternalEngineTests extends ESTestCase {
 
             SegmentsStats stats = engine.segmentsStats(true);
             assertThat(stats.getFileSizes().size(), greaterThan(0));
-            assertThat((Iterable<Long>) () -> stats.getFileSizes().valuesIt(), everyItem(greaterThan(0L)));
+            assertThat(() -> stats.getFileSizes().valuesIt(), everyItem(greaterThan(0L)));
 
             ObjectObjectCursor<String, Long> firstEntry = stats.getFileSizes().iterator().next();
 
@@ -556,11 +571,25 @@ public class InternalEngineTests extends ESTestCase {
         InternalEngine engine = createEngine(store, translog);
         engine.close();
 
-        engine = new InternalEngine(engine.config(), false);
+        engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+        engine.recoverFromTranslog();
         Engine.Searcher searcher = wrapper.wrap(engine.acquireSearcher("test"));
         assertThat(counter.get(), equalTo(2));
         searcher.close();
         IOUtils.close(store, engine);
+    }
+
+    public void testFlushIsDisabledDuringTranslogRecovery() throws IOException {
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.index(new Engine.Index(newUid("1"), doc));
+        engine.close();
+
+        engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+        expectThrows(FlushNotAllowedEngineException.class, () -> engine.flush(true, true));
+        engine.recoverFromTranslog();
+        doc = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.index(new Engine.Index(newUid("2"), doc));
+        engine.flush();
     }
 
     public void testConcurrentGetAndFlush() throws Exception {
@@ -794,7 +823,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testSyncedFlush() throws IOException {
         try (Store store = createStore();
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                     new LogByteSizeMergePolicy()), false)) {
+                     new LogByteSizeMergePolicy()))) {
             final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
             engine.index(new Engine.Index(newUid("1"), doc));
@@ -821,7 +850,7 @@ public class InternalEngineTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             try (Store store = createStore();
                  InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                         new LogDocMergePolicy()), false)) {
+                         new LogDocMergePolicy()))) {
                 final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
                 ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
                 Engine.Index doc1 = new Engine.Index(newUid("1"), doc);
@@ -889,8 +918,12 @@ public class InternalEngineTests extends ESTestCase {
         } else {
             engine.flushAndClose();
         }
-        engine = new InternalEngine(config, randomBoolean());
-        assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        engine = new InternalEngine(copy(config, randomFrom(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG)));
+
+        if (engine.config().getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG && randomBoolean()) {
+            engine.recoverFromTranslog();
+        }
+        assertEquals(engine.config().getOpenMode().toString(), engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
     }
 
     public void testSycnedFlushVanishesOnReplay() throws IOException {
@@ -912,8 +945,8 @@ public class InternalEngineTests extends ESTestCase {
             // this so we have to disable the check explicitly
             directory.setPreventDoubleWrite(false);
         }
-        config.setCreate(false);
-        engine = new InternalEngine(config, false);
+        engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+        engine.recoverFromTranslog();
         assertNull("Sync ID must be gone since we have a document to replay", engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
@@ -1051,7 +1084,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testForceMerge() throws IOException {
         try (Store store = createStore();
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                     new LogByteSizeMergePolicy()), false)) { // use log MP here we test some behavior in ESMP
+                     new LogByteSizeMergePolicy()))) { // use log MP here we test some behavior in ESMP
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, null);
@@ -1489,7 +1522,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testEnableGcDeletes() throws Exception {
         try (Store store = createStore();
-            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy()), false)) {
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy()))) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
@@ -1625,9 +1658,8 @@ public class InternalEngineTests extends ESTestCase {
             // expected
         }
         // now it should be OK.
-        IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(),
-                Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_FORCE_NEW_TRANSLOG, true).build());
-        engine = createEngine(indexSettings, store, primaryTranslogDir, newMergePolicy());
+        EngineConfig config = copy(config(defaultSettings, store, primaryTranslogDir, newMergePolicy()), EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG);
+        engine = new InternalEngine(config);
     }
 
     public void testTranslogReplayWithFailure() throws IOException {
@@ -1644,7 +1676,6 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
         engine.close();
-        boolean recoveredButFailed = false;
         final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
         if (directory != null) {
             // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
@@ -1661,7 +1692,7 @@ public class InternalEngineTests extends ESTestCase {
                     engine = createEngine(store, primaryTranslogDir);
                     started = true;
                     break;
-                } catch (EngineCreationFailureException ex) {
+                } catch (EngineException | IOException e) {
                 }
             }
 
@@ -1702,7 +1733,7 @@ public class InternalEngineTests extends ESTestCase {
             directory.setPreventDoubleWrite(false);
         }
         engine.close();
-        engine = new InternalEngine(engine.config(), true);
+        engine = new InternalEngine(engine.config());
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
@@ -1830,8 +1861,8 @@ public class InternalEngineTests extends ESTestCase {
         parser.mappingUpdate = dynamicUpdate();
 
         engine.close();
-        engine.config().setCreate(false);
-        engine = new InternalEngine(engine.config(), false); // we need to reuse the engine config unless the parser.mappingModified won't work
+        engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)); // we need to reuse the engine config unless the parser.mappingModified won't work
+        engine.recoverFromTranslog();
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
@@ -1951,7 +1982,8 @@ public class InternalEngineTests extends ESTestCase {
         Translog.TranslogGeneration generation = engine.getTranslog().getGeneration();
         engine.close();
 
-        Translog translog = new Translog(new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE));
+        Translog translog = new Translog(new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE)
+            , null);
         translog.add(new Translog.Index("test", "SomeBogusId", "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
         translog.close();
@@ -1960,13 +1992,13 @@ public class InternalEngineTests extends ESTestCase {
         /* create a TranslogConfig that has been created with a different UUID */
         TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE);
 
-        EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexSettings()
+        EngineConfig brokenConfig = new EngineConfig(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, shardId, threadPool, config.getIndexSettings()
                 , null, store, createSnapshotDeletionPolicy(), newMergePolicy(),
                 config.getAnalyzer(), config.getSimilarity(), new CodecService(null, logger), config.getEventListener()
                 , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
 
         try {
-            new InternalEngine(brokenConfig, false);
+            InternalEngine internalEngine = new InternalEngine(brokenConfig);
             fail("translog belongs to a different engine");
         } catch (EngineCreationFailureException ex) {
         }
@@ -2014,5 +2046,68 @@ public class InternalEngineTests extends ESTestCase {
         mergeThread.join();
         logger.info("exception caught: ", throwable.get());
         assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(throwable.get()));
+    }
+
+    public void testCurrentTranslogIDisCommitted() throws IOException {
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy());
+
+            // create
+            {
+                ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+                Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(0)), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+
+                try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG))){
+                    engine.index(firstIndexRequest);
+
+                    expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog());
+                    Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                    assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                    assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                }
+            }
+            // open and recover tlog
+            {
+                for (int i = 0; i < 2; i++) {
+                    try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+                        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        if (i == 0) {
+                            assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        } else {
+                            assertEquals("3", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        }
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        engine.recoverFromTranslog();
+                        userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("3", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    }
+                }
+            }
+            // open index with new tlog
+            {
+                try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG))) {
+                    Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                    assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                    assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog());
+                }
+            }
+
+            // open and recover tlog with empty tlog
+            {
+                for (int i = 0; i < 2; i++) {
+                    try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+                        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        engine.recoverFromTranslog();
+                        userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("no changes - nothing to commit", "1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    }
+                }
+            }
+        }
     }
 }

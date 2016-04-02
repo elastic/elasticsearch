@@ -40,7 +40,7 @@ import java.util.Set;
  *
  * Implementations have to define how contexts are parsed at query/index time
  */
-public abstract class ContextMapping<T extends QueryContext> implements ToXContent {
+public abstract class ContextMapping<T extends ToXContent> implements ToXContent {
 
     public static final String FIELD_TYPE = "type";
     public static final String FIELD_NAME = "name";
@@ -99,7 +99,7 @@ public abstract class ContextMapping<T extends QueryContext> implements ToXConte
     /**
      * Prototype for the query context
      */
-    protected abstract T prototype();
+    protected abstract T fromXContent(XContentParser parser) throws IOException;
 
     /**
      * Parses query contexts for this mapper
@@ -108,10 +108,10 @@ public abstract class ContextMapping<T extends QueryContext> implements ToXConte
         List<T> queryContexts = new ArrayList<>();
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            queryContexts.add((T) prototype().fromXContext(parser));
+            queryContexts.add(fromXContent(parser));
         } else if (token == Token.START_ARRAY) {
             while (parser.nextToken() != Token.END_ARRAY) {
-                queryContexts.add((T) prototype().fromXContext(parser));
+                queryContexts.add(fromXContent(parser));
             }
         }
         return toInternalQueryContexts(queryContexts);

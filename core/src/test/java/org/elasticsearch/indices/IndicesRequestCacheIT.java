@@ -85,20 +85,20 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     }
 
     public void testQueryRewrite() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=text")
+        assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
                 .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true,
                         IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5,
                         IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .get());
-        indexRandom(true, client().prepareIndex("index", "type", "1").setRouting("1").setSource("s", "a"),
-                client().prepareIndex("index", "type", "2").setRouting("1").setSource("s", "b"),
-                client().prepareIndex("index", "type", "3").setRouting("1").setSource("s", "c"),
-                client().prepareIndex("index", "type", "4").setRouting("2").setSource("s", "d"),
-                client().prepareIndex("index", "type", "5").setRouting("2").setSource("s", "e"),
-                client().prepareIndex("index", "type", "6").setRouting("2").setSource("s", "f"),
-                client().prepareIndex("index", "type", "7").setRouting("3").setSource("s", "g"),
-                client().prepareIndex("index", "type", "8").setRouting("3").setSource("s", "h"),
-                client().prepareIndex("index", "type", "9").setRouting("3").setSource("s", "i"));
+        indexRandom(true, client().prepareIndex("index", "type", "1").setRouting("1").setSource("s", "2016-03-19"),
+                client().prepareIndex("index", "type", "2").setRouting("1").setSource("s", "2016-03-20"),
+                client().prepareIndex("index", "type", "3").setRouting("1").setSource("s", "2016-03-21"),
+                client().prepareIndex("index", "type", "4").setRouting("2").setSource("s", "2016-03-22"),
+                client().prepareIndex("index", "type", "5").setRouting("2").setSource("s", "2016-03-23"),
+                client().prepareIndex("index", "type", "6").setRouting("2").setSource("s", "2016-03-24"),
+                client().prepareIndex("index", "type", "7").setRouting("3").setSource("s", "2016-03-25"),
+                client().prepareIndex("index", "type", "8").setRouting("3").setSource("s", "2016-03-26"),
+                client().prepareIndex("index", "type", "9").setRouting("3").setSource("s", "2016-03-27"));
         ensureSearchable("index");
 
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -107,7 +107,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(0L));
 
         final SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")).get();
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).get();
         assertSearchResponse(r1);
         assertThat(r1.getHits().getTotalHits(), equalTo(7L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -116,7 +116,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(5L));
 
         final SearchResponse r2 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("b").lte("h")).get();
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
         assertSearchResponse(r2);
         assertThat(r2.getHits().getTotalHits(), equalTo(7L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -125,7 +125,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(7L));
 
         final SearchResponse r3 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("c").lte("i")).get();
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
         assertSearchResponse(r3);
         assertThat(r3.getHits().getTotalHits(), equalTo(7L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -135,19 +135,19 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     }
 
     public void testQueryRewriteMissingValues() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=text")
+        assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
                 .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true, IndexMetaData.SETTING_NUMBER_OF_SHARDS,
                         1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .get());
-        indexRandom(true, client().prepareIndex("index", "type", "1").setSource("s", "a"),
-                client().prepareIndex("index", "type", "2").setSource("s", "b"),
-                client().prepareIndex("index", "type", "3").setSource("s", "c"),
-                client().prepareIndex("index", "type", "4").setSource("s", "d"),
-                client().prepareIndex("index", "type", "5").setSource("s", "e"),
-                client().prepareIndex("index", "type", "6").setSource("s", "f"),
+        indexRandom(true, client().prepareIndex("index", "type", "1").setSource("s", "2016-03-19"),
+                client().prepareIndex("index", "type", "2").setSource("s", "2016-03-20"),
+                client().prepareIndex("index", "type", "3").setSource("s", "2016-03-21"),
+                client().prepareIndex("index", "type", "4").setSource("s", "2016-03-22"),
+                client().prepareIndex("index", "type", "5").setSource("s", "2016-03-23"),
+                client().prepareIndex("index", "type", "6").setSource("s", "2016-03-24"),
                 client().prepareIndex("index", "type", "7").setSource("other", "value"),
-                client().prepareIndex("index", "type", "8").setSource("s", "h"),
-                client().prepareIndex("index", "type", "9").setSource("s", "i"));
+                client().prepareIndex("index", "type", "8").setSource("s", "2016-03-26"),
+                client().prepareIndex("index", "type", "9").setSource("s", "2016-03-27"));
         ensureSearchable("index");
 
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -156,7 +156,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(0L));
 
         final SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("j")).get();
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
         assertSearchResponse(r1);
         assertThat(r1.getHits().getTotalHits(), equalTo(8L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -165,7 +165,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(1L));
 
         final SearchResponse r2 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("j")).get();
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
         assertSearchResponse(r2);
         assertThat(r2.getHits().getTotalHits(), equalTo(8L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -174,7 +174,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(1L));
 
         final SearchResponse r3 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("j")).get();
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-28")).get();
         assertSearchResponse(r3);
         assertThat(r3.getHits().getTotalHits(), equalTo(8L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

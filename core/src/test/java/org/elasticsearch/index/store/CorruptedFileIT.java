@@ -331,7 +331,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put("index.routing.allocation.include._name", primariesNode.getNode().name())
+                        .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
                         .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
 
         ));
@@ -339,8 +339,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final AtomicBoolean corrupt = new AtomicBoolean(true);
         final CountDownLatch hasCorrupted = new CountDownLatch(1);
         for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().name()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
+            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
@@ -358,7 +358,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         Settings build = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
-                .put("index.routing.allocation.include._name", primariesNode.getNode().name() + "," + unluckyNode.getNode().name()).build();
+                .put("index.routing.allocation.include._name", primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()).build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
         hasCorrupted.await();
@@ -395,7 +395,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
                                 // This does corrupt files on the replica, so we can't check:
                         .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
-                        .put("index.routing.allocation.include._name", primariesNode.getNode().name())
+                        .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
                         .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         ));
         ensureGreen();
@@ -411,8 +411,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertHitCount(countResponse, numDocs);
         final boolean truncate = randomBoolean();
         for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().name()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
+            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
@@ -608,7 +608,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         Index test = state.metaData().index("test").getIndex();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
-        ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), iterators);
+        ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
         assertNotNull(shardRouting);
         assertTrue(shardRouting.primary());
@@ -632,7 +632,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             }
         }
         pruneOldDeleteGenerations(files);
-        CorruptionUtils.corruptFile(getRandom(), files.toArray(new Path[0]));
+        CorruptionUtils.corruptFile(random(), files.toArray(new Path[0]));
         return shardRouting;
     }
 

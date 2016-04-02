@@ -20,7 +20,7 @@
 # 2. Verifies it's sha1 hashes and GPG signatures against the release key
 # 3. Installs all official plugins
 # 4. Starts one node for tar.gz and zip packages and checks:
-#    -- if it runs with Java 1.7
+#    -- if it runs with Java 1.8
 #    -- if the build hash given is the one that is returned by the status response
 #    -- if the build is a release version and not a snapshot version
 #    -- if all plugins are loaded
@@ -66,8 +66,9 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "discovery-azure",
                    "discovery-ec2",
                    "discovery-gce",
+                   "ingest-attachment",
+                   "ingest-geoip",
                    "lang-javascript",
-                   "lang-painless",
                    "lang-python",
                    "mapper-attachments",
                    "mapper-murmur3",
@@ -82,7 +83,7 @@ try:
 except KeyError:
   raise RuntimeError("""
   Please set JAVA_HOME in the env before running release tool
-  On OSX use: export JAVA_HOME=`/usr/libexec/java_home -v '1.7*'`""")
+  On OSX use: export JAVA_HOME=`/usr/libexec/java_home -v '1.8*'`""")
 
 def java_exe():
   path = JAVA_HOME
@@ -182,18 +183,18 @@ def smoke_test_release(release, files, expected_hash, plugins):
     plugin_names = {}
     for plugin  in plugins:
       print('     Install plugin [%s]' % (plugin))
-      run('%s; %s -Des.plugins.staging=true %s %s' % (java_exe(), es_plugin_path, 'install', plugin))
+      run('%s; %s -Des.plugins.staging=true %s %s' % (java_exe(), es_plugin_path, 'install -b', plugin))
       plugin_names[plugin] = True
-    if 'shield' in plugin_names:
+    if 'x-pack' in plugin_names:
       headers = { 'Authorization' : 'Basic %s' % base64.b64encode(b"es_admin:foobar").decode("UTF-8") }
-      es_shield_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/shield/esusers')
+      es_shield_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/x-pack/users')
       print("     Install dummy shield user")
       run('%s; %s  useradd es_admin -r admin -p foobar' % (java_exe(), es_shield_path))
     else:
       headers = {}
     print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
     try:
-      run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.script.inline=true -Des.script.indexed=true -Des.repositories.url.allowed_urls=http://snapshot.test* %s -Des.pidfile=%s'
+      run('%s; %s -Ees.node.name=smoke_tester -Ees.cluster.name=prepare_release -Ees.script.inline=true -Ees.script.indexed=true -Ees.repositories.url.allowed_urls=http://snapshot.test* %s -Ees.pidfile=%s'
           % (java_exe(), es_run_path, '-d', os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'es-smoke.pid')))
       conn = HTTPConnection(host='127.0.0.1', port=9200, timeout=20)
       if not wait_for_node_startup(header=headers):
@@ -212,7 +213,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
             raise RuntimeError('Expected version [%s] but was [%s]' % (release, version['number']))
           if version['build_snapshot']:
             raise RuntimeError('Expected non snapshot version')
-          if expected_hash.startswith(version['build_hash'].strip()):
+          if expected_hash != version['build_hash'].strip():
             raise RuntimeError('HEAD hash does not match expected [%s] but got [%s]' % (expected_hash, version['build_hash']))
           print('  Verify if plugins are listed in _nodes')
           conn.request('GET', '/_nodes?plugin=true&pretty=true', headers=headers)
@@ -272,7 +273,7 @@ if __name__ == "__main__":
     'org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb',
     'org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm'
   ]]
-  verify_java_version('1.7')
+  verify_java_version('1.8')
   if url:
     download_url = url
   else:

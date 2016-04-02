@@ -36,15 +36,12 @@ public enum SortBy implements Writeable<SortBy> {
     /** Sort should first be based on document frequency, then score and then the term itself. */
     FREQUENCY;
 
-    public static SortBy PROTOTYPE = SCORE;
-
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(ordinal());
     }
 
-    @Override
-    public SortBy readFrom(final StreamInput in) throws IOException {
+    public static SortBy readFromStream(final StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown SortBy ordinal [" + ordinal + "]");

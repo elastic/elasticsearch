@@ -324,7 +324,7 @@ public class LuceneTests extends ESTestCase {
 
     public void testCount() throws Exception {
         Directory dir = newDirectory();
-        RandomIndexWriter w = new RandomIndexWriter(getRandom(), dir);
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
 
         try (DirectoryReader reader = w.getReader()) {
             // match_all does not match anything on an empty index

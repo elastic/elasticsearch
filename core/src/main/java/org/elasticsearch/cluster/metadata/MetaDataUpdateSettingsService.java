@@ -79,11 +79,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // update an index with number of replicas based on data nodes if possible
-        if (!event.state().nodes().localNodeMaster()) {
+        if (!event.state().nodes().isLocalNodeElectedMaster()) {
             return;
         }
         // we will want to know this for translating "all" to a number
-        final int dataNodeCount = event.state().nodes().dataNodes().size();
+        final int dataNodeCount = event.state().nodes().getDataNodes().size();
 
         Map<Integer, List<Index>> nrReplicasChanged = new HashMap<>();
         // we need to do this each time in case it was changed by update settings

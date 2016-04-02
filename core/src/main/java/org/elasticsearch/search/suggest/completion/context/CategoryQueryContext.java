@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest.completion.context;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,7 +36,7 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
 /**
  * Defines the query context for {@link CategoryContextMapping}
  */
-public final class CategoryQueryContext implements QueryContext {
+public final class CategoryQueryContext implements ToXContent {
     public static final String NAME = "category";
     public static final CategoryQueryContext PROTOTYPE = new CategoryQueryContext("", 1, false);
 
@@ -102,8 +103,7 @@ public final class CategoryQueryContext implements QueryContext {
         CATEGORY_PARSER.declareBoolean(Builder::setPrefix, new ParseField(CONTEXT_PREFIX));
     }
 
-    @Override
-    public CategoryQueryContext fromXContext(XContentParser parser) throws IOException {
+    public static CategoryQueryContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         Builder builder = builder();
         if (token == XContentParser.Token.START_OBJECT) {

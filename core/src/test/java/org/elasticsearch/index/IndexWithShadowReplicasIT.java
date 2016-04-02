@@ -703,8 +703,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
-        Settings fooSettings = Settings.builder().put(nodeSettings).put("node.affinity", "foo").build();
-        Settings barSettings = Settings.builder().put(nodeSettings).put("node.affinity", "bar").build();
+        Settings fooSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "foo").build();
+        Settings barSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "bar").build();
 
         final InternalTestCluster.Async<List<String>> fooNodes = internalCluster().startNodesAsync(2, fooSettings);
         final InternalTestCluster.Async<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);

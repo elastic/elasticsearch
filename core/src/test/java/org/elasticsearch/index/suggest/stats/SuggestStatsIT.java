@@ -88,15 +88,15 @@ public class SuggestStatsIT extends ESIntegTestCase {
 
         long startTime = System.currentTimeMillis();
         for (int i = 0; i < suggestAllIdx; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().clientNodeClient().prepareSearch(), i).get();
+            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch(), i).get();
             assertAllSuccessful(suggestResponse);
         }
         for (int i = 0; i < suggestIdx1; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().clientNodeClient().prepareSearch("test1"), i).get();
+            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test1"), i).get();
             assertAllSuccessful(suggestResponse);
         }
         for (int i = 0; i < suggestIdx2; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().clientNodeClient().prepareSearch("test2"), i).get();
+            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test2"), i).get();
             assertAllSuccessful(suggestResponse);
         }
         long endTime = System.currentTimeMillis();

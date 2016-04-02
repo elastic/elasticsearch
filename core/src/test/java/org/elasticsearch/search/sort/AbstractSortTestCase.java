@@ -106,6 +106,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
+        indicesQueriesRegistry = null;
     }
 
     /** Returns random sort that is put under test */
@@ -207,7 +208,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
-    private QueryShardContext createMockShardContext() {
+    protected QueryShardContext createMockShardContext() {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
@@ -224,7 +225,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null) {
+                indicesQueriesRegistry, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

@@ -51,7 +51,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testDefaultAnalyzers() throws IOException {
-        Version version = VersionUtils.randomVersion(getRandom());
+        Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings
             .builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, version)
@@ -65,7 +65,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testOverrideDefaultAnalyzer() throws IOException {
-        Version version = VersionUtils.randomVersion(getRandom());
+        Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings("index", settings),
                 Collections.singletonMap("default", analyzerProvider("default")),
@@ -76,7 +76,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testOverrideDefaultIndexAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(getRandom(), Version.V_5_0_0_alpha1, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_alpha1, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         try {
             AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings("index", settings),
@@ -90,7 +90,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testBackCompatOverrideDefaultIndexAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(getRandom(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
+        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings("index", settings),
                 Collections.singletonMap("default_index", analyzerProvider("default_index")),
@@ -101,7 +101,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testOverrideDefaultSearchAnalyzer() {
-        Version version = VersionUtils.randomVersion(getRandom());
+        Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings("index", settings),
                 Collections.singletonMap("default_search", analyzerProvider("default_search")),
@@ -112,7 +112,7 @@ public class AnalysisServiceTests extends ESTestCase {
     }
 
     public void testBackCompatOverrideDefaultIndexAndSearchAnalyzer() {
-        Version version = VersionUtils.randomVersionBetween(getRandom(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
+        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         Map<String, AnalyzerProvider> analyzers = new HashMap<>();
         analyzers.put("default_index", analyzerProvider("default_index"));

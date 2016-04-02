@@ -50,7 +50,7 @@ public abstract class WritableTestCase<M extends Writeable> extends ESTestCase {
     protected abstract M createMutation(M original) throws IOException;
 
     /**
-     * model prototype to read serialized format
+     * Read from a stream.
      */
     protected abstract M readFrom(StreamInput in) throws IOException;
 

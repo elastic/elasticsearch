@@ -103,7 +103,8 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             logger.info("--> noop breakers used, skipping test");
             return;
         }
-        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
+                .addMapping("type", "test", "type=text,fielddata=true"));
         final Client client = client();
 
         // index some different terms so we have some field data for loading
@@ -148,7 +149,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         // Create an index where the mappings have a field data filter
         assertAcked(prepareCreate("ramtest").setSource("{\"mappings\": {\"type\": {\"properties\": {\"test\": " +
-                "{\"type\": \"text\",\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}"));
+                "{\"type\": \"text\",\"fielddata\": true,\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}"));
 
         ensureGreen("ramtest");
 
@@ -197,7 +198,8 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             logger.info("--> noop breakers used, skipping test");
             return;
         }
-        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
+                .addMapping("type", "test", "type=text,fielddata=true"));
         Client client = client();
 
         // index some different terms so we have some field data for loading

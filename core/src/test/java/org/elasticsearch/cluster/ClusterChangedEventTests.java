@@ -27,17 +27,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -266,7 +265,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             builder.metaData(metaBuilder);
         }
         if (numNodesToRemove > 0) {
-            final int discoveryNodesSize = previousState.getNodes().size();
+            final int discoveryNodesSize = previousState.getNodes().getSize();
             final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(previousState.getNodes());
             for (int i = 0; i < numNodesToRemove && i < discoveryNodesSize; i++) {
                 nodesBuilder.remove(NODE_ID_PREFIX + i);
@@ -286,24 +285,27 @@ public class ClusterChangedEventTests extends ESTestCase {
         final int localNodeIndex = isLocalMaster ? 0 : randomIntBetween(1, numNodes - 1); // randomly assign the local node if not master
         for (int i = 0; i < numNodes; i++) {
             final String nodeId = NODE_ID_PREFIX + i;
-            boolean isMasterEligible = false;
-            boolean isData = false;
+            Set<DiscoveryNode.Role> roles = new HashSet<>();
             if (i == 0) {
                 // the master node
                 builder.masterNodeId(nodeId);
-                isMasterEligible = true;
+                roles.add(DiscoveryNode.Role.MASTER);
             } else if (i == 1) {
                 // the alternate master node
-                isMasterEligible = true;
+                roles.add(DiscoveryNode.Role.MASTER);
             } else if (i == 2) {
                 // we need at least one data node
-                isData = true;
+                roles.add(DiscoveryNode.Role.DATA);
             } else {
                 // remaining nodes can be anything (except for master)
-                isMasterEligible = randomBoolean();
-                isData = randomBoolean();
+                if (randomBoolean()) {
+                    roles.add(DiscoveryNode.Role.MASTER);
+                }
+                if (randomBoolean()) {
+                    roles.add(DiscoveryNode.Role.DATA);
+                }
             }
-            final DiscoveryNode node = newNode(nodeId, isMasterEligible, isData);
+            final DiscoveryNode node = newNode(nodeId, roles);
             builder.put(node);
             if (i == localNodeIndex) {
                 builder.localNodeId(nodeId);
@@ -313,12 +315,8 @@ public class ClusterChangedEventTests extends ESTestCase {
     }
 
     // Create a new DiscoveryNode
-    private static DiscoveryNode newNode(final String nodeId, boolean isMasterEligible, boolean isData) {
-        final Map<String, String> attributes = MapBuilder.<String, String>newMapBuilder()
-                                                   .put(DiscoveryNode.MASTER_ATTR, isMasterEligible ? "true" : "false")
-                                                   .put(DiscoveryNode.DATA_ATTR, isData ? "true": "false")
-                                                   .immutableMap();
-        return new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
+    private static DiscoveryNode newNode(final String nodeId, Set<DiscoveryNode.Role> roles) {
+        return new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, Collections.emptyMap(), roles, Version.CURRENT);
     }
 
     // Create the metadata for a cluster state.

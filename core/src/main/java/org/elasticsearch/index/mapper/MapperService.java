@@ -84,6 +84,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final String DEFAULT_MAPPING = "_default_";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.total_fields.limit", 1000L, 0, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING =
+            Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.IndexScope);
@@ -289,6 +293,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // deserializing cluster state that was sent by the master node,
             // this check will be skipped.
             checkNestedFieldsLimit(fullPathObjectMappers);
+            checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size());
+            checkDepthLimit(fullPathObjectMappers.keySet());
         }
 
         Set<String> parentTypes = this.parentTypes;
@@ -403,8 +409,36 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 actualNestedFields++;
             }
         }
-        if (allowedNestedFields >= 0 && actualNestedFields > allowedNestedFields) {
+        if (actualNestedFields > allowedNestedFields) {
             throw new IllegalArgumentException("Limit of nested fields [" + allowedNestedFields + "] in index [" + index().getName() + "] has been exceeded");
+        }
+    }
+
+    private void checkTotalFieldsLimit(long totalMappers) {
+        long allowedTotalFields = indexSettings.getValue(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        if (allowedTotalFields < totalMappers) {
+            throw new IllegalArgumentException("Limit of total fields [" + allowedTotalFields + "] in index [" + index().getName() + "] has been exceeded");
+        }
+    }
+
+    private void checkDepthLimit(Collection<String> objectPaths) {
+        final long maxDepth = indexSettings.getValue(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
+        for (String objectPath : objectPaths) {
+            checkDepthLimit(objectPath, maxDepth);
+        }
+    }
+
+    private void checkDepthLimit(String objectPath, long maxDepth) {
+        int numDots = 0;
+        for (int i = 0; i < objectPath.length(); ++i) {
+            if (objectPath.charAt(i) == '.') {
+                numDots += 1;
+            }
+        }
+        final int depth = numDots + 2;
+        if (depth > maxDepth) {
+            throw new IllegalArgumentException("Limit of mapping depth [" + maxDepth + "] in index [" + index().getName()
+                    + "] has been exceeded due to object field [" + objectPath + "]");
         }
     }
 

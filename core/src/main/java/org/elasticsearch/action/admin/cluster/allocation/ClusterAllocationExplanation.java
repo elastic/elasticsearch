@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -60,7 +58,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         int size = in.readVInt();
         ntd = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            DiscoveryNode dn = DiscoveryNode.readNode(in);
+            DiscoveryNode dn = new DiscoveryNode(in);
             Decision decision = Decision.readFrom(in);
             ntd.put(dn, decision);
         }
@@ -70,7 +68,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         size = in.readVInt();
         ntw = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            DiscoveryNode dn = DiscoveryNode.readNode(in);
+            DiscoveryNode dn = new DiscoveryNode(in);
             float weight = in.readFloat();
             ntw.put(dn, weight);
         }
@@ -150,8 +148,8 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
                 builder.startObject(node.getId()); {
                     builder.field("node_name", node.getName());
                     builder.startObject("node_attributes"); {
-                        for (ObjectObjectCursor<String, String> attrKV : node.attributes()) {
-                            builder.field(attrKV.key, attrKV.value);
+                        for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
+                            builder.field(attrEntry.getKey(), attrEntry.getValue());
                         }
                     }
                     builder.endObject(); // end attributes

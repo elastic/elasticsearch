@@ -131,8 +131,6 @@ public class Node implements Closeable {
 
     public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
-    public static final Setting<Boolean> NODE_CLIENT_SETTING =
-        Setting.boolSetting("node.client", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_MASTER_SETTING =
         Setting.boolSetting("node.master", true, Property.NodeScope);
@@ -143,9 +141,7 @@ public class Node implements Closeable {
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
-    // this sucks that folks can mistype client etc and get away with it.
-    // TODO: we should move this to node.attribute.${name} = ${value} instead.
-    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.", Property.NodeScope);
+    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", Property.NodeScope);
 
 
     private static final String CLIENT_TYPE = "node";
@@ -220,7 +216,7 @@ public class Node implements Closeable {
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
             modules.add(new SearchModule(settings, namedWriteableRegistry));
-            modules.add(new ActionModule(DiscoveryNode.ingestNode(settings), false));
+            modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
             modules.add(new ResourceWatcherModule());
@@ -337,7 +333,7 @@ public class Node implements Closeable {
         if (DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
-            if (observer.observedState().nodes().masterNodeId() == null) {
+            if (observer.observedState().nodes().getMasterNodeId() == null) {
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override

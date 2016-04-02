@@ -371,7 +371,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 .put("discovery.type", "local")
                 .build();
         String node_0 = internalCluster().startNode(settings);
-        internalCluster().startNodeClient(settings);
+        internalCluster().startCoordinatingOnlyNode(settings);
 
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node_0);
         final CountDownLatch block1 = new CountDownLatch(1);
@@ -429,7 +429,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertTrue(controlSources.isEmpty());
 
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
-        PendingClusterTasksResponse response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().get();
+        PendingClusterTasksResponse response = internalCluster().coordOnlyNodeClient().admin().cluster().preparePendingClusterTasks().get();
         assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(10));
         assertThat(response.pendingTasks().get(0).getSource().string(), equalTo("1"));
         assertThat(response.pendingTasks().get(0).isExecuting(), equalTo(true));
@@ -489,7 +489,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
         assertTrue(controlSources.isEmpty());
 
-        response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().get();
+        response = internalCluster().coordOnlyNodeClient().admin().cluster().preparePendingClusterTasks().get();
         assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(5));
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
         for (PendingClusterTask task : response) {
@@ -518,8 +518,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // the first node should be a master as the minimum required is 1
-        assertThat(clusterService.state().nodes().masterNode(), notNullValue());
-        assertThat(clusterService.state().nodes().localNodeMaster(), is(true));
+        assertThat(clusterService.state().nodes().getMasterNode(), notNullValue());
+        assertThat(clusterService.state().nodes().isLocalNodeElectedMaster(), is(true));
         assertThat(testService.master(), is(true));
 
         String node_1 = internalCluster().startNode(settings);
@@ -530,7 +530,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // the second node should not be the master as node1 is already the master.
-        assertThat(clusterService1.state().nodes().localNodeMaster(), is(false));
+        assertThat(clusterService1.state().nodes().isLocalNodeElectedMaster(), is(false));
         assertThat(testService1.master(), is(false));
 
         internalCluster().stopCurrentMasterNode();
@@ -538,7 +538,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // now that node0 is closed, node1 should be elected as master
-        assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
+        assertThat(clusterService1.state().nodes().isLocalNodeElectedMaster(), is(true));
         assertThat(testService1.master(), is(true));
 
         // start another node and set min_master_node
@@ -554,7 +554,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         internalCluster().stopRandomNonMasterNode();
 
         // there should not be any master as the minimum number of required eligible masters is not met
-        awaitBusy(() -> clusterService1.state().nodes().masterNode() == null &&
+        awaitBusy(() -> clusterService1.state().nodes().getMasterNode() == null &&
                 clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED);
         assertThat(testService1.master(), is(false));
 
@@ -571,8 +571,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 .setWaitForNodes("2").get().isTimedOut(), is(false));
 
         // now that we started node1 again, a new master should be elected
-        assertThat(clusterService2.state().nodes().masterNode(), is(notNullValue()));
-        if (node_2.equals(clusterService2.state().nodes().masterNode().name())) {
+        assertThat(clusterService2.state().nodes().getMasterNode(), is(notNullValue()));
+        if (node_2.equals(clusterService2.state().nodes().getMasterNode().getName())) {
             assertThat(testService1.master(), is(false));
             assertThat(testService2.master(), is(true));
         } else {

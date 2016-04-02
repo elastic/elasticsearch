@@ -32,6 +32,8 @@ import org.elasticsearch.transport.TransportSettings;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
@@ -46,7 +48,8 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
 
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876), Version.CURRENT));
+            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876),
+                    emptyMap(), emptySet(),Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_timeout"));

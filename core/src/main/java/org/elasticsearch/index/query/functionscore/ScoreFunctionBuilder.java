@@ -48,7 +48,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder> impl
 
     protected void buildWeight(XContentBuilder builder) throws IOException {
         if (weight != null) {
-            builder.field(FunctionScoreQueryParser.WEIGHT_FIELD.getPreferredName(), weight);
+            builder.field(FunctionScoreQueryBuilder.WEIGHT_FIELD.getPreferredName(), weight);
         }
     }
 

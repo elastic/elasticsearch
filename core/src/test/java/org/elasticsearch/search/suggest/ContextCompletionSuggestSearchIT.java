@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.CompletionSuggestSearchIT.CompletionMappingBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
@@ -36,7 +37,6 @@ import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
-import org.elasticsearch.search.suggest.completion.context.QueryContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -55,9 +55,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @SuppressCodecs("*") // requires custom completion format
 public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
-    private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
-    private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+    private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
 
     @Override
     protected int numberOfReplicas() {
@@ -280,7 +280,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         CompletionSuggestionBuilder multiContextFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         // query context order should never matter
-        Map<String, List<? extends QueryContext>> contextMap = new HashMap<>();
+        Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
         contextMap.put("type", Collections.singletonList(CategoryQueryContext.builder().setCategory("type2").build()));
         contextMap.put("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat2").build()));
         multiContextFilterSuggest.contexts(contextMap);
@@ -331,7 +331,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         // boost on both contexts
         CompletionSuggestionBuilder multiContextBoostSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         // query context order should never matter
-        Map<String, List<? extends QueryContext>> contextMap = new HashMap<>();
+        Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
         contextMap.put("type", Arrays.asList(
             CategoryQueryContext.builder().setCategory("type2").setBoost(2).build(),
             CategoryQueryContext.builder().setCategory("type1").setBoost(4).build())

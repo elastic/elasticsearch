@@ -35,7 +35,6 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
@@ -887,7 +886,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
             // as the version to use also when the node receiving this request will send the response with
-            Version version = Version.smallest(this.version, node.version());
+            Version version = Version.smallest(this.version, node.getVersion());
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
@@ -900,7 +899,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // more explicit).
             if (request instanceof BytesTransportRequest) {
                 BytesTransportRequest bRequest = (BytesTransportRequest) request;
-                assert node.version().equals(bRequest.version());
+                assert node.getVersion().equals(bRequest.version());
                 bRequest.writeThin(stream);
                 stream.close();
                 bytes = bStream.bytes();
@@ -951,7 +950,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         globalLock.readLock().lock();
         try {
 
-            try (Releasable ignored = connectionLock.acquire(node.id())) {
+            try (Releasable ignored = connectionLock.acquire(node.getId())) {
                 if (!lifecycle.started()) {
                     throw new IllegalStateException("can't add nodes to a stopped transport");
                 }
@@ -993,7 +992,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
-        InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
+        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
         ChannelFuture connect = clientBootstrap.connect(address);
         connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
         if (!connect.isSuccess()) {
@@ -1011,7 +1010,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         ChannelFuture[] connectReg = new ChannelFuture[nodeChannels.reg.length];
         ChannelFuture[] connectState = new ChannelFuture[nodeChannels.state.length];
         ChannelFuture[] connectPing = new ChannelFuture[nodeChannels.ping.length];
-        InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
+        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
         for (int i = 0; i < connectRecovery.length; i++) {
             connectRecovery[i] = clientBootstrap.connect(address);
         }
@@ -1109,7 +1108,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
 
-        try (Releasable ignored = connectionLock.acquire(node.id())) {
+        try (Releasable ignored = connectionLock.acquire(node.getId())) {
             NodeChannels nodeChannels = connectedNodes.remove(node);
             if (nodeChannels != null) {
                 try {
@@ -1131,7 +1130,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         // check outside of the lock
         NodeChannels nodeChannels = connectedNodes.get(node);
         if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
-            try (Releasable ignored = connectionLock.acquire(node.id())) {
+            try (Releasable ignored = connectionLock.acquire(node.getId())) {
                 nodeChannels = connectedNodes.get(node);
                 // check again within the connection lock, if its still applicable to remove it
                 if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
@@ -1311,15 +1310,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         public Channel channel(TransportRequestOptions.Type type) {
             if (type == TransportRequestOptions.Type.REG) {
-                return reg[MathUtils.mod(regCounter.incrementAndGet(), reg.length)];
+                return reg[Math.floorMod(regCounter.incrementAndGet(), reg.length)];
             } else if (type == TransportRequestOptions.Type.STATE) {
-                return state[MathUtils.mod(stateCounter.incrementAndGet(), state.length)];
+                return state[Math.floorMod(stateCounter.incrementAndGet(), state.length)];
             } else if (type == TransportRequestOptions.Type.PING) {
-                return ping[MathUtils.mod(pingCounter.incrementAndGet(), ping.length)];
+                return ping[Math.floorMod(pingCounter.incrementAndGet(), ping.length)];
             } else if (type == TransportRequestOptions.Type.BULK) {
-                return bulk[MathUtils.mod(bulkCounter.incrementAndGet(), bulk.length)];
+                return bulk[Math.floorMod(bulkCounter.incrementAndGet(), bulk.length)];
             } else if (type == TransportRequestOptions.Type.RECOVERY) {
-                return recovery[MathUtils.mod(recoveryCounter.incrementAndGet(), recovery.length)];
+                return recovery[Math.floorMod(recoveryCounter.incrementAndGet(), recovery.length)];
             } else {
                 throw new IllegalArgumentException("no type channel for [" + type + "]");
             }

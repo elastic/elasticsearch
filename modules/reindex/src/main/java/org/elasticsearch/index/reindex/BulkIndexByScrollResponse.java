@@ -136,7 +136,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         int indexingFailuresCount = in.readVInt();
         List<Failure> indexingFailures = new ArrayList<>(indexingFailuresCount);
         for (int i = 0; i < indexingFailuresCount; i++) {
-            indexingFailures.add(Failure.PROTOTYPE.readFrom(in));
+            indexingFailures.add(new Failure(in));
         }
         this.indexingFailures = unmodifiableList(indexingFailures);
         int searchFailuresCount = in.readVInt();

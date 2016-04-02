@@ -49,10 +49,11 @@ import org.elasticsearch.painless.PainlessParser.ExtnewContext;
 import org.elasticsearch.painless.PainlessParser.ExtprecContext;
 import org.elasticsearch.painless.PainlessParser.ExtstartContext;
 import org.elasticsearch.painless.PainlessParser.ExtstringContext;
-import org.elasticsearch.painless.PainlessParser.ExttypeContext;
 import org.elasticsearch.painless.PainlessParser.ExtvarContext;
 import org.elasticsearch.painless.PainlessParser.FalseContext;
 import org.elasticsearch.painless.PainlessParser.ForContext;
+import org.elasticsearch.painless.PainlessParser.GenericContext;
+import org.elasticsearch.painless.PainlessParser.IdentifierContext;
 import org.elasticsearch.painless.PainlessParser.IfContext;
 import org.elasticsearch.painless.PainlessParser.IncrementContext;
 import org.elasticsearch.painless.PainlessParser.InitializerContext;
@@ -151,19 +152,22 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     private void writeExecute() {
         final Label fals = new Label();
         final Label end = new Label();
-        execute.visitVarInsn(Opcodes.ALOAD, metadata.inputValueSlot);
-        execute.push("#score");
-        execute.invokeInterface(MAP_TYPE, MAP_GET);
-        execute.dup();
-        execute.ifNull(fals);
-        execute.checkCast(SCORE_ACCESSOR_TYPE);
-        execute.invokeVirtual(SCORE_ACCESSOR_TYPE, SCORE_ACCESSOR_FLOAT);
-        execute.goTo(end);
-        execute.mark(fals);
-        execute.pop();
-        execute.push(0F);
-        execute.mark(end);
-        execute.visitVarInsn(Opcodes.FSTORE, metadata.scoreValueSlot);
+
+        if (metadata.scoreValueUsed) {
+            execute.visitVarInsn(Opcodes.ALOAD, metadata.inputValueSlot);
+            execute.push("#score");
+            execute.invokeInterface(MAP_TYPE, MAP_GET);
+            execute.dup();
+            execute.ifNull(fals);
+            execute.checkCast(SCORE_ACCESSOR_TYPE);
+            execute.invokeVirtual(SCORE_ACCESSOR_TYPE, SCORE_ACCESSOR_FLOAT);
+            execute.goTo(end);
+            execute.mark(fals);
+            execute.pop();
+            execute.push(0F);
+            execute.mark(end);
+            execute.visitVarInsn(Opcodes.FSTORE, metadata.scoreValueSlot);
+        }
 
         execute.push(settings.getMaxLoopCounter());
         execute.visitVarInsn(Opcodes.ISTORE, metadata.loopCounterSlot);
@@ -329,6 +333,16 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitIdentifier(IdentifierContext ctx) {
+        throw new UnsupportedOperationException(WriterUtility.error(ctx) + "Unexpected state.");
+    }
+
+    @Override
+    public Void visitGeneric(GenericContext ctx) {
+        throw new UnsupportedOperationException(WriterUtility.error(ctx) + "Unexpected state.");
+    }
+
+    @Override
     public Void visitPrecedence(final PrecedenceContext ctx) {
         throw new UnsupportedOperationException(WriterUtility.error(ctx) + "Unexpected state.");
     }
@@ -470,13 +484,6 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     @Override
     public Void visitExtdot(final ExtdotContext ctx) {
         external.processExtdot(ctx);
-
-        return null;
-    }
-
-    @Override
-    public Void visitExttype(final ExttypeContext ctx) {
-        external.processExttype(ctx);
 
         return null;
     }

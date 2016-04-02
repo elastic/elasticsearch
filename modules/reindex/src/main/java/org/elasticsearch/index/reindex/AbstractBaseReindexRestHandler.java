@@ -43,6 +43,24 @@ public abstract class AbstractBaseReindexRestHandler<
                 Response extends BulkIndexByScrollResponse,
                 TA extends TransportAction<Request, Response>
             > extends BaseRestHandler {
+
+    /**
+     * @return requests_per_second from the request as a float if it was on the request, null otherwise
+     */
+    public static Float parseRequestsPerSecond(RestRequest request) {
+        String requestsPerSecond = request.param("requests_per_second");
+        if (requestsPerSecond == null) {
+            return null;
+        }
+        if ("".equals(requestsPerSecond)) {
+            throw new IllegalArgumentException("requests_per_second cannot be an empty string");
+        }
+        if ("unlimited".equals(requestsPerSecond)) {
+            return 0f;
+        }
+        return Float.parseFloat(requestsPerSecond);
+    }
+
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final AggregatorParsers aggParsers;
     protected final Suggesters suggesters;
@@ -61,7 +79,11 @@ public abstract class AbstractBaseReindexRestHandler<
     }
 
     protected void execute(RestRequest request, Request internalRequest, RestChannel channel) throws IOException {
-        internalRequest.setRequestsPerSecond(request.paramAsFloat("requests_per_second", internalRequest.getRequestsPerSecond()));
+        Float requestsPerSecond = parseRequestsPerSecond(request);
+        if (requestsPerSecond != null) {
+            internalRequest.setRequestsPerSecond(requestsPerSecond);
+        }
+
         if (request.paramAsBoolean("wait_for_completion", true)) {
             action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<Response>(channel));
             return;

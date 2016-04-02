@@ -64,8 +64,8 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         indexingThread.start();
 
         ClusterState initialState = client().admin().cluster().prepareState().get().getState();
-        DiscoveryNode[] dataNodes = initialState.getNodes().dataNodes().values().toArray(DiscoveryNode.class);
-        DiscoveryNode relocationSource = initialState.getNodes().dataNodes().get(initialState.getRoutingTable().shardRoutingTable("test", 0).primaryShard().currentNodeId());
+        DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(DiscoveryNode.class);
+        DiscoveryNode relocationSource = initialState.getNodes().getDataNodes().get(initialState.getRoutingTable().shardRoutingTable("test", 0).primaryShard().currentNodeId());
         for (int i = 0; i < RELOCATION_COUNT; i++) {
             DiscoveryNode relocationTarget = randomFrom(dataNodes);
             while (relocationTarget.equals(relocationSource)) {

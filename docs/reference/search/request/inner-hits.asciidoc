@@ -276,20 +276,17 @@ An example that shows the use of nested inner hits via the top level notation:
         }
     },
     "inner_hits" : {
-        "comment" : {
-            "path" : { <1>
-                "comments" : { <2>
-                    "query" : {
-                        "match" : {"comments.message" : "[different query]"} <3>
-                    }
-                }
+        "comment" : { <1>
+            "path" : "comments", <2>
+            "query" : {
+                "match" : {"comments.message" : "[different query]"} <3>
             }
         }
     }
 }
 --------------------------------------------------
 
-<1> The inner hit definition is nested and requires the `path` option.
+<1> The inner hit definition with the name `comment`.
 <2> The path option refers to the nested object field `comments`
 <3> A query that runs to collect the nested inner documents for each search hit returned. If no query is defined all nested
     inner documents will be included belonging to a search hit. This shows that it only make sense to the top level

@@ -76,14 +76,14 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         nodesListGatewayMetaState.init(this);
 
-        if (DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings)) {
             ensureNoPre019ShardState(nodeEnv);
         }
 
-        if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
         }
-        if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
                 ensureNoPre019State();
                 IndexFolderUpgrader.upgradeIndicesIfNeeded(settings, nodeEnv);
@@ -118,7 +118,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         Set<Index> relevantIndices = Collections.emptySet();
         boolean success = true;
         // write the state if this node is a master eligible node or if it is a data node and has shards allocated on it
-        if (state.nodes().localNode().masterNode() || state.nodes().localNode().dataNode()) {
+        if (state.nodes().getLocalNode().isMasterNode() || state.nodes().getLocalNode().isDataNode()) {
             if (previousMetaData == null) {
                 try {
                     // we determine if or if not we write meta data on data only nodes by looking at the shard routing
@@ -178,7 +178,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         Set<Index> relevantIndices;
         if (isDataOnlyNode(state)) {
             relevantIndices = getRelevantIndicesOnDataOnlyNode(state, previousState, previouslyWrittenIndices);
-        } else if (state.nodes().localNode().masterNode() == true) {
+        } else if (state.nodes().getLocalNode().isMasterNode() == true) {
             relevantIndices = getRelevantIndicesForMasterEligibleNode(state);
         } else {
             relevantIndices = Collections.emptySet();
@@ -188,7 +188,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
 
     protected static boolean isDataOnlyNode(ClusterState state) {
-        return ((state.nodes().localNode().masterNode() == false) && state.nodes().localNode().dataNode());
+        return ((state.nodes().getLocalNode().isMasterNode() == false) && state.nodes().getLocalNode().isDataNode());
     }
 
     /**
@@ -285,7 +285,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     }
 
     public static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state, ClusterState previousState, Set<Index> previouslyWrittenIndices) {
-        RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().localNodeId());
+        RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
         }

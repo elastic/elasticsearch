@@ -44,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,9 +68,9 @@ public class ZenFaultDetectionTests extends ESTestCase {
         threadPool = new ThreadPool(getClass().getName());
         clusterService = createClusterService(threadPool);
         serviceA = build(Settings.builder().put("name", "TS_A").build(), version0);
-        nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), version0);
+        nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         serviceB = build(Settings.builder().put("name", "TS_B").build(), version1);
-        nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), version1);
+        nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
@@ -121,8 +122,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         builder.put(nodeA);
         builder.put(nodeB);
-        builder.localNodeId(nodeA.id());
-        builder.masterNodeId(master ? nodeA.id() : nodeB.id());
+        builder.localNodeId(nodeA.getId());
+        builder.masterNodeId(master ? nodeA.getId() : nodeB.getId());
         return builder.build();
     }
 
@@ -130,8 +131,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         builder.put(nodeA);
         builder.put(nodeB);
-        builder.localNodeId(nodeB.id());
-        builder.masterNodeId(master ? nodeB.id() : nodeA.id());
+        builder.localNodeId(nodeB.getId());
+        builder.masterNodeId(master ? nodeB.getId() : nodeA.getId());
         return builder.build();
     }
 

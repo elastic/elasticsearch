@@ -58,7 +58,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             result.lowercaseExpandedTerms(randomBoolean());
         }
         if (randomBoolean()) {
-            result.locale(randomLocale(getRandom()));
+            result.locale(randomLocale(random()));
         }
         if (randomBoolean()) {
             result.minimumShouldMatch(randomMinimumShouldMatch());

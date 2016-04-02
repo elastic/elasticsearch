@@ -130,7 +130,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         fill(lastNames, "Captain", between(3, 7));
         fillRandom(lastNames, between(30, 40));
         for (int i = 0; i < numDocs; i++) {
-            String first = RandomPicks.randomFrom(getRandom(), firstNames);
+            String first = RandomPicks.randomFrom(random(), firstNames);
             String last = randomPickExcept(lastNames, first);
             builders.add(client().prepareIndex("test", "test", "" + i).setSource(
                     "full_name", first + " " + last,
@@ -245,11 +245,11 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         // check if it's equivalent to a match query.
         int numIters = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numIters; i++) {
-            String field = RandomPicks.randomFrom(getRandom(), fields);
+            String field = RandomPicks.randomFrom(random(), fields);
             int numTerms = randomIntBetween(1, query.length);
             StringBuilder builder = new StringBuilder();
             for (int j = 0; j < numTerms; j++) {
-                builder.append(RandomPicks.randomFrom(getRandom(), query)).append(" ");
+                builder.append(RandomPicks.randomFrom(random(), query)).append(" ");
             }
             MultiMatchQueryBuilder multiMatchQueryBuilder = randomizeType(multiMatchQuery(builder.toString(), field));
             SearchResponse multiMatchResp = client().prepareSearch("test")
@@ -654,14 +654,14 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     public List<String> fillRandom(List<String> list, int times) {
         for (int i = 0; i < times; i++) {
-            list.add(randomRealisticUnicodeOfCodepointLengthBetween(1, 5));
+            list.add(randomAsciiOfLengthBetween(1, 5));
         }
         return list;
     }
 
     public <T> T randomPickExcept(List<T> fromList, T butNot) {
         while (true) {
-            T t = RandomPicks.randomFrom(getRandom(), fromList);
+            T t = RandomPicks.randomFrom(random(), fromList);
             if (t.equals(butNot)) {
                 continue;
             }

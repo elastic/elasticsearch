@@ -186,7 +186,7 @@ public class ClusterChangedEvent {
      * Returns <code>true</code> iff the local node is the mater node of the cluster.
      */
     public boolean localNodeMaster() {
-        return state.nodes().localNodeMaster();
+        return state.nodes().isLocalNodeElectedMaster();
     }
 
     /**

@@ -69,8 +69,6 @@ import static org.elasticsearch.search.suggest.SuggestUtils.Fields.SUGGEST_MODE;
  * global options, but are only applicable for this suggestion.
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
-
-    public static final TermSuggestionBuilder PROTOTYPE = new TermSuggestionBuilder("_na_");
     private static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
@@ -103,6 +101,37 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         prefixLength = in.prefixLength;
         minWordLength = in.minWordLength;
         minDocFreq = in.minDocFreq;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    TermSuggestionBuilder(StreamInput in) throws IOException {
+        super(in);
+        suggestMode = SuggestMode.readFromStream(in);
+        accuracy = in.readFloat();
+        sort = SortBy.readFromStream(in);
+        stringDistance = StringDistanceImpl.readFromStream(in);
+        maxEdits = in.readVInt();
+        maxInspections = in.readVInt();
+        maxTermFreq = in.readFloat();
+        prefixLength = in.readVInt();
+        minWordLength = in.readVInt();
+        minDocFreq = in.readFloat();
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        suggestMode.writeTo(out);
+        out.writeFloat(accuracy);
+        sort.writeTo(out);
+        stringDistance.writeTo(out);
+        out.writeVInt(maxEdits);
+        out.writeVInt(maxInspections);
+        out.writeFloat(maxTermFreq);
+        out.writeVInt(prefixLength);
+        out.writeVInt(minWordLength);
+        out.writeFloat(minDocFreq);
     }
 
     /**
@@ -360,8 +389,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         return builder;
     }
 
-    @Override
-    protected TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+    static TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         TermSuggestionBuilder tmpSuggestion = new TermSuggestionBuilder("_na_");
         ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
@@ -443,36 +471,6 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        suggestMode.writeTo(out);
-        out.writeFloat(accuracy);
-        sort.writeTo(out);
-        stringDistance.writeTo(out);
-        out.writeVInt(maxEdits);
-        out.writeVInt(maxInspections);
-        out.writeFloat(maxTermFreq);
-        out.writeVInt(prefixLength);
-        out.writeVInt(minWordLength);
-        out.writeFloat(minDocFreq);
-    }
-
-    @Override
-    public TermSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder(field);
-        builder.suggestMode = SuggestMode.PROTOTYPE.readFrom(in);
-        builder.accuracy = in.readFloat();
-        builder.sort = SortBy.PROTOTYPE.readFrom(in);
-        builder.stringDistance = StringDistanceImpl.PROTOTYPE.readFrom(in);
-        builder.maxEdits = in.readVInt();
-        builder.maxInspections = in.readVInt();
-        builder.maxTermFreq = in.readFloat();
-        builder.prefixLength = in.readVInt();
-        builder.minWordLength = in.readVInt();
-        builder.minDocFreq = in.readFloat();
-        return builder;
-    }
-
-    @Override
     protected boolean doEquals(TermSuggestionBuilder other) {
         return Objects.equals(suggestMode, other.suggestMode) &&
                Objects.equals(accuracy, other.accuracy) &&
@@ -516,15 +514,12 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             }
         };
 
-        protected static SuggestMode PROTOTYPE = MISSING;
-
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeVInt(ordinal());
         }
 
-        @Override
-        public SuggestMode readFrom(final StreamInput in) throws IOException {
+        public static SuggestMode readFromStream(final StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown SuggestMode ordinal [" + ordinal + "]");
@@ -579,15 +574,12 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             }
         };
 
-        protected static StringDistanceImpl PROTOTYPE = INTERNAL;
-
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeVInt(ordinal());
         }
 
-        @Override
-        public StringDistanceImpl readFrom(final StreamInput in) throws IOException {
+        public static StringDistanceImpl readFromStream(final StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown StringDistanceImpl ordinal [" + ordinal + "]");

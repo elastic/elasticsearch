@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
@@ -43,8 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -71,7 +68,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     private final ThreadPool threadPool;
 
-    private final IndicesService indicesService;
+    private final Iterable<IndexShard> indexShards;
 
     private final ByteSizeValue indexingBuffer;
 
@@ -88,14 +85,14 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     private final ShardsIndicesStatusChecker statusChecker;
 
-    IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
-        this(settings, threadPool, indicesService, JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
+    IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard>indexServices) {
+        this(settings, threadPool, indexServices, JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
     }
 
     // for testing
-    IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService, long jvmMemoryInBytes) {
+    IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices, long jvmMemoryInBytes) {
         super(settings);
-        this.indicesService = indicesService;
+        this.indexShards = indexServices;
 
         ByteSizeValue indexingBuffer;
         String indexingBufferSetting = this.settings.get(INDEX_BUFFER_SIZE_SETTING, "10%");
@@ -152,13 +149,10 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     protected List<IndexShard> availableShards() {
         List<IndexShard> availableShards = new ArrayList<>();
-
-        for (IndexService indexService : indicesService) {
-            for (IndexShard shard : indexService) {
-                // shadow replica doesn't have an indexing buffer
-                if (shard.canIndex() && CAN_WRITE_INDEX_BUFFER_STATES.contains(shard.state())) {
-                    availableShards.add(shard);
-                }
+        for (IndexShard shard : indexShards) {
+            // shadow replica doesn't have an indexing buffer
+            if (shard.canIndex() && CAN_WRITE_INDEX_BUFFER_STATES.contains(shard.state())) {
+                availableShards.add(shard);
             }
         }
         return availableShards;
@@ -210,13 +204,13 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     }
 
     @Override
-    public void postIndex(Engine.Index index) {
-        bytesWritten(index.getTranslogLocation().size);        
+    public void postIndex(Engine.Index index, boolean created) {
+        bytesWritten(index.getTranslogLocation().size);
     }
 
     @Override
     public void postDelete(Engine.Delete delete) {
-        bytesWritten(delete.getTranslogLocation().size);        
+        bytesWritten(delete.getTranslogLocation().size);
     }
 
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {

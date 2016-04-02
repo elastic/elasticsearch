@@ -72,7 +72,7 @@ public class EnvelopeBuilderTests extends AbstractShapeBuilderTestCase<EnvelopeB
     }
 
     static EnvelopeBuilder createRandomShape() {
-        Rectangle box = RandomShapeGenerator.xRandomRectangle(getRandom(), RandomShapeGenerator.xRandomPoint(getRandom()));
+        Rectangle box = RandomShapeGenerator.xRandomRectangle(random(), RandomShapeGenerator.xRandomPoint(random()));
         EnvelopeBuilder envelope = new EnvelopeBuilder(new Coordinate(box.getMinX(), box.getMaxY()),
                 new Coordinate(box.getMaxX(), box.getMinY()));
         return envelope;

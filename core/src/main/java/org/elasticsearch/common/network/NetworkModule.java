@@ -64,7 +64,6 @@ import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasks
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetAliasesAction;
-import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.head.RestAliasesExistAction;
 import org.elasticsearch.rest.action.admin.indices.alias.put.RestIndexPutAliasAction;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
@@ -202,7 +201,6 @@ public class NetworkModule extends AbstractModule {
         RestIndexDeleteAliasesAction.class,
         RestIndexPutAliasAction.class,
         RestIndicesAliasesAction.class,
-        RestGetIndicesAliasesAction.class,
         RestCreateIndexAction.class,
         RestDeleteIndexAction.class,
         RestCloseIndexAction.class,
@@ -387,7 +385,7 @@ public class NetworkModule extends AbstractModule {
         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
 
         transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, NETTY_TRANSPORT);
-        String defaultTransport = DiscoveryNode.localNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
+        String defaultTransport = DiscoveryNode.isLocalNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
 
         if (transportClient) {

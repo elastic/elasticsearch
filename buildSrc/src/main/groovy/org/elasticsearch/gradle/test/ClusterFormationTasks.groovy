@@ -258,7 +258,7 @@ class ClusterFormationTasks {
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.testattr'                : 'test',
+                'node.attr.testattr'                : 'test',
                 'repositories.url.allowed_urls': 'http://snapshot.test*'
         ]
         esConfig['http.port'] = node.config.httpPort
@@ -391,6 +391,17 @@ class ClusterFormationTasks {
         return configureExecTask(name, project, setup, node, args)
     }
 
+    /** Surround strings that contains a comma with double quotes **/
+    private static String escapeComma(Object o) {
+        if (o instanceof String) {
+            String s = (String)o
+            if (s.indexOf(',') != -1) {
+                return "\"${s}\""
+            }
+        }
+        return o
+    }
+
     /** Adds a task to execute a command to help setup the cluster */
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
@@ -398,10 +409,13 @@ class ClusterFormationTasks {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 executable 'cmd'
                 args '/C', 'call'
+                // On Windows the comma character is considered a parameter separator:
+                // argument that contains a comma must be quoted
+                args execArgs.collect { a -> escapeComma(a) }
             } else {
                 executable 'sh'
+                args execArgs
             }
-            args execArgs
         }
     }
 

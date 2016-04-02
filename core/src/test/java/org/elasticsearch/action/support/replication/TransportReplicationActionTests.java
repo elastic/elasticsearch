@@ -376,7 +376,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final List<CapturingTransport.CapturedRequest> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear().get(primaryNodeId);
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
-        if (clusterService.state().nodes().localNodeId().equals(primaryNodeId)) {
+        if (clusterService.state().nodes().getLocalNodeId().equals(primaryNodeId)) {
             assertThat(capturedRequests.get(0).action, equalTo("testAction[p]"));
             assertPhase(task, "waiting_on_primary");
         } else {
@@ -722,7 +722,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertEquals(request.shardId, replicationRequest.shardId);
         }
 
-        String localNodeId = clusterService.state().getNodes().localNodeId();
+        String localNodeId = clusterService.state().getNodes().getLocalNodeId();
         // no request was sent to the local node
         assertThat(nodesSentTo.keySet(), not(hasItem(localNodeId)));
 
@@ -768,7 +768,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     assertEquals(1, shardFailedRequests.length);
                     CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
                     // get the shard the request was sent to
-                    ShardRouting routing = clusterService.state().getRoutingNodes().node(capturedRequest.node.id()).get(request.shardId.id());
+                    ShardRouting routing = clusterService.state().getRoutingNodes().node(capturedRequest.node.getId()).get(request.shardId.id());
                     // and the shard that was requested to be failed
                     ShardStateAction.ShardRoutingEntry shardRoutingEntry = (ShardStateAction.ShardRoutingEntry) shardFailedRequest.request;
                     // the shard the request was sent to and the shard to be failed should be the same

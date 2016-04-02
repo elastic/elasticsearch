@@ -111,14 +111,14 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.FULL_NAME)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         fullName(parser.text());
-                    } else {
+                    } else if (token != XContentParser.Token.VALUE_NULL) {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.EMAIL)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         email(parser.text());
-                    } else {
+                    } else if (token != XContentParser.Token.VALUE_NULL) {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }

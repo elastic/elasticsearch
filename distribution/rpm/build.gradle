@@ -33,8 +33,11 @@ task buildRpm(type: Rpm) {
     version version
     release '1'
   }
-  arch NOARCH
-  os LINUX
+  arch 'NOARCH'
+  os 'LINUX'
+  license '2009'
+  distribution 'Elasticsearch'
+  vendor 'Elasticsearch'
   // TODO ospackage doesn't support icon but we used to have one
 }
 

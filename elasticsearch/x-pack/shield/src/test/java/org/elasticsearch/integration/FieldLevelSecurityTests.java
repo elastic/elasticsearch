@@ -69,29 +69,35 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() +
-                "role1:user1,user7,user8\n" +
-                "role2:user2,user7,user8\n" +
-                "role3:user3,user7\n" +
-                "role4:user4,user7\n" +
-                "role5:user5,user7\n" +
-                "role6:user6\n";
+                "role1:user1\n" +
+                "role2:user1,user7,user8\n" +
+                "role3:user2,user7,user8\n" +
+                "role4:user3,user7\n" +
+                "role5:user4,user7\n" +
+                "role6:user5,user7\n" +
+                "role7:user6";
     }
     @Override
     protected String configRoles() {
         return super.configRoles() +
                 "\nrole1:\n" +
-                "  cluster: [ all ]\n" +
+                "  cluster: [ none ]\n" +
                 "  indices:\n" +
-                "      - names: '*'\n" +
-                "        privileges: [ ALL ]\n" +
-                "        fields: [ field1 ]\n" +
+                "    - names: '*'\n" +
+                "      privileges: [ none ]\n" +
                 "role2:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
-                "        fields: [ field2 ]\n" +
+                "        fields: [ field1 ]\n" +
                 "role3:\n" +
+                "  cluster: [ all ]\n" +
+                "  indices:\n" +
+                "      - names: '*'\n" +
+                "        privileges: [ ALL ]\n" +
+                "        fields: [ field2 ]\n" +
+                "role4:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "     - names: '*'\n" +
@@ -99,18 +105,18 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 "       fields:\n" +
                 "         - field1\n" +
                 "         - field2\n" +
-                "role4:\n" +
+                "role5:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
                 "        fields: []\n" +
-                "role5:\n" +
+                "role6:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "     - names: '*'\n" +
                 "       privileges: [ALL]\n" +
-                "role6:\n" +
+                "role7:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "      - names: '*'\n" +
@@ -901,7 +907,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testAggs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                        .addMapping("type1", "field1", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
                 .setRefresh(true)

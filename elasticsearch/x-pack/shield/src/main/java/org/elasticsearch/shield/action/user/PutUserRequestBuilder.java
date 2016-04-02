@@ -49,7 +49,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
 
     public PutUserRequestBuilder password(@Nullable char[] password) {
         if (password != null) {
-            Validation.Error error = Validation.ESUsers.validatePassword(password);
+            Validation.Error error = Validation.Users.validatePassword(password);
             if (error != null) {
                 ValidationException validationException = new ValidationException();
                 validationException.addValidationError(error.toString());
@@ -91,11 +91,6 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.USERNAME)) {
-                    if (username.equals(parser.text()) == false) {
-                        throw new ElasticsearchParseException("failed to parse user [{}]. username doesn't match user id [{}]",
-                                username, parser.text());
-                    }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.PASSWORD)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();

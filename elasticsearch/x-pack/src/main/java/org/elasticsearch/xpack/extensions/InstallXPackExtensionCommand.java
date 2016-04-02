@@ -46,7 +46,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * directory in order to verify the extension satisfies the following requirements:
  * <ul>
  *     <li>The property file exists and contains valid metadata. See {@link XPackExtensionInfo#readFromProperties(Path)}</li>
- *     <li>Jar hell does not exist, either between the extension's own jars or with the parent classloader (elasticsearch + xpack)</li>
+ *     <li>Jar hell does not exist, either between the extension's own jars or with the parent classloader (elasticsearch + x-pack)</li>
  * </ul>
  */
 class InstallXPackExtensionCommand extends Command {

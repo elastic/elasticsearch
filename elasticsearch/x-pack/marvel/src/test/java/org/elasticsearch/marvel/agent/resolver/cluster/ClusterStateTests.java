@@ -46,7 +46,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
                 .put(MarvelSettings.INTERVAL.getKey(), "-1")
                 .put(MarvelSettings.COLLECTORS.getKey(), ClusterStateCollector.NAME)
                 .put("xpack.monitoring.agent.exporters.default_local.type", "local")
-                .put("node.custom", randomInt)
+                .put("node.attr.custom", randomInt)
                 .build();
     }
 
@@ -100,7 +100,8 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         logger.debug("--> ensure that the 'nodes' attributes of the cluster state document is not indexed");
         assertHitCount(client().prepareSearch().setSize(0)
                 .setTypes(ClusterStateResolver.TYPE)
-                .setQuery(matchQuery("cluster_state.nodes." + nodes.masterNodeId() + ".name", nodes.masterNode().name())).get(), 0L);
+                .setQuery(matchQuery("cluster_state.nodes." + nodes.getMasterNodeId() + ".name",
+                        nodes.getMasterNode().getName())).get(), 0L);
     }
 
     public void testClusterStateNodes() throws Exception {

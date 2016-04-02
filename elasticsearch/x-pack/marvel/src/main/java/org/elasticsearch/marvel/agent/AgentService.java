@@ -8,12 +8,14 @@ package org.elasticsearch.marvel.agent;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
@@ -28,6 +30,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * The {@code AgentService} is a service that does the work of publishing the details to the monitoring cluster.
@@ -100,20 +103,25 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
         }
     }
 
+    /** stop collection and exporting. this method blocks until all background activity is guaranteed to be stopped */
     public void stopCollection() {
-        if (exportingWorker != null) {
-            exportingWorker.collecting = false;
+        final ExportingWorker worker = this.exportingWorker;
+        if (worker != null) {
+            worker.stopCollecting();
         }
     }
 
     public void startCollection() {
-        if (exportingWorker != null) {
-            exportingWorker.collecting = true;
+        final ExportingWorker worker = this.exportingWorker;
+        if (worker != null) {
+            worker.collecting = true;
         }
     }
 
     @Override
     protected void doStart() {
+        logger.info("monitoring service started");
+
         for (Collector collector : collectors) {
             collector.start();
         }
@@ -147,7 +155,11 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
         }
 
         for (Exporter exporter : exporters) {
-            exporter.close();
+            try {
+                exporter.close();
+            } catch (Exception e) {
+                logger.error("failed to close exporter [{}]", e, exporter.name());
+            }
         }
     }
 
@@ -164,6 +176,8 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
         volatile boolean closed = false;
         volatile boolean collecting = true;
 
+        final ReleasableLock collectionLock = new ReleasableLock(new ReentrantLock(false));
+
         @Override
         public void run() {
             while (!closed) {
@@ -175,29 +189,13 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
                         continue;
                     }
 
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("collecting data - collectors [{}]", Strings.collectionToCommaDelimitedString(collectors));
-                    }
+                    try (Releasable ignore = collectionLock.acquire()) {
 
-                    Collection<MonitoringDoc> docs = new ArrayList<>();
-                    for (Collector collector : collectors) {
-                        if (collecting) {
-                            Collection<MonitoringDoc> result = collector.collect();
-                            if (result != null) {
-                                logger.trace("adding [{}] collected docs from [{}] collector", result.size(), collector.name());
-                                docs.addAll(result);
-                            } else {
-                                logger.trace("skipping collected docs from [{}] collector", collector.name());
-                            }
-                        }
-                        if (closed) {
-                            // Stop collecting if the worker is marked as closed
-                            break;
-                        }
-                    }
+                        Collection<MonitoringDoc> docs = collect();
 
-                    if ((docs.isEmpty() == false) && (closed == false)) {
-                        exporters.export(docs);
+                        if ((docs.isEmpty() == false) && (closed == false)) {
+                            exporters.export(docs);
+                        }
                     }
 
                 } catch (ExportException e) {
@@ -210,6 +208,36 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
                 }
             }
             logger.debug("worker shutdown");
+        }
+
+        /** stop collection and exporting. this method will be block until background collection is actually stopped */
+        public void stopCollecting() {
+            collecting = false;
+            collectionLock.acquire().close();
+        }
+
+        private Collection<MonitoringDoc> collect() {
+            if (logger.isTraceEnabled()) {
+                logger.trace("collecting data - collectors [{}]", Strings.collectionToCommaDelimitedString(collectors));
+            }
+
+            Collection<MonitoringDoc> docs = new ArrayList<>();
+            for (Collector collector : collectors) {
+                if (collecting) {
+                    Collection<MonitoringDoc> result = collector.collect();
+                    if (result != null) {
+                        logger.trace("adding [{}] collected docs from [{}] collector", result.size(), collector.name());
+                        docs.addAll(result);
+                    } else {
+                        logger.trace("skipping collected docs from [{}] collector", collector.name());
+                    }
+                }
+                if (closed) {
+                    // Stop collecting if the worker is marked as closed
+                    break;
+                }
+            }
+            return docs;
         }
     }
 }

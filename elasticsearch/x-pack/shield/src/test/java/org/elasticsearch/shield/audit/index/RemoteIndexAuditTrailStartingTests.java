@@ -108,7 +108,7 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
         };
         remoteCluster = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name,
                 cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(), getClientWrapper());
-        remoteCluster.beforeTest(getRandom(), 0.5);
+        remoteCluster.beforeTest(random(), 0.5);
     }
 
     @After

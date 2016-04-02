@@ -42,10 +42,13 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.BindException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.dataTemplateName;
 import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.indexTemplateName;
@@ -53,6 +56,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class HttpExporterTests extends MarvelIntegTestCase {
@@ -82,7 +86,6 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     @After
     public void cleanup() throws Exception {
-        stopCollection();
         webServer.shutdown();
     }
 
@@ -101,11 +104,10 @@ public class HttpExporterTests extends MarvelIntegTestCase {
                 .put("xpack.monitoring.agent.exporters._http.connection.keep_alive", false)
                 .put("xpack.monitoring.agent.exporters._http.update_mappings", false);
 
-        String agentNode = internalCluster().startNode(builder);
-        HttpExporter exporter = getExporter(agentNode);
+        internalCluster().startNode(builder);
 
         final int nbDocs = randomIntBetween(1, 25);
-        exporter.export(newRandomMarvelDocs(nbDocs));
+        export(newRandomMarvelDocs(nbDocs));
 
         assertThat(webServer.getRequestCount(), equalTo(6));
 
@@ -185,7 +187,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         logger.info("--> exporting data");
         HttpExporter exporter = getExporter(agentNode);
         assertThat(exporter.supportedClusterVersion, is(false));
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+        export(Collections.singletonList(newRandomMarvelDoc()));
 
         assertThat(exporter.supportedClusterVersion, is(true));
         assertThat(webServer.getRequestCount(), equalTo(6));
@@ -250,7 +252,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
             enqueueResponse(secondWebServer, 200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
             logger.info("--> exporting a second event");
-            exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+            export(Collections.singletonList(newRandomMarvelDoc()));
 
             assertThat(secondWebServer.getRequestCount(), equalTo(5));
 
@@ -300,7 +302,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         logger.info("--> exporting data");
         HttpExporter exporter = getExporter(agentNode);
         assertThat(exporter.supportedClusterVersion, is(false));
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+        assertNull(exporter.openBulk());
 
         assertThat(exporter.supportedClusterVersion, is(false));
         assertThat(webServer.getRequestCount(), equalTo(1));
@@ -332,7 +334,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         HttpExporter exporter = getExporter(agentNode);
 
         MonitoringDoc doc = newRandomMarvelDoc();
-        exporter.export(Collections.singletonList(doc));
+        export(Collections.singletonList(doc));
 
         assertThat(webServer.getRequestCount(), equalTo(6));
 
@@ -384,8 +386,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
         doc = newRandomMarvelDoc();
-        exporter = getExporter(agentNode);
-        exporter.export(Collections.singletonList(doc));
+        export(Collections.singletonList(doc));
 
         String expectedMarvelIndex = ".monitoring-es-" + MarvelTemplateUtils.TEMPLATE_VERSION + "-"
                 + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.getTimestamp());
@@ -439,6 +440,15 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         assertTrue(resolved.equals(expected));
     }
 
+    private void export(Collection<MonitoringDoc> docs) throws Exception {
+        Exporters exporters = internalCluster().getInstance(Exporters.class);
+        assertThat(exporters, notNullValue());
+
+        // Wait for exporting bulks to be ready to export
+        assertBusy(() -> exporters.forEach(exporter -> assertThat(exporter.openBulk(), notNullValue())));
+        exporters.export(docs);
+    }
+
     private HttpExporter getExporter(String nodeName) {
         Exporters exporters = internalCluster().getInstance(Exporters.class, nodeName);
         return (HttpExporter) exporters.iterator().next();
@@ -449,14 +459,14 @@ public class HttpExporterTests extends MarvelIntegTestCase {
             IndexRecoveryMonitoringDoc doc = new IndexRecoveryMonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
             doc.setTimestamp(System.currentTimeMillis());
-            doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+            doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
             doc.setRecoveryResponse(new RecoveryResponse());
             return doc;
         } else {
             ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
             doc.setTimestamp(System.currentTimeMillis());
-            doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+            doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
             doc.setClusterState(ClusterState.PROTO);
             doc.setStatus(ClusterHealthStatus.GREEN);
             return doc;

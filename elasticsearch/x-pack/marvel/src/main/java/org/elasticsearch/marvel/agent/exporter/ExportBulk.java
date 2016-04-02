@@ -98,5 +98,23 @@ public abstract class ExportBulk {
                 throw exception;
             }
         }
+
+        @Override
+        protected void onClose() throws Exception {
+            ExportException exception = null;
+            for (ExportBulk bulk : bulks) {
+                try {
+                    bulk.onClose();
+                } catch (ExportException e) {
+                    if (exception == null) {
+                        exception = new ExportException("failed to close export bulks");
+                    }
+                    exception.addExportException(e);
+                }
+            }
+            if (exception != null) {
+                throw exception;
+            }
+        }
     }
 }

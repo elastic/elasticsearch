@@ -13,19 +13,23 @@ import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkResolver;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@TestLogging("_root:DEBUG")
 public class MonitoringBulkTests extends MarvelIntegTestCase {
 
     @Override
@@ -64,14 +68,16 @@ public class MonitoringBulkTests extends MarvelIntegTestCase {
      * This test creates N threads that execute a random number of monitoring bulk requests.
      */
     public void testConcurrentRequests() throws Exception {
-        final Thread[] threads = new Thread[3 + randomInt(7)];
+        final int numberThreads = randomIntBetween(3, 5);
+        final Thread[] threads = new Thread[numberThreads];
+        final CountDownLatch latch = new CountDownLatch(numberThreads + 1);
         final List<Throwable> exceptions = new CopyOnWriteArrayList<>();
 
-        AtomicInteger total = new AtomicInteger(0);
+        AtomicLong total = new AtomicLong(0);
 
         logger.info("--> using {} concurrent clients to execute requests", threads.length);
         for (int i = 0; i < threads.length; i++) {
-            final int nbRequests = randomIntBetween(3, 10);
+            final int nbRequests = randomIntBetween(1, 5);
 
             threads[i] = new Thread(new AbstractRunnable() {
                 @Override
@@ -82,10 +88,12 @@ public class MonitoringBulkTests extends MarvelIntegTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
+                    latch.countDown();
+                    latch.await();
                     for (int j = 0; j < nbRequests; j++) {
                         MonitoringBulkRequestBuilder requestBuilder = monitoringClient().prepareMonitoringBulk();
 
-                        int numDocs = scaledRandomIntBetween(10, 1000);
+                        int numDocs = scaledRandomIntBetween(10, 50);
                         for (int k = 0; k < numDocs; k++) {
                             MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), Version.CURRENT.toString());
                             doc.setType("concurrent");
@@ -95,22 +103,24 @@ public class MonitoringBulkTests extends MarvelIntegTestCase {
 
                         total.addAndGet(numDocs);
                         MonitoringBulkResponse response = requestBuilder.get();
-                        assertThat(response.getError(), is(nullValue()));
+                        assertNull (response.getError());
                     }
                 }
             }, "export_thread_" + i);
             threads[i].start();
         }
 
+        // wait for all threads to be ready
+        latch.countDown();
+        latch.await();
+
+        // wait for all threads to finish
         for (Thread thread : threads) {
             thread.join();
         }
 
         assertThat(exceptions, empty());
-        refresh();
-
-        SearchResponse countResponse = client().prepareSearch().setTypes("concurrent").setSize(0).get();
-        assertHitCount(countResponse, total.get());
+        awaitMarvelDocsCount(greaterThanOrEqualTo(total.get()), "concurrent");
     }
 
     public void testUnsupportedSystem() throws Exception {

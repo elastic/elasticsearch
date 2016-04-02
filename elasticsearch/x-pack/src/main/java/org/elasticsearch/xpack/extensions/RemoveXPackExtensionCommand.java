@@ -55,7 +55,7 @@ class RemoveXPackExtensionCommand  extends Command {
         Path extensionDir = resolveXPackExtensionsFile(env).resolve(extensionName);
         if (Files.exists(extensionDir) == false) {
             throw new UserError(ExitCodes.USAGE,
-                    "Extension " + extensionName + " not found. Run 'bin/xpack/extension list' to get list of installed extensions.");
+                    "Extension " + extensionName + " not found. Run 'bin/x-pack/extension list' to get list of installed extensions.");
         }
 
         List<Path> extensionPaths = new ArrayList<>();

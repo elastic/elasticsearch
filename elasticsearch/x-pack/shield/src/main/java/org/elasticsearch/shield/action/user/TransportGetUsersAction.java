@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authc.esnative.ESNativeUsersStore;
+import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -21,11 +21,11 @@ import java.util.List;
 
 public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequest, GetUsersResponse> {
 
-    private final ESNativeUsersStore usersStore;
+    private final NativeUsersStore usersStore;
 
     @Inject
     public TransportGetUsersAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, ESNativeUsersStore usersStore,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, NativeUsersStore usersStore,
                                    TransportService transportService) {
         super(settings, GetUsersAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 GetUsersRequest::new);

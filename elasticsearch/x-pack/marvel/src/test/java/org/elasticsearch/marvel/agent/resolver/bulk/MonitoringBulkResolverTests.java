@@ -12,9 +12,10 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.action.MonitoringBulkDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCase;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -25,7 +26,7 @@ public class MonitoringBulkResolverTests extends MonitoringIndexNameResolverTest
         MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), Version.CURRENT.toString());
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         doc.setType("kibana_stats");
         doc.setSource(new BytesArray("{\"field1\" : \"value1\"}"));
         return doc;

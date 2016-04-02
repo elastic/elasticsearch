@@ -165,22 +165,23 @@ integTest {
     extraConfigFile clientKeyStore.name, clientKeyStore
 
     setupCommand 'setupTestUser',
-                 'bin/xpack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     setupCommand 'setupMarvelUser',
-                 'bin/xpack/esusers', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
+                 'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
 
     waitCondition = { node, ant ->
       // HTTPS check is tricky to do, so we wait for the log file to indicate that the node is started
       String waitForNodeStartProp = "waitForNodeStart${name}"
-      ant.waitfor(maxwait: '10', maxwaitunit: 'second', checkevery: '100', checkeveryunit: 'millisecond',
+      ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '100', checkeveryunit: 'millisecond',
               timeoutproperty: waitForNodeStartProp) {
         and {
           resourcecontains(resource: "${node.startLog.toString()}", substring: 'started')
+          resourcecontains(resource: "${node.startLog.toString()}", substring: 'monitoring service started')
         }
       }
 
       if (ant.project.getProperty(waitForNodeStartProp)) {
-        println "Timed out when looking for bound_addresses in log file ${node.startLog.toString()}"
+        println "Timed out when looking for node startup in log file ${node.startLog.toString()}"
         return false;
       }
       return true;

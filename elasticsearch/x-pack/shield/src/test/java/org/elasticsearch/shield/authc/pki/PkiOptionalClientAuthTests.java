@@ -56,8 +56,8 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
                 .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, SSLClientAuth.OPTIONAL)
-                .put("shield.authc.realms.esusers.type", "esusers")
-                .put("shield.authc.realms.esusers.order", "0")
+                .put("shield.authc.realms.file.type", "file")
+                .put("shield.authc.realms.file.order", "0")
                 .put("shield.authc.realms.pki1.type", "pki")
                 .put("shield.authc.realms.pki1.order", "1")
                 .put("shield.authc.realms.pki1.truststore.path",

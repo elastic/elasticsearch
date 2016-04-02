@@ -7,13 +7,17 @@ package org.elasticsearch.marvel.agent.exporter;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
@@ -96,7 +100,7 @@ public class MonitoringDocTests extends ESTestCase {
         String ip = null;
         String transportAddress = null;
         String host = null;
-        ImmutableOpenMap<String, String> attributes = null;
+        Map<String, String> attributes = null;
 
         if (frequently()) {
             uuid = randomAsciiOfLength(5);
@@ -109,25 +113,24 @@ public class MonitoringDocTests extends ESTestCase {
         }
         if (rarely()) {
             int nbAttributes = randomIntBetween(0, 5);
-
-            ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
+            attributes = new HashMap<>();
             for (int i = 0; i < nbAttributes; i++) {
-                builder.put("key#" + i, String.valueOf(i));
+                attributes.put("key#" + i, String.valueOf(i));
             }
-            attributes = builder.build();
         }
         return new MonitoringDoc.Node(uuid, host, transportAddress, ip, name, attributes);
     }
 
     private DiscoveryNode newRandomDiscoveryNode() {
-        ImmutableOpenMap.Builder<String, String> attributes = ImmutableOpenMap.builder();
+        Map<String, String> attributes = new HashMap<>();
         if (rarely()) {
             int nbAttributes = randomIntBetween(0, 5);
             for (int i = 0; i < nbAttributes; i++) {
                 attributes.put("key#" + i, String.valueOf(i));
             }
         }
+        Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
         return new DiscoveryNode(randomAsciiOfLength(5), randomAsciiOfLength(3), randomAsciiOfLength(3), randomAsciiOfLength(3),
-                DummyTransportAddress.INSTANCE, attributes.build(), randomVersion(random()));
+                DummyTransportAddress.INSTANCE, attributes, roles, randomVersion(random()));
     }
 }

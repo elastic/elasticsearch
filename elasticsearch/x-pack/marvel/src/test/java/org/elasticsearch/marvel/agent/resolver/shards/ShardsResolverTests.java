@@ -19,6 +19,8 @@ import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCa
 
 import java.util.UUID;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<ShardMonitoringDoc, ShardsResolver> {
@@ -29,7 +31,7 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
         doc.setClusterStateUUID(UUID.randomUUID().toString());
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
 
         ShardRouting shardRouting = ShardRouting.newUnassigned(new Index(randomAsciiOfLength(5), UUID.randomUUID().toString()),
                 randomIntBetween(0, 5), null, randomBoolean(), new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
@@ -46,7 +48,7 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
 
         final String clusterStateUUID = UUID.randomUUID().toString();
         doc.setClusterStateUUID(clusterStateUUID);
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
 
         ShardsResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MarvelTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));

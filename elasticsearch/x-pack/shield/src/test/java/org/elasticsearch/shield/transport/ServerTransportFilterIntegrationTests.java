@@ -15,10 +15,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.BeforeClass;
@@ -27,7 +26,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -103,9 +102,8 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("path.home", createTempDir())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
-                .put("node.client", true)
                 .build();
-        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Arrays.asList(XPackPlugin.class))) {
+        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
             node.start();
             assertGreenClusterState(node.client());
         }
@@ -119,10 +117,10 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
 
         // test that starting up a node works
         Settings nodeSettings = settingsBuilder()
-                .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
-                .put("shield.authc.realms.esusers.order", 0)
-                .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
-                .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
+                .put("shield.authc.realms.file.type", FileRealm.TYPE)
+                .put("shield.authc.realms.file.order", 0)
+                .put("shield.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
+                .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("node.mode", "network")
@@ -136,9 +134,9 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
                 .put("discovery.initial_state_timeout", "2s")
                 .put("path.home", createTempDir())
-                .put("node.client", true)
+                .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .build();
-        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Arrays.asList(XPackPlugin.class))) {
+        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
             node.start();
 
             // assert that node is not connected by waiting for the timeout

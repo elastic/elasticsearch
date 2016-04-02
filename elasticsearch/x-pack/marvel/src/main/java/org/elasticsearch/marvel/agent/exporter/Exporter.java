@@ -12,9 +12,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.MarvelSettings;
 
-import java.util.Collection;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class Exporter  {
+public abstract class Exporter implements AutoCloseable {
 
     public static final String INDEX_NAME_TIME_FORMAT_SETTING = "index.name.time_format";
     public static final String BULK_TIMEOUT_SETTING = "bulk.timeout";
@@ -24,6 +24,7 @@ public abstract class Exporter  {
     protected final ESLogger logger;
 
     protected final @Nullable TimeValue bulkTimeout;
+    private AtomicBoolean closed = new AtomicBoolean(false);
 
     public Exporter(String type, Config config) {
         this.type = type;
@@ -50,14 +51,18 @@ public abstract class Exporter  {
      */
     public abstract ExportBulk openBulk();
 
-    public void export(Collection<MonitoringDoc> monitoringDocs) throws Exception {
-        ExportBulk bulk = openBulk();
-        if (bulk != null) {
-            bulk.add(monitoringDocs).flush();
+    protected final boolean isClosed() {
+        return closed.get();
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (closed.compareAndSet(false, true)) {
+            doClose();
         }
     }
 
-    public abstract void close();
+    protected abstract void doClose();
 
     protected String settingFQN(String setting) {
         return MarvelSettings.EXPORTERS_SETTINGS.getKey() + config.name + "." + setting;
@@ -90,7 +95,7 @@ public abstract class Exporter  {
         }
 
         public ESLogger logger(Class clazz) {
-            return Loggers.getLogger(clazz, globalSettings);
+            return Loggers.getLogger(clazz, globalSettings, name);
         }
     }
 

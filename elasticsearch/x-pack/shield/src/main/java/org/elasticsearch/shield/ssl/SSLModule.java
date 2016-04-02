@@ -21,10 +21,10 @@ public class SSLModule extends AbstractShieldModule {
     @Override
     protected void configure(boolean clientMode) {
         bind(ClientSSLService.class).asEagerSingleton();
-        if (!clientMode) {
-            bind(ServerSSLService.class).asEagerSingleton();
-        } else {
+        if (clientMode) {
             bind(ServerSSLService.class).toProvider(Providers.<ServerSSLService>of(null));
+        } else {
+            bind(ServerSSLService.class).asEagerSingleton();
         }
     }
 }

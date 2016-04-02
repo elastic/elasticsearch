@@ -9,13 +9,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.graph.Graph;
-
-import static org.elasticsearch.license.core.License.OperationMode.TRIAL;
-import static org.elasticsearch.license.core.License.OperationMode.PLATINUM;;
 
 public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
 
@@ -37,6 +35,8 @@ public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
     public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
         switch (newLicense.operationMode()) {
             case BASIC:
+            case STANDARD:
+            case GOLD:
                 if (currentLicense != null) {
                     switch (currentLicense.operationMode()) {
                         case TRIAL:
@@ -49,11 +49,24 @@ public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
         return Strings.EMPTY_ARRAY;
     }
 
-
-    public boolean isGraphExploreAllowed() {     
+    /**
+     * Determine if Graph Exploration should be enabled.
+     * <p>
+     * Exploration is only disabled when the license has expired or if the mode is not:
+     * <ul>
+     * <li>{@link OperationMode#PLATINUM}</li>
+     * <li>{@link OperationMode#TRIAL}</li>
+     * </ul>
+     *
+     * @return {@code true} as long as the license is valid. Otherwise {@code false}.
+     */
+    public boolean isGraphExploreEnabled() {
+        // status is volatile
         Status localStatus = status;
-        boolean isLicenseStateActive = localStatus.getLicenseState() != LicenseState.DISABLED;
-        License.OperationMode operationMode = localStatus.getMode();
-        return isLicenseStateActive && (operationMode == TRIAL || operationMode == PLATINUM);
+        OperationMode operationMode = localStatus.getMode();
+
+        boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
+
+        return licensed && localStatus.getLicenseState() != LicenseState.DISABLED;
     }
 }

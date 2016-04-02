@@ -48,6 +48,14 @@ public class DocumentLevelSecurityRandomTests extends ShieldIntegTestCase {
     @Override
     protected String configUsersRoles() {
         StringBuilder builder = new StringBuilder(super.configUsersRoles());
+        builder.append("role0:");
+        for (int i = 1; i <= numberOfRoles; i++) {
+            builder.append("user").append(i);
+            if (i != numberOfRoles) {
+                builder.append(",");
+            }
+        }
+        builder.append("\n");
         for (int i = 1; i <= numberOfRoles; i++) {
             builder.append("role").append(i).append(":user").append(i).append('\n');
         }
@@ -57,7 +65,11 @@ public class DocumentLevelSecurityRandomTests extends ShieldIntegTestCase {
     @Override
     protected String configRoles() {
         StringBuilder builder = new StringBuilder(super.configRoles());
-        builder.append('\n');
+        builder.append("\nrole0:\n");
+        builder.append("  cluster: [ none ]\n");
+        builder.append("  indices:\n");
+        builder.append("    - names: '*'\n");
+        builder.append("      privileges: [ none ]\n");
         for (int i = 1; i <= numberOfRoles; i++) {
             builder.append("role").append(i).append(":\n");
             builder.append("  cluster: [ all ]\n");

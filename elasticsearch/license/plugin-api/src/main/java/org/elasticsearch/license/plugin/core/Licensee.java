@@ -27,7 +27,7 @@ public interface Licensee {
     /**
      * Messages to be returned when
      * installing <code>newLicense</code>
-     * when <code>oldLicense</code> is
+     * when <code>currentLicense</code> is
      * active
      */
     String[] acknowledgmentMessages(License currentLicense, License newLicense);
@@ -38,6 +38,18 @@ public interface Licensee {
      */
     void onChange(Status status);
 
+    /**
+     * {@code Status} represents both the type and state of a license.
+     * <p>
+     * Most places in the code are expected to use {@code volatile} {@code Status} fields. It's important to follow use a local reference
+     * whenever checking different parts of the {@code Status}:
+     * <pre>
+     * Status status = this.status;
+     * return status.getLicenseState() != LicenseState.DISABLED &amp;&amp;
+     *        (status.getMode() == OperationMode.TRAIL || status.getMode == OperationMode.PLATINUM);
+     * </pre>
+     * Otherwise the license has the potential to change in-between both checks.
+     */
     class Status {
 
         public static Status ENABLED = new Status(OperationMode.TRIAL, LicenseState.ENABLED);
@@ -53,6 +65,9 @@ public interface Licensee {
         /**
          * Returns the operation mode of the license
          * responsible for the current <code>licenseState</code>
+         * <p>
+         * Note: Knowing the mode does not indicate whether the {@link #getLicenseState() state} is disabled. If that matters (e.g.,
+         * disabling services when a license becomes disabled), then you should check it as well!
          */
         public OperationMode getMode() {
             return mode;
@@ -71,9 +86,6 @@ public interface Licensee {
 
         @Override
         public String toString() {
-            if (mode == OperationMode.NONE) {
-                return "disabled";
-            }
             switch (licenseState) {
                 case DISABLED:
                     return "disabled " + mode.name().toLowerCase(Locale.ROOT);

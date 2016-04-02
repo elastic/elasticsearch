@@ -91,14 +91,14 @@ public class InstallXPackExtensionCommandTests extends ESTestCase {
     }
 
     void assertExtension(String name, Path original, Environment env) throws IOException {
-        Path got = env.pluginsFile().resolve("xpack").resolve("extensions").resolve(name);
+        Path got = env.pluginsFile().resolve("x-pack").resolve("extensions").resolve(name);
         assertTrue("dir " + name + " exists", Files.exists(got));
         assertTrue("jar was copied", Files.exists(got.resolve("extension.jar")));
         assertInstallCleaned(env);
     }
 
     void assertInstallCleaned(Environment env) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsFile().resolve("xpack").resolve("extensions"))) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsFile().resolve("x-pack").resolve("extensions"))) {
             for (Path file : stream) {
                 if (file.getFileName().toString().startsWith(".installing")) {
                     fail("Installation dir still exists, " + file);
@@ -179,7 +179,7 @@ public class InstallXPackExtensionCommandTests extends ESTestCase {
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> {
             installExtension(extZip, env);
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("xpack-extension-descriptor.properties"));
+        assertTrue(e.getMessage(), e.getMessage().contains("x-pack-extension-descriptor.properties"));
         assertInstallCleaned(env);
     }
 }

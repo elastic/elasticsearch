@@ -18,6 +18,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.util.UUID;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DiscoveryNodeResolverTests extends MonitoringIndexNameResolverTestCase<DiscoveryNodeMonitoringDoc, DiscoveryNodeResolver> {
@@ -27,9 +28,9 @@ public class DiscoveryNodeResolverTests extends MonitoringIndexNameResolverTestC
         DiscoveryNodeMonitoringDoc doc = new DiscoveryNodeMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         doc.setNode(new DiscoveryNode(randomAsciiOfLength(3), UUID.randomUUID().toString(),
-                DummyTransportAddress.INSTANCE, emptyMap(),
+                DummyTransportAddress.INSTANCE, emptyMap(), emptySet(),
                 VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), Version.CURRENT)));
         return doc;
     }

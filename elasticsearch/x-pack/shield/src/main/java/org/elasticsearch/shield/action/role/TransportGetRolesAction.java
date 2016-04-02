@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authz.RoleDescriptor;
-import org.elasticsearch.shield.authz.esnative.ESNativeRolesStore;
+import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -21,12 +21,12 @@ import java.util.List;
 
 public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequest, GetRolesResponse> {
 
-    private final ESNativeRolesStore rolesStore;
+    private final NativeRolesStore rolesStore;
 
     @Inject
     public TransportGetRolesAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver,
-                                   ESNativeRolesStore rolesStore, TransportService transportService) {
+                                   NativeRolesStore rolesStore, TransportService transportService) {
         super(settings, GetRolesAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 GetRolesRequest::new);
         this.rolesStore = rolesStore;

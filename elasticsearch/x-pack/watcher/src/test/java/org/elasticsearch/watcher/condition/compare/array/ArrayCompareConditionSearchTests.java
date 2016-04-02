@@ -44,7 +44,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         refresh();
 
         SearchResponse response = client().prepareSearch(index)
-                .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name").size(3)).get();
+                .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)).get();
 
 
         ExecutableArrayCompareCondition condition = new ExecutableArrayCompareCondition(
@@ -76,7 +76,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         refresh();
 
         response = client().prepareSearch(index)
-                .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name").size(3)).get();
+                .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)).get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));
         result = condition.execute(ctx);

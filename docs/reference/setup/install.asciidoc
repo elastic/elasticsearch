@@ -1,0 +1,50 @@
+[[install-elasticsearch]]
+== Installing Elasticsearch
+
+Elasticsearch is provided in the following package formats:
+
+[horizontal]
+`zip`/`tar.gz`::
+
+The `zip` and `tar.gz` packages are suitable for installation on any system
+and are the easiest choice for getting started with Elasticsearch.
++
+<<zip-targz>> or <<windows>>
+
+`deb`::
+
+The `deb` package is suitable for Debian, Ubuntu, and other Debian-based
+systems.  Debian packages may be downloaded from the Elasticsearch website or
+from our Debian repository.
++
+<<deb>>
+
+`rpm`::
+
+The `rpm` package is suitable for installation on Red Hat, Centos, SLES,
+OpenSuSE and other RPM-based systems.  RPMs may be downloaded from the
+Elasticsearch website or from our RPM repository.
++
+<<rpm>>
+
+[float]
+[[config-mgmt-tools]]
+=== Configuration Management Tools
+
+We also provide the following configuration management tools to help with
+large deployments:
+
+[horizontal]
+Puppet:: https://github.com/elastic/puppet-elasticsearch[puppet-elasticsearch]
+Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearch]
+
+
+include::install/zip-targz.asciidoc[]
+
+include::install/deb.asciidoc[]
+
+include::install/rpm.asciidoc[]
+
+include::install/windows.asciidoc[]
+
+

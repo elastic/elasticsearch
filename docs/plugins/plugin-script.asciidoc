@@ -207,7 +207,7 @@ options can be set on the command line:
 sudo bin/elasticsearch-plugin install mobz/elasticsearch-head -DproxyHost=host_name -DproxyPort=port_number
 -----------------------------------
 
-On Windows, they need to be added to the `JAVA_OPTS` environment variable:
+On Windows, they need to be added to the `ES_JAVA_OPTS` environment variable:
 
 [source,shell]
 -----------------------------------

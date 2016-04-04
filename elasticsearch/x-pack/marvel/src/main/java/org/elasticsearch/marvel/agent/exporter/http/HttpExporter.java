@@ -237,8 +237,7 @@ public class HttpExporter extends Exporter {
     @SuppressWarnings("unchecked")
     private void sendCloseExportingConnection(HttpURLConnection conn) throws IOException {
         logger.trace("sending content");
-        OutputStream os = conn.getOutputStream();
-        os.close();
+        closeExportingConnection(conn);
         if (conn.getResponseCode() != 200) {
             logConnectionError("remote target didn't respond with 200 OK", conn);
             return;
@@ -260,6 +259,12 @@ public class HttpExporter extends Exporter {
                     }
                 }
             }
+        }
+    }
+
+    private void closeExportingConnection(HttpURLConnection connection) throws IOException {
+        try (OutputStream os = connection.getOutputStream()) {
+            logger.debug("closing exporting connection [{}]", connection);
         }
     }
 
@@ -701,7 +706,7 @@ public class HttpExporter extends Exporter {
         }
 
         @Override
-        public Bulk add(Collection<MonitoringDoc> docs) throws ExportException {
+        public void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
             try {
                 if ((docs != null) && (!docs.isEmpty())) {
                     if (connection == null) {
@@ -731,14 +736,13 @@ public class HttpExporter extends Exporter {
             } catch (Exception e) {
                 throw new ExportException("failed to add documents to export bulk [{}]", name);
             }
-            return this;
         }
 
         @Override
-        public void flush() throws ExportException {
+        public void doFlush() throws ExportException {
             if (connection != null) {
                 try {
-                    flush(connection);
+                    sendCloseExportingConnection(connection);
                 } catch (Exception e) {
                     throw new ExportException("failed to flush export bulk [{}]", e, name);
                 } finally {
@@ -747,8 +751,17 @@ public class HttpExporter extends Exporter {
             }
         }
 
-        private void flush(HttpURLConnection connection) throws IOException {
-            sendCloseExportingConnection(connection);
+        @Override
+        protected void doClose() throws ExportException {
+            if (connection != null) {
+                try {
+                    closeExportingConnection(connection);
+                } catch (Exception e) {
+                    throw new ExportException("failed to close export bulk [{}]", e, name);
+                } finally {
+                    connection = null;
+                }
+            }
         }
     }
 

@@ -413,13 +413,16 @@ public class ExportersTests extends ESTestCase {
             }
 
             @Override
-            public ExportBulk add(Collection<MonitoringDoc> docs) throws ExportException {
+            protected void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
                 count.addAndGet(docs.size());
-                return this;
             }
 
             @Override
-            public void flush() throws ExportException {
+            protected void doFlush() {
+            }
+
+            @Override
+            protected void doClose() throws ExportException {
             }
 
             AtomicInteger getCount() {

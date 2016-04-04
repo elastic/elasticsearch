@@ -367,8 +367,8 @@ public class SearchModule extends AbstractModule {
      *
      * @param parser The parser for the custom aggregator.
      */
-    public <T extends AggregatorBuilder<T>> void registerAggregation(InternalAggregation.Type type, Aggregator.Parser parser,
-            Writeable.Reader<T> reader) {
+    public void registerAggregation(InternalAggregation.Type type, Aggregator.Parser parser,
+            Writeable.Reader<AggregatorBuilder<?>> reader) {
         Tuple<ParseField, Aggregator.Parser> oldValue = aggParsers.putIfAbsent(type.name(),
                 new Tuple<>(new ParseField(type.name()), parser));
         if (oldValue != null) {

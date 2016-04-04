@@ -21,7 +21,12 @@ curl -XPUT localhost:9200/_template/template_1 -d '
     },
     "mappings" : {
         "type1" : {
-            "_source" : { "enabled" : false }
+            "_source" : { "enabled" : false },
+            "properties" : { 
+                "coordinates" : { "type" : "geo_shape" },
+                "created_at" : { "type":"date" , "format" : "EEE MMM dd HH:mm:ss Z YYYY" },
+                "text" : {"type" : "string" }
+                }
         }
     }
 }

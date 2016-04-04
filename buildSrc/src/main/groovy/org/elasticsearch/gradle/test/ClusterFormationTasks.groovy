@@ -391,15 +391,20 @@ class ClusterFormationTasks {
         return configureExecTask(name, project, setup, node, args)
     }
 
-    /** Surround strings that contains a comma with double quotes **/
-    private static String escapeComma(Object o) {
-        if (o instanceof String) {
-            String s = (String)o
+    /** Wrapper for command line argument: surrounds comma with double quotes **/
+    private static class EscapeCommaWrapper {
+
+        Object arg
+
+        public String toString() {
+            String s = arg.toString()
+
+            /// Surround strings that contains a comma with double quotes
             if (s.indexOf(',') != -1) {
                 return "\"${s}\""
             }
+            return s
         }
-        return o
     }
 
     /** Adds a task to execute a command to help setup the cluster */
@@ -410,8 +415,8 @@ class ClusterFormationTasks {
                 executable 'cmd'
                 args '/C', 'call'
                 // On Windows the comma character is considered a parameter separator:
-                // argument that contains a comma must be quoted
-                args execArgs.collect { a -> escapeComma(a) }
+                // argument are wrapped in an ExecArgWrapper that escapes commas
+                args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
             } else {
                 executable 'sh'
                 args execArgs

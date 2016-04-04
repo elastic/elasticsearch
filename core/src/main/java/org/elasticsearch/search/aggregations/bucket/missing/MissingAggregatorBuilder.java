@@ -19,11 +19,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.missing;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -33,8 +36,17 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, MissingAggregatorBuilder> {
+    public static Aggregator.Parser PARSER = new AnyValuesSourceParser(true, true) {
+        @Override
+        protected MissingAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+            return new MissingAggregatorBuilder(aggregationName, targetValueType);
+        }
+    };
+
     public MissingAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
     }

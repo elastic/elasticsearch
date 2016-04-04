@@ -56,6 +56,12 @@ public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorB
         return builder;
     }
 
+    public static GlobalAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
+        parser.nextToken();
+        return new GlobalAggregatorBuilder(aggregationName);
+    }
+
     @Override
     protected boolean doEquals(Object obj) {
         return true;
@@ -64,11 +70,5 @@ public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorB
     @Override
     protected int doHashCode() {
         return 0;
-    }
-
-    public static GlobalAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
-            throws IOException {
-        parser.nextToken();
-        return new GlobalAggregatorBuilder(aggregationName);
     }
 }

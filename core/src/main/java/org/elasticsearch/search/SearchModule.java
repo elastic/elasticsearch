@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.percolator.PercolatorHighlightSubFetchPhase;
 import org.elasticsearch.index.query.BoolQueryParser;
 import org.elasticsearch.index.query.BoostingQueryParser;
@@ -106,10 +107,8 @@ import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorB
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenParser;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterParser;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersParser;
 import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
@@ -124,7 +123,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistog
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.missing.MissingParser;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorBuilder;
@@ -147,7 +145,6 @@ import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregato
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedSamplerParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
@@ -457,16 +454,21 @@ public class SearchModule extends AbstractModule {
         registerAggregation(InternalMin.TYPE, MinAggregatorBuilder.PARSER, MinAggregatorBuilder::new);
         registerAggregation(InternalMax.TYPE, MaxAggregatorBuilder.PARSER, MaxAggregatorBuilder::new);
         registerAggregation(InternalStats.TYPE, StatsAggregatorBuilder.PARSER, StatsAggregatorBuilder::new);
+
         registerAggregation(InternalExtendedStats.TYPE, new ExtendedStatsParser(), ExtendedStatsAggregatorBuilder::new);
         registerAggregation(InternalValueCount.TYPE, new ValueCountParser(), ValueCountAggregatorBuilder::new);
         registerAggregation(InternalTDigestPercentiles.TYPE, new PercentilesParser(), PercentilesAggregatorBuilder::new);
         registerAggregation(InternalTDigestPercentileRanks.TYPE, new PercentileRanksParser(), PercentileRanksAggregatorBuilder::new);
         registerAggregation(InternalCardinality.TYPE, new CardinalityParser(), CardinalityAggregatorBuilder::new);
+
         registerAggregation(InternalGlobal.TYPE, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder::new);
-        registerAggregation(InternalMissing.TYPE, new MissingParser(), MissingAggregatorBuilder::new);
-        registerAggregation(InternalFilter.TYPE, new FilterParser(), FilterAggregatorBuilder::new);
-        registerAggregation(InternalFilters.TYPE, new FiltersParser(indicesQueriesRegistry), FiltersAggregatorBuilder::new);
-        registerAggregation(InternalSampler.TYPE, new SamplerParser(), SamplerAggregatorBuilder::new);
+        registerAggregation(InternalMissing.TYPE, MissingAggregatorBuilder.PARSER, MissingAggregatorBuilder::new);
+        registerAggregation(InternalFilter.TYPE, FilterAggregatorBuilder::parse, FilterAggregatorBuilder::new);
+        Aggregator.Parser filtersParser = (String aggregationName, XContentParser parser,
+                QueryParseContext context) -> FiltersAggregatorBuilder.parse(indicesQueriesRegistry, aggregationName, parser, context);
+        registerAggregation(InternalFilters.TYPE, filtersParser, FiltersAggregatorBuilder::new);
+        registerAggregation(InternalSampler.TYPE, SamplerAggregatorBuilder::parse, SamplerAggregatorBuilder::new);
+
         registerAggregation(DiversifiedAggregatorBuilder.TYPE, new DiversifiedSamplerParser(), DiversifiedAggregatorBuilder::new);
         registerAggregation(StringTerms.TYPE, new TermsParser(), TermsAggregatorBuilder::new);
         registerAggregation(SignificantStringTerms.TYPE,

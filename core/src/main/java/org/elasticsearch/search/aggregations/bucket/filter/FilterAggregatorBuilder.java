@@ -19,10 +19,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -76,6 +80,18 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
             filter.toXContent(builder, params);
         }
         return builder;
+    }
+
+    public static FilterAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
+        QueryBuilder<?> filter = context.parseInnerQueryBuilder();
+
+        if (filter == null) {
+            throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
+        }
+
+        FilterAggregatorBuilder factory = new FilterAggregatorBuilder(aggregationName, filter);
+        return factory;
     }
 
     @Override

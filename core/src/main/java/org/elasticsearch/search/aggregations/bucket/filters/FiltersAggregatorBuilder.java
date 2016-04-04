@@ -19,10 +19,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.filters;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -36,6 +42,10 @@ import java.util.List;
 import java.util.Objects;
 
 public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregatorBuilder> {
+    public static final ParseField FILTERS_FIELD = new ParseField("filters");
+    public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
+    public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
+
     private final List<KeyedFilter> filters;
     private final boolean keyed;
     private boolean otherBucket = false;
@@ -175,6 +185,94 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
         builder.field(FiltersAggregator.OTHER_BUCKET_KEY_FIELD.getPreferredName(), otherBucketKey);
         builder.endObject();
         return builder;
+    }
+
+    public static FiltersAggregatorBuilder parse(IndicesQueriesRegistry queriesRegistry, String aggregationName, XContentParser parser,
+            QueryParseContext context) throws IOException {
+
+        List<FiltersAggregator.KeyedFilter> keyedFilters = null;
+        List<QueryBuilder<?>> nonKeyedFilters = null;
+
+        XContentParser.Token token = null;
+        String currentFieldName = null;
+        String otherBucketKey = null;
+        Boolean otherBucket = false;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if (context.parseFieldMatcher().match(currentFieldName, OTHER_BUCKET_FIELD)) {
+                    otherBucket = parser.booleanValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (context.parseFieldMatcher().match(currentFieldName, OTHER_BUCKET_KEY_FIELD)) {
+                    otherBucketKey = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (context.parseFieldMatcher().match(currentFieldName, FILTERS_FIELD)) {
+                    keyedFilters = new ArrayList<>();
+                    String key = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            key = parser.currentName();
+                        } else {
+                            QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry);
+                            queryParseContext.reset(parser);
+                            queryParseContext.parseFieldMatcher(context.parseFieldMatcher());
+                            QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
+                            keyedFilters
+                                    .add(new FiltersAggregator.KeyedFilter(key, filter == null ? QueryBuilders.matchAllQuery() : filter));
+                        }
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (context.parseFieldMatcher().match(currentFieldName, FILTERS_FIELD)) {
+                    nonKeyedFilters = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry);
+                        queryParseContext.reset(parser);
+                        queryParseContext.parseFieldMatcher(context.parseFieldMatcher());
+                        QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
+                        nonKeyedFilters.add(filter == null ? QueryBuilders.matchAllQuery() : filter);
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+            }
+        }
+
+        if (otherBucket && otherBucketKey == null) {
+            otherBucketKey = "_other_";
+        }
+
+        FiltersAggregatorBuilder factory;
+        if (keyedFilters != null) {
+            factory = new FiltersAggregatorBuilder(aggregationName,
+                    keyedFilters.toArray(new FiltersAggregator.KeyedFilter[keyedFilters.size()]));
+        } else {
+            factory = new FiltersAggregatorBuilder(aggregationName,
+                    nonKeyedFilters.toArray(new QueryBuilder<?>[nonKeyedFilters.size()]));
+        }
+        if (otherBucket != null) {
+            factory.otherBucket(otherBucket);
+        }
+        if (otherBucketKey != null) {
+            factory.otherBucketKey(otherBucketKey);
+        }
+        return factory;
     }
 
     @Override

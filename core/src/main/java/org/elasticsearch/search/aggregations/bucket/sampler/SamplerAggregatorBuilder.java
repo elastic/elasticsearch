@@ -19,9 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -80,6 +83,35 @@ public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregato
         builder.field(SamplerAggregator.SHARD_SIZE_FIELD.getPreferredName(), shardSize);
         builder.endObject();
         return builder;
+    }
+
+    public static SamplerAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
+        XContentParser.Token token;
+        String currentFieldName = null;
+        Integer shardSize = null;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (context.parseFieldMatcher().match(currentFieldName, SamplerAggregator.SHARD_SIZE_FIELD)) {
+                    shardSize = parser.intValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unsupported property \"" + currentFieldName + "\" for aggregation \"" + aggregationName);
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Unsupported property \"" + currentFieldName + "\" for aggregation \"" + aggregationName);
+            }
+        }
+
+        SamplerAggregatorBuilder factory = new SamplerAggregatorBuilder(aggregationName);
+        if (shardSize != null) {
+            factory.shardSize(shardSize);
+        }
+        return factory;
     }
 
     @Override

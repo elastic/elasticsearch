@@ -111,7 +111,7 @@ public class VersionUtils {
     }
 
     public static boolean isSnapshot(Version version) {
-        if (Version.CURRENT.equals(version) || Version.V_2_3_0.equals(version)) {
+        if (Version.CURRENT.equals(version)) {
             return true;
         }
         return false;

@@ -54,6 +54,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -133,8 +134,15 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             RescoreBuilder<?> rescoreBuilder = randomRescoreBuilder();
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            if (randomBoolean()) {
+                builder.prettyPrint();
+            }
+            rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
 
-            XContentParser parser = createParser(rescoreBuilder);
+
+            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
             context.reset(parser);
             parser.nextToken();
             RescoreBuilder<?> secondRescoreBuilder = RescoreBuilder.parseFromXContent(context);
@@ -142,15 +150,6 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             assertEquals(rescoreBuilder, secondRescoreBuilder);
             assertEquals(rescoreBuilder.hashCode(), secondRescoreBuilder.hashCode());
         }
-    }
-
-    private static XContentParser createParser(RescoreBuilder<?> rescoreBuilder) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        return XContentHelper.createParser(builder.bytes());
     }
 
     /**

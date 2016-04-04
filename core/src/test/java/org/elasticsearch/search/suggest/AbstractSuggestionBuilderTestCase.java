@@ -39,6 +39,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -156,7 +158,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             suggestionBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             xContentBuilder.endObject();
 
-            XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
+            XContentBuilder shuffled = shuffleXContent(xContentBuilder, shuffleProtectedFields());
+            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
             context.reset(parser);
             // we need to skip the start object and the name, those will be parsed by outer SuggestBuilder
             parser.nextToken();
@@ -166,6 +169,14 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             assertEquals(suggestionBuilder, secondSuggestionBuilder);
             assertEquals(suggestionBuilder.hashCode(), secondSuggestionBuilder.hashCode());
         }
+    }
+
+    /**
+     * Subclasses can override this method and return a set of fields which should be protected from
+     * recursive random shuffling in the {@link #testFromXContent()} test case
+     */
+    protected Set<String> shuffleProtectedFields() {
+        return Collections.emptySet();
     }
 
     private SB mutate(SB firstBuilder) throws IOException {

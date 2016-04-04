@@ -1,0 +1,12 @@
+[[release-notes-2.3.1]]
+== 2.3.1 Release Notes
+
+[[bug-2.3.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Prevents exception being raised when ordering by an aggregation which wasn't collected {pull}17379[#17379] (issue: {issue}17225[#17225])
+
+Cluster::
+* Cluster stats: fix memory available that is always set to 0 {pull}17328[#17328] (issue: {issue}17278[#17278])

@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,6 +34,7 @@ import java.util.Map;
  */
 public class QueryStringQueryParser implements QueryParser {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(QueryStringQueryBuilder.NAME);
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final ParseField DEFAULT_FIELD_FIELD = new ParseField("default_field");
@@ -61,11 +61,6 @@ public class QueryStringQueryParser implements QueryParser {
     public static final ParseField LOCALE_FIELD = new ParseField("locale");
     public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
   
-    @Override
-    public String[] names() {
-        return new String[]{QueryStringQueryBuilder.NAME, Strings.toCamelCase(QueryStringQueryBuilder.NAME)};
-    }
-
     @Override
     public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
@@ -123,7 +118,8 @@ public class QueryStringQueryParser implements QueryParser {
                         fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
@@ -181,15 +177,18 @@ public class QueryStringQueryParser implements QueryParser {
                     try {
                         timeZone = parser.text();
                     } catch (IllegalArgumentException e) {
-                        throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] time_zone [" + parser.text() + "] is unknown");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
+                                "] time_zone [" + parser.text() + "] is unknown");
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
         if (queryString == null) {

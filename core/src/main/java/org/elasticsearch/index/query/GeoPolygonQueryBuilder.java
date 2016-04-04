@@ -44,8 +44,8 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     public static final String NAME = "geo_polygon";
 
-    private static final List<GeoPoint> PROTO_SHAPE = Arrays.asList(new GeoPoint[] { new GeoPoint(1.0, 1.0), new GeoPoint(1.0, 2.0),
-            new GeoPoint(2.0, 1.0) });
+    private static final List<GeoPoint> PROTO_SHAPE = Arrays.asList(new GeoPoint(1.0, 1.0), new GeoPoint(1.0, 2.0),
+            new GeoPoint(2.0, 1.0));
 
     static final GeoPolygonQueryBuilder PROTOTYPE = new GeoPolygonQueryBuilder("field", PROTO_SHAPE);
 
@@ -171,7 +171,8 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.endObject();
 
         builder.field(GeoPolygonQueryParser.COERCE_FIELD.getPreferredName(), GeoValidationMethod.isCoerce(validationMethod));
-        builder.field(GeoPolygonQueryParser.IGNORE_MALFORMED_FIELD.getPreferredName(), GeoValidationMethod.isIgnoreMalformed(validationMethod));
+        builder.field(GeoPolygonQueryParser.IGNORE_MALFORMED_FIELD.getPreferredName(),
+                GeoValidationMethod.isIgnoreMalformed(validationMethod));
 
         printBoostAndQueryName(builder);
         builder.endObject();

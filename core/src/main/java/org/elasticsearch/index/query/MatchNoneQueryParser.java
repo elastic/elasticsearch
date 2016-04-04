@@ -19,18 +19,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class MatchNoneQueryParser implements QueryParser<MatchNoneQueryBuilder> {
 
-    @Override
-    public String[] names() {
-        return new String[]{MatchNoneQueryBuilder.NAME, Strings.toCamelCase(MatchNoneQueryBuilder.NAME)};
-    }
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(MatchNoneQueryBuilder.NAME);
 
     @Override
     public MatchNoneQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -49,10 +46,12 @@ public class MatchNoneQueryParser implements QueryParser<MatchNoneQueryBuilder> 
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "["+MatchNoneQueryBuilder.NAME+"] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "["+MatchNoneQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + MatchNoneQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[" + MatchNoneQueryBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 

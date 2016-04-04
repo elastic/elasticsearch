@@ -44,15 +44,11 @@ import java.util.List;
  */
 public class GeoPolygonQueryParser implements QueryParser<GeoPolygonQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(GeoPolygonQueryBuilder.NAME);
     public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
     public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     public static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
     public static final ParseField POINTS_FIELD = new ParseField("points");
-
-    @Override
-    public String[] names() {
-        return new String[]{GeoPolygonQueryBuilder.NAME, "geoPolygon"};
-    }
 
     @Override
     public GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -88,12 +84,12 @@ public class GeoPolygonQueryParser implements QueryParser<GeoPolygonQueryBuilder
                                 shell.add(GeoUtils.parseGeoPoint(parser));
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[geo_polygon] query does not support [" + currentFieldName
-                                    + "]");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[geo_polygon] query does not support [" + currentFieldName + "]");
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[geo_polygon] query does not support token type [" + token.name()
-                                + "] under [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "[geo_polygon] query does not support token type [" + token.name() + "] under [" + currentFieldName + "]");
                     }
                 }
             } else if (token.isValue()) {
@@ -103,7 +99,7 @@ public class GeoPolygonQueryParser implements QueryParser<GeoPolygonQueryBuilder
                     boost = parser.floatValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, COERCE_FIELD)) {
                     coerce = parser.booleanValue();
-                    if (coerce == true) {
+                    if (coerce) {
                         ignoreMalformed = true;
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
@@ -111,7 +107,8 @@ public class GeoPolygonQueryParser implements QueryParser<GeoPolygonQueryBuilder
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[geo_polygon] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[geo_polygon] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "[geo_polygon] unexpected token type [" + token.name() + "]");

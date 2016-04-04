@@ -20,7 +20,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,12 +29,8 @@ import java.io.IOException;
  */
 public class SpanMultiTermQueryParser implements QueryParser<SpanMultiTermQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(SpanMultiTermQueryBuilder.NAME);
     public static final ParseField MATCH_FIELD = new ParseField("match");
-
-    @Override
-    public String[] names() {
-        return new String[]{SpanMultiTermQueryBuilder.NAME, Strings.toCamelCase(SpanMultiTermQueryBuilder.NAME)};
-    }
 
     @Override
     public SpanMultiTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -52,7 +47,8 @@ public class SpanMultiTermQueryParser implements QueryParser<SpanMultiTermQueryB
                 if (parseContext.parseFieldMatcher().match(currentFieldName, MATCH_FIELD)) {
                     QueryBuilder innerQuery = parseContext.parseInnerQueryBuilder();
                     if (innerQuery instanceof MultiTermQueryBuilder == false) {
-                        throw new ParsingException(parser.getTokenLocation(), "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
                     }
                     subQuery = (MultiTermQueryBuilder) innerQuery;
                 } else {
@@ -70,7 +66,8 @@ public class SpanMultiTermQueryParser implements QueryParser<SpanMultiTermQueryB
         }
 
         if (subQuery == null) {
-            throw new ParsingException(parser.getTokenLocation(), "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause");
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause");
         }
 
         return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);

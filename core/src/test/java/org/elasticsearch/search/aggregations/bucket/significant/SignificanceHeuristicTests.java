@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -61,13 +60,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 
 /**
  *
@@ -241,7 +240,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext,
             String faultyHeuristicDefinition, String expectedError) throws IOException {
 
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashMap<String, QueryParser<?>>());
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, Collections.emptyMap());
         try {
             XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
             QueryParseContext parseContext = new QueryParseContext(registry);
@@ -266,7 +265,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper,
             SearchContext searchContext, XContentParser stParser) throws IOException {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, new HashMap<String, QueryParser<?>>());
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, Collections.emptyMap());
         QueryParseContext parseContext = new QueryParseContext(registry);
         parseContext.reset(stParser);
         parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);

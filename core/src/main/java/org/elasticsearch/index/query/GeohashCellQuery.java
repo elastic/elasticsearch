@@ -75,7 +75,8 @@ public class GeohashCellQuery {
      * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Query create(QueryShardContext context, BaseGeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
+    public static Query create(QueryShardContext context, BaseGeoPointFieldMapper.GeoPointFieldType fieldType,
+                               String geohash, @Nullable List<CharSequence> geohashes) {
         MappedFieldType geoHashMapper = fieldType.geoHashFieldType();
         if (geoHashMapper == null) {
             throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
@@ -270,13 +271,10 @@ public class GeohashCellQuery {
 
     public static class Parser implements QueryParser<Builder> {
 
+        public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
         @Inject
         public Parser() {
-        }
-
-        @Override
-        public String[] names() {
-            return new String[]{NAME, Strings.toCamelCase(NAME)};
         }
 
         @Override

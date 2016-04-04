@@ -117,12 +117,7 @@ public class QueryParseContext {
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
-
-        QueryParser queryParser = queryParser(queryName);
-        if (queryParser == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
-        }
-
+        QueryParser queryParser = indicesQueriesRegistry.getQueryParser(queryName, parseFieldMatcher, parser.getTokenLocation());
         QueryBuilder result = queryParser.fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
@@ -137,14 +132,5 @@ public class QueryParseContext {
 
     public void parser(XContentParser innerParser) {
         this.parser = innerParser;
-    }
-
-    /**
-     * Get the query parser for a specific type of query registered under its name
-     * @param name the name of the parser to retrieve
-     * @return the query parser
-     */
-    private QueryParser queryParser(String name) {
-        return indicesQueriesRegistry.queryParsers().get(name);
     }
 }

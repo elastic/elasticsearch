@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,10 +30,7 @@ import java.io.IOException;
  */
 public class MatchAllQueryParser implements QueryParser<MatchAllQueryBuilder> {
 
-    @Override
-    public String[] names() {
-        return new String[]{MatchAllQueryBuilder.NAME, Strings.toCamelCase(MatchAllQueryBuilder.NAME)};
-    }
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(MatchAllQueryBuilder.NAME);
 
     @Override
     public MatchAllQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -52,10 +49,12 @@ public class MatchAllQueryParser implements QueryParser<MatchAllQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + MatchAllQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + MatchAllQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + MatchAllQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[" + MatchAllQueryBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
         MatchAllQueryBuilder queryBuilder = new MatchAllQueryBuilder();

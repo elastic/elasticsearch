@@ -31,12 +31,8 @@ import java.io.IOException;
  */
 public class TypeQueryParser implements QueryParser<TypeQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(TypeQueryBuilder.NAME);
     public static final ParseField VALUE_FIELD = new ParseField("value");
-
-    @Override
-    public String[] names() {
-        return new String[]{TypeQueryBuilder.NAME};
-    }
 
     @Override
     public TypeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -59,15 +55,18 @@ public class TypeQueryParser implements QueryParser<TypeQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                     type = parser.utf8Bytes();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(),
+                        "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
             }
         }
 
         if (type == null) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter needs to be provided with a value for the type");
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[" + TypeQueryBuilder.NAME + "] filter needs to be provided with a value for the type");
         }
         return new TypeQueryBuilder(type)
                 .boost(boost)

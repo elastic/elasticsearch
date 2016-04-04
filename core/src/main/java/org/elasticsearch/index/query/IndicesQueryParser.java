@@ -32,16 +32,11 @@ import java.util.Collection;
  */
 public class IndicesQueryParser implements QueryParser {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(IndicesQueryBuilder.NAME);
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query");
     public static final ParseField INDEX_FIELD = new ParseField("index");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
-    
-
-    @Override
-    public String[] names() {
-        return new String[]{IndicesQueryBuilder.NAME};
-    }
 
     @Override
     public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {

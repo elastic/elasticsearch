@@ -155,7 +155,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Adds a field to run the query string against. The field will be associated with the default boost of {@link AbstractQueryBuilder#DEFAULT_BOOST}.
+     * Adds a field to run the query string against. The field will be associated with the
+     * default boost of {@link AbstractQueryBuilder#DEFAULT_BOOST}.
      * Use {@link #field(String, float)} to set a specific boost for the field.
      */
     public QueryStringQueryBuilder field(String field) {
@@ -484,7 +485,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         builder.endArray();
         builder.field(QueryStringQueryParser.USE_DIS_MAX_FIELD.getPreferredName(), this.useDisMax);
         builder.field(QueryStringQueryParser.TIE_BREAKER_FIELD.getPreferredName(), this.tieBreaker);
-        builder.field(QueryStringQueryParser.DEFAULT_OPERATOR_FIELD.getPreferredName(), this.defaultOperator.name().toLowerCase(Locale.ROOT));
+        builder.field(QueryStringQueryParser.DEFAULT_OPERATOR_FIELD.getPreferredName(),
+                this.defaultOperator.name().toLowerCase(Locale.ROOT));
         if (this.analyzer != null) {
             builder.field(QueryStringQueryParser.ANALYZER_FIELD.getPreferredName(), this.analyzer);
         }
@@ -634,7 +636,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
                 Objects.equals(lenient, other.lenient) &&
-                timeZone == null ? other.timeZone == null : other.timeZone != null && Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
+                timeZone == null ? other.timeZone == null : other.timeZone != null &&
+                Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates);
     }

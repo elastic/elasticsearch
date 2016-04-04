@@ -30,12 +30,8 @@ import java.io.IOException;
  */
 public class WrapperQueryParser implements QueryParser {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(WrapperQueryBuilder.NAME);
     public static final ParseField QUERY_FIELD = new ParseField("query");
-
-    @Override
-    public String[] names() {
-        return new String[]{WrapperQueryBuilder.NAME};
-    }
 
     @Override
     public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {

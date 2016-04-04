@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
@@ -41,10 +42,7 @@ public class TemplateQueryParser implements QueryParser<TemplateQueryBuilder> {
         parametersToTypes.put("id", ScriptService.ScriptType.INDEXED);
     }
 
-    @Override
-    public String[] names() {
-        return new String[] {TemplateQueryBuilder.NAME};
-    }
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(TemplateQueryBuilder.NAME);
 
     /**
      * Parses the template query replacing template parameters with provided
@@ -69,7 +67,8 @@ public class TemplateQueryParser implements QueryParser<TemplateQueryBuilder> {
         return parse(parser, parameterMap, parseFieldMatcher);
     }
 
-    public static Template parse(String defaultLang, XContentParser parser, ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
+    public static Template parse(String defaultLang, XContentParser parser,
+                                 ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
 
         Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
         for (String parameter : parameters) {
@@ -82,7 +81,8 @@ public class TemplateQueryParser implements QueryParser<TemplateQueryBuilder> {
         return parse(parser, parametersToTypes, parseFieldMatcher);
     }
 
-    public static Template parse(XContentParser parser, Map<String, ScriptService.ScriptType> parameterMap, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static Template parse(XContentParser parser, Map<String, ScriptService.ScriptType> parameterMap,
+                                 ParseFieldMatcher parseFieldMatcher) throws IOException {
         return Template.parse(parser, parameterMap, parseFieldMatcher);
     }
 

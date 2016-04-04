@@ -48,7 +48,7 @@ import java.util.Objects;
  * */
 public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
     /** Name of the query. */
-    public static final String NAME = "geo_bbox";
+    public static final String NAME = "geo_bounding_box";
     /** Default type for executing this query (memory as of this writing). */
     public static final GeoExecType DEFAULT_TYPE = GeoExecType.MEMORY;
     /** Needed for serialization. */

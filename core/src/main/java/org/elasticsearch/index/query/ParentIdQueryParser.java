@@ -27,13 +27,9 @@ import java.io.IOException;
 
 public final class ParentIdQueryParser implements QueryParser<ParentIdQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(ParentIdQueryBuilder.NAME);
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
-
-    @Override
-    public String[] names() {
-        return new String[]{ParentIdQueryBuilder.NAME};
-    }
 
     @Override
     public ParentIdQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {

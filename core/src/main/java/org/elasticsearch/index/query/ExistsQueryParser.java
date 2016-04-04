@@ -30,12 +30,8 @@ import java.io.IOException;
  */
 public class ExistsQueryParser implements QueryParser<ExistsQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(ExistsQueryBuilder.NAME);
     public static final ParseField FIELD_FIELD = new ParseField("field");
-
-    @Override
-    public String[] names() {
-        return new String[]{ExistsQueryBuilder.NAME};
-    }
 
     @Override
     public ExistsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -58,10 +54,12 @@ public class ExistsQueryParser implements QueryParser<ExistsQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 

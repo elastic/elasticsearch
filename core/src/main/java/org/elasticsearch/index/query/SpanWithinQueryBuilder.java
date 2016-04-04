@@ -32,12 +32,14 @@ import java.util.Objects;
 /**
  * Builder for {@link org.apache.lucene.search.spans.SpanWithinQuery}.
  */
-public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder<SpanWithinQueryBuilder> {
+public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder>
+        implements SpanQueryBuilder<SpanWithinQueryBuilder> {
 
     public static final String NAME = "span_within";
     private final SpanQueryBuilder big;
     private final SpanQueryBuilder little;
-    static final SpanWithinQueryBuilder PROTOTYPE = new SpanWithinQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
+    static final SpanWithinQueryBuilder PROTOTYPE =
+            new SpanWithinQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
 
     /**
      * Query that returns spans from <code>little</code> that are contained in a spans from <code>big</code>.

@@ -19,15 +19,15 @@
 
 package org.elasticsearch.action.search;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
@@ -35,14 +35,17 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 
-import static java.util.Collections.singletonMap;
+import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MultiSearchRequestTests extends ESTestCase {
     public void testSimpleAdd() throws Exception {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY,
+                Collections.singletonMap(MatchAllQueryBuilder.NAME,
+                        new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch1.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), false, null, null,
                 null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null, null);
@@ -69,7 +72,9 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testSimpleAdd2() throws Exception {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY,
+                Collections.singletonMap(MatchAllQueryBuilder.NAME,
+                        new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch2.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), false, null, null,
                 null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null, null);
@@ -88,7 +93,9 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testSimpleAdd3() throws Exception {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY,
+                Collections.singletonMap(MatchAllQueryBuilder.NAME,
+                        new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch3.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), false, null, null,
                 null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null, null);
@@ -108,7 +115,9 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testSimpleAdd4() throws Exception {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY,
+                Collections.singletonMap(MatchAllQueryBuilder.NAME,
+                        new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch4.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), false, null, null,
                 null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null, null);
@@ -130,7 +139,9 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testSimpleAdd5() throws Exception {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY,
+                Collections.singletonMap(MatchAllQueryBuilder.NAME,
+                        new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch5.json");
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(new MultiSearchRequest(), new BytesArray(data), true, null, null,
                 null, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true, registry, ParseFieldMatcher.EMPTY, null, null);

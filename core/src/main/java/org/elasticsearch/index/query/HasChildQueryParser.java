@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.InnerHitBuilder;
 
@@ -34,17 +33,13 @@ import java.util.Locale;
  */
 public class HasChildQueryParser implements QueryParser<HasChildQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(HasChildQueryBuilder.NAME);
     public static final ParseField QUERY_FIELD = new ParseField("query", "filter");
     public static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
     public static final ParseField MAX_CHILDREN_FIELD = new ParseField("max_children");
     public static final ParseField MIN_CHILDREN_FIELD = new ParseField("min_children");
     public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
-
-    @Override
-    public String[] names() {
-        return new String[] { HasChildQueryBuilder.NAME, Strings.toCamelCase(HasChildQueryBuilder.NAME) };
-    }
 
     @Override
     public HasChildQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -90,7 +85,8 @@ public class HasChildQueryParser implements QueryParser<HasChildQueryBuilder> {
                 }
             }
         }
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren, scoreMode, innerHitBuilder);
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren,
+                scoreMode, innerHitBuilder);
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
         return hasChildQueryBuilder;

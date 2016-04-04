@@ -270,7 +270,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             return MappedFieldType.Relation.DISJOINT;
         } else {
             DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
-            return fieldType.isFieldWithinQuery(queryRewriteContext.getIndexReader(), from, to, includeLower, includeUpper, timeZone, dateMathParser);
+            return fieldType.isFieldWithinQuery(queryRewriteContext.getIndexReader(), from, to, includeLower,
+                    includeUpper, timeZone, dateMathParser);
         }
     }
 
@@ -308,7 +309,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 if (this.format  != null) {
                     forcedDateParser = new DateMathParser(this.format);
                 }
-                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser);
+                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
+                        timeZone, forcedDateParser);
             } else  {
                 if (timeZone != null) {
                     throw new QueryShardException(context, "[range] time_zone can not be applied to non date field ["

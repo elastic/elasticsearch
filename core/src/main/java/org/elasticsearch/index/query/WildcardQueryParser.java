@@ -30,14 +30,10 @@ import java.io.IOException;
  */
 public class WildcardQueryParser implements QueryParser<WildcardQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(WildcardQueryBuilder.NAME);
     public static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
     public static final ParseField VALUE_FIELD = new ParseField("value");
     public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
-
-    @Override
-    public String[] names() {
-        return new String[]{WildcardQueryBuilder.NAME};
-    }
 
     @Override
     public WildcardQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -71,7 +67,8 @@ public class WildcardQueryParser implements QueryParser<WildcardQueryBuilder> {
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[wildcard] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "[wildcard] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

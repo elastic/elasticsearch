@@ -35,6 +35,8 @@ import java.util.List;
  */
 public class MoreLikeThisQueryParser implements QueryParser<MoreLikeThisQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(MoreLikeThisQueryBuilder.NAME, "mlt");
+
     public interface Field {
         ParseField FIELDS = new ParseField("fields");
         ParseField LIKE = new ParseField("like");
@@ -54,11 +56,6 @@ public class MoreLikeThisQueryParser implements QueryParser<MoreLikeThisQueryBui
         ParseField BOOST_TERMS = new ParseField("boost_terms");
         ParseField INCLUDE = new ParseField("include");
         ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
-    }
-
-    @Override
-    public String[] names() {
-        return new String[]{MoreLikeThisQueryBuilder.NAME, "more_like_this", "moreLikeThis"};
     }
 
     @Override

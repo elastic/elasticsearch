@@ -28,6 +28,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -270,8 +271,24 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
         TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-
         assertEquals(json, 2, parsed.values().size());
+
+        json =
+                "{\n" +
+                        "  \"in\" : {\n" +
+                        "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" +
+                        "    \"boost\" : 1.0\n" +
+                        "  }\n" +
+                        "}";
+        QueryBuilder<?> inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
+        assertThat(inShortcutParsed, equalTo(parsed));
+
+        try {
+            parseQuery(json);
+            fail("parse query should have failed in strict mode");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Deprecated field [in] used, expected [terms] instead"));
+        }
     }
 
     @Override

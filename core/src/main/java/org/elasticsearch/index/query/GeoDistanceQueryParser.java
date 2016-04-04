@@ -42,6 +42,7 @@ import java.io.IOException;
  */
 public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(GeoDistanceQueryBuilder.NAME);
     public static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
@@ -49,11 +50,6 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
     public static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     public static final ParseField UNIT_FIELD = new ParseField("unit");
     public static final ParseField DISTANCE_FIELD = new ParseField("distance");
-
-    @Override
-    public String[] names() {
-        return new String[]{GeoDistanceQueryBuilder.NAME, "geoDistance"};
-    }
 
     @Override
     public GeoDistanceQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -98,8 +94,8 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
                         } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
                             point.resetFromGeoHash(parser.text());
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[geo_distance] query does not support [" + currentFieldName
-                                    + "]");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[geo_distance] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }

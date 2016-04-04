@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -33,15 +32,11 @@ import java.util.List;
  */
 public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(SpanNearQueryBuilder.NAME);
     public static final ParseField SLOP_FIELD = new ParseField("slop");
     public static final ParseField COLLECT_PAYLOADS_FIELD = new ParseField("collect_payloads").withAllDeprecated("no longer supported");
     public static final ParseField CLAUSES_FIELD = new ParseField("clauses");
     public static final ParseField IN_ORDER_FIELD = new ParseField("in_order");
-
-    @Override
-    public String[] names() {
-        return new String[]{SpanNearQueryBuilder.NAME, Strings.toCamelCase(SpanNearQueryBuilder.NAME)};
-    }
 
     @Override
     public SpanNearQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {

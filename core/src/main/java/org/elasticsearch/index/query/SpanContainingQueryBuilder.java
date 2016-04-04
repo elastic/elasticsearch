@@ -32,12 +32,14 @@ import java.util.Objects;
 /**
  * Builder for {@link org.apache.lucene.search.spans.SpanContainingQuery}.
  */
-public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContainingQueryBuilder> implements SpanQueryBuilder<SpanContainingQueryBuilder> {
+public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContainingQueryBuilder>
+        implements SpanQueryBuilder<SpanContainingQueryBuilder> {
 
     public static final String NAME = "span_containing";
     private final SpanQueryBuilder big;
     private final SpanQueryBuilder little;
-    static final SpanContainingQueryBuilder PROTOTYPE = new SpanContainingQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
+    static final SpanContainingQueryBuilder PROTOTYPE =
+            new SpanContainingQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
 
     /**
      * @param big the big clause, it must enclose {@code little} for a match.

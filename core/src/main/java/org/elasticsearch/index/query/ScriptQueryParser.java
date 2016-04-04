@@ -36,12 +36,8 @@ import java.util.Map;
  */
 public class ScriptQueryParser implements QueryParser<ScriptQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(ScriptQueryBuilder.NAME);
     public static final ParseField PARAMS_FIELD = new ParseField("params");
-
-    @Override
-    public String[] names() {
-        return new String[]{ScriptQueryBuilder.NAME};
-    }
 
     @Override
     public ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -65,7 +61,8 @@ public class ScriptQueryParser implements QueryParser<ScriptQueryBuilder> {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
                     script = Script.parse(parser, parseContext.parseFieldMatcher());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) { // TODO remove in 3.0 (here to support old script APIs)
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
+                    // TODO remove in 3.0 (here to support old script APIs)
                     params = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
@@ -90,7 +87,8 @@ public class ScriptQueryParser implements QueryParser<ScriptQueryBuilder> {
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         } else if (params != null) {
-            throw new ParsingException(parser.getTokenLocation(), "script params must be specified inside script object in a [script] filter");
+            throw new ParsingException(parser.getTokenLocation(),
+                    "script params must be specified inside script object in a [script] filter");
         }
 
         if (script == null) {

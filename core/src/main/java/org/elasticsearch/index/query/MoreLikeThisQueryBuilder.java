@@ -79,7 +79,7 @@ import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
 
-    public static final String NAME = "mlt";
+    public static final String NAME = "more_like_this";
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
     public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
@@ -478,10 +478,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public MoreLikeThisQueryBuilder(@Nullable String[] fields, @Nullable String[] likeTexts, @Nullable Item[] likeItems) {
         // TODO we allow null here for the _all field, but this is forbidden in the parser. Re-check
         if (fields != null && fields.length == 0) {
-            throw new IllegalArgumentException("mlt query requires 'fields' to be specified");
+            throw new IllegalArgumentException(NAME + " query requires 'fields' to be specified");
         }
         if ((likeTexts == null || likeTexts.length == 0) && (likeItems == null || likeItems.length == 0)) {
-            throw new IllegalArgumentException("mlt query requires either 'like' texts or items to be specified.");
+            throw new IllegalArgumentException(NAME + " query requires either 'like' texts or items to be specified.");
         }
         this.fields = fields;
         this.likeTexts = Optional.ofNullable(likeTexts).orElse(Strings.EMPTY_ARRAY);
@@ -811,7 +811,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         if (moreLikeFields.isEmpty()) {
             return null;
         }
-        mltQuery.setMoreLikeFields(moreLikeFields.toArray(Strings.EMPTY_ARRAY));
+        mltQuery.setMoreLikeFields(moreLikeFields.toArray(new String[moreLikeFields.size()]));
 
         // handle like texts
         if (likeTexts.length > 0) {
@@ -950,7 +950,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             uids.add(createUidAsBytes(item.type(), item.id()));
         }
         if (!uids.isEmpty()) {
-            TermsQuery query = new TermsQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[0]));
+            TermsQuery query = new TermsQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[uids.size()]));
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }
     }

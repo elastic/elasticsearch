@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,14 +30,10 @@ import java.io.IOException;
  */
 public class SpanFirstQueryParser implements QueryParser<SpanFirstQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(SpanFirstQueryBuilder.NAME);
     public static final ParseField MATCH_FIELD = new ParseField("match");
     public static final ParseField END_FIELD = new ParseField("end");
   
-    @Override
-    public String[] names() {
-        return new String[]{SpanFirstQueryBuilder.NAME, Strings.toCamelCase(SpanFirstQueryBuilder.NAME)};
-    }
-
     @Override
     public SpanFirstQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();

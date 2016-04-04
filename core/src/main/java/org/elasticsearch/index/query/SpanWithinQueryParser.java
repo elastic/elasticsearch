@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,14 +30,10 @@ import java.io.IOException;
  */
 public class SpanWithinQueryParser implements QueryParser<SpanWithinQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(SpanWithinQueryBuilder.NAME);
     public static final ParseField BIG_FIELD = new ParseField("big");
     public static final ParseField LITTLE_FIELD = new ParseField("little");
   
-    @Override
-    public String[] names() {
-        return new String[]{SpanWithinQueryBuilder.NAME, Strings.toCamelCase(SpanWithinQueryBuilder.NAME)};
-    }
-
     @Override
     public SpanWithinQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
@@ -67,7 +62,8 @@ public class SpanWithinQueryParser implements QueryParser<SpanWithinQueryBuilder
                     }
                     little = (SpanQueryBuilder) query;
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[span_within] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[span_within] query does not support [" + currentFieldName + "]");
                 }
             } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                 boost = parser.floatValue();

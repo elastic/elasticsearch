@@ -77,7 +77,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
 
-    public HasChildQueryBuilder(String type, QueryBuilder query, int maxChildren, int minChildren, ScoreMode scoreMode, InnerHitBuilder innerHitBuilder) {
+    public HasChildQueryBuilder(String type, QueryBuilder query, int maxChildren, int minChildren, ScoreMode scoreMode,
+                                InnerHitBuilder innerHitBuilder) {
         this(type, query);
         scoreMode(scoreMode);
         this.maxChildren = maxChildren;
@@ -288,7 +289,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 indexSearcher.setSimilarity(similarity);
                 IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal((DirectoryReader) reader);
                 MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
-                return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);
+                return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode,
+                        ordinalMap, minChildren, maxChildren);
             } else {
                 if (reader.leaves().isEmpty() && reader.numDocs() == 0) {
                     // asserting reader passes down a MultiReader during rewrite which makes this
@@ -297,7 +299,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     // and rewrite to match nothing
                     return new MatchNoDocsQuery();
                 }
-                throw new IllegalStateException("can't load global ordinals for reader of type: " + reader.getClass() + " must be a DirectoryReader");
+                throw new IllegalStateException("can't load global ordinals for reader of type: " +
+                        reader.getClass() + " must be a DirectoryReader");
             }
         }
 

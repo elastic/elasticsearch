@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,13 +30,9 @@ import java.io.IOException;
  */
 public class SpanTermQueryParser implements QueryParser<SpanTermQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(SpanTermQueryBuilder.NAME);
     public static final ParseField TERM_FIELD = new ParseField("term");
   
-    @Override
-    public String[] names() {
-        return new String[]{SpanTermQueryBuilder.NAME, Strings.toCamelCase(SpanTermQueryBuilder.NAME)};
-    }
-
     @Override
     public SpanTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
@@ -70,7 +65,8 @@ public class SpanTermQueryParser implements QueryParser<SpanTermQueryBuilder> {
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[span_term] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "[span_term] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

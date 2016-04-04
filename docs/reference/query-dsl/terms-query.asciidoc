@@ -16,7 +16,7 @@ Filters documents that have fields that match any of the provided terms
 --------------------------------------------------
 
 The `terms` query is also aliased with `in` as the filter name for
-simpler usage.
+simpler usage deprecated[5.0.0,use `terms` instead].
 
 [float]
 [[query-dsl-terms-lookup]]

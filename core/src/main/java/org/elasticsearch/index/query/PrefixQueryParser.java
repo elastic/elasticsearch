@@ -30,13 +30,9 @@ import java.io.IOException;
  */
 public class PrefixQueryParser implements QueryParser<PrefixQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(PrefixQueryBuilder.NAME);
     public static final ParseField PREFIX_FIELD = new ParseField("value", "prefix");
     public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
-
-    @Override
-    public String[] names() {
-        return new String[]{PrefixQueryBuilder.NAME};
-    }
 
     @Override
     public PrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -70,7 +66,8 @@ public class PrefixQueryParser implements QueryParser<PrefixQueryBuilder> {
                         } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                             rewrite = parser.textOrNull();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[regexp] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }

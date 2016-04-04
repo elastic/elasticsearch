@@ -33,14 +33,9 @@ import java.util.List;
  */
 public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(IdsQueryBuilder.NAME);
     public static final ParseField TYPE_FIELD = new ParseField("type", "types", "_type");
-    
     public static final ParseField VALUES_FIELD = new ParseField("values");
-
-    @Override
-    public String[] names() {
-        return new String[]{IdsQueryBuilder.NAME};
-    }
 
     /**
      * @return a QueryBuilder representation of the query passed in as XContent in the parse context
@@ -71,8 +66,8 @@ public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
                             }
                             ids.add(id);
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Illegal value for id, expecting a string or number, got: "
-                                    + token);
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "Illegal value for id, expecting a string or number, got: " + token);
                         }
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
@@ -84,7 +79,8 @@ public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
                         types.add(value);
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
@@ -94,10 +90,12 @@ public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
         if (!idsProvided) {

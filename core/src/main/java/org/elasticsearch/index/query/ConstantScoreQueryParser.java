@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,12 +30,8 @@ import java.io.IOException;
  */
 public class ConstantScoreQueryParser implements QueryParser<ConstantScoreQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(ConstantScoreQueryBuilder.NAME);
     public static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
-
-    @Override
-    public String[] names() {
-        return new String[]{ConstantScoreQueryBuilder.NAME, Strings.toCamelCase(ConstantScoreQueryBuilder.NAME)};
-    }
 
     @Override
     public ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -63,7 +58,8 @@ public class ConstantScoreQueryParser implements QueryParser<ConstantScoreQueryB
                     query = parseContext.parseInnerQueryBuilder();
                     queryFound = true;
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
@@ -71,7 +67,8 @@ public class ConstantScoreQueryParser implements QueryParser<ConstantScoreQueryB
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "]");

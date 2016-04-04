@@ -30,6 +30,7 @@ import java.io.IOException;
 
 public class PercolatorQueryParser implements QueryParser<PercolatorQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(PercolatorQueryBuilder.NAME);
     public static final ParseField DOCUMENT_FIELD = new ParseField("document");
     public static final ParseField DOCUMENT_TYPE_FIELD = new ParseField("document_type");
     public static final ParseField INDEXED_DOCUMENT_FIELD_INDEX = new ParseField("index");
@@ -38,11 +39,6 @@ public class PercolatorQueryParser implements QueryParser<PercolatorQueryBuilder
     public static final ParseField INDEXED_DOCUMENT_FIELD_ROUTING = new ParseField("routing");
     public static final ParseField INDEXED_DOCUMENT_FIELD_PREFERENCE = new ParseField("preference");
     public static final ParseField INDEXED_DOCUMENT_FIELD_VERSION = new ParseField("version");
-
-    @Override
-    public String[] names() {
-        return new String[]{PercolatorQueryBuilder.NAME};
-    }
 
     @Override
     public PercolatorQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {

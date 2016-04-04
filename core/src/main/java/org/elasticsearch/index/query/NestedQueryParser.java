@@ -19,26 +19,22 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.InnerHitBuilder;
 
+import java.io.IOException;
+
 public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
 
     private static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NestedQueryBuilder.NAME);
     public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
     public static final ParseField PATH_FIELD = new ParseField("path");
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
-
-    @Override
-    public String[] names() {
-        return new String[]{NestedQueryBuilder.NAME};
-    }
 
     @Override
     public NestedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {

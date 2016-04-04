@@ -30,8 +30,7 @@ import java.io.IOException;
 
 public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQueryBuilder> {
 
-    public static final String NAME = "geo_bbox";
-
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(GeoBoundingBoxQueryBuilder.NAME, "geo_bbox");
     public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
@@ -45,11 +44,6 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
     public static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
     public static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     public static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
-
-    @Override
-    public String[] names() {
-        return new String[]{GeoBoundingBoxQueryBuilder.NAME, "geoBbox", "geo_bounding_box", "geoBoundingBox"};
-    }
 
     @Override
     public GeoBoundingBoxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -114,11 +108,13 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
                                 bottom = sparse.getLat();
                                 left = sparse.getLon();
                             } else {
-                                throw new ElasticsearchParseException("failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
+                                throw new ElasticsearchParseException("failed to parse [{}] query. unexpected field [{}]",
+                                        QUERY_NAME_FIELD.getPreferredName(), currentFieldName);
                             }
                         }
                     } else {
-                        throw new ElasticsearchParseException("failed to parse [{}] query. field name expected but [{}] found", NAME, token);
+                        throw new ElasticsearchParseException("failed to parse [{}] query. field name expected but [{}] found",
+                                QUERY_NAME_FIELD.getPreferredName(), token);
                     }
                 }
             } else if (token.isValue()) {
@@ -138,7 +134,8 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
                     ignoreMalformed = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
+                    throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
+                            QUERY_NAME_FIELD.getPreferredName(), currentFieldName);
                 }
             }
         }

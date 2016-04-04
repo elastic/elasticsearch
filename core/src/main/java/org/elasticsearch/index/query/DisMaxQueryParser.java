@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -33,13 +32,9 @@ import java.util.List;
  */
 public class DisMaxQueryParser implements QueryParser<DisMaxQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(DisMaxQueryBuilder.NAME);
     public static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
     public static final ParseField QUERIES_FIELD = new ParseField("queries");
-
-    @Override
-    public String[] names() {
-        return new String[]{DisMaxQueryBuilder.NAME, Strings.toCamelCase(DisMaxQueryBuilder.NAME)};
-    }
 
     @Override
     public DisMaxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {

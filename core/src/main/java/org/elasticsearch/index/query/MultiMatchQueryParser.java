@@ -34,6 +34,7 @@ import java.util.Map;
  */
 public class MultiMatchQueryParser implements QueryParser<MultiMatchQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(MultiMatchQueryBuilder.NAME);
     public static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -49,13 +50,6 @@ public class MultiMatchQueryParser implements QueryParser<MultiMatchQueryBuilder
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
-
-    @Override
-    public String[] names() {
-        return new String[]{
-                MultiMatchQueryBuilder.NAME, "multiMatch"
-        };
-    }
 
     @Override
     public MultiMatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -94,7 +88,8 @@ public class MultiMatchQueryParser implements QueryParser<MultiMatchQueryBuilder
                 } else if (token.isValue()) {
                     parseFieldAndBoost(parser, fieldsBoosts);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + MultiMatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + MultiMatchQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
@@ -139,10 +134,12 @@ public class MultiMatchQueryParser implements QueryParser<MultiMatchQueryBuilder
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + MultiMatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + MultiMatchQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + MultiMatchQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[" + MultiMatchQueryBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 

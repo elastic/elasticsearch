@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,14 +30,10 @@ import java.io.IOException;
  */
 public class SpanContainingQueryParser implements QueryParser<SpanContainingQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(SpanContainingQueryBuilder.NAME);
     public static final ParseField BIG_FIELD = new ParseField("big");
     public static final ParseField LITTLE_FIELD = new ParseField("little");
   
-    @Override
-    public String[] names() {
-        return new String[]{SpanContainingQueryBuilder.NAME, Strings.toCamelCase(SpanContainingQueryBuilder.NAME)};
-    }
-
     @Override
     public SpanContainingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
@@ -66,14 +61,16 @@ public class SpanContainingQueryParser implements QueryParser<SpanContainingQuer
                     }
                     little = (SpanQueryBuilder<?>) query;
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[span_containing] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[span_containing] query does not support [" + currentFieldName + "]");
                 }
             } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                 boost = parser.floatValue();
             } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                 queryName = parser.text();
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[span_containing] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(),
+                        "[span_containing] query does not support [" + currentFieldName + "]");
             }
         }
 

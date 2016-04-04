@@ -197,7 +197,6 @@ import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregatorBu
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
@@ -456,7 +455,9 @@ public class SearchModule extends AbstractModule {
         registerAggregation(InternalStats.TYPE, StatsAggregatorBuilder.PARSER, StatsAggregatorBuilder::new);
 
         registerAggregation(InternalExtendedStats.TYPE, new ExtendedStatsParser(), ExtendedStatsAggregatorBuilder::new);
-        registerAggregation(InternalValueCount.TYPE, new ValueCountParser(), ValueCountAggregatorBuilder::new);
+
+        registerAggregation(InternalValueCount.TYPE, ValueCountAggregatorBuilder.PARSER, ValueCountAggregatorBuilder::new);
+
         registerAggregation(InternalTDigestPercentiles.TYPE, new PercentilesParser(), PercentilesAggregatorBuilder::new);
         registerAggregation(InternalTDigestPercentileRanks.TYPE, new PercentileRanksParser(), PercentileRanksAggregatorBuilder::new);
         registerAggregation(InternalCardinality.TYPE, new CardinalityParser(), CardinalityAggregatorBuilder::new);

@@ -33,6 +33,7 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -70,7 +71,26 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     /**
-     * Simple aggregation builder for numerics like sum, min, max, etc.
+     * Simple aggregation parser for "any" valued aggregations like missing or value count.
+     */
+    public static class SimpleAnySourceParser extends AnyValuesSourceParser {
+        private final BiFunction<String, ValueType, ValuesSourceAggregatorBuilder<ValuesSource, ?>> builder;
+
+        public SimpleAnySourceParser(boolean scriptable, boolean formattable,
+                BiFunction<String, ValueType, ValuesSourceAggregatorBuilder<ValuesSource, ?>> builder) {
+            super(scriptable, formattable);
+            this.builder = builder;
+        }
+
+        @Override
+        protected ValuesSourceAggregatorBuilder<ValuesSource, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+            return builder.apply(aggregationName, targetValueType);
+        }
+    }
+
+    /**
+     * Simple aggregation parser for numerics like sum, min, max, etc.
      */
     public static class SimpleNumericValuesSourceParser extends NumericValuesSourceParser {
         private final Function<String, ValuesSourceAggregatorBuilder.LeafOnly<Numeric, ?>> builder;
@@ -105,7 +125,6 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     @Override
     public final ValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {
-
         String field = null;
         Script script = null;
         ValueType valueType = null;

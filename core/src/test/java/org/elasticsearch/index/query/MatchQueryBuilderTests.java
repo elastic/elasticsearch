@@ -28,11 +28,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.hamcrest.Matcher;
 import org.joda.time.format.ISODateTimeFormat;
@@ -67,15 +69,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
 
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, value);
-        matchQuery.type(randomFrom(MatchQuery.Type.values()));
         matchQuery.operator(randomFrom(Operator.values()));
 
         if (randomBoolean()) {
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
-        }
-
-        if (randomBoolean()) {
-            matchQuery.slop(randomIntBetween(0, 10));
         }
 
         if (randomBoolean()) {
@@ -84,6 +81,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         if (randomBoolean()) {
             matchQuery.prefixLength(randomIntBetween(0, 10));
+        }
+
+        if (randomBoolean()) {
+            matchQuery.maxExpansions(randomIntBetween(0, 1000));
         }
 
         if (randomBoolean()) {
@@ -277,79 +278,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
     }
 
-    public void testPhrasePrefixMatchQuery() throws IOException {
-        String json1 = "{\n" +
-                "    \"match_phrase_prefix\" : {\n" +
-                "        \"message\" : \"this is a test\"\n" +
-                "    }\n" +
-                "}";
-
-        String expected = "{\n" +
-                "  \"match\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"this is a test\",\n" +
-                "      \"type\" : \"phrase_prefix\",\n" +
-                "      \"operator\" : \"OR\",\n" +
-                "      \"slop\" : 0,\n" +
-                "      \"prefix_length\" : 0,\n" +
-                "      \"max_expansions\" : 50,\n" +
-                "      \"fuzzy_transpositions\" : true,\n" +
-                "      \"lenient\" : false,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json1);
-        checkGeneratedJson(expected, qb);
-
-        String json2 = "{\n" +
-                "    \"match\" : {\n" +
-                "        \"message\" : {\n" +
-                "            \"query\" : \"this is a test\",\n" +
-                "            \"type\" : \"phrase_prefix\"\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
-        qb = (MatchQueryBuilder) parseQuery(json2);
-        checkGeneratedJson(expected, qb);
-
-        String json3 = "{\n" +
-                "    \"match_phrase_prefix\" : {\n" +
-                "        \"message\" : {\n" +
-                "            \"query\" : \"this is a test\",\n" +
-                "            \"max_expansions\" : 10\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
-        expected = "{\n" +
-                "  \"match\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"this is a test\",\n" +
-                "      \"type\" : \"phrase_prefix\",\n" +
-                "      \"operator\" : \"OR\",\n" +
-                "      \"slop\" : 0,\n" +
-                "      \"prefix_length\" : 0,\n" +
-                "      \"max_expansions\" : 10,\n" +
-                "      \"fuzzy_transpositions\" : true,\n" +
-                "      \"lenient\" : false,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        qb = (MatchQueryBuilder) parseQuery(json3);
-        checkGeneratedJson(expected, qb);
-    }
-
     public void testSimpleMatchQuery() throws IOException {
         String json = "{\n" +
                 "  \"match\" : {\n" +
                 "    \"message\" : {\n" +
                 "      \"query\" : \"to be or not to be\",\n" +
-                "      \"type\" : \"boolean\",\n" +
                 "      \"operator\" : \"AND\",\n" +
-                "      \"slop\" : 0,\n" +
                 "      \"prefix_length\" : 0,\n" +
                 "      \"max_expansions\" : 50,\n" +
                 "      \"fuzzy_transpositions\" : true,\n" +
@@ -364,5 +298,80 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         assertEquals(json, "to be or not to be", qb.value());
         assertEquals(json, Operator.AND, qb.operator());
+    }
+
+    public void testLegacyMatchPhrasePrefixQuery() throws IOException {
+        MatchQueryBuilder expectedQB = new MatchQueryBuilder("message", "to be or not to be");
+        expectedQB.type(Type.PHRASE_PREFIX);
+        expectedQB.slop(2);
+        expectedQB.maxExpansions(30);
+        String json = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message\" : {\n" +
+                "      \"query\" : \"to be or not to be\",\n" +
+                "      \"type\" : \"phrase_prefix\",\n" +
+                "      \"operator\" : \"OR\",\n" +
+                "      \"slop\" : 2,\n" +
+                "      \"prefix_length\" : 0,\n" +
+                "      \"max_expansions\" : 30,\n" +
+                "      \"fuzzy_transpositions\" : true,\n" +
+                "      \"lenient\" : false,\n" +
+                "      \"zero_terms_query\" : \"NONE\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        checkGeneratedJson(json, qb);
+
+        assertEquals(json, expectedQB, qb);
+
+        assertSerialization(qb);
+
+        // Now check with strict parsing an exception is thrown
+        try {
+            parseQuery(json, ParseFieldMatcher.STRICT);
+            fail("Expected query to fail with strict parsing");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                    containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
+        }
+    }
+
+    public void testLegacyMatchPhraseQuery() throws IOException {
+        MatchQueryBuilder expectedQB = new MatchQueryBuilder("message", "to be or not to be");
+        expectedQB.type(Type.PHRASE);
+        expectedQB.slop(2);
+        String json = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message\" : {\n" +
+                "      \"query\" : \"to be or not to be\",\n" +
+                "      \"type\" : \"phrase\",\n" +
+                "      \"operator\" : \"OR\",\n" +
+                "      \"slop\" : 2,\n" +
+                "      \"prefix_length\" : 0,\n" +
+                "      \"max_expansions\" : 50,\n" +
+                "      \"fuzzy_transpositions\" : true,\n" +
+                "      \"lenient\" : false,\n" +
+                "      \"zero_terms_query\" : \"NONE\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        checkGeneratedJson(json, qb);
+
+        assertEquals(json, expectedQB, qb);
+
+        assertSerialization(qb);
+
+        // Now check with strict parsing an exception is thrown
+        try {
+            parseQuery(json, ParseFieldMatcher.STRICT);
+            fail("Expected query to fail with strict parsing");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                    containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
+        }
     }
 }

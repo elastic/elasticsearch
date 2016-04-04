@@ -52,6 +52,8 @@ import org.elasticsearch.index.query.IdsQueryParser;
 import org.elasticsearch.index.query.IndicesQueryParser;
 import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.index.query.MatchNoneQueryParser;
+import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryParser;
 import org.elasticsearch.index.query.MultiMatchQueryParser;
@@ -513,8 +515,12 @@ public class SearchModule extends AbstractModule {
     }
 
     private void registerBuiltinQueryParsers() {
-        registerQuery(MatchQueryBuilder.PROTOTYPE::readFrom, MatchQueryBuilder::fromXContent, MatchQueryBuilder.NAME,
-                "match_phrase", "matchPhrase", "match_phrase_prefix", "matchPhrasePrefix", "matchFuzzy", "match_fuzzy", "fuzzy_match");
+        registerQuery(MatchQueryBuilder.PROTOTYPE::readFrom, MatchQueryBuilder::fromXContent, MatchQueryBuilder.NAME, "matchFuzzy",
+                "match_fuzzy", "fuzzy_match");
+        registerQuery(MatchPhraseQueryBuilder.PROTOTYPE::readFrom, MatchPhraseQueryBuilder::fromXContent, MatchPhraseQueryBuilder.NAME,
+                "matchPhrase");
+        registerQuery(MatchPhrasePrefixQueryBuilder.PROTOTYPE::readFrom, MatchPhrasePrefixQueryBuilder::fromXContent,
+                MatchPhrasePrefixQueryBuilder.NAME, "matchPhrasePrefix");
         registerQueryParser(MultiMatchQueryParser::new);
         registerQueryParser(NestedQueryParser::new);
         registerQueryParser(HasChildQueryParser::new);

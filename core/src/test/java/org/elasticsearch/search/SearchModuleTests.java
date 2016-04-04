@@ -32,8 +32,12 @@ import org.elasticsearch.search.suggest.CustomSuggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
 
 import java.io.IOException;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  */
 public class SearchModuleTests extends ModuleTestCase {
@@ -80,6 +84,97 @@ public class SearchModuleTests extends ModuleTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("already registered for name [term] while trying to register [org.elasticsearch.index."));
         }
+    }
+
+    public void testRegisteredQueries() {
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
+        Map<String, QueryParser<?>> queryParserMap = module.buildQueryParserRegistry().queryParsers();
+        assertThat(queryParserMap.size(), equalTo(84));
+        assertThat(queryParserMap.keySet(), containsInAnyOrder(
+                "bool",
+                "boosting",
+                "common",
+                "constantScore",
+                "constant_score",
+                "disMax",
+                "dis_max",
+                "exists",
+                "fieldMaskingSpan",
+                "field_masking_span",
+                "functionScore",
+                "function_score",
+                "fuzzy",
+                "fuzzy_match",
+                "geoBbox",
+                "geoBoundingBox",
+                "geoDistance",
+                "geoDistanceRange",
+                "geoPolygon",
+                "geoShape",
+                "geo_bbox",
+                "geo_bounding_box",
+                "geo_distance",
+                "geo_distance_range",
+                "geo_polygon",
+                "geo_shape",
+                "geohashCell",
+                "geohash_cell",
+                "hasChild",
+                "hasParent",
+                "has_child",
+                "has_parent",
+                "ids",
+                "in",
+                "indices",
+                "match",
+                "matchAll",
+                "matchFuzzy",
+                "matchNone",
+                "matchPhrase",
+                "matchPhrasePrefix",
+                "match_all",
+                "match_fuzzy",
+                "match_none",
+                "match_phrase",
+                "match_phrase_prefix",
+                "mlt",
+                "moreLikeThis",
+                "more_like_this",
+                "multiMatch",
+                "multi_match",
+                "nested",
+                "parent_id",
+                "percolator",
+                "prefix",
+                "queryString",
+                "query_string",
+                "range",
+                "regexp",
+                "script",
+                "simpleQueryString",
+                "simple_query_string",
+                "spanContaining",
+                "spanFirst",
+                "spanMulti",
+                "spanNear",
+                "spanNot",
+                "spanOr",
+                "spanTerm",
+                "spanWithin",
+                "span_containing",
+                "span_first",
+                "span_multi",
+                "span_near",
+                "span_not",
+                "span_or",
+                "span_term",
+                "span_within",
+                "template",
+                "term",
+                "terms",
+                "type",
+                "wildcard",
+                "wrapper"));
     }
 
     static class FakeQueryParser implements QueryParser {

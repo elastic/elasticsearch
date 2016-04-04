@@ -64,7 +64,7 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
     /**
      * Read from a stream.
      */
-    ChildrenAggregatorBuilder(StreamInput in) throws IOException {
+    public ChildrenAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalChildren.TYPE, ValuesSourceType.BYTES, ValueType.STRING);
         childType = in.readString();
     }

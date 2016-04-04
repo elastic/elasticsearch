@@ -53,7 +53,7 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
     /**
      * Read from a stream.
      */
-    FilterAggregatorBuilder(StreamInput in) throws IOException {
+    public FilterAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalFilter.TYPE);
         filter = in.readQuery();
     }

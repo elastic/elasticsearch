@@ -47,7 +47,7 @@ public class ExtendedStatsAggregatorBuilder
     /**
      * Read from a stream.
      */
-    ExtendedStatsAggregatorBuilder(StreamInput in) throws IOException {
+    public ExtendedStatsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalExtendedStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         sigma = in.readDouble();
     }

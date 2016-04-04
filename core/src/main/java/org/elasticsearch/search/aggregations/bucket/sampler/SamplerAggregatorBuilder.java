@@ -42,7 +42,7 @@ public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregato
     /**
      * Read from a stream.
      */
-    SamplerAggregatorBuilder(StreamInput in) throws IOException {
+    public SamplerAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalSampler.TYPE);
         shardSize = in.readVInt();
     }

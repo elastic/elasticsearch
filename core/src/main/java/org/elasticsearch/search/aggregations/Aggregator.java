@@ -45,7 +45,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      *
      * @see AggregatorBuilder
     */
-    public static abstract class Parser implements Writeable.Reader<AggregatorBuilder<?>> {
+    public static abstract class Parser {
         protected abstract InternalAggregation.Type type();
 
         /**

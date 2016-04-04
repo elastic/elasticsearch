@@ -47,7 +47,7 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
     /**
      * Read from a stream.
      */
-    IPv4RangeAggregatorBuilder(StreamInput in) throws IOException {
+    public IPv4RangeAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalIPv4Range.TYPE, InternalIPv4Range.FACTORY, Range::new);
     }
 

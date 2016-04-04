@@ -23,11 +23,9 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
@@ -170,10 +168,5 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
             }
         }
         return false;
-    }
-
-    @Override
-    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
-        return new GeoDistanceAggregatorBuilder(in);
     }
 }

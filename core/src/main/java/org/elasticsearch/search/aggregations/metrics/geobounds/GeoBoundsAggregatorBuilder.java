@@ -43,7 +43,7 @@ public class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Va
     /**
      * Read from a stream.
      */
-    GeoBoundsAggregatorBuilder(StreamInput in) throws IOException {
+    public GeoBoundsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalGeoBounds.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         wrapLongitude = in.readBoolean();
     }

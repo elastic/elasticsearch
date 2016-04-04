@@ -54,7 +54,7 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
     /**
      * Read from a stream.
      */
-    PercentilesAggregatorBuilder(StreamInput in) throws IOException {
+    public PercentilesAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalTDigestPercentiles.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         percents = in.readDoubleArray();
         keyed = in.readBoolean();

@@ -65,7 +65,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     /**
      * Read from a stream.
      */
-    TopHitsAggregatorBuilder(StreamInput in) throws IOException {
+    public TopHitsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalTopHits.TYPE);
         explain = in.readBoolean();
         fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);

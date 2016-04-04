@@ -20,9 +20,7 @@ package org.elasticsearch.search.aggregations.metrics.sum;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -55,10 +53,5 @@ public class SumParser extends NumericValuesSourceParser {
     protected SumAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new SumAggregatorBuilder(aggregationName);
-    }
-
-    @Override
-    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
-        return new SumAggregatorBuilder(in);
     }
 }

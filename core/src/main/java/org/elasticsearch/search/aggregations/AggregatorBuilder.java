@@ -167,6 +167,13 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
 
     @Override
     public final String getWriteableName() {
+        return getWriteableName(type);
+    }
+
+    /**
+     * Get the writable name used for builders of aggregations of this type.
+     */
+    public static String getWriteableName(Type type) {
         return type.stream().toUtf8();
     }
 

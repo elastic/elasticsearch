@@ -95,9 +95,4 @@ public class RangeParser extends NumericValuesSourceParser {
     protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
         return Range.fromXContent(parser, parseFieldMatcher);
     }
-
-    @Override
-    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
-        return new RangeAggregatorBuilder(in);
-    }
 }

@@ -46,7 +46,7 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
     /**
      * Read from a stream.
      */
-    CardinalityAggregatorBuilder(StreamInput in) throws IOException {
+    public CardinalityAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalCardinality.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();

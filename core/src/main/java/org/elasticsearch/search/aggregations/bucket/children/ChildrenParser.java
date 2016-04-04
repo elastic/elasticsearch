@@ -19,11 +19,9 @@
 package org.elasticsearch.search.aggregations.bucket.children;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
@@ -67,10 +65,5 @@ public class ChildrenParser extends Aggregator.Parser {
 
 
         return new ChildrenAggregatorBuilder(aggregationName, childType);
-    }
-
-    @Override
-    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
-        return new ChildrenAggregatorBuilder(in);
     }
 }

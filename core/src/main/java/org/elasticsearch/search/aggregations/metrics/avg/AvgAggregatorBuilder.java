@@ -42,7 +42,7 @@ public class AvgAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     /**
      * Read from a stream.
      */
-    AvgAggregatorBuilder(StreamInput in) throws IOException {
+    public AvgAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalAvg.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 

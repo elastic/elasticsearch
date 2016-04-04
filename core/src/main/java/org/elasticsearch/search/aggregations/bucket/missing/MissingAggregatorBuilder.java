@@ -42,7 +42,7 @@ public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
     /**
      * Read from a stream.
      */
-    MissingAggregatorBuilder(StreamInput in) throws IOException {
+    public MissingAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalMissing.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
     }
 

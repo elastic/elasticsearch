@@ -19,8 +19,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -54,20 +52,15 @@ public class AggregatorParsers {
      *            {@link org.elasticsearch.search.SearchModule}
      *            ).
      */
-    @Inject
-    public AggregatorParsers(Set<Aggregator.Parser> aggParsers, Set<PipelineAggregator.Parser> pipelineAggregatorParsers,
-            NamedWriteableRegistry namedWriteableRegistry) {
+    public AggregatorParsers(Set<Aggregator.Parser> aggParsers, Set<PipelineAggregator.Parser> pipelineAggregatorParsers) {
         Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
         for (Aggregator.Parser parser : aggParsers) {
             aggParsersBuilder.put(parser.name(), parser);
-            namedWriteableRegistry.register(AggregatorBuilder.class, parser.type().stream().toUtf8(), parser);
         }
         this.aggParsers = unmodifiableMap(aggParsersBuilder);
         Map<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = new HashMap<>(pipelineAggregatorParsers.size());
         for (PipelineAggregator.Parser parser : pipelineAggregatorParsers) {
             pipelineAggregatorParsersBuilder.put(parser.type(), parser);
-            PipelineAggregatorBuilder<?> factoryPrototype = parser.getFactoryPrototype();
-            namedWriteableRegistry.registerPrototype(PipelineAggregatorBuilder.class, factoryPrototype);
         }
         this.pipelineAggregatorParsers = unmodifiableMap(pipelineAggregatorParsersBuilder);
     }

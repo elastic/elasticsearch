@@ -56,7 +56,7 @@ public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
     /**
      * Read from a stream.
      */
-    GeoGridAggregatorBuilder(StreamInput in) throws IOException {
+    public GeoGridAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         precision = in.readVInt();
         requiredSize = in.readVInt();

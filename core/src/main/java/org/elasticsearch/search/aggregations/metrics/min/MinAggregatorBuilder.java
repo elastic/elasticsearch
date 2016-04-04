@@ -41,7 +41,7 @@ public class MinAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     /**
      * Read from a stream.
      */
-    MinAggregatorBuilder(StreamInput in) throws IOException {
+    public MinAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalMin.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 

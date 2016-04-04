@@ -53,7 +53,7 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
     /**
      * Read from a stream.
      */
-    DiversifiedAggregatorBuilder(StreamInput in) throws IOException {
+    public DiversifiedAggregatorBuilder(StreamInput in) throws IOException {
         super(in, TYPE, ValuesSourceType.ANY, null);
         shardSize = in.readVInt();
         maxDocsPerValue = in.readVInt();

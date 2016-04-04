@@ -43,7 +43,7 @@ public class ValueCountAggregatorBuilder
     /**
      * Read from a stream.
      */
-    protected ValueCountAggregatorBuilder(StreamInput in) throws IOException {
+    public ValueCountAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalValueCount.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
     }
 

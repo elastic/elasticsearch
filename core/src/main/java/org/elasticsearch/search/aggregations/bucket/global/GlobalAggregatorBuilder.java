@@ -37,7 +37,7 @@ public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorB
     /**
      * Read from a stream.
      */
-    GlobalAggregatorBuilder(StreamInput in) throws IOException {
+    public GlobalAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalGlobal.TYPE);
     }
 

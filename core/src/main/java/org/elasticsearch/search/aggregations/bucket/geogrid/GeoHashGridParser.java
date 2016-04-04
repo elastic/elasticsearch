@@ -53,11 +53,6 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
-        return new GeoGridAggregatorBuilder(in);
-    }
-
-    @Override
     protected GeoGridAggregatorBuilder createFactory(
             String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {

@@ -41,7 +41,7 @@ public class MaxAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     /**
      * Read from a stream.
      */
-    MaxAggregatorBuilder(StreamInput in) throws IOException {
+    public MaxAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalMax.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 

@@ -46,7 +46,7 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
     /**
      * Read from a stream.
      */
-    ScriptedMetricAggregatorBuilder(StreamInput in) throws IOException {
+    public ScriptedMetricAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalScriptedMetric.TYPE);
         initScript = in.readOptionalStreamable(Script.SUPPLIER);
         mapScript = in.readOptionalStreamable(Script.SUPPLIER);

@@ -76,7 +76,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
     /**
      * Read from a stream.
      */
-    FiltersAggregatorBuilder(StreamInput in) throws IOException {
+    public FiltersAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalFilters.TYPE);
         keyed = in.readBoolean();
         int size = in.readVInt();

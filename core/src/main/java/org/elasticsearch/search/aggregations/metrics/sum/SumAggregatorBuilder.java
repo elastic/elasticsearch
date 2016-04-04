@@ -41,7 +41,7 @@ public class SumAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     /**
      * Read from a stream.
      */
-    SumAggregatorBuilder(StreamInput in) throws IOException {
+    public SumAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalSum.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 

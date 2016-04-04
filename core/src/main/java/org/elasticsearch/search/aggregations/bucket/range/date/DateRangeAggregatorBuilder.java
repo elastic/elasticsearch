@@ -40,7 +40,7 @@ public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAg
     /**
      * Read from a stream.
      */
-    DateRangeAggregatorBuilder(StreamInput in) throws IOException {
+    public DateRangeAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalDateRange.TYPE, InternalDateRange.FACTORY, Range::new);
     }
 

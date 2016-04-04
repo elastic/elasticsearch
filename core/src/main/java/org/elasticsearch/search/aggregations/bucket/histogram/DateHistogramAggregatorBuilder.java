@@ -42,7 +42,7 @@ public class DateHistogramAggregatorBuilder extends AbstractHistogramBuilder<Dat
     /**
      * Read from a stream.
      */
-    DateHistogramAggregatorBuilder(StreamInput in) throws IOException {
+    public DateHistogramAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalDateHistogram.TYPE, InternalDateHistogram.HISTOGRAM_FACTORY);
         if (in.readBoolean()) {
             dateHistogramInterval = DateHistogramInterval.readFromStream(in);

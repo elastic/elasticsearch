@@ -52,7 +52,7 @@ public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorB
     /**
      * Read from a stream.
      */
-    NestedAggregatorBuilder(StreamInput in) throws IOException {
+    public NestedAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalNested.TYPE);
         path = in.readString();
     }

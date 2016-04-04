@@ -41,7 +41,7 @@ public class StatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOn
     /**
      * Read from a stream.
      */
-    StatsAggregatorBuilder(StreamInput in) throws IOException {
+    public StatsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 

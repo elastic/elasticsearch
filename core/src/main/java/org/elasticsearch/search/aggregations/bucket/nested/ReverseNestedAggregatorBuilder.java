@@ -40,7 +40,7 @@ public class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNes
     /**
      * Read from a stream.
      */
-    ReverseNestedAggregatorBuilder(StreamInput in) throws IOException {
+    public ReverseNestedAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalReverseNested.TYPE);
         path = in.readOptionalString();
     }

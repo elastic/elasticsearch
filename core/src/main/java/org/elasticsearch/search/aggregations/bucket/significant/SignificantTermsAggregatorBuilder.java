@@ -69,7 +69,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     /**
      * Read from a stream.
      */
-    protected SignificantTermsAggregatorBuilder(StreamInput in) throws IOException {
+    public SignificantTermsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, SignificantStringTerms.TYPE, ValuesSourceType.ANY, in.readOptionalWriteable(ValueType::readFromStream));
         bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();

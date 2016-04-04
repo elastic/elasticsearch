@@ -41,7 +41,7 @@ public class GeoCentroidAggregatorBuilder
     /**
      * Read from a stream.
      */
-    GeoCentroidAggregatorBuilder(StreamInput in) throws IOException {
+    public GeoCentroidAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalGeoCentroid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 

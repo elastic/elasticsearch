@@ -36,7 +36,7 @@ public class HistogramAggregatorBuilder extends AbstractHistogramBuilder<Histogr
     /**
      * Read from a stream.
      */
-    HistogramAggregatorBuilder(StreamInput in) throws IOException {
+    public HistogramAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalHistogram.TYPE, InternalHistogram.HISTOGRAM_FACTORY);
     }
 

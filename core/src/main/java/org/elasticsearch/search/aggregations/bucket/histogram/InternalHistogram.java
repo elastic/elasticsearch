@@ -54,7 +54,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         Histogram {
 
     public static final Factory<Bucket> HISTOGRAM_FACTORY = new Factory<Bucket>();
-    final static Type TYPE = new Type("histogram", "histo");
+    public static final Type TYPE = new Type("histogram", "histo");
 
     private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @SuppressWarnings("rawtypes")

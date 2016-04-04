@@ -69,9 +69,4 @@ public class IpRangeParser extends RangeParser {
         }
         return factory;
     }
-
-    @Override
-    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
-        return new IPv4RangeAggregatorBuilder(in);
-    }
 }

@@ -56,9 +56,4 @@ public class AvgParser extends NumericValuesSourceParser {
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new AvgAggregatorBuilder(aggregationName);
     }
-
-    @Override
-    public AggregatorBuilder<?> read(StreamInput in) throws IOException {
-        return new AvgAggregatorBuilder(in);
-    }
 }

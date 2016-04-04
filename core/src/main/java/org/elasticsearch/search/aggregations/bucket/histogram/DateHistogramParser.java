@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -35,11 +34,6 @@ public class DateHistogramParser extends HistogramParser {
 
     public DateHistogramParser() {
         super(true);
-    }
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return InternalDateHistogram.TYPE;
     }
 
     @Override

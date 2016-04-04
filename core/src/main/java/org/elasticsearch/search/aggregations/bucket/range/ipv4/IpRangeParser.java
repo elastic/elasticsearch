@@ -20,10 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
@@ -41,11 +38,6 @@ public class IpRangeParser extends RangeParser {
 
     public IpRangeParser() {
         super(true, false, false);
-    }
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return InternalIPv4Range.TYPE;
     }
 
     @Override

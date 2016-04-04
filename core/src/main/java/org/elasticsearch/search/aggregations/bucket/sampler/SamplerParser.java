@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 
@@ -31,12 +30,6 @@ import java.io.IOException;
  *
  */
 public class SamplerParser extends Aggregator.Parser {
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return InternalSampler.TYPE;
-    }
-
     @Override
     public SamplerAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {

@@ -19,8 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 
@@ -33,11 +31,6 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
 
     public PercentileRanksParser() {
         super(false);
-    }
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return InternalTDigestPercentileRanks.TYPE;
     }
 
     @Override

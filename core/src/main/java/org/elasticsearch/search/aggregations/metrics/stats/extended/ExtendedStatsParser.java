@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics.stats.extended;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -36,11 +35,6 @@ public class ExtendedStatsParser extends NumericValuesSourceParser {
 
     public ExtendedStatsParser() {
         super(true, true, false);
-    }
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return InternalExtendedStats.TYPE;
     }
 
     @Override

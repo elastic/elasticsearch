@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -37,11 +36,6 @@ public class DiversifiedSamplerParser extends AnyValuesSourceParser {
 
     public DiversifiedSamplerParser() {
         super(true, false);
-    }
-
-    @Override
-    public InternalAggregation.Type type() {
-        return DiversifiedAggregatorBuilder.TYPE;
     }
 
     @Override

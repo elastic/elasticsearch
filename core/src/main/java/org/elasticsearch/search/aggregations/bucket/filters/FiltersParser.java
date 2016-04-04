@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,11 +44,6 @@ public class FiltersParser extends Aggregator.Parser {
 
     public FiltersParser(IndicesQueriesRegistry queriesRegistry) {
         this.queriesRegistry = queriesRegistry;
-    }
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return InternalFilters.TYPE;
     }
 
     @Override

@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.GeoPointParser;
@@ -51,11 +50,6 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
     public GeoDistanceParser() {
         super(true, false);
-    }
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return InternalGeoDistance.TYPE;
     }
 
     public static class Range extends RangeAggregator.Range {

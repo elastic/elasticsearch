@@ -36,11 +36,6 @@ public class MissingParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected InternalAggregation.Type type() {
-        return InternalMissing.TYPE;
-    }
-
-    @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         return false;

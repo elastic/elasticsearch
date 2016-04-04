@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -41,12 +40,6 @@ import java.util.Map;
  *
  */
 public class TermsParser extends AbstractTermsParser {
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return StringTerms.TYPE;
-    }
-
     @Override
     protected TermsAggregatorBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,

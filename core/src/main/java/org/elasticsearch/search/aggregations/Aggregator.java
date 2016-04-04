@@ -46,17 +46,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * @see AggregatorBuilder
      */
     public static abstract class Parser {
-        protected InternalAggregation.Type type() {
-            throw new UnsupportedOperationException("will be removed");
-        }
-
-        /**
-         * @return The aggregation type this parser is associated with.
-         */
-        public final String name() {
-            return type().name();
-        }
-
         /**
          * Returns the aggregator factory with which this parser is associated, may return {@code null} indicating the
          * aggregation should be skipped (e.g. when trying to aggregate on unmapped fields).

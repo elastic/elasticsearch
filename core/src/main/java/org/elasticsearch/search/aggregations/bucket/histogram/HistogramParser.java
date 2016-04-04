@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -43,11 +42,6 @@ public class HistogramParser extends NumericValuesSourceParser {
 
     protected HistogramParser(boolean timezoneAware) {
         super(true, true, timezoneAware);
-    }
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return InternalHistogram.TYPE;
     }
 
     @Override

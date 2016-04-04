@@ -20,14 +20,12 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
@@ -48,16 +46,10 @@ public class SignificantTermsParser extends AbstractTermsParser {
     private final SignificanceHeuristicParserMapper significanceHeuristicParserMapper;
     private final IndicesQueriesRegistry queriesRegistry;
 
-    @Inject
     public SignificantTermsParser(SignificanceHeuristicParserMapper significanceHeuristicParserMapper,
             IndicesQueriesRegistry queriesRegistry) {
         this.significanceHeuristicParserMapper = significanceHeuristicParserMapper;
         this.queriesRegistry = queriesRegistry;
-    }
-
-    @Override
-    public InternalAggregation.Type type() {
-        return SignificantStringTerms.TYPE;
     }
 
     @Override

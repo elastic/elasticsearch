@@ -20,13 +20,10 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -45,11 +42,6 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
 
     public GeoHashGridParser() {
         super(false, false);
-    }
-
-    @Override
-    protected InternalAggregation.Type type() {
-        return InternalGeoHashGrid.TYPE;
     }
 
     @Override

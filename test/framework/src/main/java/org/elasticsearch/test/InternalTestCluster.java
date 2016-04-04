@@ -1339,7 +1339,7 @@ public final class InternalTestCluster extends TestCluster {
 
 
             for (DiscoveryNode node : discoveryNodes) {
-                NodeAndClient nodeAndClient = nodes.get(node.name());
+                NodeAndClient nodeAndClient = nodes.get(node.getName());
                 logger.info("Starting node [{}] ", nodeAndClient.name);
                 if (activeDisruptionScheme != null) {
                     activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);

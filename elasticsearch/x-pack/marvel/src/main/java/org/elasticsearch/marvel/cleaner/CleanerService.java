@@ -65,14 +65,14 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
     protected void doStop() {
         logger.debug("stopping cleaning service");
         listeners.clear();
-        runnable.cancel();
         logger.debug("cleaning service stopped");
     }
 
     @Override
     protected void doClose() {
-        // Cleaner runnable should have been cancelled in doStop() method,
-        // normally called just before this one
+        logger.debug("closing cleaning service");
+        runnable.cancel();
+        logger.debug("cleaning service closed");
     }
 
     private String executorName() {
@@ -220,7 +220,7 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
          * stopped.
          */
         public void cancel() {
-            if (future.isCancelled() == false) {
+            if (future != null && future.isCancelled() == false) {
                 FutureUtils.cancel(future);
             }
         }

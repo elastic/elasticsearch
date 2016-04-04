@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.SimpleNumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class StatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, StatsAggregatorBuilder> {
-    public static Aggregator.Parser PARSER = new SimpleNumericValuesSourceParser(StatsAggregatorBuilder::new);
+    public static final Aggregator.Parser PARSER = ValueSourceParser.builder(InternalStats.TYPE).build(StatsAggregatorBuilder::new);
 
     public StatsAggregatorBuilder(String name) {
         super(name, InternalStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);

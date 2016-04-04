@@ -46,7 +46,7 @@ public class GeoCentroidParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoCentroidAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected GeoCentroidAggregatorBuilder createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new GeoCentroidAggregatorBuilder(aggregationName);
     }

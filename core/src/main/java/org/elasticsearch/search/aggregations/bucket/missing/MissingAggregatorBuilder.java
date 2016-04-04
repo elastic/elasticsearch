@@ -25,8 +25,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.SimpleAnySourceParser;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
@@ -37,10 +37,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, MissingAggregatorBuilder> {
-    public static Aggregator.Parser PARSER = new SimpleAnySourceParser(true, true, MissingAggregatorBuilder::new);
+    public static final Aggregator.Parser PARSER = ValueSourceParser.builder(InternalMissing.TYPE).build(MissingAggregatorBuilder::new);
 
     public MissingAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
+    }
+
+    private MissingAggregatorBuilder(String name) {
+        this(name, null);
     }
 
     /**

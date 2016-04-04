@@ -42,7 +42,7 @@ public class DateHistogramParser extends HistogramParser {
     }
 
     @Override
-    protected DateHistogramAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected DateHistogramAggregatorBuilder createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         DateHistogramAggregatorBuilder factory = new DateHistogramAggregatorBuilder(aggregationName);
         Object interval = otherOptions.get(Rounding.Interval.INTERVAL_FIELD);

@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -314,6 +315,18 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         declareField((p, v, c) -> consumer.accept(v, p.booleanValue()), field, ValueType.BOOLEAN);
     }
 
+    public void declareTimeZone(BiConsumer<Value, DateTimeZone> consumer, ParseField field) {
+        declareField((p, v, c) -> {
+            DateTimeZone zone;
+            if (p.currentToken() == VALUE_STRING) {
+                zone = DateTimeZone.forID(p.text());
+            } else {
+                zone = DateTimeZone.forOffsetHours(p.intValue());
+            }
+            consumer.accept(v, zone);
+        }, field, ValueType.TIME_ZONE);
+    }
+
     /**
      * Declares named objects in the style of highlighting's field element. These are usually named inside and object like this:
      * <pre><code>
@@ -485,6 +498,7 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         LONG(VALUE_NUMBER, VALUE_STRING),
         INT(VALUE_NUMBER, VALUE_STRING),
         BOOLEAN(VALUE_BOOLEAN),
+        TIME_ZONE(VALUE_STRING, VALUE_NUMBER),
         STRING_ARRAY(START_ARRAY, VALUE_STRING),
         FLOAT_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),
         DOUBLE_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),

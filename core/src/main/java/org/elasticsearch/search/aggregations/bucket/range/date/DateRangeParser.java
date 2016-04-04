@@ -38,7 +38,7 @@ public class DateRangeParser extends RangeParser {
     }
 
     @Override
-    protected DateRangeAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected DateRangeAggregatorBuilder createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         DateRangeAggregatorBuilder factory = new DateRangeAggregatorBuilder(aggregationName);
         @SuppressWarnings("unchecked")

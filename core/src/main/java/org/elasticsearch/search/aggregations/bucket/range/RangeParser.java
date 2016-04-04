@@ -46,7 +46,7 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected AbstractRangeBuilder<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected AbstractRangeBuilder<?, ?> createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         RangeAggregatorBuilder factory = new RangeAggregatorBuilder(aggregationName);
         @SuppressWarnings("unchecked")

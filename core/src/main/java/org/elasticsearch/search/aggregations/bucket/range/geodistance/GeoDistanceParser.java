@@ -77,7 +77,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoDistanceAggregatorBuilder createFactory(
+    protected GeoDistanceAggregatorBuilder createBuilder(
             String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         GeoPoint origin = (GeoPoint) otherOptions.get(ORIGIN_FIELD);
         GeoDistanceAggregatorBuilder factory = new GeoDistanceAggregatorBuilder(aggregationName, origin);

@@ -45,7 +45,7 @@ public class HistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected AbstractHistogramBuilder<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected AbstractHistogramBuilder<?> createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         HistogramAggregatorBuilder factory = new HistogramAggregatorBuilder(aggregationName);
         Long interval = (Long) otherOptions.get(Rounding.Interval.INTERVAL_FIELD);

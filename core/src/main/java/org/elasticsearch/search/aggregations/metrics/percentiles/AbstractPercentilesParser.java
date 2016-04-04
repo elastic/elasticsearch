@@ -115,7 +115,7 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
     }
 
     @Override
-    protected ValuesSourceAggregatorBuilder<Numeric, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected ValuesSourceAggregatorBuilder<Numeric, ?> createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         PercentilesMethod method = (PercentilesMethod) otherOptions.getOrDefault(METHOD_FIELD, PercentilesMethod.TDIGEST);
 

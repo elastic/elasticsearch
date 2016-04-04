@@ -50,7 +50,7 @@ public abstract class AbstractTermsParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected final ValuesSourceAggregatorBuilder<ValuesSource, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected final ValuesSourceAggregatorBuilder<ValuesSource, ?> createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         BucketCountThresholds bucketCountThresholds = getDefaultBucketCountThresholds();
         Integer requiredSize = (Integer) otherOptions.get(REQUIRED_SIZE_FIELD_NAME);

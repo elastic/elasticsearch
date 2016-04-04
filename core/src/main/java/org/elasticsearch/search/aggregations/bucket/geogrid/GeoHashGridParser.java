@@ -45,7 +45,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoGridAggregatorBuilder createFactory(
+    protected GeoGridAggregatorBuilder createBuilder(
             String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(aggregationName);

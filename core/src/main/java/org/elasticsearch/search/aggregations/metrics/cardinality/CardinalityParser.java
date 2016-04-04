@@ -40,7 +40,7 @@ public class CardinalityParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected CardinalityAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected CardinalityAggregatorBuilder createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         CardinalityAggregatorBuilder factory = new CardinalityAggregatorBuilder(aggregationName, targetValueType);
         Long precisionThreshold = (Long) otherOptions.get(CardinalityAggregatorBuilder.PRECISION_THRESHOLD_FIELD);

@@ -83,7 +83,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
         }
 
         @Override
-        protected ValuesSourceAggregatorBuilder<ValuesSource, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+        protected ValuesSourceAggregatorBuilder<ValuesSource, ?> createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, Map<ParseField, Object> otherOptions) {
             return builder.apply(aggregationName, targetValueType);
         }
@@ -101,7 +101,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
         }
 
         @Override
-        protected ValuesSourceAggregatorBuilder<Numeric, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+        protected ValuesSourceAggregatorBuilder<Numeric, ?> createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
                 ValueType targetValueType, Map<ParseField, Object> otherOptions) {
             return builder.apply(aggregationName);
         }
@@ -182,27 +182,27 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
             }
         }
 
-        ValuesSourceAggregatorBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
+        ValuesSourceAggregatorBuilder<VS, ?> builder = createBuilder(aggregationName, this.valuesSourceType, this.targetValueType,
                 otherOptions);
         if (field != null) {
-            factory.field(field);
+            builder.field(field);
         }
         if (script != null) {
-            factory.script(script);
+            builder.script(script);
         }
         if (valueType != null) {
-            factory.valueType(valueType);
+            builder.valueType(valueType);
         }
         if (format != null) {
-            factory.format(format);
+            builder.format(format);
         }
         if (missing != null) {
-            factory.missing(missing);
+            builder.missing(missing);
         }
         if (timezone != null) {
-            factory.timeZone(timezone);
+            builder.timeZone(timezone);
         }
-        return factory;
+        return builder;
     }
 
     /**
@@ -224,13 +224,13 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
      *            method
      * @return the created factory
      */
-    protected abstract ValuesSourceAggregatorBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected abstract ValuesSourceAggregatorBuilder<VS, ?> createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions);
 
     /**
      * Allows subclasses of {@link AbstractValuesSourceParser} to parse extra
      * parameters and store them in a {@link Map} which will later be passed to
-     * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}. By default
+     * {@link #createBuilder(String, ValuesSourceType, ValueType, Map)}. By default
      * parses nothing.
      *
      * @param aggregationName
@@ -246,7 +246,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
      * @param otherOptions
      *            a {@link Map} of options to be populated by successive calls
      *            to this method which will then be passed to the
-     *            {@link #createFactory(String, ValuesSourceType, ValueType, Map)}
+     *            {@link #createBuilder(String, ValuesSourceType, ValueType, Map)}
      *            method
      * @return <code>true</code> if the current token was correctly parsed,
      *         <code>false</code> otherwise

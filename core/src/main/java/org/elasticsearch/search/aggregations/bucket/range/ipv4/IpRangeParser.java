@@ -46,7 +46,7 @@ public class IpRangeParser extends RangeParser {
     }
 
     @Override
-    protected IPv4RangeAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected IPv4RangeAggregatorBuilder createBuilder(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         IPv4RangeAggregatorBuilder factory = new IPv4RangeAggregatorBuilder(aggregationName);
         @SuppressWarnings("unchecked")

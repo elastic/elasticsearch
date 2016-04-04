@@ -22,7 +22,7 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RestExecuteWatchActionTest extends ESTestCase {
+public class RestExecuteWatchActionTests extends ESTestCase {
 
     private RestController restController = mock(RestController.class);
     private Client client = mock(Client.class);

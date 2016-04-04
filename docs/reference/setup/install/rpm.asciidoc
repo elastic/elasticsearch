@@ -55,9 +55,9 @@ sudo yum install elasticsearch <1>
 sudo dnf install elasticsearch <2>
 sudo zypper install elasticsearch <3>
 --------------------------------------------------
-<1> Use `yum` on Centos and older Red Hat distributions.
-<2> Use `dnf` on newer Red Hat distributions.
-<3> Use `zypper` on OpenSuSe based distributions
+<1> Use `yum` on CentOS and older Red Hat based distributions.
+<2> Use `dnf` on Fedora and other newer Red Hat distributions.
+<3> Use `zypper` on OpenSUSE based distributions
 
 [[install-rpm]]
 ==== Download and install the RPM manually

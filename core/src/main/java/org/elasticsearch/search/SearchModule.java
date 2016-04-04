@@ -370,7 +370,7 @@ public class SearchModule extends AbstractModule {
      *
      * @param parser The parser for the custom aggregator.
      */
-    public <T extends AggregatorBuilder<T>> void registerAggregatorParser(InternalAggregation.Type type, Aggregator.Parser parser,
+    public <T extends AggregatorBuilder<T>> void registerAggregation(InternalAggregation.Type type, Aggregator.Parser parser,
             Writeable.Reader<T> reader) {
         Tuple<ParseField, Aggregator.Parser> oldValue = aggParsers.putIfAbsent(type.name(),
                 new Tuple<>(new ParseField(type.name()), parser));
@@ -452,40 +452,40 @@ public class SearchModule extends AbstractModule {
 
         SignificanceHeuristicParserMapper significanceHeuristicParserMapper = new SignificanceHeuristicParserMapper(heuristicParsers);
 
-        registerAggregatorParser(InternalAvg.TYPE, AvgAggregatorBuilder.PARSER, AvgAggregatorBuilder::new);
-        registerAggregatorParser(InternalSum.TYPE, SumAggregatorBuilder.PARSER, SumAggregatorBuilder::new);
-        registerAggregatorParser(InternalMin.TYPE, MinAggregatorBuilder.PARSER, MinAggregatorBuilder::new);
-        registerAggregatorParser(InternalMax.TYPE, MaxAggregatorBuilder.PARSER, MaxAggregatorBuilder::new);
-        registerAggregatorParser(InternalStats.TYPE, StatsAggregatorBuilder.PARSER, StatsAggregatorBuilder::new);
-        registerAggregatorParser(InternalExtendedStats.TYPE, new ExtendedStatsParser(), ExtendedStatsAggregatorBuilder::new);
-        registerAggregatorParser(InternalValueCount.TYPE, new ValueCountParser(), ValueCountAggregatorBuilder::new);
-        registerAggregatorParser(InternalTDigestPercentiles.TYPE, new PercentilesParser(), PercentilesAggregatorBuilder::new);
-        registerAggregatorParser(InternalTDigestPercentileRanks.TYPE, new PercentileRanksParser(), PercentileRanksAggregatorBuilder::new);
-        registerAggregatorParser(InternalCardinality.TYPE, new CardinalityParser(), CardinalityAggregatorBuilder::new);
-        registerAggregatorParser(InternalGlobal.TYPE, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder::new);
-        registerAggregatorParser(InternalMissing.TYPE, new MissingParser(), MissingAggregatorBuilder::new);
-        registerAggregatorParser(InternalFilter.TYPE, new FilterParser(), FilterAggregatorBuilder::new);
-        registerAggregatorParser(InternalFilters.TYPE, new FiltersParser(indicesQueriesRegistry), FiltersAggregatorBuilder::new);
-        registerAggregatorParser(InternalSampler.TYPE, new SamplerParser(), SamplerAggregatorBuilder::new);
-        registerAggregatorParser(DiversifiedAggregatorBuilder.TYPE, new DiversifiedSamplerParser(), DiversifiedAggregatorBuilder::new);
-        registerAggregatorParser(StringTerms.TYPE, new TermsParser(), TermsAggregatorBuilder::new);
-        registerAggregatorParser(SignificantStringTerms.TYPE,
+        registerAggregation(InternalAvg.TYPE, AvgAggregatorBuilder.PARSER, AvgAggregatorBuilder::new);
+        registerAggregation(InternalSum.TYPE, SumAggregatorBuilder.PARSER, SumAggregatorBuilder::new);
+        registerAggregation(InternalMin.TYPE, MinAggregatorBuilder.PARSER, MinAggregatorBuilder::new);
+        registerAggregation(InternalMax.TYPE, MaxAggregatorBuilder.PARSER, MaxAggregatorBuilder::new);
+        registerAggregation(InternalStats.TYPE, StatsAggregatorBuilder.PARSER, StatsAggregatorBuilder::new);
+        registerAggregation(InternalExtendedStats.TYPE, new ExtendedStatsParser(), ExtendedStatsAggregatorBuilder::new);
+        registerAggregation(InternalValueCount.TYPE, new ValueCountParser(), ValueCountAggregatorBuilder::new);
+        registerAggregation(InternalTDigestPercentiles.TYPE, new PercentilesParser(), PercentilesAggregatorBuilder::new);
+        registerAggregation(InternalTDigestPercentileRanks.TYPE, new PercentileRanksParser(), PercentileRanksAggregatorBuilder::new);
+        registerAggregation(InternalCardinality.TYPE, new CardinalityParser(), CardinalityAggregatorBuilder::new);
+        registerAggregation(InternalGlobal.TYPE, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder::new);
+        registerAggregation(InternalMissing.TYPE, new MissingParser(), MissingAggregatorBuilder::new);
+        registerAggregation(InternalFilter.TYPE, new FilterParser(), FilterAggregatorBuilder::new);
+        registerAggregation(InternalFilters.TYPE, new FiltersParser(indicesQueriesRegistry), FiltersAggregatorBuilder::new);
+        registerAggregation(InternalSampler.TYPE, new SamplerParser(), SamplerAggregatorBuilder::new);
+        registerAggregation(DiversifiedAggregatorBuilder.TYPE, new DiversifiedSamplerParser(), DiversifiedAggregatorBuilder::new);
+        registerAggregation(StringTerms.TYPE, new TermsParser(), TermsAggregatorBuilder::new);
+        registerAggregation(SignificantStringTerms.TYPE,
                 new SignificantTermsParser(significanceHeuristicParserMapper, indicesQueriesRegistry),
                 SignificantTermsAggregatorBuilder::new);
-        registerAggregatorParser(InternalRange.TYPE, new RangeParser(), RangeAggregatorBuilder::new);
-        registerAggregatorParser(InternalDateRange.TYPE, new DateRangeParser(), DateRangeAggregatorBuilder::new);
-        registerAggregatorParser(InternalIPv4Range.TYPE, new IpRangeParser(), IPv4RangeAggregatorBuilder::new);
-        registerAggregatorParser(InternalHistogram.TYPE, new HistogramParser(), HistogramAggregatorBuilder::new);
-        registerAggregatorParser(InternalDateHistogram.TYPE, new DateHistogramParser(), DateHistogramAggregatorBuilder::new);
-        registerAggregatorParser(InternalGeoDistance.TYPE, new GeoDistanceParser(), GeoDistanceAggregatorBuilder::new);
-        registerAggregatorParser(InternalGeoHashGrid.TYPE, new GeoHashGridParser(), GeoGridAggregatorBuilder::new);
-        registerAggregatorParser(InternalNested.TYPE, new NestedParser(), NestedAggregatorBuilder::new);
-        registerAggregatorParser(InternalReverseNested.TYPE, new ReverseNestedParser(), ReverseNestedAggregatorBuilder::new);
-        registerAggregatorParser(InternalTopHits.TYPE, new TopHitsParser(), TopHitsAggregatorBuilder::new);
-        registerAggregatorParser(InternalGeoBounds.TYPE, new GeoBoundsParser(), GeoBoundsAggregatorBuilder::new);
-        registerAggregatorParser(InternalGeoCentroid.TYPE, new GeoCentroidParser(), GeoCentroidAggregatorBuilder::new);
-        registerAggregatorParser(InternalScriptedMetric.TYPE, new ScriptedMetricParser(), ScriptedMetricAggregatorBuilder::new);
-        registerAggregatorParser(InternalChildren.TYPE, new ChildrenParser(), ChildrenAggregatorBuilder::new);
+        registerAggregation(InternalRange.TYPE, new RangeParser(), RangeAggregatorBuilder::new);
+        registerAggregation(InternalDateRange.TYPE, new DateRangeParser(), DateRangeAggregatorBuilder::new);
+        registerAggregation(InternalIPv4Range.TYPE, new IpRangeParser(), IPv4RangeAggregatorBuilder::new);
+        registerAggregation(InternalHistogram.TYPE, new HistogramParser(), HistogramAggregatorBuilder::new);
+        registerAggregation(InternalDateHistogram.TYPE, new DateHistogramParser(), DateHistogramAggregatorBuilder::new);
+        registerAggregation(InternalGeoDistance.TYPE, new GeoDistanceParser(), GeoDistanceAggregatorBuilder::new);
+        registerAggregation(InternalGeoHashGrid.TYPE, new GeoHashGridParser(), GeoGridAggregatorBuilder::new);
+        registerAggregation(InternalNested.TYPE, new NestedParser(), NestedAggregatorBuilder::new);
+        registerAggregation(InternalReverseNested.TYPE, new ReverseNestedParser(), ReverseNestedAggregatorBuilder::new);
+        registerAggregation(InternalTopHits.TYPE, new TopHitsParser(), TopHitsAggregatorBuilder::new);
+        registerAggregation(InternalGeoBounds.TYPE, new GeoBoundsParser(), GeoBoundsAggregatorBuilder::new);
+        registerAggregation(InternalGeoCentroid.TYPE, new GeoCentroidParser(), GeoCentroidAggregatorBuilder::new);
+        registerAggregation(InternalScriptedMetric.TYPE, new ScriptedMetricParser(), ScriptedMetricAggregatorBuilder::new);
+        registerAggregation(InternalChildren.TYPE, new ChildrenParser(), ChildrenAggregatorBuilder::new);
 
         registerPipelineParser(new DerivativeParser());
         registerPipelineParser(new MaxBucketParser());

@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public class NestedParser extends Aggregator.Parser {
+public class NestedParser implements Aggregator.Parser {
     @Override
     public NestedAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {

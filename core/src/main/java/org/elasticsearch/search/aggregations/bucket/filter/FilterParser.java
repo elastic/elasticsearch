@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FilterParser extends Aggregator.Parser {
+public class FilterParser implements Aggregator.Parser {
     @Override
     public FilterAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {

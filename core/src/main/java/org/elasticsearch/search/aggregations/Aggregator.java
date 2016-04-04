@@ -41,13 +41,12 @@ import java.io.IOException;
 public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
-     * Parses the aggregation request and creates the appropriate aggregator factory for it.
-     *
-     * @see AggregatorBuilder
+     * Parses the aggregation request and creates the appropriate {@link AggregatorBuilder} for it.
      */
-    public static abstract class Parser {
+    @FunctionalInterface
+    public interface Parser {
         /**
-         * Returns the aggregator factory with which this parser is associated, may return {@code null} indicating the
+         * Returns the {@link AggregatorBuilder} with which this parser is associated, may return {@code null} indicating the
          * aggregation should be skipped (e.g. when trying to aggregate on unmapped fields).
          *
          * @param aggregationName   The name of the aggregation

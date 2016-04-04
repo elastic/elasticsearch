@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ChildrenParser extends Aggregator.Parser {
+public class ChildrenParser implements Aggregator.Parser {
     @Override
     public ChildrenAggregatorBuilder parse(String aggregationName, XContentParser parser,
             QueryParseContext context) throws IOException {

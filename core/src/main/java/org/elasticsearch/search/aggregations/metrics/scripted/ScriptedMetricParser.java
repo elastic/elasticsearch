@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class ScriptedMetricParser extends Aggregator.Parser {
+public class ScriptedMetricParser implements Aggregator.Parser {
 
     public static final String INIT_SCRIPT = "init_script";
     public static final String MAP_SCRIPT = "map_script";

@@ -115,7 +115,6 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregatorBui
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalParser;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
@@ -463,7 +462,7 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(InternalTDigestPercentiles.TYPE, new PercentilesParser(), PercentilesAggregatorBuilder::new);
         registerAggregatorParser(InternalTDigestPercentileRanks.TYPE, new PercentileRanksParser(), PercentileRanksAggregatorBuilder::new);
         registerAggregatorParser(InternalCardinality.TYPE, new CardinalityParser(), CardinalityAggregatorBuilder::new);
-        registerAggregatorParser(InternalGlobal.TYPE, new GlobalParser(), GlobalAggregatorBuilder::new);
+        registerAggregatorParser(InternalGlobal.TYPE, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder::new);
         registerAggregatorParser(InternalMissing.TYPE, new MissingParser(), MissingAggregatorBuilder::new);
         registerAggregatorParser(InternalFilter.TYPE, new FilterParser(), FilterAggregatorBuilder::new);
         registerAggregatorParser(InternalFilters.TYPE, new FiltersParser(indicesQueriesRegistry), FiltersAggregatorBuilder::new);

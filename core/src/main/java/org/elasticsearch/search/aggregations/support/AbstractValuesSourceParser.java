@@ -39,7 +39,7 @@ import java.util.function.Function;
  *
  */
 public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
-        extends Aggregator.Parser {
+        implements Aggregator.Parser {
     static final ParseField TIME_ZONE = new ParseField("time_zone");
 
     public abstract static class AnyValuesSourceParser extends AbstractValuesSourceParser<ValuesSource> {

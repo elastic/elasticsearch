@@ -36,7 +36,7 @@ import java.util.List;
 /**
  *
  */
-public class TopHitsParser extends Aggregator.Parser {
+public class TopHitsParser implements Aggregator.Parser {
     @Override
     public TopHitsAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {

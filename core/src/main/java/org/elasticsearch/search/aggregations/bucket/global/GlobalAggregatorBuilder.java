@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -64,4 +66,9 @@ public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorB
         return 0;
     }
 
+    public static GlobalAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
+        parser.nextToken();
+        return new GlobalAggregatorBuilder(aggregationName);
+    }
 }

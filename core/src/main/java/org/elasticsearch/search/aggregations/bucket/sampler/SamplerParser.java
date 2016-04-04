@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SamplerParser extends Aggregator.Parser {
+public class SamplerParser implements Aggregator.Parser {
     @Override
     public SamplerAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
             throws IOException {

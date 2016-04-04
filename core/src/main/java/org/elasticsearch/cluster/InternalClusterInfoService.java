@@ -29,7 +29,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -354,7 +357,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                 ShardStats[] stats = indicesStatsResponse.getShards();
                 final HashMap<String, Long> newShardSizes = new HashMap<>();
                 final HashMap<ShardRouting, String> newShardRoutingToDataPath = new HashMap<>();
-                buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath);
+                buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath, clusterService.state());
                 shardSizes = Collections.unmodifiableMap(newShardSizes);
                 shardRoutingToDataPath = Collections.unmodifiableMap(newShardRoutingToDataPath);
             }
@@ -402,13 +405,23 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         return clusterInfo;
     }
 
-    static void buildShardLevelInfo(ESLogger logger, ShardStats[] stats, HashMap<String, Long> newShardSizes, HashMap<ShardRouting, String> newShardRoutingToDataPath) {
+    static void buildShardLevelInfo(ESLogger logger, ShardStats[] stats, HashMap<String, Long> newShardSizes, HashMap<ShardRouting, String> newShardRoutingToDataPath, ClusterState state) {
+        MetaData meta = state.getMetaData();
         for (ShardStats s : stats) {
+            IndexMetaData indexMeta = meta.index(s.getShardRouting().index());
+            Settings indexSettings = indexMeta == null ? null : indexMeta.getSettings();
             newShardRoutingToDataPath.put(s.getShardRouting(), s.getDataPath());
             long size = s.getStats().getStore().sizeInBytes();
             String sid = ClusterInfo.shardIdentifierFromRouting(s.getShardRouting());
             if (logger.isTraceEnabled()) {
                 logger.trace("shard: {} size: {}", sid, size);
+            }
+            if (indexSettings != null && IndexMetaData.isIndexUsingShadowReplicas(indexSettings)) {
+                // Shards on a shared filesystem should be considered of size 0
+                if (logger.isTraceEnabled()) {
+                    logger.trace("shard: {} is using shadow replicas and will be treated as size 0", sid);
+                }
+                size = 0;
             }
             newShardSizes.put(sid, size);
         }

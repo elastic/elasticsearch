@@ -15,7 +15,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.watcher.trigger.TriggerService;
 
@@ -32,7 +31,6 @@ public class RestExecuteWatchActionTest extends ESTestCase {
     private WatcherClient watcherClient = mock(WatcherClient.class);
 
     public void testThatFlagsCanBeSpecifiedViaParameters() throws Exception {
-
         String randomId = randomAsciiOfLength(10);
         for (String recordExecution : Lists.newArrayList("true", "false", null)) {
             for (String ignoreCondition : Lists.newArrayList("true", "false", null)) {
@@ -40,8 +38,10 @@ public class RestExecuteWatchActionTest extends ESTestCase {
                     ExecuteWatchRequestBuilder builder = new ExecuteWatchRequestBuilder(client);
                     when(watcherClient.prepareExecuteWatch()).thenReturn(builder);
 
-                    RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction(Settings.EMPTY, restController, client, triggerService);
-                    restExecuteWatchAction.handleRequest(createFakeRestRequest(randomId, recordExecution, ignoreCondition, debugCondition), restChannel, watcherClient);
+                    RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction(Settings.EMPTY, restController, client,
+                            triggerService);
+                    restExecuteWatchAction.handleRequest(createFakeRestRequest(randomId, recordExecution, ignoreCondition,
+                            debugCondition), restChannel, watcherClient);
 
                     assertThat(builder.request().getId(), is(randomId));
                     assertThat(builder.request().isRecordExecution(), is(Boolean.parseBoolean(recordExecution)));

@@ -59,7 +59,7 @@ public class PutLicenseResponse extends AcknowledgedResponse implements ToXConte
             int nMessages = in.readVInt();
             String[] messages = new String[nMessages];
             for (int j = 0; j < nMessages; j++) {
-                messages[i] = in.readString();
+                messages[j] = in.readString();
             }
             acknowledgeMessages.put(feature, messages);
         }

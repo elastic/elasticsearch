@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -40,24 +43,12 @@ import static java.util.Collections.unmodifiableMap;
 public class AggregatorParsers {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
-    private final Map<String, Aggregator.Parser> aggParsers;
+    private final Map<String, Tuple<ParseField, Aggregator.Parser>> aggParsers;
     private final Map<String, PipelineAggregator.Parser> pipelineAggregatorParsers;
 
-
-    /**
-     * Constructs the AggregatorParsers out of all the given parsers
-     *
-     * @param aggParsers
-     *            The available aggregator parsers (dynamically injected by the
-     *            {@link org.elasticsearch.search.SearchModule}
-     *            ).
-     */
-    public AggregatorParsers(Set<Aggregator.Parser> aggParsers, Set<PipelineAggregator.Parser> pipelineAggregatorParsers) {
-        Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
-        for (Aggregator.Parser parser : aggParsers) {
-            aggParsersBuilder.put(parser.name(), parser);
-        }
-        this.aggParsers = unmodifiableMap(aggParsersBuilder);
+    public AggregatorParsers(Map<String, Tuple<ParseField, Aggregator.Parser>> aggParsers,
+            Set<PipelineAggregator.Parser> pipelineAggregatorParsers) {
+        this.aggParsers = aggParsers;
         Map<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = new HashMap<>(pipelineAggregatorParsers.size());
         for (PipelineAggregator.Parser parser : pipelineAggregatorParsers) {
             pipelineAggregatorParsersBuilder.put(parser.type(), parser);
@@ -69,9 +60,9 @@ public class AggregatorParsers {
      * Returns the parser that is registered under the given aggregation type.
      *
      * @param type  The aggregation type
-     * @return      The parser associated with the given aggregation type.
+     * @return      The parser associated with the given aggregation type and it's ParseField for validation
      */
-    public Aggregator.Parser parser(String type) {
+    Tuple<ParseField, Aggregator.Parser> parser(String type) {
         return aggParsers.get(type);
     }
 
@@ -83,7 +74,7 @@ public class AggregatorParsers {
      *            The pipeline aggregator type
      * @return The parser associated with the given pipeline aggregator type.
      */
-    public PipelineAggregator.Parser pipelineAggregator(String type) {
+    PipelineAggregator.Parser pipelineAggregator(String type) {
         return pipelineAggregatorParsers.get(type);
     }
 
@@ -186,7 +177,7 @@ public class AggregatorParsers {
                                     + aggregationName + "]: [" + pipelineAggregatorFactory + "] and [" + fieldName + "]");
                         }
 
-                        Aggregator.Parser aggregatorParser = parser(fieldName);
+                        Tuple<ParseField, Aggregator.Parser> aggregatorParser = parser(fieldName);
                         if (aggregatorParser == null) {
                             PipelineAggregator.Parser pipelineAggregatorParser = pipelineAggregator(fieldName);
                             if (pipelineAggregatorParser == null) {
@@ -196,7 +187,12 @@ public class AggregatorParsers {
                                 pipelineAggregatorFactory = pipelineAggregatorParser.parse(aggregationName, parser, parseContext);
                             }
                         } else {
-                            aggFactory = aggregatorParser.parse(aggregationName, parser, parseContext);
+                            if (parseContext.parseFieldMatcher().match(fieldName, aggregatorParser.v1())) {
+                                aggFactory = aggregatorParser.v2().parse(aggregationName, parser, parseContext);
+                            } else {
+                                throw new ParsingException(parser.getTokenLocation(),
+                                        "Could not find aggregator type [" + fieldName + "] in [" + aggregationName + "]");
+                            }
                         }
                     }
                 } else {
@@ -235,5 +231,4 @@ public class AggregatorParsers {
 
         return factories;
     }
-
 }

@@ -27,11 +27,13 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  *
@@ -48,7 +50,6 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     public abstract static class NumericValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.Numeric> {
-
         protected NumericValuesSourceParser(boolean scriptable, boolean formattable, boolean timezoneAware) {
             super(scriptable, formattable, timezoneAware, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
@@ -65,6 +66,24 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
 
         protected GeoPointValuesSourceParser(boolean scriptable, boolean formattable) {
             super(scriptable, formattable, false, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        }
+    }
+
+    /**
+     * Simple aggregation builder for numerics like sum, min, max, etc.
+     */
+    public static class SimpleNumericValuesSourceParser extends NumericValuesSourceParser {
+        private final Function<String, ValuesSourceAggregatorBuilder.LeafOnly<Numeric, ?>> builder;
+
+        public SimpleNumericValuesSourceParser(Function<String, ValuesSourceAggregatorBuilder.LeafOnly<Numeric, ?>> builder) {
+            super(true, true, false);
+            this.builder = builder;
+        }
+
+        @Override
+        protected ValuesSourceAggregatorBuilder<Numeric, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+            return builder.apply(aggregationName);
         }
     }
 
@@ -194,7 +213,8 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     /**
      * Allows subclasses of {@link AbstractValuesSourceParser} to parse extra
      * parameters and store them in a {@link Map} which will later be passed to
-     * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}.
+     * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}. By default
+     * parses nothing.
      *
      * @param aggregationName
      *            the name of the aggregation
@@ -216,6 +236,8 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
      * @throws IOException
      *             if an error occurs whilst parsing
      */
-    protected abstract boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException;
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        return false;
+    }
 }

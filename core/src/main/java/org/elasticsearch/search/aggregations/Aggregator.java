@@ -44,9 +44,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Parses the aggregation request and creates the appropriate aggregator factory for it.
      *
      * @see AggregatorBuilder
-    */
+     */
     public static abstract class Parser {
-        protected abstract InternalAggregation.Type type();
+        protected InternalAggregation.Type type() {
+            throw new UnsupportedOperationException("will be removed");
+        }
 
         /**
          * @return The aggregation type this parser is associated with.

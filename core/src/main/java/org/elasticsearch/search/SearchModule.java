@@ -20,7 +20,9 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -162,7 +164,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
@@ -175,10 +176,8 @@ import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidPars
 import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.min.MinParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregatorBuilder;
@@ -192,13 +191,11 @@ import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggr
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricParser;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.StatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
@@ -277,7 +274,7 @@ import java.util.function.Supplier;
  */
 public class SearchModule extends AbstractModule {
 
-    private final Set<Aggregator.Parser> aggParsers = new HashSet<>();
+    private final Map<String, Tuple<ParseField, Aggregator.Parser>> aggParsers = new HashMap<>();
     private final Set<PipelineAggregator.Parser> pipelineAggParsers = new HashSet<>();
     private final Highlighters highlighters = new Highlighters();
     private final Suggesters suggesters;
@@ -376,7 +373,11 @@ public class SearchModule extends AbstractModule {
      */
     public <T extends AggregatorBuilder<T>> void registerAggregatorParser(InternalAggregation.Type type, Aggregator.Parser parser,
             Writeable.Reader<T> reader) {
-        aggParsers.add(parser);
+        Tuple<ParseField, Aggregator.Parser> oldValue = aggParsers.putIfAbsent(type.name(),
+                new Tuple<>(new ParseField(type.name()), parser));
+        if (oldValue != null) {
+            throw new IllegalArgumentException("Aggregation [" + type.name() + "] already registerd by [" + oldValue.v2() + "]");
+        }
         namedWriteableRegistry.register(AggregatorBuilder.class, AggregatorBuilder.getWriteableName(type), reader);
     }
 
@@ -452,11 +453,11 @@ public class SearchModule extends AbstractModule {
 
         SignificanceHeuristicParserMapper significanceHeuristicParserMapper = new SignificanceHeuristicParserMapper(heuristicParsers);
 
-        registerAggregatorParser(InternalAvg.TYPE, new AvgParser(), AvgAggregatorBuilder::new);
-        registerAggregatorParser(InternalSum.TYPE, new SumParser(), SumAggregatorBuilder::new);
-        registerAggregatorParser(InternalMin.TYPE, new MinParser(), MinAggregatorBuilder::new);
-        registerAggregatorParser(InternalMax.TYPE, new MaxParser(), MaxAggregatorBuilder::new);
-        registerAggregatorParser(InternalStats.TYPE, new StatsParser(), StatsAggregatorBuilder::new);
+        registerAggregatorParser(InternalAvg.TYPE, AvgAggregatorBuilder.PARSER, AvgAggregatorBuilder::new);
+        registerAggregatorParser(InternalSum.TYPE, SumAggregatorBuilder.PARSER, SumAggregatorBuilder::new);
+        registerAggregatorParser(InternalMin.TYPE, MinAggregatorBuilder.PARSER, MinAggregatorBuilder::new);
+        registerAggregatorParser(InternalMax.TYPE, MaxAggregatorBuilder.PARSER, MaxAggregatorBuilder::new);
+        registerAggregatorParser(InternalStats.TYPE, StatsAggregatorBuilder.PARSER, StatsAggregatorBuilder::new);
         registerAggregatorParser(InternalExtendedStats.TYPE, new ExtendedStatsParser(), ExtendedStatsAggregatorBuilder::new);
         registerAggregatorParser(InternalValueCount.TYPE, new ValueCountParser(), ValueCountAggregatorBuilder::new);
         registerAggregatorParser(InternalTDigestPercentiles.TYPE, new PercentilesParser(), PercentilesAggregatorBuilder::new);

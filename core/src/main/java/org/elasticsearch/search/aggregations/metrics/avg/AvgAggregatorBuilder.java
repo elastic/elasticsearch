@@ -21,8 +21,10 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.SimpleNumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -34,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class AvgAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregatorBuilder> {
+    public static Aggregator.Parser PARSER = new SimpleNumericValuesSourceParser(AvgAggregatorBuilder::new);
 
     public AvgAggregatorBuilder(String name) {
         super(name, InternalAvg.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);

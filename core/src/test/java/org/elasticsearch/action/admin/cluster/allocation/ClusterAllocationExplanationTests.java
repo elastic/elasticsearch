@@ -64,9 +64,10 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             nodeToDecisions.put(dn, d);
             nodeToWeight.put(dn, randomFloat());
         }
-        
+
+        long remainingDelay = randomIntBetween(0, 500);
         ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shard, true, "assignedNode", null,
-                nodeToDecisions, nodeToWeight);
+                nodeToDecisions, nodeToWeight, remainingDelay);
         BytesStreamOutput out = new BytesStreamOutput();
         cae.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes());
@@ -80,5 +81,6 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             assertEquals(nodeToDecisions.get(entry.getKey()), entry.getValue());
         }
         assertEquals(nodeToWeight, cae2.getNodeWeights());
+        assertEquals(remainingDelay, cae2.getRemainingDelayNanos());
     }
 }

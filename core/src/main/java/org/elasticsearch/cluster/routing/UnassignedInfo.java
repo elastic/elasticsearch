@@ -232,19 +232,27 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     }
 
     /**
+     * Calculates the delay left based on current time (in nanoseconds) and index/node settings.
+     *
+     * @return calculated delay in nanoseconds
+     */
+    public long getRemainingDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
+        final long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
+        if (delayTimeoutNanos == 0L) {
+            return 0L;
+        } else {
+            assert nanoTimeNow >= unassignedTimeNanos;
+            return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
+        }
+    }
+
+    /**
      * Updates delay left based on current time (in nanoseconds) and index/node settings.
      *
      * @return updated delay in nanoseconds
      */
     public long updateDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
-        long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
-        final long newComputedLeftDelayNanos;
-        if (delayTimeoutNanos == 0L) {
-            newComputedLeftDelayNanos = 0L;
-        } else {
-            assert nanoTimeNow >= unassignedTimeNanos;
-            newComputedLeftDelayNanos = Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
-        }
+        final long newComputedLeftDelayNanos = getRemainingDelay(nanoTimeNow, settings, indexSettings);
         lastComputedLeftDelayNanos = newComputedLeftDelayNanos;
         return newComputedLeftDelayNanos;
     }

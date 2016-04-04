@@ -1,11 +1,11 @@
 ==== Checking that Elasticsearch is running
 
 You can test that your Elasticsearch node is running by sending an HTTP
-request to port `9200` on `localhost`:
+request to port `9200` on `127.0.0.1`:
 
 [source,sh]
 --------------------------------------------
-curl locahost:9200
+curl 127.0.0.1:9200
 --------------------------------------------
 
 which should give you a response something like this:

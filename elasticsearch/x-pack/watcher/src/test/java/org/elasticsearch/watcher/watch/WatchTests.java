@@ -7,12 +7,14 @@ package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -350,8 +352,8 @@ public class WatchTests extends ESTestCase {
         Map<String, InputFactory> parsers = new HashMap<>();
         switch (input.type()) {
             case SearchInput.TYPE:
-            IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY,
-                    singletonMap("match_all", new MatchAllQueryParser()));
+                IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap(
+                        MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
             parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null));
             return new InputRegistry(parsers);
             default:
@@ -418,7 +420,7 @@ public class WatchTests extends ESTestCase {
 
     private TransformRegistry transformRegistry() {
         IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY,
-                singletonMap("match_all", new MatchAllQueryParser()));
+                singletonMap(MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
         Map<String, TransformFactory> factories = new HashMap<>();
         ChainTransformFactory parser = new ChainTransformFactory();
         factories.put(ChainTransform.TYPE, parser);

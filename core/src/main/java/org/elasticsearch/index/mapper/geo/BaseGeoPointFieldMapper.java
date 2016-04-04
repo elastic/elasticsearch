@@ -435,7 +435,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                           parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
                       } catch (ElasticsearchParseException e) {
                           if (ignoreMalformed.value() == false) {
-                            throw e;
+                              throw e;
                           }
                       }
                       token = context.parser().nextToken();
@@ -457,7 +457,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                                     parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
                                 } catch (ElasticsearchParseException e) {
                                     if (ignoreMalformed.value() == false) {
-                                      throw e;
+                                        throw e;
                                     }
                                 }
                             }
@@ -472,7 +472,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                     parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
                 } catch (ElasticsearchParseException e) {
                     if (ignoreMalformed.value() == false) {
-                      throw e;
+                        throw e;
                     }
                 }
             }

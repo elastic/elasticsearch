@@ -386,9 +386,9 @@ public class GeoUtils {
                             case VALUE_NUMBER:
                             case VALUE_STRING:
                                 try {
-                                  lat = parser.doubleValue(true);
+                                    lat = parser.doubleValue(true);
                                 } catch (NumberFormatException e) {
-                                  numberFormatException = e;
+                                    numberFormatException = e;
                                 }
                                 break;
                             default:
@@ -400,9 +400,9 @@ public class GeoUtils {
                             case VALUE_NUMBER:
                             case VALUE_STRING:
                                 try {
-                                  lon = parser.doubleValue(true);
+                                    lon = parser.doubleValue(true);
                                 } catch (NumberFormatException e) {
-                                  numberFormatException = e;
+                                    numberFormatException = e;
                                 }
                                 break;
                             default:
@@ -429,7 +429,8 @@ public class GeoUtils {
                     return point.resetFromGeoHash(geohash);
                 }
             } else if (numberFormatException != null) {
-                throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE, LONGITUDE);
+                throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE,
+                    LONGITUDE);
             } else if (Double.isNaN(lat)) {
                 throw new ElasticsearchParseException("field [{}] missing", LATITUDE);
             } else if (Double.isNaN(lon)) {

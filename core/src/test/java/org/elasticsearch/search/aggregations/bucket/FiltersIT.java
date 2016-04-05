@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.Filters;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
@@ -199,6 +200,32 @@ public class FiltersIT extends ESIntegTestCase {
         assertThat((String) propertiesKeys[1], equalTo("tag2"));
         assertThat((long) propertiesDocCounts[1], equalTo((long) numTag2Docs));
         assertThat((double) propertiesCounts[1], equalTo((double) sum / numTag2Docs));
+    }
+
+    public void testEmptyFilter() throws Exception {
+        QueryBuilder<?> emptyFilter = new EmptyQueryBuilder();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(filters("tag1", emptyFilter)).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Filters filter = response.getAggregations().get("tag1");
+        assertThat(filter, notNullValue());
+        assertThat(filter.getBuckets().size(), equalTo(1));
+        assertThat(filter.getBuckets().get(0).getDocCount(), equalTo((long) numDocs));
+    }
+
+    public void testEmptyKeyedFilter() throws Exception {
+        QueryBuilder<?> emptyFilter = new EmptyQueryBuilder();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(filters("tag1", new KeyedFilter("foo", emptyFilter)))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Filters filter = response.getAggregations().get("tag1");
+        assertThat(filter, notNullValue());
+        assertThat(filter.getBuckets().size(), equalTo(1));
+        assertThat(filter.getBuckets().get(0).getKey(), equalTo("foo"));
+        assertThat(filter.getBuckets().get(0).getDocCount(), equalTo((long) numDocs));
     }
 
     public void testAsSubAggregation() {

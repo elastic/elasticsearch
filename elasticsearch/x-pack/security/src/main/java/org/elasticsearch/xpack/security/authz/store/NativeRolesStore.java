@@ -30,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -53,8 +52,8 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.support.SelfReschedulingRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.ArrayList;
@@ -113,7 +112,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     private SecurityClient securityClient;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
-    private SelfReschedulingRunnable rolesPoller;
+    private Cancellable pollerCancellable;
 
     private volatile boolean securityIndexExists = false;
 
@@ -160,8 +159,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     logger.warn("failed to perform initial poll of roles index [{}]. scheduling again in [{}]", e,
                             SecurityTemplateService.SECURITY_INDEX_NAME, pollInterval);
                 }
-                rolesPoller = new SelfReschedulingRunnable(poller, threadPool, pollInterval, Names.GENERIC, logger);
-                rolesPoller.start();
+                pollerCancellable = threadPool.scheduleWithFixedDelay(poller, pollInterval, Names.GENERIC);
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -173,7 +171,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     public void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             try {
-                rolesPoller.stop();
+                pollerCancellable.cancel();
             } finally {
                 state.set(State.STOPPED);
             }

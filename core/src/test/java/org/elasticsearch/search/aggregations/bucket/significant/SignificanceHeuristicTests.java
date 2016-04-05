@@ -23,7 +23,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -32,7 +35,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -44,7 +49,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -102,7 +106,10 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
         // read
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-        InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
+        StreamInput in = new InputStreamStreamInput(inBuffer);
+        NamedWriteableRegistry registry = new NamedWriteableRegistry();
+        new SearchModule(Settings.EMPTY, registry); // populates the registry through side effects
+        in = new NamedWriteableAwareStreamInput(in, registry);
         in.setVersion(version);
         sigTerms[1].readFrom(in);
 
@@ -121,11 +128,10 @@ public class SignificanceHeuristicTests extends ESTestCase {
         ArrayList<InternalSignificantTerms.Bucket> buckets = new ArrayList<>();
         if (randomBoolean()) {
             buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY, null));
-            sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets,
+            sTerms[0] = new SignificantLongTerms(10, 20, "some_name", DocValueFormat.RAW, 1, 1, heuristic, buckets,
                     Collections.emptyList(), null);
             sTerms[1] = new SignificantLongTerms();
         } else {
-
             BytesRef term = new BytesRef("someterm");
             buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY));
             sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, Collections.emptyList(),
@@ -182,7 +188,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         if (type.equals("string")) {
             return new SignificantStringTerms(subsetSize, supersetSize, "sig_terms", 2, -1, significanceHeuristic, buckets, new ArrayList<PipelineAggregator>(), new HashMap<String, Object>());
         } else {
-            return new SignificantLongTerms(subsetSize, supersetSize, "sig_terms", ValueFormatter.RAW, 2, -1, significanceHeuristic, buckets, new ArrayList<PipelineAggregator>(), new HashMap<String, Object>());
+            return new SignificantLongTerms(subsetSize, supersetSize, "sig_terms", DocValueFormat.RAW, 2, -1, significanceHeuristic, buckets, new ArrayList<PipelineAggregator>(), new HashMap<String, Object>());
         }
     }
 
@@ -190,7 +196,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         if (type.equals("string")) {
             return new SignificantStringTerms.Bucket(new BytesRef(Long.toString(label).getBytes(StandardCharsets.UTF_8)), subsetDF, subsetSize, supersetDF, supersetSize, InternalAggregations.EMPTY);
         } else {
-            return new SignificantLongTerms.Bucket(subsetDF, subsetSize, supersetDF, supersetSize, label, InternalAggregations.EMPTY, ValueFormatter.RAW);
+            return new SignificantLongTerms.Bucket(subsetDF, subsetSize, supersetDF, supersetSize, label, InternalAggregations.EMPTY, DocValueFormat.RAW);
         }
     }
 

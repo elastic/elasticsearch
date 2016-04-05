@@ -55,7 +55,9 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -284,6 +286,18 @@ public class IpFieldMapper extends NumberFieldMapper {
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+            }
+            if (timeZone != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
+                    + "] does not support custom time zones");
+            }
+            return DocValueFormat.IP;
         }
     }
 

@@ -53,6 +53,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
@@ -495,6 +496,18 @@ public class DateFieldMapper extends NumberFieldMapper {
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+            FormatDateTimeFormatter dateTimeFormatter = this.dateTimeFormatter;
+            if (format != null) {
+                dateTimeFormatter = Joda.forPattern(format);
+            }
+            if (timeZone == null) {
+                timeZone = DateTimeZone.UTC;
+            }
+            return new DocValueFormat.DateTime(dateTimeFormatter, timeZone);
         }
     }
 

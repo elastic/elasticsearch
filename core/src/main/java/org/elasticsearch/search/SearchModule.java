@@ -276,6 +276,7 @@ public class SearchModule extends AbstractModule {
         registerBuiltinQueryParsers();
         registerBuiltinRescorers();
         registerBuiltinSorts();
+        registerBuiltinValueFormats();
     }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
@@ -312,6 +313,15 @@ public class SearchModule extends AbstractModule {
      */
     public ScoreFunctionsRegistry getScoreFunctionsRegistry() {
         return scoreFunctionsRegistry;
+    }
+
+    /**
+     * Register a new ValueFormat.
+     */
+    // private for now, we can consider making it public if there are actual use cases for plugins
+    // to register custom value formats
+    private void registerValueFormat(String name, Writeable.Reader<? extends DocValueFormat> reader) {
+        namedWriteableRegistry.register(DocValueFormat.class, name, reader);
     }
 
     /**
@@ -526,6 +536,15 @@ public class SearchModule extends AbstractModule {
         //weight doesn't have its own parser, so every function supports it out of the box.
         //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
         namedWriteableRegistry.register(ScoreFunctionBuilder.class, WeightBuilder.NAME, WeightBuilder::new);
+    }
+
+    private void registerBuiltinValueFormats() {
+        registerValueFormat(DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN);
+        registerValueFormat(DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new);
+        registerValueFormat(DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new);
+        registerValueFormat(DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
+        registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
+        registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
     }
 
     private void registerBuiltinQueryParsers() {

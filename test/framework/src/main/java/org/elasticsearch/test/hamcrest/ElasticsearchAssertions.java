@@ -56,9 +56,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -645,7 +647,9 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable) {
-        assertVersionSerializable(version, streamable, null);
+        NamedWriteableRegistry registry = new NamedWriteableRegistry();
+        new SearchModule(Settings.EMPTY, registry); // populates the registry through side effects
+        assertVersionSerializable(version, streamable, registry);
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable, NamedWriteableRegistry namedWriteableRegistry) {

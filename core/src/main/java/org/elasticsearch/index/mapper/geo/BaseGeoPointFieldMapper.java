@@ -25,6 +25,7 @@ import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -46,6 +47,8 @@ import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
+import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -344,6 +347,18 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             return new AbstractGeoPointDVIndexFieldData.Builder();
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+            }
+            if (timeZone != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
+                    + "] does not support custom time zones");
+            }
+            return DocValueFormat.GEOHASH;
         }
     }
 

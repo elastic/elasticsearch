@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.movavg;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -34,8 +35,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelStreams;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -65,7 +64,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private ValueFormatter formatter;
+    private DocValueFormat formatter;
     private GapPolicy gapPolicy;
     private int window;
     private MovAvgModel model;
@@ -75,7 +74,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
     public MovAvgPipelineAggregator() {
     }
 
-    public MovAvgPipelineAggregator(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy,
+    public MovAvgPipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter, GapPolicy gapPolicy,
                          int window, int predict, MovAvgModel model, boolean minimize, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
@@ -152,7 +151,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         if (buckets.size() > 0 && predict > 0) {
 
             boolean keyed;
-            ValueFormatter formatter;
+            DocValueFormat formatter;
             keyed = buckets.get(0).getKeyed();
             formatter = buckets.get(0).getFormatter();
 
@@ -251,7 +250,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        formatter = ValueFormatterStreams.readOptional(in);
+        formatter = in.readValueFormat();
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readVInt();
         predict = in.readVInt();
@@ -262,7 +261,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(formatter, out);
+        out.writeValueFormat(formatter);
         gapPolicy.writeTo(out);
         out.writeVInt(window);
         out.writeVInt(predict);

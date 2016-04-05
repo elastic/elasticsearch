@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -27,7 +28,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,16 +52,16 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
         protected long docCountError;
         protected InternalAggregations aggregations;
         protected boolean showDocCountError;
-        transient final ValueFormatter formatter;
+        transient final DocValueFormat format;
 
-        protected Bucket(ValueFormatter formatter, boolean showDocCountError) {
+        protected Bucket(DocValueFormat formatter, boolean showDocCountError) {
             // for serialization
             this.showDocCountError = showDocCountError;
-            this.formatter = formatter;
+            this.format = formatter;
         }
 
         protected Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
-                ValueFormatter formatter) {
+                DocValueFormat formatter) {
             this(formatter, showDocCountError);
             this.docCount = docCount;
             this.aggregations = aggregations;

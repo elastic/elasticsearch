@@ -47,6 +47,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -456,6 +457,19 @@ public abstract class MappedFieldType extends FieldType {
     public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
         checkIfFrozen();
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+    }
+
+    /** Return a {@link DocValueFormat} that can be used to display and parse
+     *  values as returned by the fielddata API.
+     *  The default implementation returns a {@link DocValueFormat#RAW}. */
+    public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+        }
+        if (timeZone != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
+        }
+        return DocValueFormat.RAW;
     }
 
 }

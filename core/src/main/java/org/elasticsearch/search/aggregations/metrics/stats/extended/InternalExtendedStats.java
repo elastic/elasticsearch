@@ -23,11 +23,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -68,7 +68,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     protected InternalExtendedStats() {} // for serialization
 
     public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
-            ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
@@ -155,7 +155,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         }
         final InternalStats stats = super.doReduce(aggregations, reduceContext);
         return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
-                valueFormatter, pipelineAggregators(), getMetaData());
+                format, pipelineAggregators(), getMetaData());
     }
 
     @Override
@@ -195,9 +195,9 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
                 .field(Fields.LOWER, count != 0 ? getStdDeviationBound(Bounds.LOWER) : null)
                 .endObject();
 
-        if (count != 0 && !(valueFormatter instanceof ValueFormatter.Raw)) {
-            builder.field(Fields.SUM_OF_SQRS_AS_STRING, valueFormatter.format(sumOfSqrs));
-            builder.field(Fields.VARIANCE_AS_STRING, valueFormatter.format(getVariance()));
+        if (count != 0 && format != DocValueFormat.RAW) {
+            builder.field(Fields.SUM_OF_SQRS_AS_STRING, format.format(sumOfSqrs));
+            builder.field(Fields.VARIANCE_AS_STRING, format.format(getVariance()));
             builder.field(Fields.STD_DEVIATION_AS_STRING, getStdDeviationAsString());
 
             builder.startObject(Fields.STD_DEVIATION_BOUNDS_AS_STRING)

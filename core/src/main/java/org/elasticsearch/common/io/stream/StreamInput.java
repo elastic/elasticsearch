@@ -37,6 +37,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -788,6 +789,13 @@ public abstract class StreamInput extends InputStream {
      */
     public Task.Status readTaskStatus() throws IOException {
         return readNamedWriteable(Task.Status.class);
+    }
+
+    /**
+     * Reads a {@link DocValueFormat} from the current stream.
+     */
+    public DocValueFormat readValueFormat() throws IOException {
+        return readNamedWriteable(DocValueFormat.class);
     }
 
     /**

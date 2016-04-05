@@ -28,7 +28,6 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -123,5 +122,22 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, alternateFormat);
         IOUtils.close(reader, w, dir);
+    }
+
+    public void testValueFormat() {
+        MappedFieldType ft = createDefaultFieldType();
+        long instant = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12T14:10:55").getMillis();
+        assertEquals("2015-10-12T14:10:55.000Z",
+                ft.docValueFormat(null, DateTimeZone.UTC).format(instant));
+        assertEquals("2015-10-12T15:10:55.000+01:00",
+                ft.docValueFormat(null, DateTimeZone.forOffsetHours(1)).format(instant));
+        assertEquals("2015",
+                createDefaultFieldType().docValueFormat("YYYY", DateTimeZone.UTC).format(instant));
+        assertEquals(instant,
+                ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", false, null));
+        assertEquals(instant,
+                ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", true, null));
+        assertEquals(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-13").getMillis() - 1,
+                ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12||/d", true, null));
     }
 }

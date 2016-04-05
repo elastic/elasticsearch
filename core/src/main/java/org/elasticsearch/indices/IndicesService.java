@@ -44,6 +44,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -141,6 +144,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final IndexStoreConfig indexStoreConfig;
     private final MapperRegistry mapperRegistry;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
     private final IndicesRequestCache indicesRequestCache;
@@ -156,7 +160,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
                           ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
                           IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
-                          ClusterService clusterService, MapperRegistry mapperRegistry, ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService) {
+                          ClusterService clusterService, MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
+                          ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -170,6 +175,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.indicesRequestCache = new IndicesRequestCache(settings);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING, indexStoreConfig::setRateLimitingType);
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, indexStoreConfig::setRateLimitingThrottle);
         indexingMemoryController = new IndexingMemoryController(settings, threadPool, Iterables.flatten(this));
@@ -981,7 +987,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (entity.loaded == false) { // if we have loaded this we don't need to do anything
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
-            result.readFromWithId(context.id(), bytesReference.streamInput());
+            StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
+            result.readFromWithId(context.id(), in);
             result.shardTarget(context.shardTarget());
         }
     }

@@ -9,6 +9,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.support.secret.SecretService;
 
 import javax.activation.CommandMap;
@@ -51,6 +52,12 @@ public class Account {
         });
     }
 
+    static final Settings DEFAULT_SMTP_TIMEOUT_SETTINGS = Settings.builder()
+            .put("connection_timeout", TimeValue.timeValueMinutes(2))
+            .put("write_timeout", TimeValue.timeValueMinutes(2))
+            .put("timeout", TimeValue.timeValueMinutes(2))
+            .build();
+
     private final Config config;
     private final SecretService secretService;
     private final ESLogger logger;
@@ -65,6 +72,10 @@ public class Account {
 
     public String name() {
         return config.name;
+    }
+
+    Config getConfig() {
+        return config;
     }
 
     public Email send(Email email, Authentication auth, Profile profile) throws MessagingException {
@@ -196,9 +207,11 @@ public class Account {
              * "unreadable" keys. We'll then use these settings when crea
              */
             static Properties loadSmtpProperties(Settings settings) {
-                Settings.Builder builder = Settings.builder().put(settings);
-                replace(builder, "connection_timeout", "connectiontimeout");
-                replace(builder, "write_timeout", "writetimeout");
+                Settings.Builder builder = Settings.builder().put(DEFAULT_SMTP_TIMEOUT_SETTINGS).put(settings);
+                replaceTimeValue(builder, "connection_timeout", "connectiontimeout");
+                replaceTimeValue(builder, "write_timeout", "writetimeout");
+                replaceTimeValue(builder, "timeout", "timeout");
+
                 replace(builder, "local_address", "localaddress");
                 replace(builder, "local_port", "localport");
                 replace(builder, "allow_8bitmime", "allow8bitmime");
@@ -224,6 +237,12 @@ public class Account {
                 }
             }
 
+            static void replaceTimeValue(Settings.Builder settings, String currentKey, String newKey) {
+                String value = settings.remove(currentKey);
+                if (value != null) {
+                    settings.put(newKey, TimeValue.parseTimeValue(value, currentKey).millis());
+                }
+            }
         }
 
         /**

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -145,8 +146,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return result;
     }
 
-    public long getBackgroundFrequency(long term) {
-        BytesRef indexedVal = fieldType.indexedValueForSearch(term);
+    public long getBackgroundFrequency(long value) {
+        Query query = fieldType.termQuery(value, null);
+        Term term = MappedFieldType.extractTerm(query);
+        BytesRef indexedVal = term.bytes();
         return getBackgroundFrequency(indexedVal);
     }
 
@@ -256,7 +259,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
                     SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
-                ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,

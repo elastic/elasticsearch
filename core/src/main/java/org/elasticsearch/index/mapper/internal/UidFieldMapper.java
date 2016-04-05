@@ -185,10 +185,6 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public Term term(String uid) {
-        return new Term(fieldType().name(), fieldType().indexedValueForSearch(uid));
-    }
-
     @Override
     protected String contentType() {
         return CONTENT_TYPE;

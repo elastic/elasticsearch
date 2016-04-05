@@ -204,7 +204,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            return queryStringTermQuery(createTerm(value));
+            return queryStringTermQuery(new Term(name(), indexedValueForSearch(value)));
         }
     }
 

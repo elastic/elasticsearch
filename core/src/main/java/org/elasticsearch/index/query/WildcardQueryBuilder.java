@@ -23,12 +23,12 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -172,19 +172,16 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        String indexFieldName;
-        BytesRef valueBytes;
-
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            indexFieldName = fieldType.name();
-            valueBytes = fieldType.indexedValueForSearch(value);
+        Term term;
+        if (fieldType == null) {
+            term = new Term(fieldName, BytesRefs.toBytesRef(value));
         } else {
-            indexFieldName = fieldName;
-            valueBytes = new BytesRef(value);
+            Query termQuery = fieldType.termQuery(value, context);
+            term = MappedFieldType.extractTerm(termQuery);
         }
 
-        WildcardQuery query = new WildcardQuery(new Term(indexFieldName, valueBytes));
+        WildcardQuery query = new WildcardQuery(term);
         MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
         QueryParsers.setRewriteMethod(query, rewriteMethod);
         return query;

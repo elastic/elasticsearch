@@ -20,9 +20,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -75,17 +75,15 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
 
     @Override
     protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
-        BytesRef valueBytes = null;
-        String fieldName = this.fieldName;
         MappedFieldType mapper = context.fieldMapper(fieldName);
-        if (mapper != null) {
-            fieldName = mapper.name();
-            valueBytes = mapper.indexedValueForSearch(value);
+        Term term;
+        if (mapper == null) {
+            term = new Term(fieldName, BytesRefs.toBytesRef(value));
+        } else {
+            Query termQuery = mapper.termQuery(value, context);
+            term = MappedFieldType.extractTerm(termQuery);
         }
-        if (valueBytes == null) {
-            valueBytes = BytesRefs.toBytesRef(this.value);
-        }
-        return new SpanTermQuery(new Term(fieldName, valueBytes));
+        return new SpanTermQuery(term);
     }
 
     public static SpanTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {

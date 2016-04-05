@@ -309,23 +309,19 @@ public abstract class MappedFieldType extends FieldType {
         return value;
     }
 
-    /** Returns the indexed value used to construct search "values". */
-    public BytesRef indexedValueForSearch(Object value) {
+    /** Returns the indexed value used to construct search "values".
+     *  This method is used for the default implementations of most
+     *  query factory methods such as {@link #termQuery}. */
+    protected BytesRef indexedValueForSearch(Object value) {
         return BytesRefs.toBytesRef(value);
     }
 
-    /**
-     * Creates a term associated with the field of this mapper for the given
-     * value. Its important to use termQuery when building term queries because
-     * things like ParentFieldMapper override it to make more interesting
-     * queries.
-     */
-    protected Term createTerm(Object value) {
-        return new Term(name(), indexedValueForSearch(value));
-    }
-
+    /** Generates a query that will only match documents that contain the given value.
+     *  The default implementation returns a {@link TermQuery} over the value bytes,
+     *  boosted by {@link #boost()}.
+     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type */
     public Query termQuery(Object value, @Nullable QueryShardContext context) {
-        TermQuery query = new TermQuery(createTerm(value));
+        TermQuery query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
         if (boost == 1f ||
             (context != null && context.indexVersionCreated().before(Version.V_5_0_0_alpha1))) {
             return query;
@@ -349,11 +345,12 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        return new FuzzyQuery(createTerm(value), fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
+        return new FuzzyQuery(new Term(name(), indexedValueForSearch(value)),
+                fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
     }
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-        PrefixQuery query = new PrefixQuery(createTerm(value));
+        PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -365,7 +362,7 @@ public abstract class MappedFieldType extends FieldType {
             throw new QueryShardException(context, "Cannot use regular expression to filter numeric field [" + name + "]");
         }
 
-        RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);
+        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -453,4 +450,19 @@ public abstract class MappedFieldType extends FieldType {
         return DocValueFormat.RAW;
     }
 
+    /**
+     * Extract a {@link Term} from a query created with {@link #termQuery} by
+     * recursively removing {@link BoostQuery} wrappers.
+     * @throws IllegalArgumentException if the wrapped query is not a {@link TermQuery}
+     */
+    public static Term extractTerm(Query termQuery) {
+        while (termQuery instanceof BoostQuery) {
+            termQuery = ((BoostQuery) termQuery).getQuery();
+        }
+        if (termQuery instanceof TermQuery == false) {
+            throw new IllegalArgumentException("Cannot extract a term from a query of type "
+                    + termQuery.getClass() + ": " + termQuery);
+        }
+        return ((TermQuery) termQuery).getTerm();
+    }
 }

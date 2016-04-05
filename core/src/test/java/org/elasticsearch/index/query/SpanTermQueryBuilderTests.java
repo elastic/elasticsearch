@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -44,8 +45,8 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         assertThat(spanTermQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
         MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (mapper != null) {
-            BytesRef bytesRef = mapper.indexedValueForSearch(queryBuilder.value());
-            assertThat(spanTermQuery.getTerm().bytes(), equalTo(bytesRef));
+            Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
+            assertThat(spanTermQuery.getTerm(), equalTo(term));
         } else {
             assertThat(spanTermQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
         }

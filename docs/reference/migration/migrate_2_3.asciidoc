@@ -11,6 +11,7 @@ your application to Elasticsearch 2.3.
 [float]
 === REST API
 
+[float]
 ==== CORS support broken in 2.3.0 and 2.3.1
 
 A change to the CORS implementation means that CORS support for pre-flight

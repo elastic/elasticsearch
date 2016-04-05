@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -773,15 +774,24 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
      * If the first condition fails we reject the cluster state and throw an error.
      * If the second condition fails we ignore the cluster state.
      */
-    static boolean shouldIgnoreOrRejectNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
+    @SuppressForbidden(reason = "debug")
+    public static boolean shouldIgnoreOrRejectNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
         validateStateIsFromCurrentMaster(logger, currentState.nodes(), newClusterState);
-        if (currentState.supersedes(newClusterState)) {
+
+        // reject cluster states that are not new from the same master
+        if (currentState.supersedes(newClusterState) ||
+                (newClusterState.nodes().getMasterNodeId().equals(currentState.nodes().getMasterNodeId()) && currentState.version() == newClusterState.version())) {
             // if the new state has a smaller version, and it has the same master node, then no need to process it
+            logger.debug("received a cluster state that is not newer than the current one, ignoring (received {}, current {})", newClusterState.version(), currentState.version());
+            return true;
+        }
+
+        // reject older cluster states if we are following a master
+        if (currentState.nodes().getMasterNodeId() != null && newClusterState.version() < currentState.version()) {
             logger.debug("received a cluster state that has a lower version than the current one, ignoring (received {}, current {})", newClusterState.version(), currentState.version());
             return true;
-        } else {
-            return false;
         }
+        return false;
     }
 
     /**

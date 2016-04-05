@@ -656,11 +656,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 expectThrows(IllegalStateException.class, () -> node.action.validateIncomingState(incomingState, node.clusterState));
         final String message = String.format(
                 Locale.ROOT,
-                "received cluster state from current master superseded by last seen cluster state; received version [%d] with uuid [%s], last seen version [%d] with uuid [%s]",
+                "rejecting cluster state version [%d] uuid [%s] received from [%s]",
                 incomingState.version(),
                 incomingState.stateUUID(),
-                node.clusterState.version(),
-                node.clusterState.stateUUID()
+                incomingState.nodes().getMasterNodeId()
         );
         assertThat(e, hasToString("java.lang.IllegalStateException: " + message));
 

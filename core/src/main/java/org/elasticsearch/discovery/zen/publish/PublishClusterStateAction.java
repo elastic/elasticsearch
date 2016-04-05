@@ -400,14 +400,25 @@ public class PublishClusterStateAction extends AbstractComponent {
             logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", incomingState.nodes().getMasterNode(), incomingClusterName);
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }
-        final DiscoveryNodes currentNodes = clusterStateSupplier.get().nodes();
+        final ClusterState clusterState = clusterStateSupplier.get();
 
-        if (currentNodes.getLocalNode().equals(incomingState.nodes().getLocalNode()) == false) {
+        if (clusterState.nodes().getLocalNode().equals(incomingState.nodes().getLocalNode()) == false) {
             logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", incomingState.nodes().getMasterNode());
             throw new IllegalStateException("received state with a local node that does not match the current local node");
         }
 
-        ZenDiscovery.validateStateIsFromCurrentMaster(logger, currentNodes, incomingState);
+        if (ZenDiscovery.shouldIgnoreOrRejectNewClusterState(logger, clusterState, incomingState)) {
+            String message = String.format(
+                    Locale.ROOT,
+                    "rejecting cluster state version [%d] uuid [%s] received from [%s]",
+                    incomingState.version(),
+                    incomingState.stateUUID(),
+                    incomingState.nodes().getMasterNodeId()
+            );
+            logger.warn(message);
+            throw new IllegalStateException(message);
+        }
+
         if (lastSeenClusterState != null && lastSeenClusterState.supersedes(incomingState)) {
             final String message = String.format(
                     Locale.ROOT,
@@ -422,20 +433,6 @@ public class PublishClusterStateAction extends AbstractComponent {
             throw new IllegalStateException(message);
         }
 
-        final ClusterState state = clusterStateSupplier.get();
-        if (state.nodes().getMasterNodeId() != null && incomingState.version() <= state.version()) {
-            assert !incomingState.stateUUID().equals(state.stateUUID());
-            final String message = String.format(
-                    Locale.ROOT,
-                    "received cluster state older than current cluster state; " +
-                            "received version [%d] with uuid [%s], current version [%d]",
-                    incomingState.version(),
-                    incomingState.stateUUID(),
-                    state.version()
-            );
-            logger.warn(message);
-            throw new IllegalStateException(message);
-        }
     }
 
     protected void handleCommitRequest(CommitClusterStateRequest request, final TransportChannel channel) {

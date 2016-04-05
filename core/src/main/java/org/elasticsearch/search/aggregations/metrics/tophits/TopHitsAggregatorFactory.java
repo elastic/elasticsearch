@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactory> {
 
@@ -54,12 +55,12 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final HighlightBuilder highlightBuilder;
     private final List<String> fieldNames;
     private final List<String> fieldDataFields;
-    private final List<ScriptField> scriptFields;
+    private final Set<ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
             List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, List<String> fieldNames, List<String> fieldDataFields,
-            List<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
+            Set<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.from = from;

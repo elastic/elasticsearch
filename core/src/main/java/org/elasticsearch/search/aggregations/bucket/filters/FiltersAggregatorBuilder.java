@@ -25,14 +25,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -57,6 +58,8 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
 
     private FiltersAggregatorBuilder(String name, List<KeyedFilter> filters) {
         super(name, InternalFilters.TYPE);
+        // internally we want to have a fixed order of filters, regardless of the order of the filters in the request
+        Collections.sort(filters);
         this.filters = filters;
         this.keyed = true;
     }

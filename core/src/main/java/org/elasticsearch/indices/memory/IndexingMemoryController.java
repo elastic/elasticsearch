@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
@@ -35,11 +34,12 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.concurrent.ScheduledFuture;
 
 public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> {
 
@@ -99,7 +99,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     private final TimeValue inactiveTime;
     private final TimeValue interval;
 
-    private volatile ScheduledFuture scheduler;
+    private volatile Cancellable scheduler;
 
     private static final EnumSet<IndexShardState> CAN_UPDATE_INDEX_BUFFER_STATES = EnumSet.of(
             IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
@@ -177,12 +177,12 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     @Override
     protected void doStart() {
         // it's fine to run it on the scheduler thread, no busy work
-        this.scheduler = threadPool.scheduleWithFixedDelay(statusChecker, interval);
+        this.scheduler = threadPool.scheduleWithFixedDelay(statusChecker, interval, Names.SAME);
     }
 
     @Override
     protected void doStop() {
-        FutureUtils.cancel(scheduler);
+        scheduler.cancel();
         scheduler = null;
     }
 

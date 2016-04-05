@@ -22,13 +22,13 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.ScheduledFuture;
 
 /**
  * Generic resource watcher service
@@ -71,9 +71,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     final ResourceMonitor mediumMonitor;
     final ResourceMonitor highMonitor;
 
-    private volatile ScheduledFuture lowFuture;
-    private volatile ScheduledFuture mediumFuture;
-    private volatile ScheduledFuture highFuture;
+    private volatile Cancellable lowFuture;
+    private volatile Cancellable mediumFuture;
+    private volatile Cancellable highFuture;
 
     @Inject
     public ResourceWatcherService(Settings settings, ThreadPool threadPool) {
@@ -100,9 +100,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         if (!enabled) {
             return;
         }
-        lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval);
-        mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval);
-        highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval);
+        lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, Names.SAME);
+        mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, Names.SAME);
+        highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, Names.SAME);
     }
 
     @Override
@@ -110,9 +110,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         if (!enabled) {
             return;
         }
-        FutureUtils.cancel(lowFuture);
-        FutureUtils.cancel(mediumFuture);
-        FutureUtils.cancel(highFuture);
+        lowFuture.cancel();
+        mediumFuture.cancel();
+        highFuture.cancel();
     }
 
     @Override

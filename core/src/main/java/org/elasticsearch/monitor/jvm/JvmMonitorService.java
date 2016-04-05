@@ -25,11 +25,11 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.Map;
-import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
@@ -45,7 +45,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     private final TimeValue interval;
     private final ImmutableMap<String, GcThreshold> gcThresholds;
 
-    private volatile ScheduledFuture scheduledFuture;
+    private volatile Cancellable cancellable;
 
     static class GcThreshold {
         public final String name;
@@ -112,7 +112,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         if (!enabled) {
             return;
         }
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(), interval);
+        cancellable = threadPool.scheduleWithFixedDelay(new JvmMonitor(), interval, Names.SAME);
     }
 
     @Override
@@ -120,7 +120,9 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         if (!enabled) {
             return;
         }
-        FutureUtils.cancel(scheduledFuture);
+        if (cancellable != null) {
+            cancellable.cancel();
+        }
     }
 
     @Override

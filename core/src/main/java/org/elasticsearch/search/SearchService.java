@@ -47,7 +47,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -103,6 +102,8 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -111,7 +112,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.Strings.hasLength;
@@ -153,7 +153,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private volatile TimeValue defaultSearchTimeout;
 
-    private final ScheduledFuture<?> keepAliveReaper;
+    private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
 
@@ -213,7 +213,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         elementParsers.put("stats", new StatsGroupsParseElement());
         this.elementParsers = ImmutableMap.copyOf(elementParsers);
 
-        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
+        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
 
         this.indicesWarmer.addListener(new NormsWarmer());
         this.indicesWarmer.addListener(new FieldDataWarmer());
@@ -257,7 +257,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     @Override
     protected void doClose() {
         doStop();
-        FutureUtils.cancel(keepAliveReaper);
+        keepAliveReaper.cancel();
     }
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) {

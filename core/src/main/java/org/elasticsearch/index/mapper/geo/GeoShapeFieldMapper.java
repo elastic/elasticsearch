@@ -60,7 +60,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenien
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
  * <p>
  * Currently Shapes can only be indexed and can only be queried using
- * {@link org.elasticsearch.index.query.GeoShapeQueryParser}, consequently
+ * {@link org.elasticsearch.index.query.GeoShapeQueryBuilder}, consequently
  * a lot of behavior in this Mapper is disabled.
  * <p>
  * Format supported:

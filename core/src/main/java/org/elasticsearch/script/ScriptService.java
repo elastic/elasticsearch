@@ -55,7 +55,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -364,7 +364,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         try {
             XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
             parser.nextToken();
-            Template template = TemplateQueryParser.parse(scriptLang, parser, parseFieldMatcher, "params", "script", "template");
+            Template template = TemplateQueryBuilder.parse(scriptLang, parser, parseFieldMatcher, "params", "script", "template");
             if (Strings.hasLength(template.getScript())) {
                 //Just try and compile it
                 try {

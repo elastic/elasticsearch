@@ -75,7 +75,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
 
     public static final PercolatorQueryBuilder PROTO = new PercolatorQueryBuilder(null, null, null, null, null, null, null, null);
 
-    private static final ParseField DOCUMENT_FIELD = new ParseField("document");
+    static final ParseField DOCUMENT_FIELD = new ParseField("document");
     private static final ParseField DOCUMENT_TYPE_FIELD = new ParseField("document_type");
     private static final ParseField INDEXED_DOCUMENT_FIELD_INDEX = new ParseField("index");
     private static final ParseField INDEXED_DOCUMENT_FIELD_TYPE = new ParseField("type");

@@ -40,13 +40,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
+import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<PercolatorQueryBuilder> {
 
-    private static final Set<String> SHUFFLE_PROTECTED_FIELDS =
-            Collections.singleton(PercolatorQueryParser.DOCUMENT_FIELD.getPreferredName());
+    private static final Set<String> SHUFFLE_PROTECTED_FIELDS = singleton(PercolatorQueryBuilder.DOCUMENT_FIELD.getPreferredName());
     private String indexedDocumentIndex;
     private String indexedDocumentType;
     private String indexedDocumentId;

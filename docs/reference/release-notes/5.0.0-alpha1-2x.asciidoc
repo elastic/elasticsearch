@@ -5,8 +5,6 @@ The changes listed below were first released in the 2.x series. Changes
 released for the first time in Elasticsearch 5.0.0-alpha1 are listed in
 <<release-notes-5.0.0-alpha1>>.
 
-
-
 [[breaking-5.0.0-alpha1-2x]]
 [float]
 === Breaking changes
@@ -59,7 +57,7 @@ Network::
 Plugin Analysis Phonetic::
 * Add support for `daitch_mokotoff` {pull}14834[#14834]
 
-Plugin Repository S3::
+Plugin Cloud AWS::
 * Add support for S3 storage class {pull}13656[#13656] (issue: {issue}13655[#13655])
 
 Plugins::
@@ -94,8 +92,6 @@ CAT API::
 * Add duration field to /_cat/snapshots {pull}14385[#14385]
 * Add cat API for repositories and snapshots {pull}14247[#14247] (issue: {issue}13919[#13919])
 * Adds disk used by indices to _cat/allocation {pull}13783[#13783] (issue: {issue}13529[#13529])
-
-CRUD::
 
 Cluster::
 * Shard state action request logging {pull}16396[#16396]
@@ -144,6 +140,7 @@ Index Templates::
 * Disallow index template pattern to be the same as an alias name {pull}15184[#15184] (issue: {issue}14842[#14842])
 
 Internal::
+* Implement available for all StreamInput classes {pull}17218[#17218]
 * Cleanup search sub transport actions and collapse o.e.action.search.type package into o.e.action.search {pull}16758[#16758] (issue: {issue}11710[#11710])
 * Simplify the Text API. {pull}15511[#15511]
 * Simpler using compressed oops flag representation {pull}15509[#15509] (issue: {issue}15489[#15489])
@@ -176,6 +173,7 @@ Internal::
 * Enable indy (invokedynamic) compile flag for Groovy scripts by default {pull}8201[#8201] (issue: {issue}8184[#8184])
 
 Java API::
+* Add created flag to IndexingOperationListener#postIndex {pull}17340[#17340] (issue: {issue}17333[#17333])
 * Align handling of interrupts in BulkProcessor {pull}15527[#15527] (issue: {issue}14833[#14833])
 * BulkProcessor backs off exponentially by default {pull}15513[#15513] (issue: {issue}14829[#14829])
 * Reject refresh usage in bulk items when using and fix NPE when no source {pull}15082[#15082] (issue: {issue}7361[#7361])
@@ -219,24 +217,24 @@ Packaging::
 * Remove java.lang.reflect.ReflectPermission "suppressAccessChecks" {pull}13603[#13603]
 * Remove JAVA_HOME detection from the debian init script {pull}13514[#13514] (issues: {issue}13403[#13403], {issue}9774[#9774])
 
+Plugin Cloud AWS::
+* Add ap-northeast-2 (seoul) endpoints for EC2 discovery and S3 snapshots {pull}16167[#16167] (issue: {issue}16166[#16166])
+* Add aws canned acl {pull}14297[#14297] (issue: {issue}14103[#14103])
+* Improved building of disco nodes {pull}14155[#14155]
+* Enable S3SignerType {pull}13360[#13360] (issue: {issue}13332[#13332])
+
+Plugin Cloud Azure::
+* Add support for secondary azure storage account {pull}13779[#13779] (issue: {issue}13228[#13228])
+
 Plugin Cloud GCE::
 * cloud-gce plugin should check `discovery.type` {pull}13809[#13809] (issue: {issue}13614[#13614])
 * Adding backoff from retries on GCE errors {pull}13671[#13671] (issue: {issue}13460[#13460])
 
 Plugin Discovery EC2::
-* Add ap-northeast-2 (seoul) endpoints for EC2 discovery and S3 snapshots {pull}16167[#16167] (issue: {issue}16166[#16166])
 * Adding US-Gov-West {pull}14358[#14358]
-* Improved building of disco nodes {pull}14155[#14155]
 
 Plugin Ingest Attachment::
 * Fix attachments plugins with docx {pull}17059[#17059] (issue: {issue}16864[#16864])
-
-Plugin Repository Azure::
-* Add support for secondary azure storage account {pull}13779[#13779] (issue: {issue}13228[#13228])
-
-Plugin Repository S3::
-* Add aws canned acl {pull}14297[#14297] (issue: {issue}14103[#14103])
-* Enable S3SignerType {pull}13360[#13360] (issue: {issue}13332[#13332])
 
 Plugins::
 * Expose http.type setting, and collapse al(most all) modules relating to transport/http {pull}15434[#15434] (issue: {issue}14148[#14148])
@@ -306,6 +304,8 @@ Tribe Node::
 === Bug fixes
 
 Aggregations::
+* Prevents exception being raised when ordering by an aggregation which wasn't collected {pull}17379[#17379] (issue: {issue}17225[#17225])
+* Setting 'other' bucket on empty aggregation {pull}17264[#17264] (issue: {issue}16546[#16546])
 * Build empty extended stats aggregation if no docs collected for bucket {pull}16972[#16972] (issues: {issue}16812[#16812], {issue}9544[#9544])
 * Set meta data for pipeline aggregations {pull}16516[#16516] (issue: {issue}16484[#16484])
 * Filter(s) aggregation should create weights only once. {pull}15998[#15998]
@@ -340,6 +340,7 @@ Bulk::
 * Do not release unacquired semaphore {pull}14909[#14909] (issue: {issue}14908[#14908])
 
 CAT API::
+* Fix column aliases in _cat/indices, _cat/nodes and _cat/shards APIs {pull}17145[#17145] (issue: {issue}17101[#17101])
 * Properly set indices and indicesOptions on subrequest made by /_cat/indices {pull}14360[#14360]
 
 CRUD::
@@ -459,8 +460,6 @@ Plugin Discovery GCE::
 Plugin Mapper Attachment::
 * Fix toXContent() for mapper attachments field {pull}15110[#15110]
 
-Plugin Repository Azure::
-
 Plugin Repository S3::
 * Hack around aws security hole of accessing sun.security.ssl, s3 repository works on java 9 again {pull}13538[#13538] (issue: {issue}432[#432])
 
@@ -515,6 +514,10 @@ Stats::
 * Fix calculation of age of pending tasks {pull}15995[#15995] (issue: {issue}15988[#15988])
 * Add extra validation into `cluster/stats` {pull}14699[#14699] (issue: {issue}7390[#7390])
 * Omit current* stats for OldShardStats {pull}13801[#13801] (issue: {issue}13386[#13386])
+
+Task Manager::
+* Fix TaskId#isSet to return true when id is set and not other way around {pull}17307[#17307]
+* Don't wait for completion of list tasks tasks when wait_for_completion flag is set {pull}17231[#17231]
 
 Translog::
 * Never delete translog-N.tlog file when creation fails {pull}15788[#15788]
@@ -579,22 +582,19 @@ Plugin Cloud AWS::
 * Update AWS SDK version to 1.10.19 {pull}13655[#13655] (issue: {issue}13656[#13656])
 
 Plugin Cloud Azure::
+* Upgrade Azure Storage client to 4.0.0 {pull}16084[#16084] (issues: {issue}12567[#12567], {issue}15080[#15080], {issue}15976[#15976])
 * Update Azure Service Management API to 0.9.0 {pull}15232[#15232] (issue: {issue}15209[#15209])
 
 Plugin Discovery Azure::
 * Upgrade azure SDK to 0.9.3 {pull}17102[#17102] (issues: {issue}17042[#17042], {issue}557[#557])
 
+Plugin Discovery EC2::
+* Upgrade to aws 1.10.33 {pull}14672[#14672]
+
 Plugin Lang JS::
 * upgrade rhino for plugins/lang-javascript {pull}14466[#14466]
 
-Plugin Repository Azure::
-* Upgrade Azure Storage client to 4.0.0 {pull}16084[#16084] (issues: {issue}12567[#12567], {issue}15080[#15080], {issue}15976[#15976])
-
-Plugin Repository S3::
-* Upgrade to aws 1.10.33 {pull}14672[#14672]
-
 Scripting::
 * Upgrade groovy dependency in lang-groovy module to version 2.4.6 {pull}16830[#16830] (issue: {issue}16527[#16527])
-
 
 

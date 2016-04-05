@@ -31,6 +31,7 @@ import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -214,18 +215,11 @@ public class CorsHandler extends SimpleChannelUpstreamHandler {
     }
 
     private void setAllowMethods(final HttpResponse response) {
-        Set<HttpMethod> methods = config.allowedRequestMethods();
-        Iterator<HttpMethod> iter = methods.iterator();
-        final int size = methods.size();
-        int count = 0;
-        StringBuilder buf = new StringBuilder();
-        while (iter.hasNext()) {
-            buf.append(iter.next().getName().trim());
-            if (++count < size) {
-                buf.append(", ");
-            }
+        Set<String> strMethods = new HashSet<>();
+        for (HttpMethod method : config.allowedRequestMethods()) {
+            strMethods.add(method.getName().trim());
         }
-        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, buf.toString());
+        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, strMethods);
     }
 
     private void setAllowHeaders(final HttpResponse response) {

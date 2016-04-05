@@ -162,7 +162,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
 import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsParser;
@@ -188,7 +187,6 @@ import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricPars
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregatorBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregatorBuilder;
@@ -454,13 +452,13 @@ public class SearchModule extends AbstractModule {
         registerAggregation(InternalMax.TYPE, MaxAggregatorBuilder.PARSER, MaxAggregatorBuilder::new);
         registerAggregation(InternalStats.TYPE, StatsAggregatorBuilder.PARSER, StatsAggregatorBuilder::new);
 
-        registerAggregation(InternalExtendedStats.TYPE, new ExtendedStatsParser(), ExtendedStatsAggregatorBuilder::new);
+        registerAggregation(InternalExtendedStats.TYPE, ExtendedStatsAggregatorBuilder.PARSER, ExtendedStatsAggregatorBuilder::new);
 
         registerAggregation(InternalValueCount.TYPE, ValueCountAggregatorBuilder.PARSER, ValueCountAggregatorBuilder::new);
 
         registerAggregation(InternalTDigestPercentiles.TYPE, new PercentilesParser(), PercentilesAggregatorBuilder::new);
         registerAggregation(InternalTDigestPercentileRanks.TYPE, new PercentileRanksParser(), PercentileRanksAggregatorBuilder::new);
-        registerAggregation(InternalCardinality.TYPE, new CardinalityParser(), CardinalityAggregatorBuilder::new);
+        registerAggregation(InternalCardinality.TYPE, CardinalityAggregatorBuilder.PARSER, CardinalityAggregatorBuilder::new);
 
         registerAggregation(InternalGlobal.TYPE, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder::new);
         registerAggregation(InternalMissing.TYPE, MissingAggregatorBuilder.PARSER, MissingAggregatorBuilder::new);

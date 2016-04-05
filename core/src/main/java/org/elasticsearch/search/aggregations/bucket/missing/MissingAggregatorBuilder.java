@@ -37,8 +37,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, MissingAggregatorBuilder> {
-    public static final Aggregator.Parser PARSER = ValueSourceParser.builder(InternalMissing.TYPE).build(MissingAggregatorBuilder::new);
-
     public MissingAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
     }
@@ -70,6 +68,8 @@ public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
+
+    public static final Aggregator.Parser PARSER = ValueSourceParser.build(MissingAggregatorBuilder::new, InternalMissing.TYPE);
 
     @Override
     protected int innerHashCode() {

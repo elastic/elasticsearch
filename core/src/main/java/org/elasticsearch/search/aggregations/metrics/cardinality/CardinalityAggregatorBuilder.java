@@ -23,9 +23,11 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
@@ -35,12 +37,16 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, CardinalityAggregatorBuilder> {
-    public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
+    private static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
     private Long precisionThreshold = null;
 
     public CardinalityAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalCardinality.TYPE, ValuesSourceType.ANY, targetValueType);
+    }
+
+    private CardinalityAggregatorBuilder(String name) {
+        this(name, null);
     }
 
     /**
@@ -107,6 +113,11 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
         }
         return builder;
     }
+
+    public static final Aggregator.Parser PARSER = ValueSourceParser.builder(CardinalityAggregatorBuilder::new, InternalCardinality.TYPE)
+            .custom((p) -> {
+                p.declareLong(CardinalityAggregatorBuilder::precisionThreshold, PRECISION_THRESHOLD_FIELD);
+            }).build();
 
     @Override
     protected int innerHashCode() {

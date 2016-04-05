@@ -22,10 +22,12 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
@@ -137,6 +139,13 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
         }
         return builder;
     }
+
+    public static final Aggregator.Parser PARSER = ValueSourceParser.builder(DiversifiedAggregatorBuilder::new, TYPE)
+            .custom((p) -> {
+                p.declareInt(DiversifiedAggregatorBuilder::shardSize, SamplerAggregator.SHARD_SIZE_FIELD);
+                p.declareInt(DiversifiedAggregatorBuilder::maxDocsPerValue, SamplerAggregator.MAX_DOCS_PER_VALUE_FIELD);
+                p.declareString(DiversifiedAggregatorBuilder::executionHint, SamplerAggregator.EXECUTION_HINT_FIELD);
+            }).build();
 
     @Override
     protected int innerHashCode() {

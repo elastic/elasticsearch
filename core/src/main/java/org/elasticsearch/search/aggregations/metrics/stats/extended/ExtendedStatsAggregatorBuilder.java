@@ -22,22 +22,23 @@ package org.elasticsearch.search.aggregations.metrics.stats.extended;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class ExtendedStatsAggregatorBuilder
         extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, ExtendedStatsAggregatorBuilder> {
-
     private double sigma = 2.0;
 
     public ExtendedStatsAggregatorBuilder(String name) {
@@ -81,6 +82,11 @@ public class ExtendedStatsAggregatorBuilder
         builder.field(ExtendedStatsAggregator.SIGMA_FIELD.getPreferredName(), sigma);
         return builder;
     }
+
+    public static final Aggregator.Parser PARSER = ValueSourceParser
+            .builder(ExtendedStatsAggregatorBuilder::new, InternalExtendedStats.TYPE).custom((p) -> {
+                p.declareDouble(ExtendedStatsAggregatorBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
+            }).build();
 
     @Override
     protected int innerHashCode() {

@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
+import static java.lang.Math.abs;
+
 public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregatorBuilder> {
 
     @Override
@@ -43,6 +45,9 @@ public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggrega
         }
         if (randomBoolean()) {
             factory.missing("MISSING");
+        }
+        if (usually()) {
+            factory.precisionThreshold(abs(randomLong()));
         }
         return factory;
     }

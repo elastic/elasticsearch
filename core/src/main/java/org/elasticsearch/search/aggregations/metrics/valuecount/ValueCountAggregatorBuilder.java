@@ -37,9 +37,6 @@ import java.io.IOException;
 
 public class ValueCountAggregatorBuilder
         extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, ValueCountAggregatorBuilder> {
-    public static final Aggregator.Parser PARSER = ValueSourceParser.builder(InternalValueCount.TYPE)
-            .build(ValueCountAggregatorBuilder::new);
-
     public ValueCountAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalValueCount.TYPE, ValuesSourceType.ANY, targetValueType);
     }
@@ -71,6 +68,8 @@ public class ValueCountAggregatorBuilder
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
+
+    public static final Aggregator.Parser PARSER = ValueSourceParser.build(ValueCountAggregatorBuilder::new, InternalValueCount.TYPE);
 
     @Override
     protected int innerHashCode() {

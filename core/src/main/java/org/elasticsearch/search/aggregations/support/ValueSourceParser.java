@@ -29,22 +29,38 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class ValueSourceParser implements Aggregator.Parser {
+public class ValueSourceParser<B extends ValuesSourceAggregatorBuilder<?, ?>> implements Aggregator.Parser {
     /**
      * Start building a new ValueSourceParser. It will be formattable and scriptable and not time zone aware by default but those can be
      * flipped by calling builder methods.
      */
-    public static Builder builder(InternalAggregation.Type type) {
-        return new Builder(new ObjectParser<>(type.name()));
+    public static <B extends ValuesSourceAggregatorBuilder<?, ?>> Builder<B> builder(Function<String, B> builderBuilder,
+            InternalAggregation.Type type) {
+        return new Builder<>(builderBuilder, new ObjectParser<>(type.name()));
     }
-    public static class Builder {
-        private final ObjectParser<ValuesSourceAggregatorBuilder<?, ?>, QueryParseContext> objectParser;
+
+    /**
+     * Build a ValueSourceParser with all the defaults.
+     */
+    public static <B extends ValuesSourceAggregatorBuilder<?, ?>> ValueSourceParser<B> build(Function<String, B> builderBuilder,
+            InternalAggregation.Type type) {
+        return builder(builderBuilder, type).build();
+    }
+
+    /**
+     * Builds ValueSourceParsers. That's right. It is a builder parser builder.
+     */
+    public static class Builder<B extends ValuesSourceAggregatorBuilder<?, ?>> {
+        private final Function<String, B> builderBuilder;
+        private final ObjectParser<B, QueryParseContext> objectParser;
         private boolean formattable = true;
         private boolean scriptable = true;
 
-        private Builder(ObjectParser<ValuesSourceAggregatorBuilder<?, ?>, QueryParseContext> objectParser) {
+        private Builder(Function<String, B> builderBuilder, ObjectParser<B, QueryParseContext> objectParser) {
+            this.builderBuilder = builderBuilder;
             this.objectParser = objectParser;
             objectParser.declareString(ValuesSourceAggregatorBuilder::field, FIELD);
             objectParser.declareField((parser, builder, context) -> builder.missing(parser.objectText()), MISSING,
@@ -58,7 +74,15 @@ public class ValueSourceParser implements Aggregator.Parser {
             }, VALUE_TYPE);
         }
 
-        public ValueSourceParser build(Function<String, ? extends ValuesSourceAggregatorBuilder<?, ?>> builderBuilder) {
+        /**
+         * Customize the ObjectParser for this Builder.
+         */
+        public Builder<B> custom(Consumer<ObjectParser<B, QueryParseContext>> customizer) {
+            customizer.accept(objectParser);
+            return this;
+        }
+
+        public ValueSourceParser<B> build() {
             if (formattable) {
                 objectParser.declareString(ValuesSourceAggregatorBuilder::format, FORMAT);
             }
@@ -66,13 +90,13 @@ public class ValueSourceParser implements Aggregator.Parser {
                 objectParser.declareField((p, v, c) -> v.script(Script.parse(p, c.parseFieldMatcher())),
                         ScriptField.SCRIPT, ObjectParser.ValueType.OBJECT);
             }
-            return new ValueSourceParser(builderBuilder, objectParser);
+            return new ValueSourceParser<B>(builderBuilder, objectParser);
         }
 
         /**
          * The aggregation supports a "time_zone" field.
          */
-        public Builder timeZoneAware() {
+        public Builder<B> timeZoneAware() {
             objectParser.declareTimeZone(ValuesSourceAggregatorBuilder::timeZone, TIME_ZONE);
             return this;
         }
@@ -80,7 +104,7 @@ public class ValueSourceParser implements Aggregator.Parser {
         /**
          * The aggregation doesn't support a "format" field.
          */
-        public Builder notFormattable() {
+        public Builder<B> notFormattable() {
             formattable = false;
             return this;
         }
@@ -88,7 +112,7 @@ public class ValueSourceParser implements Aggregator.Parser {
         /**
          * The aggregation doesn't support a "script" object.
          */
-        public Builder notScriptable() {
+        public Builder<B> notScriptable() {
             scriptable = false;
             return this;
         }
@@ -100,11 +124,10 @@ public class ValueSourceParser implements Aggregator.Parser {
     private static final ParseField FORMAT = new ParseField("format");
     private static final ParseField VALUE_TYPE = new ParseField("value_type");
     
-    private final Function<String, ? extends ValuesSourceAggregatorBuilder<?, ?>> builderBuilder;
-    private final ObjectParser<ValuesSourceAggregatorBuilder<?, ?>, QueryParseContext> objectParser;
+    private final Function<String, B> builderBuilder;
+    private final ObjectParser<B, QueryParseContext> objectParser;
 
-    public ValueSourceParser(Function<String, ? extends ValuesSourceAggregatorBuilder<?, ?>> builderBuilder,
-            ObjectParser<ValuesSourceAggregatorBuilder<?, ?>, QueryParseContext> objectParser) {
+    public ValueSourceParser(Function<String, B> builderBuilder, ObjectParser<B, QueryParseContext> objectParser) {
         this.builderBuilder = builderBuilder;
         this.objectParser = objectParser;
     }

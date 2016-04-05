@@ -36,8 +36,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class MinAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, MinAggregatorBuilder> {
-    public static final Aggregator.Parser PARSER = ValueSourceParser.builder(InternalMin.TYPE).build(MinAggregatorBuilder::new);
-
     public MinAggregatorBuilder(String name) {
         super(name, InternalMin.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
@@ -59,6 +57,8 @@ public class MinAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
+
+    public static final Aggregator.Parser PARSER = ValueSourceParser.build(MinAggregatorBuilder::new, InternalMin.TYPE);
 
     @Override
     protected int innerHashCode() {

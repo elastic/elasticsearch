@@ -36,8 +36,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class AvgAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregatorBuilder> {
-    public static final Aggregator.Parser PARSER = ValueSourceParser.builder(InternalAvg.TYPE).build(AvgAggregatorBuilder::new);
-
     public AvgAggregatorBuilder(String name) {
         super(name, InternalAvg.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
@@ -59,6 +57,8 @@ public class AvgAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
+
+    public static final Aggregator.Parser PARSER = ValueSourceParser.build(AvgAggregatorBuilder::new, InternalAvg.TYPE);
 
     @Override
     protected int innerHashCode() {

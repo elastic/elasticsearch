@@ -87,6 +87,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     private final Map<String, String> attributes;
     private final Version version;
     private final Set<Role> roles;
+    private final String toString;
 
     /**
      * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
@@ -114,6 +115,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
             this.roles.add(Role.values()[ordinal]);
         }
         this.version = Version.readVersion(in);
+        this.toString = toString(this.nodeName, this.nodeId, this.hostName, this.address, this.attributes);
     }
 
     /**
@@ -202,6 +204,33 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         Set<Role> rolesSet = EnumSet.noneOf(Role.class);
         rolesSet.addAll(roles);
         this.roles = Collections.unmodifiableSet(rolesSet);
+        this.toString = toString(this.nodeName, this.nodeId, this.hostName, this.address, this.attributes);
+    }
+
+    private static String toString(
+            final String nodeName,
+            final String nodeId,
+            final String hostName,
+            final TransportAddress address,
+            final Map<String, String> attributes
+    ) {
+        StringBuilder sb = new StringBuilder();
+        if (nodeName.length() > 0) {
+            sb.append('{').append(nodeName).append('}');
+        }
+        if (nodeId != null) {
+            sb.append('{').append(nodeId).append('}');
+        }
+        if (Strings.hasLength(hostName)) {
+            sb.append('{').append(hostName).append('}');
+        }
+        if (address != null) {
+            sb.append('{').append(address).append('}');
+        }
+        if (!attributes.isEmpty()) {
+            sb.append(attributes);
+        }
+        return sb.toString();
     }
 
     /**
@@ -312,29 +341,8 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return nodeId.hashCode();
     }
 
-    private String toString;
-
     @Override
     public String toString() {
-        if (toString == null) {
-            StringBuilder sb = new StringBuilder();
-            if (nodeName.length() > 0) {
-                sb.append('{').append(nodeName).append('}');
-            }
-            if (nodeId != null) {
-                sb.append('{').append(nodeId).append('}');
-            }
-            if (Strings.hasLength(hostName)) {
-                sb.append('{').append(hostName).append('}');
-            }
-            if (address != null) {
-                sb.append('{').append(address).append('}');
-            }
-            if (!attributes.isEmpty()) {
-                sb.append(attributes);
-            }
-            toString = sb.toString();
-        }
         return toString;
     }
 

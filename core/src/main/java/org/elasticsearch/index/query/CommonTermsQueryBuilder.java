@@ -29,10 +29,13 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -56,14 +59,23 @@ import java.util.Objects;
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
 
     public static final String NAME = "common";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+    public static final CommonTermsQueryBuilder PROTOTYPE = new CommonTermsQueryBuilder("field", "text");
 
     public static final float DEFAULT_CUTOFF_FREQ = 0.01f;
-
     public static final Operator DEFAULT_HIGH_FREQ_OCCUR = Operator.OR;
-
     public static final Operator DEFAULT_LOW_FREQ_OCCUR = Operator.OR;
-
     public static final boolean DEFAULT_DISABLE_COORD = true;
+
+    private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
+    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
+    private static final ParseField LOW_FREQ_OPERATOR_FIELD = new ParseField("low_freq_operator");
+    private static final ParseField HIGH_FREQ_OPERATOR_FIELD = new ParseField("high_freq_operator");
+    private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord");
+    private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField HIGH_FREQ_FIELD = new ParseField("high_freq");
+    private static final ParseField LOW_FREQ_FIELD = new ParseField("low_freq");
 
     private final String fieldName;
 
@@ -82,8 +94,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     private boolean disableCoord = DEFAULT_DISABLE_COORD;
 
     private float cutoffFrequency = DEFAULT_CUTOFF_FREQ;
-
-    static final CommonTermsQueryBuilder PROTOTYPE = new CommonTermsQueryBuilder("field", "text");
 
     /**
      * Constructs a new common terms query.
@@ -202,27 +212,128 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(CommonTermsQueryParser.QUERY_FIELD.getPreferredName(), text);
-        builder.field(CommonTermsQueryParser.DISABLE_COORD_FIELD.getPreferredName(), disableCoord);
-        builder.field(CommonTermsQueryParser.HIGH_FREQ_OPERATOR_FIELD.getPreferredName(), highFreqOperator.toString());
-        builder.field(CommonTermsQueryParser.LOW_FREQ_OPERATOR_FIELD.getPreferredName(), lowFreqOperator.toString());
+        builder.field(QUERY_FIELD.getPreferredName(), text);
+        builder.field(DISABLE_COORD_FIELD.getPreferredName(), disableCoord);
+        builder.field(HIGH_FREQ_OPERATOR_FIELD.getPreferredName(), highFreqOperator.toString());
+        builder.field(LOW_FREQ_OPERATOR_FIELD.getPreferredName(), lowFreqOperator.toString());
         if (analyzer != null) {
-            builder.field(CommonTermsQueryParser.ANALYZER_FIELD.getPreferredName(), analyzer);
+            builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field(CommonTermsQueryParser.CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
+        builder.field(CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
         if (lowFreqMinimumShouldMatch != null || highFreqMinimumShouldMatch != null) {
-            builder.startObject(CommonTermsQueryParser.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName());
+            builder.startObject(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName());
             if (lowFreqMinimumShouldMatch != null) {
-                builder.field(CommonTermsQueryParser.LOW_FREQ_FIELD.getPreferredName(), lowFreqMinimumShouldMatch);
+                builder.field(LOW_FREQ_FIELD.getPreferredName(), lowFreqMinimumShouldMatch);
             }
             if (highFreqMinimumShouldMatch != null) {
-                builder.field(CommonTermsQueryParser.HIGH_FREQ_FIELD.getPreferredName(), highFreqMinimumShouldMatch);
+                builder.field(HIGH_FREQ_FIELD.getPreferredName(), highFreqMinimumShouldMatch);
             }
             builder.endObject();
         }
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
+    }
+
+    public static CommonTermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        XContentParser.Token token = parser.nextToken();
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] query malformed, no field");
+        }
+        String fieldName = parser.currentName();
+        Object text = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String analyzer = null;
+        String lowFreqMinimumShouldMatch = null;
+        String highFreqMinimumShouldMatch = null;
+        boolean disableCoord = CommonTermsQueryBuilder.DEFAULT_DISABLE_COORD;
+        Operator highFreqOperator = CommonTermsQueryBuilder.DEFAULT_HIGH_FREQ_OCCUR;
+        Operator lowFreqOperator = CommonTermsQueryBuilder.DEFAULT_LOW_FREQ_OCCUR;
+        float cutoffFrequency = CommonTermsQueryBuilder.DEFAULT_CUTOFF_FREQ;
+        String queryName = null;
+        token = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
+                        String innerFieldName = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                innerFieldName = parser.currentName();
+                            } else if (token.isValue()) {
+                                if (parseContext.parseFieldMatcher().match(innerFieldName, LOW_FREQ_FIELD)) {
+                                    lowFreqMinimumShouldMatch = parser.text();
+                                } else if (parseContext.parseFieldMatcher().match(innerFieldName, HIGH_FREQ_FIELD)) {
+                                    highFreqMinimumShouldMatch = parser.text();
+                                } else {
+                                    throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
+                                            "] query does not support [" + innerFieldName
+                                            + "] for [" + currentFieldName + "]");
+                                }
+                            } else {
+                                throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
+                                        "] unexpected token type [" + token
+                                        + "] after [" + innerFieldName + "]");
+                            }
+                        }
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
+                                "] query does not support [" + currentFieldName + "]");
+                    }
+                } else if (token.isValue()) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                        text = parser.objectText();
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
+                        analyzer = parser.text();
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, DISABLE_COORD_FIELD)) {
+                        disableCoord = parser.booleanValue();
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        boost = parser.floatValue();
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGH_FREQ_OPERATOR_FIELD)) {
+                        highFreqOperator = Operator.fromString(parser.text());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOW_FREQ_OPERATOR_FIELD)) {
+                        lowFreqOperator = Operator.fromString(parser.text());
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
+                        lowFreqMinimumShouldMatch = parser.text();
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, CUTOFF_FREQUENCY_FIELD)) {
+                        cutoffFrequency = parser.floatValue();
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        queryName = parser.text();
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
+                                "] query does not support [" + currentFieldName + "]");
+                    }
+                }
+            }
+            parser.nextToken();
+        } else {
+            text = parser.objectText();
+            // move to the next token
+            token = parser.nextToken();
+            if (token != XContentParser.Token.END_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "[common] query parsed in simplified form, with direct field name, but included more options than just " +
+                                "the field name, possibly use its 'options' form, with 'query' element?");
+            }
+        }
+
+        if (text == null) {
+            throw new ParsingException(parser.getTokenLocation(), "No text specified for text query");
+        }
+        return new CommonTermsQueryBuilder(fieldName, text)
+                .lowFreqMinimumShouldMatch(lowFreqMinimumShouldMatch)
+                .highFreqMinimumShouldMatch(highFreqMinimumShouldMatch)
+                .analyzer(analyzer)
+                .highFreqOperator(highFreqOperator)
+                .lowFreqOperator(lowFreqOperator)
+                .disableCoord(disableCoord)
+                .cutoffFrequency(cutoffFrequency)
+                .boost(boost)
+                .queryName(queryName);
     }
 
     @Override

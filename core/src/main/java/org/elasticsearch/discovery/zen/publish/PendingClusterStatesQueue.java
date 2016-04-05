@@ -164,10 +164,11 @@ public class PendingClusterStatesQueue {
                             currentMaster
                     );
                 }
+            } else if (pendingState.stateUUID().equals(state.stateUUID())) {
+                assert pendingContext.committed() : "processed cluster state is not committed " + state;
+                contextsToRemove.add(pendingContext);
+                pendingContext.listener.onNewClusterStateProcessed();
             } else if (state.version() >= pendingState.version()) {
-                assert state.supersedes(pendingState) || (
-                        state.nodes().getMasterNodeId() != null &&
-                                state.nodes().getMasterNodeId().equals(pendingState.nodes().getMasterNodeId()));
                 logger.trace("processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
                         pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
                 );
@@ -175,10 +176,6 @@ public class PendingClusterStatesQueue {
                 if (pendingContext.committed()) {
                     pendingContext.listener.onNewClusterStateProcessed();
                 }
-            } else if (pendingState.stateUUID().equals(state.stateUUID())) {
-                assert pendingContext.committed() : "processed cluster state is not committed " + state;
-                contextsToRemove.add(pendingContext);
-                pendingContext.listener.onNewClusterStateProcessed();
             }
         }
         // now ack the processed state

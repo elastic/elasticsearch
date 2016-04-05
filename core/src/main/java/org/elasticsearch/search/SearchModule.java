@@ -29,7 +29,6 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.percolator.PercolatorHighlightSubFetchPhase;
 import org.elasticsearch.index.query.BoolQueryParser;
@@ -38,33 +37,29 @@ import org.elasticsearch.index.query.CommonTermsQueryParser;
 import org.elasticsearch.index.query.ConstantScoreQueryParser;
 import org.elasticsearch.index.query.DisMaxQueryParser;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
-import org.elasticsearch.index.query.ExistsQueryParser;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.FieldMaskingSpanQueryParser;
 import org.elasticsearch.index.query.FuzzyQueryParser;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
-import org.elasticsearch.index.query.GeoBoundingBoxQueryParser;
-import org.elasticsearch.index.query.GeoDistanceQueryParser;
-import org.elasticsearch.index.query.GeoDistanceRangeQueryParser;
-import org.elasticsearch.index.query.GeoPolygonQueryParser;
-import org.elasticsearch.index.query.GeoShapeQueryParser;
+import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
+import org.elasticsearch.index.query.GeoDistanceRangeQueryBuilder;
+import org.elasticsearch.index.query.GeoPolygonQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.HasChildQueryParser;
 import org.elasticsearch.index.query.HasParentQueryParser;
 import org.elasticsearch.index.query.IdsQueryParser;
 import org.elasticsearch.index.query.IndicesQueryParser;
 import org.elasticsearch.index.query.MatchAllQueryParser;
-import org.elasticsearch.index.query.MatchNoneQueryParser;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryParser;
-import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryParser;
-import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryParser;
 import org.elasticsearch.index.query.ParentIdQueryBuilder;
-import org.elasticsearch.index.query.ParentIdQueryParser;
-import org.elasticsearch.index.query.PercolatorQueryParser;
+import org.elasticsearch.index.query.PercolatorQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -72,8 +67,8 @@ import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryStringQueryParser;
 import org.elasticsearch.index.query.RangeQueryParser;
 import org.elasticsearch.index.query.RegexpQueryParser;
-import org.elasticsearch.index.query.ScriptQueryParser;
-import org.elasticsearch.index.query.SimpleQueryStringParser;
+import org.elasticsearch.index.query.ScriptQueryBuilder;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SpanContainingQueryParser;
 import org.elasticsearch.index.query.SpanFirstQueryParser;
 import org.elasticsearch.index.query.SpanMultiTermQueryParser;
@@ -82,11 +77,10 @@ import org.elasticsearch.index.query.SpanNotQueryParser;
 import org.elasticsearch.index.query.SpanOrQueryParser;
 import org.elasticsearch.index.query.SpanTermQueryParser;
 import org.elasticsearch.index.query.SpanWithinQueryParser;
-import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.index.query.TermsQueryParser;
 import org.elasticsearch.index.query.TypeQueryBuilder;
-import org.elasticsearch.index.query.TypeQueryParser;
 import org.elasticsearch.index.query.WildcardQueryParser;
 import org.elasticsearch.index.query.WrapperQueryParser;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -235,16 +229,11 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
-import org.elasticsearch.search.suggest.completion.FuzzyOptions;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  *
@@ -558,21 +547,30 @@ public class SearchModule extends AbstractModule {
         QueryParser<FunctionScoreQueryBuilder> functionScoreParser = (QueryParseContext c) -> FunctionScoreQueryBuilder
                 .fromXContent((String name) -> functionScoreParsers.get(name), c);
         registerQuery(FunctionScoreQueryBuilder.PROTOTYPE::readFrom, functionScoreParser, FunctionScoreQueryBuilder.QUERY_NAME_FIELD);
-        registerQueryParser(new SimpleQueryStringParser(), SimpleQueryStringParser.QUERY_NAME_FIELD);
-        registerQueryParser(new TemplateQueryParser(), TemplateQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new TypeQueryParser(), TypeQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new ScriptQueryParser(), ScriptQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new GeoDistanceQueryParser(), GeoDistanceQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new GeoDistanceRangeQueryParser(), GeoDistanceRangeQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new GeoBoundingBoxQueryParser(), GeoBoundingBoxQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new GeohashCellQuery.Parser(), GeohashCellQuery.Parser.QUERY_NAME_FIELD);
-        registerQueryParser(new GeoPolygonQueryParser(), GeoPolygonQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new ExistsQueryParser(), ExistsQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new MatchNoneQueryParser(), MatchNoneQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new ParentIdQueryParser(), ParentIdQueryParser.QUERY_NAME_FIELD);
-        registerQueryParser(new PercolatorQueryParser(), PercolatorQueryParser.QUERY_NAME_FIELD);
+        registerQuery(SimpleQueryStringBuilder.PROTOTYPE::readFrom, SimpleQueryStringBuilder::fromXContent,
+                SimpleQueryStringBuilder.QUERY_NAME_FIELD);
+        registerQuery(TemplateQueryBuilder.PROTOTYPE::readFrom, TemplateQueryBuilder::fromXContent, TemplateQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(TypeQueryBuilder.PROTOTYPE::readFrom, TypeQueryBuilder::fromXContent, TypeQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ScriptQueryBuilder.PROTOTYPE::readFrom, ScriptQueryBuilder::fromXContent, ScriptQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeoDistanceQueryBuilder.PROTOTYPE::readFrom, GeoDistanceQueryBuilder::fromXContent,
+                GeoDistanceQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeoDistanceRangeQueryBuilder.PROTOTYPE::readFrom, GeoDistanceRangeQueryBuilder::fromXContent,
+                GeoDistanceRangeQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeoBoundingBoxQueryBuilder.PROTOTYPE::readFrom, GeoBoundingBoxQueryBuilder::fromXContent,
+                GeoBoundingBoxQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeohashCellQuery.Builder.PROTOTYPE::readFrom, GeohashCellQuery.Builder::fromXContent,
+                GeohashCellQuery.QUERY_NAME_FIELD);
+        registerQuery(GeoPolygonQueryBuilder.PROTOTYPE::readFrom, GeoPolygonQueryBuilder::fromXContent,
+                GeoPolygonQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ExistsQueryBuilder.PROTOTYPE::readFrom, ExistsQueryBuilder::fromXContent, ExistsQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MatchNoneQueryBuilder.PROTOTYPE::readFrom, MatchNoneQueryBuilder::fromXContent,
+                MatchNoneQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ParentIdQueryBuilder.PROTO::readFrom, ParentIdQueryBuilder::fromXContent, ParentIdQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(PercolatorQueryBuilder.PROTO::readFrom, PercolatorQueryBuilder::fromXContent,
+                PercolatorQueryBuilder.QUERY_NAME_FIELD);
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            registerQueryParser(new GeoShapeQueryParser(), GeoShapeQueryParser.QUERY_NAME_FIELD);
+            registerQuery(GeoShapeQueryBuilder.PROTOTYPE::readFrom, GeoShapeQueryBuilder::fromXContent,
+                    GeoShapeQueryBuilder.QUERY_NAME_FIELD);
         }
         // EmptyQueryBuilder is not registered as query parser but used internally.
         // We need to register it with the NamedWriteableRegistry in order to serialize it

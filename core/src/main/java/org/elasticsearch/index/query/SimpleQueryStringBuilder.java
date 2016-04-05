@@ -22,12 +22,15 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SimpleQueryParser.Settings;
 
@@ -40,7 +43,33 @@ import java.util.TreeMap;
 
 /**
  * SimpleQuery is a query parser that acts similar to a query_string query, but
- * won't throw exceptions for any weird string syntax.
+ * won't throw exceptions for any weird string syntax. It supports
+ * the following:
+ * <ul>
+ * <li>'{@code +}' specifies {@code AND} operation: <tt>token1+token2</tt>
+ * <li>'{@code |}' specifies {@code OR} operation: <tt>token1|token2</tt>
+ * <li>'{@code -}' negates a single token: <tt>-token0</tt>
+ * <li>'{@code "}' creates phrases of terms: <tt>"term1 term2 ..."</tt>
+ * <li>'{@code *}' at the end of terms specifies prefix query: <tt>term*</tt>
+ * <li>'{@code (}' and '{@code)}' specifies precedence: <tt>token1 + (token2 | token3)</tt>
+ * <li>'{@code ~}N' at the end of terms specifies fuzzy query: <tt>term~1</tt>
+ * <li>'{@code ~}N' at the end of phrases specifies near/slop query: <tt>"term1 term2"~5</tt>
+ * </ul>
+ * <p>
+ * See: {@link SimpleQueryParser} for more information.
+ * <p>
+ * This query supports these options:
+ * <p>
+ * Required:
+ * {@code query} - query text to be converted into other queries
+ * <p>
+ * Optional:
+ * {@code analyzer} - anaylzer to be used for analyzing tokens to determine
+ * which kind of query they should be converted into, defaults to "standard"
+ * {@code default_operator} - default operator for boolean queries, defaults
+ * to OR
+ * {@code fields} - fields to search, defaults to _all if not set, allows
+ * boosting a field with ^n
  *
  * For more detailed explanation of the query string syntax see also the <a
  * href=
@@ -60,10 +89,23 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     /** Default for search flags to use. */
     public static final int DEFAULT_FLAGS = SimpleQueryStringFlag.ALL.value;
+
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    static final SimpleQueryStringBuilder PROTOTYPE = new SimpleQueryStringBuilder("");
+    public static final SimpleQueryStringBuilder PROTOTYPE = new SimpleQueryStringBuilder("");
+
+    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
+    private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
+    private static final ParseField LENIENT_FIELD = new ParseField("lenient");
+    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms");
+    private static final ParseField LOCALE_FIELD = new ParseField("locale");
+    private static final ParseField FLAGS_FIELD = new ParseField("flags");
+    private static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
+    private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField FIELDS_FIELD = new ParseField("fields");
 
     /** Query text to parse. */
     private final String queryText;
@@ -306,10 +348,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
 
-        builder.field(SimpleQueryStringParser.QUERY_FIELD.getPreferredName(), queryText);
+        builder.field(QUERY_FIELD.getPreferredName(), queryText);
 
         if (fieldsAndWeights.size() > 0) {
-            builder.startArray(SimpleQueryStringParser.FIELDS_FIELD.getPreferredName());
+            builder.startArray(FIELDS_FIELD.getPreferredName());
             for (Map.Entry<String, Float> entry : fieldsAndWeights.entrySet()) {
                 builder.value(entry.getKey() + "^" + entry.getValue());
             }
@@ -317,22 +359,122 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
 
         if (analyzer != null) {
-            builder.field(SimpleQueryStringParser.ANALYZER_FIELD.getPreferredName(), analyzer);
+            builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
         }
 
-        builder.field(SimpleQueryStringParser.FLAGS_FIELD.getPreferredName(), flags);
-        builder.field(SimpleQueryStringParser.DEFAULT_OPERATOR_FIELD.getPreferredName(), defaultOperator.name().toLowerCase(Locale.ROOT));
-        builder.field(SimpleQueryStringParser.LOWERCASE_EXPANDED_TERMS_FIELD.getPreferredName(), settings.lowercaseExpandedTerms());
-        builder.field(SimpleQueryStringParser.LENIENT_FIELD.getPreferredName(), settings.lenient());
-        builder.field(SimpleQueryStringParser.ANALYZE_WILDCARD_FIELD.getPreferredName(), settings.analyzeWildcard());
-        builder.field(SimpleQueryStringParser.LOCALE_FIELD.getPreferredName(), (settings.locale().toLanguageTag()));
+        builder.field(FLAGS_FIELD.getPreferredName(), flags);
+        builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(), defaultOperator.name().toLowerCase(Locale.ROOT));
+        builder.field(LOWERCASE_EXPANDED_TERMS_FIELD.getPreferredName(), settings.lowercaseExpandedTerms());
+        builder.field(LENIENT_FIELD.getPreferredName(), settings.lenient());
+        builder.field(ANALYZE_WILDCARD_FIELD.getPreferredName(), settings.analyzeWildcard());
+        builder.field(LOCALE_FIELD.getPreferredName(), (settings.locale().toLanguageTag()));
 
         if (minimumShouldMatch != null) {
-            builder.field(SimpleQueryStringParser.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
+            builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
 
         printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        String currentFieldName = null;
+        String queryBody = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String queryName = null;
+        String minimumShouldMatch = null;
+        Map<String, Float> fieldsAndWeights = new HashMap<>();
+        Operator defaultOperator = null;
+        String analyzerName = null;
+        int flags = SimpleQueryStringFlag.ALL.value();
+        boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
+        boolean lowercaseExpandedTerms = SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
+        boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
+        Locale locale = null;
+
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        String fField = null;
+                        float fBoost = 1;
+                        char[] text = parser.textCharacters();
+                        int end = parser.textOffset() + parser.textLength();
+                        for (int i = parser.textOffset(); i < end; i++) {
+                            if (text[i] == '^') {
+                                int relativeLocation = i - parser.textOffset();
+                                fField = new String(text, parser.textOffset(), relativeLocation);
+                                fBoost = Float.parseFloat(new String(text, i + 1, parser.textLength() - relativeLocation - 1));
+                                break;
+                            }
+                        }
+                        if (fField == null) {
+                            fField = parser.text();
+                        }
+                        fieldsAndWeights.put(fField, fBoost);
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                    queryBody = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
+                    analyzerName = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, DEFAULT_OPERATOR_FIELD)) {
+                    defaultOperator = Operator.fromString(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FLAGS_FIELD)) {
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
+                        // Possible options are:
+                        // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE, FUZZY, NEAR, SLOP
+                        flags = SimpleQueryStringFlag.resolveFlags(parser.text());
+                    } else {
+                        flags = parser.intValue();
+                        if (flags < 0) {
+                            flags = SimpleQueryStringFlag.ALL.value();
+                        }
+                    }
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
+                    String localeStr = parser.text();
+                    locale = Locale.forLanguageTag(localeStr);
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOWERCASE_EXPANDED_TERMS_FIELD)) {
+                    lowercaseExpandedTerms = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
+                    lenient = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZE_WILDCARD_FIELD)) {
+                    analyzeWildcard = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
+                    minimumShouldMatch = parser.textOrNull();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
+                            "] unsupported field [" + parser.currentName() + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+            }
+        }
+
+        // Query text is required
+        if (queryBody == null) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
+        }
+
+        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
+        qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
+        qb.flags(flags).defaultOperator(defaultOperator).locale(locale).lowercaseExpandedTerms(lowercaseExpandedTerms);
+        qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost);
+        return qb;
     }
 
     @Override

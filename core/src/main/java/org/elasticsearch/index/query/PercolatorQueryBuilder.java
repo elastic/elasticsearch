@@ -41,6 +41,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,7 +71,18 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQueryBuilder> {
 
     public static final String NAME = "percolator";
-    static final PercolatorQueryBuilder PROTO = new PercolatorQueryBuilder(null, null, null, null, null, null, null, null);
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
+    public static final PercolatorQueryBuilder PROTO = new PercolatorQueryBuilder(null, null, null, null, null, null, null, null);
+
+    private static final ParseField DOCUMENT_FIELD = new ParseField("document");
+    private static final ParseField DOCUMENT_TYPE_FIELD = new ParseField("document_type");
+    private static final ParseField INDEXED_DOCUMENT_FIELD_INDEX = new ParseField("index");
+    private static final ParseField INDEXED_DOCUMENT_FIELD_TYPE = new ParseField("type");
+    private static final ParseField INDEXED_DOCUMENT_FIELD_ID = new ParseField("id");
+    private static final ParseField INDEXED_DOCUMENT_FIELD_ROUTING = new ParseField("routing");
+    private static final ParseField INDEXED_DOCUMENT_FIELD_PREFERENCE = new ParseField("preference");
+    private static final ParseField INDEXED_DOCUMENT_FIELD_VERSION = new ParseField("version");
 
     private final String documentType;
     private final BytesReference document;
@@ -139,40 +152,121 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(PercolatorQueryParser.DOCUMENT_TYPE_FIELD.getPreferredName(), documentType);
+        builder.field(DOCUMENT_TYPE_FIELD.getPreferredName(), documentType);
         if (document != null) {
             XContentType contentType = XContentFactory.xContentType(document);
             if (contentType == builder.contentType()) {
-                builder.rawField(PercolatorQueryParser.DOCUMENT_FIELD.getPreferredName(), document);
+                builder.rawField(DOCUMENT_FIELD.getPreferredName(), document);
             } else {
                 XContentParser parser = XContentFactory.xContent(contentType).createParser(document);
                 parser.nextToken();
-                builder.field(PercolatorQueryParser.DOCUMENT_FIELD.getPreferredName());
+                builder.field(DOCUMENT_FIELD.getPreferredName());
                 builder.copyCurrentStructure(parser);
             }
         }
         if (indexedDocumentIndex != null || indexedDocumentType != null || indexedDocumentId != null) {
             if (indexedDocumentIndex != null) {
-                builder.field(PercolatorQueryParser.INDEXED_DOCUMENT_FIELD_INDEX.getPreferredName(), indexedDocumentIndex);
+                builder.field(INDEXED_DOCUMENT_FIELD_INDEX.getPreferredName(), indexedDocumentIndex);
             }
             if (indexedDocumentType != null) {
-                builder.field(PercolatorQueryParser.INDEXED_DOCUMENT_FIELD_TYPE.getPreferredName(), indexedDocumentType);
+                builder.field(INDEXED_DOCUMENT_FIELD_TYPE.getPreferredName(), indexedDocumentType);
             }
             if (indexedDocumentId != null) {
-                builder.field(PercolatorQueryParser.INDEXED_DOCUMENT_FIELD_ID.getPreferredName(), indexedDocumentId);
+                builder.field(INDEXED_DOCUMENT_FIELD_ID.getPreferredName(), indexedDocumentId);
             }
             if (indexedDocumentRouting != null) {
-                builder.field(PercolatorQueryParser.INDEXED_DOCUMENT_FIELD_ROUTING.getPreferredName(), indexedDocumentRouting);
+                builder.field(INDEXED_DOCUMENT_FIELD_ROUTING.getPreferredName(), indexedDocumentRouting);
             }
             if (indexedDocumentPreference != null) {
-                builder.field(PercolatorQueryParser.INDEXED_DOCUMENT_FIELD_PREFERENCE.getPreferredName(), indexedDocumentPreference);
+                builder.field(INDEXED_DOCUMENT_FIELD_PREFERENCE.getPreferredName(), indexedDocumentPreference);
             }
             if (indexedDocumentVersion != null) {
-                builder.field(PercolatorQueryParser.INDEXED_DOCUMENT_FIELD_VERSION.getPreferredName(), indexedDocumentVersion);
+                builder.field(INDEXED_DOCUMENT_FIELD_VERSION.getPreferredName(), indexedDocumentVersion);
             }
         }
         printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static PercolatorQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+
+        String documentType = null;
+
+        String indexedDocumentIndex = null;
+        String indexedDocumentType = null;
+        String indexedDocumentId = null;
+        String indexedDocumentRouting = null;
+        String indexedDocumentPreference = null;
+        Long indexedDocumentVersion = null;
+
+        BytesReference source = null;
+
+        String queryName = null;
+        String currentFieldName = null;
+
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, DOCUMENT_FIELD)) {
+                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                        builder.copyCurrentStructure(parser);
+                        builder.flush();
+                        source = builder.bytes();
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + PercolatorQueryBuilder.NAME +
+                            "] query does not support [" + token + "]");
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, DOCUMENT_TYPE_FIELD)) {
+                    documentType = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_INDEX)) {
+                    indexedDocumentIndex = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_TYPE)) {
+                    indexedDocumentType = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_ID)) {
+                    indexedDocumentId = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_ROUTING)) {
+                    indexedDocumentRouting = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_PREFERENCE)) {
+                    indexedDocumentPreference = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_VERSION)) {
+                    indexedDocumentVersion = parser.longValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + PercolatorQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + PercolatorQueryBuilder.NAME +
+                        "] query does not support [" + token + "]");
+            }
+        }
+
+        if (documentType == null) {
+            throw new IllegalArgumentException("[" + PercolatorQueryBuilder.NAME + "] query is missing required [" +
+                    DOCUMENT_TYPE_FIELD.getPreferredName() + "] parameter");
+        }
+
+        PercolatorQueryBuilder queryBuilder;
+        if (source != null) {
+            queryBuilder = new PercolatorQueryBuilder(documentType, source);
+        } else if (indexedDocumentId != null) {
+            queryBuilder = new PercolatorQueryBuilder(documentType, indexedDocumentIndex, indexedDocumentType,
+                    indexedDocumentId, indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
+        } else {
+            throw new IllegalArgumentException("[" + PercolatorQueryBuilder.NAME + "] query, nothing to percolate");
+        }
+        queryBuilder.queryName(queryName);
+        queryBuilder.boost(boost);
+        return queryBuilder;
     }
 
     @Override

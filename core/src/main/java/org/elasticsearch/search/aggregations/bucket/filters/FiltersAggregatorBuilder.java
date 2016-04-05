@@ -59,7 +59,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
     private FiltersAggregatorBuilder(String name, List<KeyedFilter> filters) {
         super(name, InternalFilters.TYPE);
         // internally we want to have a fixed order of filters, regardless of the order of the filters in the request
-        Collections.sort(filters);
+        Collections.sort(filters, (KeyedFilter kf1, KeyedFilter kf2) -> kf1.key().compareTo(kf2.key()));
         this.filters = filters;
         this.keyed = true;
     }

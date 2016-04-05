@@ -34,7 +34,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -488,13 +490,9 @@ public class FiltersIT extends ESIntegTestCase {
     }
 
     private static KeyedFilter[] randomOrder(KeyedFilter... filters) {
-        for (int i = 0; i < filters.length; i++) {
-            KeyedFilter tmp = filters[i];
-            int index = randomInt(filters.length - 1);
-            filters[i] = filters[index];
-            filters[index] = tmp;
-        }
-        return filters;
+        List<KeyedFilter> asList = Arrays.asList(filters);
+        Collections.shuffle(asList);
+        return asList.toArray(new KeyedFilter[filters.length]);
     }
 
 }

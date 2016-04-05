@@ -57,7 +57,7 @@ public class FiltersAggregator extends BucketsAggregator {
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
 
-    public static class KeyedFilter implements Writeable<KeyedFilter>, ToXContent, Comparable<KeyedFilter> {
+    public static class KeyedFilter implements Writeable<KeyedFilter>, ToXContent {
 
         static final KeyedFilter PROTOTYPE = new KeyedFilter("", EmptyQueryBuilder.PROTOTYPE);
         private final String key;
@@ -121,11 +121,6 @@ public class FiltersAggregator extends BucketsAggregator {
             KeyedFilter other = (KeyedFilter) obj;
             return Objects.equals(key, other.key)
                     && Objects.equals(filter, other.filter);
-        }
-
-        @Override
-        public int compareTo(KeyedFilter o) {
-            return this.key.compareTo(o.key);
         }
     }
 

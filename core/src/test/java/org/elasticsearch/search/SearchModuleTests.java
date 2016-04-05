@@ -80,12 +80,9 @@ public class SearchModuleTests extends ModuleTestCase {
 
     public void testRegisterQueryParserDuplicate() {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
-        try {
-            module.registerQueryParser(new TermQueryParser(), TermQueryParser.QUERY_NAME_FIELD);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    containsString("already registered for name [term] while trying to register [org.elasticsearch.index."));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> module.registerQueryParser(new TermQueryParser(), TermQueryParser.QUERY_NAME_FIELD));
+        assertThat(e.getMessage(), containsString("already registered for name [term] while trying to register [org.elasticsearch.index."));
     }
 
     public void testRegisteredQueries() {

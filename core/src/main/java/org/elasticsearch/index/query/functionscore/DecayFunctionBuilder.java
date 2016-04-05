@@ -483,15 +483,15 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
             super(CombineFunction.MULTIPLY);
             this.mode = mode;
             if (userSuppiedScale <= 0.0) {
-                throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAMES.primary() + " : scale must be > 0.0.");
+                throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : scale must be > 0.0.");
             }
             if (decay <= 0.0 || decay >= 1.0) {
-                throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAMES.primary() + " : decay must be in the range [0..1].");
+                throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : decay must be in the range [0..1].");
             }
             this.scale = func.processScale(userSuppiedScale, decay);
             this.func = func;
             if (offset < 0.0d) {
-                throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAMES.primary() + " : offset must be > 0.0");
+                throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : offset must be > 0.0");
             }
             this.offset = offset;
         }

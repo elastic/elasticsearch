@@ -301,8 +301,6 @@ public class SearchModule extends AbstractModule {
     /**
      * Register a query.
      *
-     * @param names all names by which this must be registered. The parser is registered under all of its names and the reader is registered
-     *        under the primary name.
      * @param reader the reader registered for this query's builder. Typically a reference to a constructor that takes a
      *        {@link org.elasticsearch.common.io.stream.StreamInput}
      * @param queryParser the parser the reads the query builder from xcontent
@@ -318,8 +316,7 @@ public class SearchModule extends AbstractModule {
 
     /**
      * Register a query via it's parser's prototype.
-     * TODO remove this in favor of registerQuery
-     * TODO remove AbstractQueryTestCase's getSupportedNames leniency when we remove this method
+     * TODO remove this in favor of registerQuery and merge innerRegisterQueryParser into registerQuery
      */
     public void registerQueryParser(QueryParser<?> queryParser, ParseField queryName) {
         innerRegisterQueryParser(queryParser, queryName);

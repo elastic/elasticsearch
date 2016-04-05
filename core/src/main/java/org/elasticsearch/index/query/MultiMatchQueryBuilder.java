@@ -49,8 +49,7 @@ import java.util.TreeMap;
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
 public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
-    public static final Names NAMES = new Names("multi_match", "multiMatch");
-    public static final MultiMatchQueryBuilder PROTOTYPE = new MultiMatchQueryBuilder("");
+    public static final String NAME = "multi_match";
 
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
@@ -60,7 +59,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     public static final boolean DEFAULT_LENIENCY = MatchQuery.DEFAULT_LENIENCY;
     public static final MatchQuery.ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(MultiMatchQueryBuilder.NAME);
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     private static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -93,6 +92,8 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private boolean lenient = DEFAULT_LENIENCY;
     private Float cutoffFrequency = null;
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
+
+    public static final MultiMatchQueryBuilder PROTOTYPE = new MultiMatchQueryBuilder("");
 
     public enum Type implements Writeable<Type> {
 
@@ -161,7 +162,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 }
             }
             if (type == null) {
-                throw new ElasticsearchParseException("failed to parse [{}] query type [{}]. unknown type.", NAMES.primary(), value);
+                throw new ElasticsearchParseException("failed to parse [{}] query type [{}]. unknown type.", NAME, value);
             }
             return type;
         }
@@ -193,10 +194,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      */
     public MultiMatchQueryBuilder(Object value, String... fields) {
         if (value == null) {
-            throw new IllegalArgumentException("[" + NAMES.primary() + "] requires query value");
+            throw new IllegalArgumentException("[" + NAME + "] requires query value");
         }
         if (fields == null) {
-            throw new IllegalArgumentException("[" + NAMES.primary() + "] requires fields at initialization time");
+            throw new IllegalArgumentException("[" + NAME + "] requires fields at initialization time");
         }
         this.value = value;
         this.fieldsBoosts = new TreeMap<>();
@@ -248,7 +249,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      */
     public MultiMatchQueryBuilder type(MultiMatchQueryBuilder.Type type) {
         if (type == null) {
-            throw new IllegalArgumentException("[" + NAMES.primary() + "] requires type to be non-null");
+            throw new IllegalArgumentException("[" + NAME + "] requires type to be non-null");
         }
         this.type = type;
         return this;
@@ -259,7 +260,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      */
     public MultiMatchQueryBuilder type(Object type) {
         if (type == null) {
-            throw new IllegalArgumentException("[" + NAMES.primary() + "] requires type to be non-null");
+            throw new IllegalArgumentException("[" + NAME + "] requires type to be non-null");
         }
         this.type = Type.parse(type.toString().toLowerCase(Locale.ROOT), ParseFieldMatcher.EMPTY);
         return this;
@@ -274,7 +275,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      */
     public MultiMatchQueryBuilder operator(Operator operator) {
         if (operator == null) {
-            throw new IllegalArgumentException("[" + NAMES.primary() + "] requires operator to be non-null");
+            throw new IllegalArgumentException("[" + NAME + "] requires operator to be non-null");
         }
         this.operator = operator;
         return this;
@@ -462,7 +463,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     public MultiMatchQueryBuilder zeroTermsQuery(MatchQuery.ZeroTermsQuery zeroTermsQuery) {
         if (zeroTermsQuery == null) {
-            throw new IllegalArgumentException("[" + NAMES.primary() + "] requires zero terms query to be non-null");
+            throw new IllegalArgumentException("[" + NAME + "] requires zero terms query to be non-null");
         }
         this.zeroTermsQuery = zeroTermsQuery;
         return this;
@@ -474,7 +475,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAMES.primary());
+        builder.startObject(NAME);
         builder.field(QUERY_FIELD.getPreferredName(), value);
         builder.startArray(FIELDS_FIELD.getPreferredName());
         for (Map.Entry<String, Float> fieldEntry : this.fieldsBoosts.entrySet()) {
@@ -550,7 +551,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                     parseFieldAndBoost(parser, fieldsBoosts);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "[" + NAMES.primary() + "] query does not support [" + currentFieldName + "]");
+                            "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
@@ -596,11 +597,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "[" + NAMES.primary() + "] query does not support [" + currentFieldName + "]");
+                            "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(),
-                        "[" + NAMES.primary() + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 
@@ -653,7 +654,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     @Override
     public String getWriteableName() {
-        return NAMES.primary();
+        return NAME;
     }
 
     @Override
@@ -661,7 +662,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(context);
         if (analyzer != null) {
             if (context.getAnalysisService().analyzer(analyzer) == null) {
-                throw new QueryShardException(context, "[" + NAMES.primary() + "] analyzer [" + analyzer + "] not found");
+                throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
             }
             multiMatchQuery.setAnalyzer(analyzer);
         }

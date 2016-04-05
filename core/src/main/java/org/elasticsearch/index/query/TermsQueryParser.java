@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.TermsLookup;
@@ -37,10 +38,7 @@ import java.util.List;
  */
 public class TermsQueryParser implements QueryParser {
 
-    @Override
-    public String[] names() {
-        return new String[]{TermsQueryBuilder.NAME, "in"};
-    }
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(TermsQueryBuilder.NAME, "in");
 
     @Override
     public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -62,13 +60,15 @@ public class TermsQueryParser implements QueryParser {
                 // skip
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query does not support multiple fields");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[" + TermsQueryBuilder.NAME + "] query does not support multiple fields");
                 }
                 fieldName = currentFieldName;
                 values = parseValues(parser);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if  (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query does not support more than one field. "
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[" + TermsQueryBuilder.NAME + "] query does not support more than one field. "
                             + "Already got: [" + fieldName + "] but also found [" + currentFieldName +"]");
                 }
                 fieldName = currentFieldName;
@@ -79,15 +79,18 @@ public class TermsQueryParser implements QueryParser {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(),
+                        "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 
         if (fieldName == null) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query requires a field name, followed by array of terms or a document lookup specification");
+            throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query requires a field name, " +
+                    "followed by array of terms or a document lookup specification");
         }
         return new TermsQueryBuilder(fieldName, values, termsLookup)
                 .boost(boost)

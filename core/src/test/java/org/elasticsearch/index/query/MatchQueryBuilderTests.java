@@ -29,6 +29,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -372,6 +373,40 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(),
                     containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
+        }
+    }
+
+    public void testLegacyFuzzyMatchQuery() throws IOException {
+        MatchQueryBuilder expectedQB = new MatchQueryBuilder("message", "to be or not to be");
+        String type = randomFrom("fuzzy_match", "match_fuzzy");
+        if (randomBoolean()) {
+            type = Strings.toCamelCase(type);
+        }
+        String json = "{\n" +
+                "  \"" + type + "\" : {\n" +
+                "    \"message\" : {\n" +
+                "      \"query\" : \"to be or not to be\",\n" +
+                "      \"operator\" : \"OR\",\n" +
+                "      \"slop\" : 0,\n" +
+                "      \"prefix_length\" : 0,\n" +
+                "      \"max_expansions\" : 50,\n" +
+                "      \"fuzzy_transpositions\" : true,\n" +
+                "      \"lenient\" : false,\n" +
+                "      \"zero_terms_query\" : \"NONE\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        assertThat(qb, equalTo(expectedQB));
+
+        // Now check with strict parsing an exception is thrown
+        try {
+            parseQuery(json, ParseFieldMatcher.STRICT);
+            fail("Expected query to fail with strict parsing");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                    containsString("Deprecated field [" + type + "] used, expected [match] instead"));
         }
     }
 }

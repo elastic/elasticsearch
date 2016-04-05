@@ -19,12 +19,11 @@
 
 package org.elasticsearch.index.query.plugin;
 
-import java.io.IOException;
-
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,6 +34,8 @@ import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
+
+import java.io.IOException;
 
 public class DummyQueryParserPlugin extends Plugin {
 
@@ -49,7 +50,7 @@ public class DummyQueryParserPlugin extends Plugin {
     }
 
     public void onModule(SearchModule module) {
-        module.registerQueryParser(DummyQueryParser::new);
+        module.registerQueryParser(new DummyQueryParser(), new ParseField(DummyQueryBuilder.NAME));
     }
 
     public static class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
@@ -92,11 +93,6 @@ public class DummyQueryParserPlugin extends Plugin {
     }
 
     public static class DummyQueryParser implements QueryParser<DummyQueryBuilder> {
-        @Override
-        public String[] names() {
-            return new String[]{DummyQueryBuilder.NAME};
-        }
-
         @Override
         public DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser.Token token = parseContext.parser().nextToken();

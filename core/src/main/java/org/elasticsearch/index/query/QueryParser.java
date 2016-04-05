@@ -29,13 +29,6 @@ import java.io.IOException;
 public interface QueryParser<QB extends QueryBuilder<QB>> {
 
     /**
-     * The names this query parser is registered under.
-     */
-    default String[] names() { // TODO remove this when nothing implements it
-        throw new UnsupportedOperationException();
-    }
-
-    /**
      * Creates a new {@link QueryBuilder} from the query held by the {@link QueryParseContext}
      * in {@link org.elasticsearch.common.xcontent.XContent} format
      *

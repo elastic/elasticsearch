@@ -18,22 +18,27 @@
  */
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.TermQueryParser;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.highlight.CustomHighlighter;
 import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.PlainHighlighter;
 import org.elasticsearch.search.suggest.CustomSuggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
+
 /**
  */
 public class SearchModuleTests extends ModuleTestCase {
@@ -74,29 +79,132 @@ public class SearchModuleTests extends ModuleTestCase {
 
     public void testRegisterQueryParserDuplicate() {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
-        module.registerQueryParser(TermQueryParser::new);
         try {
             module.buildQueryParserRegistry();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("already registered for name [term] while trying to register [org.elasticsearch.index."));
+            assertThat(e.getMessage(),
+                    containsString("already registered for name [term] while trying to register [org.elasticsearch.index."));
         }
     }
 
-    static class FakeQueryParser implements QueryParser {
-        @Override
-        public String[] names() {
-            return new String[] {"fake-query-parser"};
-        }
+    public void testRegisteredQueries() {
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
+        List<String> allSupportedQueries = new ArrayList<>();
+        Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
+        Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
+        String[] supportedQueries = allSupportedQueries.toArray(new String[allSupportedQueries.size()]);
+        assertThat(module.getRegisteredQueries(), containsInAnyOrder(supportedQueries));
 
-        @Override
-        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-            return null;
+        IndicesQueriesRegistry indicesQueriesRegistry = module.buildQueryParserRegistry();
+        for (String queryName : supportedQueries) {
+            QueryParser<?> queryParser = indicesQueriesRegistry.getQueryParser(queryName,
+                    ParseFieldMatcher.EMPTY, new XContentLocation(-1, -1));
+            assertThat(queryParser, notNullValue());
         }
-
-        @Override
-        public QueryBuilder getBuilderPrototype() {
-            return null;
+        for (String queryName : NON_DEPRECATED_QUERIES) {
+            QueryParser<?> queryParser = indicesQueriesRegistry.getQueryParser(queryName,
+                    ParseFieldMatcher.STRICT, new XContentLocation(-1, -1));
+            assertThat(queryParser, notNullValue());
+        }
+        for (String queryName : DEPRECATED_QUERIES) {
+            try {
+                indicesQueriesRegistry.getQueryParser(queryName, ParseFieldMatcher.STRICT, new XContentLocation(-1, -1));
+                fail("query is deprecated, getQueryParser should have failed in strict mode");
+            } catch(IllegalArgumentException e) {
+                assertThat(e.getMessage(), containsString("Deprecated field [" + queryName + "] used"));
+            }
         }
     }
 
+    private static final String[] NON_DEPRECATED_QUERIES = new String[] {
+            "bool",
+            "boosting",
+            "common",
+            "constantScore",
+            "constant_score",
+            "disMax",
+            "dis_max",
+            "exists",
+            "fieldMaskingSpan",
+            "field_masking_span",
+            "functionScore",
+            "function_score",
+            "fuzzy",
+            "geoBoundingBox",
+            "geoDistance",
+            "geoDistanceRange",
+            "geoPolygon",
+            "geoShape",
+            "geo_bounding_box",
+            "geo_distance",
+            "geo_distance_range",
+            "geo_polygon",
+            "geo_shape",
+            "geohashCell",
+            "geohash_cell",
+            "hasChild",
+            "hasParent",
+            "has_child",
+            "has_parent",
+            "ids",
+            "indices",
+            "match",
+            "matchAll",
+            "matchNone",
+            "matchPhrase",
+            "matchPhrasePrefix",
+            "match_all",
+            "match_none",
+            "match_phrase",
+            "match_phrase_prefix",
+            "moreLikeThis",
+            "more_like_this",
+            "multiMatch",
+            "multi_match",
+            "nested",
+            "parentId",
+            "parent_id",
+            "percolator",
+            "prefix",
+            "queryString",
+            "query_string",
+            "range",
+            "regexp",
+            "script",
+            "simpleQueryString",
+            "simple_query_string",
+            "spanContaining",
+            "spanFirst",
+            "spanMulti",
+            "spanNear",
+            "spanNot",
+            "spanOr",
+            "spanTerm",
+            "spanWithin",
+            "span_containing",
+            "span_first",
+            "span_multi",
+            "span_near",
+            "span_not",
+            "span_or",
+            "span_term",
+            "span_within",
+            "template",
+            "term",
+            "terms",
+            "type",
+            "wildcard",
+            "wrapper"
+    };
+
+    private static final String[] DEPRECATED_QUERIES = new String[] {
+            "fuzzyMatch",
+            "fuzzy_match",
+            "geoBbox",
+            "geo_bbox",
+            "in",
+            "matchFuzzy",
+            "match_fuzzy",
+            "mlt"
+    };
 }

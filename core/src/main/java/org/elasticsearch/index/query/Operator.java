@@ -71,6 +71,7 @@ public enum Operator implements Writeable<Operator> {
     }
 
     private static IllegalArgumentException newOperatorException(String op) {
-        return new IllegalArgumentException("operator needs to be either " + CollectionUtils.arrayAsArrayList(values()) + ", but not [" + op + "]");
+        return new IllegalArgumentException("operator needs to be either " +
+                CollectionUtils.arrayAsArrayList(values()) + ", but not [" + op + "]");
     }
 }

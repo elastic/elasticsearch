@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,13 +30,9 @@ import java.io.IOException;
  */
 public class FieldMaskingSpanQueryParser implements QueryParser<FieldMaskingSpanQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(FieldMaskingSpanQueryBuilder.NAME);
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField QUERY_FIELD = new ParseField("query");
-
-    @Override
-    public String[] names() {
-        return new String[]{FieldMaskingSpanQueryBuilder.NAME, Strings.toCamelCase(FieldMaskingSpanQueryBuilder.NAME)};
-    }
 
     @Override
     public FieldMaskingSpanQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -73,7 +68,8 @@ public class FieldMaskingSpanQueryParser implements QueryParser<FieldMaskingSpan
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[field_masking_span] query does not support [" + currentFieldName + "]");
                 }
             }
         }

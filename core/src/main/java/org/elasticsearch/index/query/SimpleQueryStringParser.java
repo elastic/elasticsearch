@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -61,6 +60,7 @@ import java.util.Map;
  */
 public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(SimpleQueryStringBuilder.NAME);
     public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     public static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -71,11 +71,6 @@ public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBui
     public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
-
-    @Override
-    public String[] names() {
-        return new String[]{SimpleQueryStringBuilder.NAME, Strings.toCamelCase(SimpleQueryStringBuilder.NAME)};
-    }
 
     @Override
     public SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -120,7 +115,8 @@ public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBui
                         fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
@@ -156,10 +152,12 @@ public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBui
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
                     minimumShouldMatch = parser.textOrNull();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] unsupported field [" + parser.currentName() + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
+                            "] unsupported field [" + parser.currentName() + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 

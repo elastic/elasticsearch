@@ -42,7 +42,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
@@ -57,12 +59,15 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryParser;
 import org.elasticsearch.index.query.PercolatorQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermQueryParser;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryParser;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -99,10 +104,10 @@ public class PercolatorQueryCacheTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        Map<String, QueryParser<?>> queryParsers = new HashMap<>();
-        queryParsers.put("term", new TermQueryParser());
-        queryParsers.put("wildcard", new WildcardQueryParser());
-        queryParsers.put("bool", new BoolQueryParser());
+        Map<String, Tuple<ParseField, QueryParser<?>>> queryParsers = new HashMap<>();
+        queryParsers.put(TermQueryBuilder.NAME, new Tuple<>(TermQueryParser.QUERY_NAME_FIELD, new TermQueryParser()));
+        queryParsers.put(WildcardQueryBuilder.NAME, new Tuple<>(WildcardQueryParser.QUERY_NAME_FIELD, new WildcardQueryParser()));
+        queryParsers.put(BoolQueryBuilder.NAME, new Tuple<>(BoolQueryParser.QUERY_NAME_FIELD, new BoolQueryParser()));
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, queryParsers);
 
         Settings indexSettings = Settings.settingsBuilder()

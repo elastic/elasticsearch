@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.InnerHitBuilder;
 
@@ -30,17 +29,12 @@ import java.io.IOException;
 public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder>  {
 
     private static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(HasParentQueryBuilder.NAME);
     public static final ParseField QUERY_FIELD = new ParseField("query", "filter");
-    //public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
     public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
     public static final ParseField TYPE_FIELD = new ParseField("parent_type", "type");
     public static final ParseField SCORE_FIELD = new ParseField("score");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
-
-    @Override
-    public String[] names() {
-        return new String[]{HasParentQueryBuilder.NAME, Strings.toCamelCase(HasParentQueryBuilder.NAME)};
-    }
 
     @Override
     public HasParentQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -75,7 +69,8 @@ public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder> 
                     } else if ("none".equals(scoreModeValue)) {
                         score = false;
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + scoreModeValue + "] as an option for score_mode");
+                        throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" +
+                                scoreModeValue + "] as an option for score_mode");
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_FIELD)) {
                     score = parser.booleanValue();

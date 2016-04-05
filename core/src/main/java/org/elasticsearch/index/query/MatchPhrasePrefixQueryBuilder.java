@@ -38,9 +38,9 @@ import java.util.Objects;
  */
 public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhrasePrefixQueryBuilder> {
 
-    public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
-
     public static final String NAME = "match_phrase_prefix";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+    public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
 
     public static final MatchPhrasePrefixQueryBuilder PROTOTYPE = new MatchPhrasePrefixQueryBuilder("", "");
 

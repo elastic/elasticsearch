@@ -245,7 +245,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         builder.endObject();
     }
 
-    private static void doXArrayContent(String field, List<QueryBuilder<?>> clauses, XContentBuilder builder, Params params) throws IOException {
+    private static void doXArrayContent(String field, List<QueryBuilder<?>> clauses, XContentBuilder builder, Params params)
+            throws IOException {
         if (clauses.isEmpty()) {
             return;
         }
@@ -284,7 +285,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
-    private static void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder, List<QueryBuilder<?>> clauses, Occur occurs) throws IOException {
+    private static void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder,
+                                          List<QueryBuilder<?>> clauses, Occur occurs) throws IOException {
         for (QueryBuilder<?> query : clauses) {
             Query luceneQuery = null;
             switch (occurs) {
@@ -373,7 +375,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return this;
     }
 
-    private static boolean rewriteClauses(QueryRewriteContext queryRewriteContext, List<QueryBuilder<?>> builders, Consumer<QueryBuilder<?>> consumer) throws IOException {
+    private static boolean rewriteClauses(QueryRewriteContext queryRewriteContext, List<QueryBuilder<?>> builders,
+                                          Consumer<QueryBuilder<?>> consumer) throws IOException {
         boolean changed = false;
         for (QueryBuilder builder : builders) {
             QueryBuilder result = builder.rewrite(queryRewriteContext);

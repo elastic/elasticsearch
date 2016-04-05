@@ -33,12 +33,8 @@ import java.util.List;
  */
 public class SpanOrQueryParser implements QueryParser<SpanOrQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(SpanOrQueryBuilder.NAME);
     public static final ParseField CLAUSES_FIELD = new ParseField("clauses");
-
-    @Override
-    public String[] names() {
-        return new String[]{SpanOrQueryBuilder.NAME, Strings.toCamelCase(SpanOrQueryBuilder.NAME)};
-    }
 
     @Override
     public SpanOrQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {

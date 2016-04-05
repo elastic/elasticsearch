@@ -20,6 +20,7 @@
 package org.elasticsearch.search.searchafter;
 
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -55,8 +57,10 @@ public class SearchAfterBuilderTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new IndicesQueriesRegistry(Settings.settingsBuilder().build(),
-            Collections.singletonMap("match_all", new MatchAllQueryParser()));
+        indicesQueriesRegistry = new IndicesQueriesRegistry(
+                Settings.settingsBuilder().build(),
+                Collections.singletonMap(
+                        MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
     }
 
     @AfterClass

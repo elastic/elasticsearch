@@ -30,8 +30,10 @@ import java.io.IOException;
  */
 public class RangeQueryParser implements QueryParser<RangeQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(RangeQueryBuilder.NAME);
     public static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
-    public static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of range query");
+    public static final ParseField NAME_FIELD = new ParseField("_name")
+            .withAllDeprecated("query name is not supported in short version of range query");
     public static final ParseField LTE_FIELD = new ParseField("lte", "le");
     public static final ParseField GTE_FIELD = new ParseField("gte", "ge");
     public static final ParseField FROM_FIELD = new ParseField("from");
@@ -42,11 +44,6 @@ public class RangeQueryParser implements QueryParser<RangeQueryBuilder> {
     public static final ParseField LT_FIELD = new ParseField("lt");
     public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     public static final ParseField FORMAT_FIELD = new ParseField("format");
-
-    @Override
-    public String[] names() {
-        return new String[]{RangeQueryBuilder.NAME};
-    }
 
     @Override
     public RangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -104,7 +101,8 @@ public class RangeQueryParser implements QueryParser<RangeQueryBuilder> {
                         } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[range] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }

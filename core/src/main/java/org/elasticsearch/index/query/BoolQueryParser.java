@@ -19,19 +19,20 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Parser for bool query
  */
 public class BoolQueryParser implements QueryParser<BoolQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(BoolQueryBuilder.NAME);
     public static final String MUSTNOT = "mustNot";
     public static final String MUST_NOT = "must_not";
     public static final String FILTER = "filter";
@@ -41,11 +42,6 @@ public class BoolQueryParser implements QueryParser<BoolQueryBuilder> {
     public static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
     public static final ParseField MINIMUM_NUMBER_SHOULD_MATCH = new ParseField("minimum_number_should_match");
     public static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
-
-    @Override
-    public String[] names() {
-        return new String[]{BoolQueryBuilder.NAME};
-    }
 
     @Override
     public BoolQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {

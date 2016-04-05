@@ -36,9 +36,9 @@ import java.util.Objects;
  */
 public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQueryBuilder> {
 
-    public static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
-
     public static final String NAME = "match_phrase";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+    public static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
 
     public static final MatchPhraseQueryBuilder PROTOTYPE = new MatchPhraseQueryBuilder("", "");
 

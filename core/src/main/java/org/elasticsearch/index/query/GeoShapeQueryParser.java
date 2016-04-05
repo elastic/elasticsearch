@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -31,6 +30,7 @@ import java.io.IOException;
 
 public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(GeoShapeQueryBuilder.NAME);
     public static final ParseField SHAPE_FIELD = new ParseField("shape");
     public static final ParseField STRATEGY_FIELD = new ParseField("strategy");
     public static final ParseField RELATION_FIELD = new ParseField("relation");
@@ -39,11 +39,6 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
     public static final ParseField SHAPE_TYPE_FIELD = new ParseField("type");
     public static final ParseField SHAPE_INDEX_FIELD = new ParseField("index");
     public static final ParseField SHAPE_PATH_FIELD = new ParseField("path");
-
-    @Override
-    public String[] names() {
-        return new String[]{GeoShapeQueryBuilder.NAME, Strings.toCamelCase(GeoShapeQueryBuilder.NAME)};
-    }
 
     @Override
     public GeoShapeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -69,7 +64,8 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] point specified twice. [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" +
+                            GeoShapeQueryBuilder.NAME + "] point specified twice. [" + currentFieldName + "]");
                 }
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -104,11 +100,13 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
                                         shapePath = parser.text();
                                     }
                                 } else {
-                                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME +
+                                            "] unknown token [" + token + "] after [" + currentFieldName + "]");
                                 }
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME +
+                                    "] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -118,7 +116,8 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
                 }
             }
         }

@@ -234,7 +234,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         if (indexVersionCreated.before(Version.V_2_2_0)) {
             GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
             IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
-            return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
+            return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance,
+                    geoFieldType, indexFieldData, optimizeBbox);
         }
 
         // if index created V_2_2 use (soon to be legacy) numeric encoding postings format

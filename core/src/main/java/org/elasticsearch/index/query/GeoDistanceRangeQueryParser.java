@@ -40,6 +40,7 @@ import java.io.IOException;
  */
 public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRangeQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(GeoDistanceRangeQueryBuilder.NAME);
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField TO_FIELD = new ParseField("to");
     public static final ParseField INCLUDE_LOWER_FIELD = new ParseField("include_lower");
@@ -56,11 +57,6 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
     public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
     public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     public static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
-
-    @Override
-    public String[] names() {
-        return new String[]{GeoDistanceRangeQueryBuilder.NAME, "geoDistanceRange"};
-    }
 
     @Override
     public GeoDistanceRangeQueryBuilder getBuilderPrototype() {
@@ -173,7 +169,8 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, DISTANCE_TYPE_FIELD)) {
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LAT_SUFFIX)) {
-                    String maybeFieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LAT_SUFFIX.length());
+                    String maybeFieldName = currentFieldName.substring(0,
+                            currentFieldName.length() - GeoPointFieldMapper.Names.LAT_SUFFIX.length());
                     if (fieldName == null || fieldName.equals(maybeFieldName)) {
                         fieldName = maybeFieldName;
                     } else {
@@ -185,7 +182,8 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
                     }
                     point.resetLat(parser.doubleValue());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LON_SUFFIX)) {
-                    String maybeFieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
+                    String maybeFieldName = currentFieldName.substring(0,
+                            currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
                     if (fieldName == null || fieldName.equals(maybeFieldName)) {
                         fieldName = maybeFieldName;
                     } else {

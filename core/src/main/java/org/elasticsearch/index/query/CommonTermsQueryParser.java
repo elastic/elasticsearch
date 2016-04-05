@@ -30,6 +30,7 @@ import java.io.IOException;
  */
 public class CommonTermsQueryParser implements QueryParser<CommonTermsQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(CommonTermsQueryBuilder.NAME);
     public static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
     public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     public static final ParseField LOW_FREQ_OPERATOR_FIELD = new ParseField("low_freq_operator");
@@ -39,11 +40,6 @@ public class CommonTermsQueryParser implements QueryParser<CommonTermsQueryBuild
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField HIGH_FREQ_FIELD = new ParseField("high_freq");
     public static final ParseField LOW_FREQ_FIELD = new ParseField("low_freq");
-
-    @Override
-    public String[] names() {
-        return new String[] { CommonTermsQueryBuilder.NAME };
-    }
 
     @Override
     public CommonTermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -81,16 +77,19 @@ public class CommonTermsQueryParser implements QueryParser<CommonTermsQueryBuild
                                 } else if (parseContext.parseFieldMatcher().match(innerFieldName, HIGH_FREQ_FIELD)) {
                                     highFreqMinimumShouldMatch = parser.text();
                                 } else {
-                                    throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] query does not support [" + innerFieldName
+                                    throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
+                                            "] query does not support [" + innerFieldName
                                             + "] for [" + currentFieldName + "]");
                                 }
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] unexpected token type [" + token
+                                throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
+                                        "] unexpected token type [" + token
                                         + "] after [" + innerFieldName + "]");
                             }
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
+                                "] query does not support [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
@@ -112,7 +111,8 @@ public class CommonTermsQueryParser implements QueryParser<CommonTermsQueryBuild
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
+                                "] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -123,7 +123,8 @@ public class CommonTermsQueryParser implements QueryParser<CommonTermsQueryBuild
             token = parser.nextToken();
             if (token != XContentParser.Token.END_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(),
-                        "[common] query parsed in simplified form, with direct field name, but included more options than just the field name, possibly use its 'options' form, with 'query' element?");
+                        "[common] query parsed in simplified form, with direct field name, but included more options than just " +
+                                "the field name, possibly use its 'options' form, with 'query' element?");
             }
         }
 

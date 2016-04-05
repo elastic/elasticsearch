@@ -31,7 +31,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.util.Objects;
 
-public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder<FieldMaskingSpanQueryBuilder>{
+public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder>
+        implements SpanQueryBuilder<FieldMaskingSpanQueryBuilder>{
 
     public static final String NAME = "field_masking_span";
 
@@ -39,7 +40,8 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     private final String fieldName;
 
-    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "text"), "field");
+    static final FieldMaskingSpanQueryBuilder PROTOTYPE =
+            new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "text"), "field");
 
     /**
      * Constructs a new {@link FieldMaskingSpanQueryBuilder} given an inner {@link SpanQueryBuilder} for

@@ -33,17 +33,13 @@ import java.io.IOException;
 @Deprecated
 public class FuzzyQueryParser implements QueryParser<FuzzyQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(FuzzyQueryBuilder.NAME);
     public static final ParseField TERM_FIELD = new ParseField("term");
     public static final ParseField VALUE_FIELD = new ParseField("value");
     public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
     public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
     public static final ParseField TRANSPOSITIONS_FIELD = new ParseField("transpositions");
     public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
-
-    @Override
-    public String[] names() {
-        return new String[]{ FuzzyQueryBuilder.NAME };
-    }
 
     @Override
     public FuzzyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {

@@ -257,7 +257,8 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         Occur highFreqOccur = highFreqOperator.toBooleanClauseOccur();
         Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
 
-        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency, disableCoord, fieldType);
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur,
+                cutoffFrequency, disableCoord, fieldType);
         return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 

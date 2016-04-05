@@ -30,13 +30,9 @@ import java.io.IOException;
  */
 public class TermQueryParser implements QueryParser<TermQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(TermQueryBuilder.NAME);
     public static final ParseField TERM_FIELD = new ParseField("term");
     public static final ParseField VALUE_FIELD = new ParseField("value");
-
-    @Override
-    public String[] names() {
-        return new String[]{TermQueryBuilder.NAME};
-    }
 
     @Override
     public TermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -56,7 +52,8 @@ public class TermQueryParser implements QueryParser<TermQueryBuilder> {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // also support a format of "term" : {"field_name" : { ... }}
                 if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[term] query does not support different field names, use [bool] query instead");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[term] query does not support different field names, use [bool] query instead");
                 }
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -72,13 +69,15 @@ public class TermQueryParser implements QueryParser<TermQueryBuilder> {
                         } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[term] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[term] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
             } else if (token.isValue()) {
                 if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[term] query does not support different field names, use [bool] query instead");
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[term] query does not support different field names, use [bool] query instead");
                 }
                 fieldName = currentFieldName;
                 value = parser.objectBytes();

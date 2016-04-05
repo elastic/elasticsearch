@@ -30,14 +30,10 @@ import java.io.IOException;
  */
 public class BoostingQueryParser implements QueryParser<BoostingQueryBuilder> {
 
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(BoostingQueryBuilder.NAME);
     public static final ParseField POSITIVE_FIELD = new ParseField("positive");
     public static final ParseField NEGATIVE_FIELD = new ParseField("negative");
     public static final ParseField NEGATIVE_BOOST_FIELD = new ParseField("negative_boost");
-
-    @Override
-    public String[] names() {
-        return new String[]{BoostingQueryBuilder.NAME};
-    }
 
     @Override
     public BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -86,7 +82,8 @@ public class BoostingQueryParser implements QueryParser<BoostingQueryBuilder> {
             throw new ParsingException(parser.getTokenLocation(), "[boosting] query requires 'negative' query to be set'");
         }
         if (negativeBoost < 0) {
-            throw new ParsingException(parser.getTokenLocation(), "[boosting] query requires 'negative_boost' to be set to be a positive value'");
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[boosting] query requires 'negative_boost' to be set to be a positive value'");
         }
 
         BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);

@@ -30,17 +30,14 @@ import java.io.IOException;
  */
 public class RegexpQueryParser implements QueryParser<RegexpQueryBuilder> {
 
-    public static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of regexp query");
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(RegexpQueryBuilder.NAME);
+    public static final ParseField NAME_FIELD = new ParseField("_name")
+            .withAllDeprecated("query name is not supported in short version of regexp query");
     public static final ParseField FLAGS_VALUE_FIELD = new ParseField("flags_value");
     public static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
     public static final ParseField FLAGS_FIELD = new ParseField("flags");
     public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
     public static final ParseField VALUE_FIELD = new ParseField("value");
-
-    @Override
-    public String[] names() {
-        return new String[]{RegexpQueryBuilder.NAME};
-    }
 
     @Override
     public RegexpQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
@@ -83,7 +80,8 @@ public class RegexpQueryParser implements QueryParser<RegexpQueryBuilder> {
                         } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[regexp] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }

@@ -13,12 +13,10 @@ import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
-import org.junit.Before;
 
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 
@@ -28,9 +26,8 @@ public class SystemKeyToolTests extends CommandTestCase {
     private Settings.Builder settingsBuilder;
     private Path homeDir;
 
-    @Before
-    public void init() throws Exception {
-        String view = randomFrom("basic", "posix");
+    private void initFileSystem(boolean needsPosix) throws Exception {
+        String view = needsPosix ? "posix" : randomFrom("basic", "posix");
         Configuration conf = Configuration.unix().toBuilder().setAttributeViews(view).build();
         jimfs = Jimfs.newFileSystem(conf);
         PathUtilsForTesting.installMock(jimfs);
@@ -46,8 +43,11 @@ public class SystemKeyToolTests extends CommandTestCase {
     }
 
     public void testGenerate() throws Exception {
+        initFileSystem(true);
+
         Path path = jimfs.getPath(randomAsciiOfLength(10)).resolve("key");
         Files.createDirectory(path.getParent());
+
         execute(path.toString());
         byte[] bytes = Files.readAllBytes(path);
         // TODO: maybe we should actually check the key is...i dunno...valid?
@@ -60,6 +60,8 @@ public class SystemKeyToolTests extends CommandTestCase {
     }
 
     public void testGeneratePathInSettings() throws Exception {
+        initFileSystem(false);
+
         Path path = jimfs.getPath(randomAsciiOfLength(10)).resolve("key");
         Files.createDirectories(path.getParent());
         settingsBuilder.put("shield.system_key.file", path.toAbsolutePath().toString());
@@ -69,6 +71,7 @@ public class SystemKeyToolTests extends CommandTestCase {
     }
 
     public void testGenerateDefaultPath() throws Exception {
+        initFileSystem(false);
         Path keyPath = homeDir.resolve("config/x-pack/system_key");
         Files.createDirectories(keyPath.getParent());
         execute();
@@ -77,10 +80,10 @@ public class SystemKeyToolTests extends CommandTestCase {
     }
 
     public void testThatSystemKeyMayOnlyBeReadByOwner() throws Exception {
+        initFileSystem(true);
+
         Path path = jimfs.getPath(randomAsciiOfLength(10)).resolve("key");
         Files.createDirectories(path.getParent());
-        boolean isPosix = Files.getFileAttributeView(path.getParent(), PosixFileAttributeView.class) != null;
-        assumeTrue("posix filesystem", isPosix);
 
         execute(path.toString());
         Set<PosixFilePermission> perms = Files.getPosixFilePermissions(path);

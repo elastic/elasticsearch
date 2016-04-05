@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
@@ -350,8 +349,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             client().prepareIndex(INDEX, TYPE, "" + i)
                     .setSource(source).execute().actionGet();
         }
+        client().admin().indices().preparePutMapping(INDEX).setType("query").setSource("query", "type=percolator").get();
 
-        client().prepareIndex(INDEX, PercolatorFieldMapper.TYPE_NAME, "4")
+        client().prepareIndex(INDEX, "query", "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
 

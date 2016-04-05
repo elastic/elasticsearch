@@ -30,8 +30,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.PercolatorQuery;
 import org.elasticsearch.search.SearchParseElement;
@@ -80,20 +78,20 @@ public class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                 createSubSearchContext(context, percolatorLeafReaderContext, percolatorQuery.getDocumentSource());
 
         for (InternalSearchHit hit : hits) {
-            if (PercolatorFieldMapper.TYPE_NAME.equals(hit.getType())) {
-                LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
-                Query query = queriesRegistry.getQueries(ctx).getQuery(hit.docId() - ctx.docBase);
+            LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
+            int segmentDocId = hit.docId() - ctx.docBase;
+            Query query = queriesRegistry.getQueries(ctx).getQuery(segmentDocId);
+            if (query != null) {
                 subSearchContext.parsedQuery(new ParsedQuery(query));
                 hitContext.reset(
-                    new InternalSearchHit(0, "unknown", new Text(percolatorQuery.getDocumentType()), Collections.emptyMap()),
-                    percolatorLeafReaderContext, 0, percolatorIndexSearcher
+                        new InternalSearchHit(0, "unknown", new Text(percolatorQuery.getDocumentType()), Collections.emptyMap()),
+                        percolatorLeafReaderContext, 0, percolatorIndexSearcher
                 );
                 hitContext.cache().clear();
                 highlightPhase.hitExecute(subSearchContext, hitContext);
                 hit.highlightFields().putAll(hitContext.hit().getHighlightFields());
             }
         }
-
     }
 
     @Override

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.percolator;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -56,6 +58,8 @@ import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -134,6 +138,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
 
         boolean legacyFormat = randomBoolean();
         Version version = legacyFormat ? Version.V_2_0_0 : Version.CURRENT;
+        IndexShard indexShard = mockIndexShard(version, legacyFormat);
 
         storeQuery("0", indexWriter, termQuery("field1", "value1"), true, legacyFormat);
         storeQuery("1", indexWriter, wildcardQuery("field1", "v*"), true, legacyFormat);
@@ -161,7 +166,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
 
         initialize("field1", "type=keyword", "field2", "type=keyword", "field3", "type=keyword");
 
-        PercolatorQueryCache.QueriesLeaf leaf = cache.loadQueries(indexReader.leaves().get(0), version);
+        PercolatorQueryCache.QueriesLeaf leaf = cache.loadQueries(indexReader.leaves().get(0), indexShard);
         assertThat(leaf.queries.size(), equalTo(5));
         assertThat(leaf.getQuery(0), equalTo(new TermQuery(new Term("field1", "value1"))));
         assertThat(leaf.getQuery(1), equalTo(new WildcardQuery(new Term("field1", "v*"))));
@@ -212,7 +217,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("queries not loaded, queries should be have been preloaded during index warming..."));
         }
 
-        IndexShard indexShard = mockIndexShard();
+        IndexShard indexShard = mockIndexShard(Version.CURRENT, false);
         ThreadPool threadPool = mockThreadPool();
         IndexWarmer.Listener listener = cache.createListener(threadPool);
         listener.warmReader(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
@@ -259,7 +264,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
 
         initialize("a", "type=keyword");
 
-        IndexShard indexShard = mockIndexShard();
+        IndexShard indexShard = mockIndexShard(Version.CURRENT, false);
         ThreadPool threadPool = mockThreadPool();
         IndexWarmer.Listener listener = cache.createListener(threadPool);
         listener.warmReader(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
@@ -312,7 +317,11 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new StringField("id", id, Field.Store.NO));
         if (typeField) {
-            doc.add(new StringField(TypeFieldMapper.NAME, PercolatorFieldMapper.TYPE_NAME, Field.Store.NO));
+            if (legacy) {
+                doc.add(new StringField(TypeFieldMapper.NAME, PercolatorFieldMapper.LEGACY_TYPE_NAME, Field.Store.NO));
+            } else {
+                doc.add(new StringField(TypeFieldMapper.NAME, "query", Field.Store.NO));
+            }
         }
         if (legacy) {
             BytesReference percolatorQuery = XContentFactory.jsonBuilder().startObject()
@@ -326,12 +335,12 @@ public class PercolatorQueryCacheTests extends ESTestCase {
             BytesRef queryBuilderAsBytes = new BytesRef(
                     XContentFactory.contentBuilder(PercolatorQueryCache.QUERY_BUILDER_CONTENT_TYPE).value(queryBuilder).bytes().toBytes()
             );
-            doc.add(new BinaryDocValuesField(PercolatorFieldMapper.QUERY_BUILDER_FULL_FIELD_NAME, queryBuilderAsBytes));
+            doc.add(new BinaryDocValuesField(PercolatorFieldMapper.QUERY_BUILDER_FIELD_NAME, queryBuilderAsBytes));
         }
         indexWriter.addDocument(doc);
     }
 
-    IndexShard mockIndexShard() {
+    IndexShard mockIndexShard(Version version, boolean legacyFormat) {
         IndexShard indexShard = mock(IndexShard.class);
         ShardIndexWarmerService shardIndexWarmerService = mock(ShardIndexWarmerService.class);
         when(shardIndexWarmerService.logger()).thenReturn(logger);
@@ -340,11 +349,37 @@ public class PercolatorQueryCacheTests extends ESTestCase {
                 IndexMetaData.builder("_index").settings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, version)
                 ).build(),
                 Settings.EMPTY
         );
         when(indexShard.indexSettings()).thenReturn(indexSettings);
+
+        PercolatorFieldMapper.PercolatorFieldType fieldType = mock(PercolatorFieldMapper.PercolatorFieldType.class);
+        when(fieldType.name()).thenReturn("query");
+        when(fieldType.getQueryBuilderFieldName()).thenReturn(PercolatorFieldMapper.QUERY_BUILDER_FIELD_NAME);
+        PercolatorFieldMapper percolatorFieldMapper = mock(PercolatorFieldMapper.class);
+        when(percolatorFieldMapper.fieldType()).thenReturn(fieldType);
+        MapperService mapperService = mock(MapperService.class);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        if (legacyFormat) {
+            when(documentMapper.type()).thenReturn(PercolatorFieldMapper.LEGACY_TYPE_NAME);
+            when(documentMapper.typeFilter())
+                    .thenReturn(new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorFieldMapper.LEGACY_TYPE_NAME)));
+        } else {
+            when(documentMapper.type()).thenReturn("query");
+            when(documentMapper.typeFilter()).thenReturn(new TermQuery(new Term(TypeFieldMapper.NAME, "query")));
+        }
+
+        Analyzer analyzer = new SimpleAnalyzer();
+        DocumentFieldMappers documentFieldMappers =
+                new DocumentFieldMappers(Collections.singleton(percolatorFieldMapper), analyzer, analyzer, analyzer);
+        when(documentMapper.mappers()).thenReturn(documentFieldMappers);
+
+        when(mapperService.docMappers(false)).thenReturn(Collections.singleton(documentMapper));
+
+        when(indexShard.mapperService()).thenReturn(mapperService);
+
         return indexShard;
     }
 

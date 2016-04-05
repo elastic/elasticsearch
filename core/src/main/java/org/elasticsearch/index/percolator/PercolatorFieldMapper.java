@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -48,53 +49,55 @@ import java.util.Map;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
-    public static final String TYPE_NAME = ".percolator";
-    public static final String NAME = "query";
+    @Deprecated
+    public static final String LEGACY_TYPE_NAME = ".percolator";
     public static final String CONTENT_TYPE = "percolator";
-    public static final PercolatorFieldType FIELD_TYPE = new PercolatorFieldType();
+    private static final PercolatorFieldType FIELD_TYPE = new PercolatorFieldType();
 
     private static final String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
     private static final String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
-    private static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
-
-    public static final String EXTRACTED_TERMS_FULL_FIELD_NAME = NAME + "." + EXTRACTED_TERMS_FIELD_NAME;
-    public static final String UNKNOWN_QUERY_FULL_FIELD_NAME = NAME + "." + UNKNOWN_QUERY_FIELD_NAME;
-    public static final String QUERY_BUILDER_FULL_FIELD_NAME = NAME + "." + QUERY_BUILDER_FIELD_NAME;
+    static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
 
     public static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
 
         private final QueryShardContext queryShardContext;
 
-        public Builder(QueryShardContext queryShardContext) {
-            super(NAME, FIELD_TYPE, FIELD_TYPE);
+        public Builder(String fieldName, QueryShardContext queryShardContext) {
+            super(fieldName, FIELD_TYPE, FIELD_TYPE);
             this.queryShardContext = queryShardContext;
         }
 
         @Override
         public PercolatorFieldMapper build(BuilderContext context) {
-            context.path().add(name);
-            KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME).build(context);
-            KeywordFieldMapper unknownQueryField = createExtractQueryFieldBuilder(UNKNOWN_QUERY_FIELD_NAME).build(context);
-            BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder().build(context);
+            context.path().add(name());
+            KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
+            ((PercolatorFieldType) fieldType).queryTermsField = extractedTermsField.fieldType();
+            KeywordFieldMapper unknownQueryField = createExtractQueryFieldBuilder(UNKNOWN_QUERY_FIELD_NAME, context);
+            ((PercolatorFieldType) fieldType).unknownQueryField = unknownQueryField.fieldType();
+            BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(context);
+            ((PercolatorFieldType) fieldType).queryBuilderField = queryBuilderField.fieldType();
             context.path().remove();
-            return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField, unknownQueryField, queryBuilderField);
+            setupFieldType(context);
+            return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(),
+                    multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField,
+                    unknownQueryField, queryBuilderField);
         }
 
-        static KeywordFieldMapper.Builder createExtractQueryFieldBuilder(String name) {
+        static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
             KeywordFieldMapper.Builder queryMetaDataFieldBuilder = new KeywordFieldMapper.Builder(name);
             queryMetaDataFieldBuilder.docValues(false);
             queryMetaDataFieldBuilder.store(false);
             queryMetaDataFieldBuilder.indexOptions(IndexOptions.DOCS);
-            return queryMetaDataFieldBuilder;
+            return queryMetaDataFieldBuilder.build(context);
         }
 
-        static BinaryFieldMapper.Builder createQueryBuilderFieldBuilder() {
+        static BinaryFieldMapper createQueryBuilderFieldBuilder(BuilderContext context) {
             BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME);
             builder.docValues(true);
             builder.indexOptions(IndexOptions.NONE);
             builder.store(false);
             builder.fieldType().setDocValuesType(DocValuesType.BINARY);
-            return builder;
+            return builder.build(context);
         }
     }
 
@@ -102,21 +105,39 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder(parserContext.queryShardContext());
+            return new Builder(name, parserContext.queryShardContext());
         }
     }
 
-    public static final class PercolatorFieldType extends MappedFieldType {
+    public static class PercolatorFieldType extends MappedFieldType {
+
+        private MappedFieldType queryTermsField;
+        private MappedFieldType unknownQueryField;
+        private MappedFieldType queryBuilderField;
 
         public PercolatorFieldType() {
-            setName(NAME);
             setIndexOptions(IndexOptions.NONE);
             setDocValuesType(DocValuesType.NONE);
             setStored(false);
         }
 
-        public PercolatorFieldType(MappedFieldType ref) {
+        public PercolatorFieldType(PercolatorFieldType ref) {
             super(ref);
+            queryTermsField = ref.queryTermsField;
+            unknownQueryField = ref.unknownQueryField;
+            queryBuilderField = ref.queryBuilderField;
+        }
+
+        public String getExtractedTermsField() {
+            return queryTermsField.name();
+        }
+
+        public String getUnknownQueryFieldName() {
+            return unknownQueryField.name();
+        }
+
+        public String getQueryBuilderFieldName() {
+            return queryBuilderField.name();
         }
 
         @Override
@@ -132,9 +153,9 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     private final boolean mapUnmappedFieldAsString;
     private final QueryShardContext queryShardContext;
-    private final KeywordFieldMapper queryTermsField;
-    private final KeywordFieldMapper unknownQueryField;
-    private final BinaryFieldMapper queryBuilderField;
+    private KeywordFieldMapper queryTermsField;
+    private KeywordFieldMapper unknownQueryField;
+    private BinaryFieldMapper queryBuilderField;
 
     public PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo, QueryShardContext queryShardContext,
@@ -151,6 +172,16 @@ public class PercolatorFieldMapper extends FieldMapper {
     @Override
     public Mapper parse(ParseContext context) throws IOException {
         QueryShardContext queryShardContext = new QueryShardContext(this.queryShardContext);
+        DocumentMapper documentMapper = queryShardContext.getMapperService().documentMapper(context.type());
+        for (FieldMapper fieldMapper : documentMapper.mappers()) {
+            if (fieldMapper instanceof PercolatorFieldMapper) {
+                PercolatorFieldType fieldType = (PercolatorFieldType) fieldMapper.fieldType();
+                if (context.doc().getField(fieldType.getQueryBuilderFieldName()) != null) {
+                    throw new IllegalArgumentException("a document can only contain one percolator query");
+                }
+            }
+        }
+
         XContentParser parser = context.parser();
         QueryBuilder<?> queryBuilder = parseQueryBuilder(queryShardContext.newParseContext(parser), parser.getTokenLocation());
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:

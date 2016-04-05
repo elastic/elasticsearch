@@ -42,7 +42,7 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
 
     public void testHitsExecutionNeeded() {
         PercolatorQuery percolatorQuery = new PercolatorQuery.Builder("", ctx -> null, new BytesArray("{}"),
-                Mockito.mock(IndexSearcher.class), new MatchAllDocsQuery())
+                Mockito.mock(IndexSearcher.class))
                 .build();
 
         PercolatorHighlightSubFetchPhase subFetchPhase = new PercolatorHighlightSubFetchPhase(null);
@@ -61,7 +61,7 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
 
     public void testLocatePercolatorQuery() {
         PercolatorQuery percolatorQuery = new PercolatorQuery.Builder("", ctx -> null, new BytesArray("{}"),
-                Mockito.mock(IndexSearcher.class), new MatchAllDocsQuery())
+                Mockito.mock(IndexSearcher.class))
                 .build();
 
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(new MatchAllDocsQuery()), nullValue());

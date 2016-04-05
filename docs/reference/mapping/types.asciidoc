@@ -41,6 +41,8 @@ Attachment datatype::
     which supports indexing `attachments` like Microsoft Office formats, Open
     Document formats, ePub, HTML, etc. into an `attachment` datatype.
 
+<<percolator>>::    Accepts queries from the query-dsl
+
 [float]
 === Multi-fields
 
@@ -82,6 +84,8 @@ include::types/string.asciidoc[]
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
+
+include::types/percolator.asciidoc[]
 
 
 

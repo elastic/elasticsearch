@@ -15,7 +15,16 @@ percolation.
 Percolator and multi percolate APIs have been deprecated and will be removed in the next major release. These APIs have
 been replaced by the `percolator` query that can be used in the search and multi search APIs.
 
-==== Percolator mapping
+==== Percolator field mapping
+
+The `.percolator` type can no longer be used to index percolator queries.
+
+Instead a <<percolator,percolator field type>> must be configured prior to indexing percolator queries.
+
+Indices with a `.percolator` type created on a version before 5.0.0 can still be used,
+but new indices no longer accept the `.percolator` type.
+
+==== Percolate document mapping
 
 The `percolator` query  can no longer accept documents that reference fields
 that don't already exist in the mapping. Before the percolate API allowed this.

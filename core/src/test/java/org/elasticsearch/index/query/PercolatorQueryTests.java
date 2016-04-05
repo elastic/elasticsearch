@@ -54,6 +54,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.ExtractQueryTermsService;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
@@ -147,8 +148,7 @@ public class PercolatorQueryTests extends ESTestCase {
                 "docType",
                 queryRegistry,
                 new BytesArray("{}"),
-                percolateSearcher,
-                new MatchAllDocsQuery()
+                percolateSearcher
         );
         builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
         // no scoring, wrapping it in a constant score query:
@@ -222,8 +222,7 @@ public class PercolatorQueryTests extends ESTestCase {
                 "docType",
                 queryRegistry,
                 new BytesArray("{}"),
-                percolateSearcher,
-                new MatchAllDocsQuery()
+                percolateSearcher
         );
         builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
         Query query = builder.build();
@@ -326,7 +325,7 @@ public class PercolatorQueryTests extends ESTestCase {
         ParseContext.Document document = new ParseContext.Document();
         ExtractQueryTermsService.extractQueryTerms(query, document, EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME,
                 EXTRACTED_TERMS_FIELD_TYPE);
-        document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorFieldMapper.TYPE_NAME, id)));
+        document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorFieldMapper.LEGACY_TYPE_NAME, id)));
         assert extraFields.length % 2 == 0;
         for (int i = 0; i < extraFields.length; i++) {
             document.add(new StringField(extraFields[i], extraFields[++i], Field.Store.NO));
@@ -340,8 +339,7 @@ public class PercolatorQueryTests extends ESTestCase {
                 "docType",
                 queryRegistry,
                 new BytesArray("{}"),
-                percolateSearcher,
-                new MatchAllDocsQuery()
+                percolateSearcher
         );
         // enables the optimization that prevents queries from being evaluated that don't match
         builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
@@ -351,9 +349,9 @@ public class PercolatorQueryTests extends ESTestCase {
                 "docType",
                 queryRegistry,
                 new BytesArray("{}"),
-                percolateSearcher,
-                new MatchAllDocsQuery()
+                percolateSearcher
         );
+        builder2.setPercolateTypeQuery(new MatchAllDocsQuery());
         TopDocs topDocs2 = shardSearcher.search(builder2.build(), 10);
         assertThat(topDocs1.totalHits, equalTo(topDocs2.totalHits));
         assertThat(topDocs1.scoreDocs.length, equalTo(topDocs2.scoreDocs.length));

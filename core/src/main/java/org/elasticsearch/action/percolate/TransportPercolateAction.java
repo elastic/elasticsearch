@@ -20,10 +20,13 @@ package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -53,7 +56,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class TransportPercolateAction extends HandledTransportAction<PercolateRequest, PercolateResponse> {
 
@@ -194,7 +199,8 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             searchSource.field("size", 0);
         }
 
-        PercolatorQueryBuilder percolatorQueryBuilder = new PercolatorQueryBuilder(percolateRequest.documentType(), documentSource);
+        PercolatorQueryBuilder percolatorQueryBuilder =
+                new PercolatorQueryBuilder("query", percolateRequest.documentType(), documentSource);
         if (querySource != null) {
             try (XContentParser parser = XContentHelper.createParser(querySource)) {
                 QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
@@ -236,9 +242,15 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             }
         }
 
+        List<ShardOperationFailedException> shardFailures = new ArrayList<>(searchResponse.getShardFailures().length);
+        for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
+            shardFailures.add(new DefaultShardOperationFailedException(shardSearchFailure.index(), shardSearchFailure.shardId(),
+                    shardSearchFailure.getCause()));
+        }
+
         return new PercolateResponse(
             searchResponse.getTotalShards(), searchResponse.getSuccessfulShards(), searchResponse.getFailedShards(),
-            Arrays.asList(searchResponse.getShardFailures()), matches, hits.getTotalHits(), searchResponse.getTookInMillis(), (InternalAggregations) searchResponse.getAggregations()
+            shardFailures, matches, hits.getTotalHits(), searchResponse.getTookInMillis(), (InternalAggregations) searchResponse.getAggregations()
         );
     }
 

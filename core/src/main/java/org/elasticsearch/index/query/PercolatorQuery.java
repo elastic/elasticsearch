@@ -23,9 +23,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
@@ -56,22 +58,19 @@ public final class PercolatorQuery extends Query implements Accountable {
         private final IndexSearcher percolatorIndexSearcher;
 
         private Query queriesMetaDataQuery;
-        private final Query percolateTypeQuery;
+        private Query percolateTypeQuery;
 
         /**
          * @param docType                   The type of the document being percolated
          * @param queryRegistry             The registry holding all the percolator queries as Lucene queries.
          * @param documentSource            The source of the document being percolated
          * @param percolatorIndexSearcher   The index searcher on top of the in-memory index that holds the document being percolated
-         * @param percolateTypeQuery        A query that identifies all document containing percolator queries
          */
-        public Builder(String docType, QueryRegistry queryRegistry, BytesReference documentSource, IndexSearcher percolatorIndexSearcher,
-                Query percolateTypeQuery) {
+        public Builder(String docType, QueryRegistry queryRegistry, BytesReference documentSource, IndexSearcher percolatorIndexSearcher) {
             this.docType = Objects.requireNonNull(docType);
             this.documentSource = Objects.requireNonNull(documentSource);
             this.percolatorIndexSearcher = Objects.requireNonNull(percolatorIndexSearcher);
             this.queryRegistry = Objects.requireNonNull(queryRegistry);
-            this.percolateTypeQuery = Objects.requireNonNull(percolateTypeQuery);
         }
 
         /**
@@ -87,12 +86,27 @@ public final class PercolatorQuery extends Query implements Accountable {
             );
         }
 
+        /**
+         * @param percolateTypeQuery    A query that identifies all document containing percolator queries
+         */
+        public void setPercolateTypeQuery(Query percolateTypeQuery) {
+            this.percolateTypeQuery = Objects.requireNonNull(percolateTypeQuery);
+        }
+
         public PercolatorQuery build() {
+            if (percolateTypeQuery != null && queriesMetaDataQuery != null) {
+                throw new IllegalStateException("Either filter by deprecated percolator type or by query metadata");
+            }
+
+            // The query that selects which percolator queries will be evaluated by MemoryIndex:
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(percolateTypeQuery, FILTER);
+            if (percolateTypeQuery != null) {
+                builder.add(percolateTypeQuery, FILTER);
+            }
             if (queriesMetaDataQuery != null) {
                 builder.add(queriesMetaDataQuery, FILTER);
             }
+
             return new PercolatorQuery(docType, queryRegistry, documentSource, builder.build(), percolatorIndexSearcher);
         }
 

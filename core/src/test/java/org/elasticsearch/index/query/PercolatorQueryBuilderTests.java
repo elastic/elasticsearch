@@ -24,29 +24,37 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.script.Script;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<PercolatorQueryBuilder> {
 
-    private static final Set<String> SHUFFLE_PROTECTED_FIELDS = singleton(PercolatorQueryBuilder.DOCUMENT_FIELD.getPreferredName());
+    private static final Set<String> SHUFFLE_PROTECTED_FIELDS =
+            Collections.singleton(PercolatorQueryBuilder.DOCUMENT_FIELD.getPreferredName());
+
+    private static String queryField;
+    private static String docType;
+
     private String indexedDocumentIndex;
     private String indexedDocumentType;
     private String indexedDocumentId;
@@ -57,13 +65,25 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
 
     boolean indexedDocumentExists = true;
 
+    @BeforeClass
+    public static void before() throws Exception {
+        queryField = randomAsciiOfLength(4);
+        docType = randomAsciiOfLength(4);
+        MapperService mapperService = createShardContext().getMapperService();
+        mapperService.merge("query_type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("query_type",
+                queryField, "type=percolator"
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
+                STRING_FIELD_NAME, "type=text"
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+    }
+
     @Override
     protected PercolatorQueryBuilder doCreateTestQueryBuilder() {
         return doCreateTestQueryBuilder(randomBoolean());
     }
 
     private PercolatorQueryBuilder doCreateTestQueryBuilder(boolean indexedDocument) {
-        String docType = randomAsciiOfLength(4);
         documentSource = randomSource();
         if (indexedDocument) {
             indexedDocumentIndex = randomAsciiOfLength(4);
@@ -72,10 +92,10 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
             indexedDocumentRouting = randomAsciiOfLength(4);
             indexedDocumentPreference = randomAsciiOfLength(4);
             indexedDocumentVersion = (long) randomIntBetween(0, Integer.MAX_VALUE);
-            return new PercolatorQueryBuilder(docType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
+            return new PercolatorQueryBuilder(queryField, docType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
                     indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
         } else {
-            return new PercolatorQueryBuilder(docType, documentSource);
+            return new PercolatorQueryBuilder(queryField, docType, documentSource);
         }
     }
 
@@ -120,28 +140,20 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
     @Override
     public void testMustRewrite() throws IOException {
         PercolatorQueryBuilder pqb = doCreateTestQueryBuilder(true);
-        try {
-            pqb.toQuery(createShardContext());
-            fail("IllegalStateException expected");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
-        }
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createShardContext()));
+        assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
         QueryBuilder<?> rewrite = pqb.rewrite(createShardContext());
-        PercolatorQueryBuilder geoShapeQueryBuilder = new PercolatorQueryBuilder(pqb.getDocumentType(), documentSource);
+        PercolatorQueryBuilder geoShapeQueryBuilder = new PercolatorQueryBuilder(pqb.getField(), pqb.getDocumentType(), documentSource);
         assertEquals(geoShapeQueryBuilder, rewrite);
     }
 
     public void testIndexedDocumentDoesNotExist() throws IOException {
         indexedDocumentExists = false;
         PercolatorQueryBuilder pqb = doCreateTestQueryBuilder(true);
-        try {
-            pqb.rewrite(createShardContext());
-            fail("ResourceNotFoundException expected");
-        } catch (ResourceNotFoundException e) {
-            String expectedString = "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" +
-                    indexedDocumentId +  "] couldn't be found";
-            assertThat(e.getMessage() , equalTo(expectedString));
-        }
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> pqb.rewrite(createShardContext()));
+        String expectedString = "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" +
+                indexedDocumentId +  "] couldn't be found";
+        assertThat(e.getMessage() , equalTo(expectedString));
     }
 
     // overwrite this test, because adding bogus field to the document part is valid and that would make the test fail
@@ -172,51 +184,47 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
     }
 
     public void testRequiredParameters() {
-        try {
-            QueryBuilders.percolatorQuery(null, new BytesArray("{}"));
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("[document_type] is a required argument"));
-        }
-        try {
-            QueryBuilders.percolatorQuery("_document_type", null);
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("[document] is a required argument"));
-        }
-        try {
-            QueryBuilders.percolatorQuery(null, "_index", "_type", "_id", null, null, null);
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("[document_type] is a required argument"));
-        }
-        try {
-            QueryBuilders.percolatorQuery("_document_type", null, "_type", "_id", null, null, null);
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("[index] is a required argument"));
-        }
-        try {
-            QueryBuilders.percolatorQuery("_document_type", "_index", null, "_id", null, null, null);
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("[type] is a required argument"));
-        }
-        try {
-            QueryBuilders.percolatorQuery("_document_type", "_index", "_type", null, null, null, null);
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("[id] is a required argument"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            QueryBuilders.percolatorQuery(null, null, new BytesArray("{}"));
+        });
+        assertThat(e.getMessage(), equalTo("[field] is a required argument"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> QueryBuilders.percolatorQuery("_field", null, new BytesArray("{}")));
+        assertThat(e.getMessage(), equalTo("[document_type] is a required argument"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> QueryBuilders.percolatorQuery("_field", "_document_type", null));
+        assertThat(e.getMessage(), equalTo("[document] is a required argument"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            QueryBuilders.percolatorQuery(null, null, "_index", "_type", "_id", null, null, null);
+        });
+        assertThat(e.getMessage(), equalTo("[field] is a required argument"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            QueryBuilders.percolatorQuery("_field", null, "_index", "_type", "_id", null, null, null);
+        });
+        assertThat(e.getMessage(), equalTo("[document_type] is a required argument"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            QueryBuilders.percolatorQuery("_field", "_document_type", null, "_type", "_id", null, null, null);
+        });
+        assertThat(e.getMessage(), equalTo("[index] is a required argument"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            QueryBuilders.percolatorQuery("_field", "_document_type", "_index", null, "_id", null, null, null);
+        });
+        assertThat(e.getMessage(), equalTo("[type] is a required argument"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            QueryBuilders.percolatorQuery("_field", "_document_type", "_index", "_type", null, null, null, null);
+        });
+        assertThat(e.getMessage(), equalTo("[id] is a required argument"));
     }
 
     public void testFromJsonNoDocumentType() throws IOException {
-        try {
-            parseQuery("{\"percolator\" : { \"document\": {}}");
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("[percolator] query is missing required [document_type] parameter"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parseQuery("{\"percolator\" : { \"document\": {}}"));
+        assertThat(e.getMessage(), equalTo("[percolator] query is missing required [document_type] parameter"));
     }
 
     private static BytesReference randomSource() {

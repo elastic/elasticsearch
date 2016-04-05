@@ -1,37 +1,32 @@
 [[query-dsl-percolator-query]]
 === Percolator Query
 
-Traditionally you design documents based on your data, store them into an index, and then define queries via the search API
-in order to retrieve these documents. The percolator works in the opposite direction. First you store queries into an
-index and then you use the `percolator` query to search for the queries which match a specified document (or documents).
-
-The reason that queries can be stored comes from the fact that in Elasticsearch both documents and queries are defined in
-JSON. This allows you to embed queries into documents via the index API. Elasticsearch can extract the query from a
-document and make it available for search via the `percolator` query. Since documents are also defined as JSON,
-you can define a document in the `percolator` query.
-
-[IMPORTANT]
-=====================================
-
-Fields referred to in a percolator query must *already* exist in the mapping
-associated with the index used for percolation. In order to make sure these fields exist,
-add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
-
-=====================================
+The `percolator` query can be used to match queries
+stored in an index. The `percolator` query itself
+contains the document that will be used as query
+to match with the stored queries.
 
 [float]
 === Sample Usage
 
-Create an index with a mapping for the field `message`:
+Create an index with two mappings:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/my-index' -d '{
+curl -XPUT "http://localhost:9200/my-index" -d'
+{
   "mappings": {
-    "my-type": {
+    "doctype": {
       "properties": {
         "message": {
           "type": "string"
+        }
+      }
+    },
+    "queries": {
+      "properties": {
+        "query": {
+          "type": "percolator"
         }
       }
     }
@@ -39,11 +34,23 @@ curl -XPUT 'localhost:9200/my-index' -d '{
 }'
 --------------------------------------------------
 
+The `doctype` mapping is the mapping used to preprocess
+the document defined in the `percolator` query before it
+gets indexed into a temporary index.
+
+The `queries` mapping is the mapping used for indexing
+the query documents. The `query` field will hold a json
+object that represents an actual Elasticsearch query. The
+`query` field has been configured to use the
+<<percolator,percolator field type>>. This field type understands
+the query dsl and stored the query in such a way that it
+can be used later on to match documents defined on the `percolator` query.
+
 Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/my-index/.percolator/1' -d '{
+curl -XPUT 'localhost:9200/my-index/queries/1' -d '{
     "query" : {
         "match" : {
             "message" : "bonsai tree"
@@ -59,7 +66,8 @@ Match a document to the registered percolator queries:
 curl -XGET 'localhost:9200/my-index/_search' -d '{
     "query" : {
         "percolator" : {
-            "document_type" : "my-type",
+            "field" : "query",
+            "document_type" : "doctype",
             "document" : {
                 "message" : "A new bonsai tree in the office"
             }
@@ -82,13 +90,13 @@ The above request will yield the following response:
   },
   "hits": {
     "total": 1,
-    "max_score": 0,
+    "max_score": 0.5716521,
     "hits": [
       { <1>
         "_index": "my-index",
-        "_type": ".percolator",
+        "_type": "queries",
         "_id": "1",
-        "_score": 0,
+        "_score": 0.5716521,
         "_source": {
           "query": {
             "match": {
@@ -105,72 +113,13 @@ The above request will yield the following response:
 <1> The percolate query with id `1` matches our document.
 
 [float]
-=== Indexing Percolator Queries
-
-Percolate queries are stored as documents in a specific format and in an arbitrary index under a reserved type with the
-name `.percolator`. The query itself is placed as is in a JSON object under the top level field `query`.
-
-[source,js]
---------------------------------------------------
-{
-    "query" : {
-		"match" : {
-			"field" : "value"
-		}
-	}
-}
---------------------------------------------------
-
-Since this is just an ordinary document, any field can be added to this document. This can be useful later on to only
-percolate documents by specific queries.
-
-[source,js]
---------------------------------------------------
-{
-	"query" : {
-		"match" : {
-			"field" : "value"
-		}
-	},
-	"priority" : "high"
-}
---------------------------------------------------
-
-Just as with any other type, the `.percolator` type has a mapping, which you can configure via the mappings APIs.
-The default percolate mapping doesn't index the query field, only stores it.
-
-Because `.percolate` is a type it also has a mapping. By default the following mapping is active:
-
-[source,js]
---------------------------------------------------
-{
-	".percolator" : {
-		"properties" : {
-			"query" : {
-				"type" : "percolator"
-			}
-		}
-	}
-}
---------------------------------------------------
-
-If needed, this mapping can be modified with the update mapping API.
-
-In order to un-register a percolate query the delete API can be used. So if the previous added query needs to be deleted
-the following delete requests needs to be executed:
-
-[source,js]
---------------------------------------------------
-curl -XDELETE localhost:9200/my-index/.percolator/1
---------------------------------------------------
-
-[float]
 ==== Parameters
 
 The following parameters are required when percolating a document:
 
 [horizontal]
-`document_type`:: The type / mapping of the document being percolated. This is parameter is always required.
+`field`:: The field of type `percolator` and that holds the indexed queries. This is a required parameter.
+`document_type`:: The type / mapping of the document being percolated. This is a required parameter.
 `document`:: The source of the document being percolated.
 
 Instead of specifying a the source of the document being percolated, the source can also be retrieved from an already
@@ -185,15 +134,6 @@ In that case the `document` parameter can be substituted with the following para
 `routing`:: Optionally, routing to be used to fetch document to percolate.
 `preference`:: Optionally, preference to be used to fetch document to percolate.
 `version`:: Optionally, the expected version of the document to be fetched.
-
-[float]
-==== Dedicated Percolator Index
-
-Percolate queries can be added to any index. Instead of adding percolate queries to the index the data resides in,
-these queries can also be added to a dedicated index. The advantage of this is that this dedicated percolator index
-can have its own index settings (For example the number of primary and replica shards). If you choose to have a dedicated
-percolate index, you need to make sure that the mappings from the normal index are also available on the percolate index.
-Otherwise percolate queries can be parsed incorrectly.
 
 [float]
 ==== Percolating an Existing Document
@@ -243,7 +183,8 @@ curl -XGET "http://localhost:9200/my-index/_search" -d'
 {
     "query" : {
         "percolator" : {
-            "document_type" : "my-type",
+            "field": "query",
+            "document_type" : "doctype",
             "index" : "my-index",
             "type" : "message",
             "id" : "1",
@@ -275,7 +216,7 @@ Add a percolator query:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT "http://localhost:9200/my-index/.percolator/1" -d'
+curl -XPUT "http://localhost:9200/my-index/queries/1" -d'
 {
     "query" : {
         "match" : {
@@ -289,7 +230,7 @@ Add another percolator query:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT "http://localhost:9200/my-index/.percolator/2" -d'
+curl -XPUT "http://localhost:9200/my-index/queries/2" -d'
 {
     "query" : {
         "match" : {
@@ -299,7 +240,7 @@ curl -XPUT "http://localhost:9200/my-index/.percolator/2" -d'
 }'
 --------------------------------------------------
 
-Execute a search request with `percolator` and highlighting enabled:
+Execute a search request with the `percolator` query and highlighting enabled:
 
 [source,js]
 --------------------------------------------------
@@ -307,7 +248,8 @@ curl -XGET "http://localhost:9200/my-index/_search" -d'
 {
     "query" : {
         "percolator" : {
-            "document_type" : "my-type",
+            "field": "query",
+            "document_type" : "doctype",
             "document" : {
                 "message" : "The quick brown fox jumps over the lazy dog"
             }
@@ -326,7 +268,7 @@ This will yield the following response.
 [source,js]
 --------------------------------------------------
 {
-  "took": 14,
+  "took": 83,
   "timed_out": false,
   "_shards": {
     "total": 5,
@@ -335,13 +277,13 @@ This will yield the following response.
   },
   "hits": {
     "total": 2,
-    "max_score": 0,
+    "max_score": 0.5446649,
     "hits": [
       {
         "_index": "my-index",
-        "_type": ".percolator",
+        "_type": "queries",
         "_id": "2",
-        "_score": 0,
+        "_score": 0.5446649,
         "_source": {
           "query": {
             "match": {
@@ -351,15 +293,15 @@ This will yield the following response.
         },
         "highlight": {
           "message": [
-            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
+            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>"
           ]
         }
       },
       {
         "_index": "my-index",
-        "_type": ".percolator",
+        "_type": "queries",
         "_id": "1",
-        "_score": 0,
+        "_score": 0.5446649,
         "_source": {
           "query": {
             "match": {
@@ -369,7 +311,7 @@ This will yield the following response.
         },
         "highlight": {
           "message": [
-            "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog" <1>
+            "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"
           ]
         }
       }
@@ -384,41 +326,14 @@ This will yield the following response.
 [float]
 ==== How it Works Under the Hood
 
-When indexing a document that contains a query in an index and the `.percolator` type, the query part of the documents gets
-parsed into a Lucene query and is kept in memory until that percolator document is removed or the index containing the
-`.percolator` type gets removed. So, all the active percolator queries are kept in memory.
+When indexing a document into an index that has the <<percolator,percolator field type>> mapping configured, the query
+part of the documents gets parsed into a Lucene query and is kept in memory until that percolator document is removed.
+So, all the active percolator queries are kept in memory.
 
 At search time, the document specified in the request gets parsed into a Lucene document and is stored in a in-memory
-Lucene index. This in-memory index can just hold this one document and it is optimized for that. Then all the queries
-that are registered to the index that the searh request is targeted for, are going to be executed on this single document
+temporary Lucene index. This in-memory index can just hold this one document and it is optimized for that. Then all the queries
+that are registered to the index that the search request is targeted for, are going to be executed on this single document
 in-memory index. This happens on each shard the search request needs to execute.
 
 By using `routing` or additional queries the amount of percolator queries that need to be executed can be reduced and thus
 the time the search API needs to run can be decreased.
-
-[float]
-==== Important Notes
-
-Because the percolator query is processing one document at a time, it doesn't support queries and filters that run
-against child documents such as `has_child` and `has_parent`.
-
-The percolator doesn't work with queries like `template` and `geo_shape` queries when these queries fetch documents
-to substitute parts of the query. The reason is that the percolator stores the query terms during indexing in order to
-speedup percolating in certain cases and this doesn't work if part of the query is defined in another document.
-There is no way to know for the percolator to know if an external document has changed and even if this was the case the
-percolator query has to be reindexed.
-
-The `wildcard` and `regexp` query natively use a lot of memory and because the percolator keeps the queries into memory
-this can easily take up the available memory in the heap space. If possible try to use a `prefix` query or ngramming to
-achieve the same result (with way less memory being used).
-
-[float]
-==== Forcing Unmapped Fields to be Handled as Strings
-
-In certain cases it is unknown what kind of percolator queries do get registered, and if no field mapping exists for fields
-that are referred by percolator queries then adding a percolator query fails. This means the mapping needs to be updated
-to have the field with the appropriate settings, and then the percolator query can be added. But sometimes it is sufficient
-if all unmapped fields are handled as if these were default string fields. In those cases one can configure the
-`index.percolator.map_unmapped_fields_as_string` setting to `true` (default to `false`) and then if a field referred in
-a percolator query does not exist, it will be handled as a default string field so that adding the percolator query doesn't
-fail.

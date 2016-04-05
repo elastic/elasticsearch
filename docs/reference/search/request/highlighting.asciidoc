@@ -64,7 +64,7 @@ natural languages, not as well with fields containing for instance html markup
 * Treats the document as the whole corpus, and scores individual sentences as
 if they were documents in this corpus, using the  BM25 algorithm
 
-Here is an example of setting the `content` field to allow for
+Here is an example of setting the `content` field in the index mapping to allow for
 highlighting using the postings highlighter on it:
 
 [source,js]

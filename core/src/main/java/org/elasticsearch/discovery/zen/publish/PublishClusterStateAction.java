@@ -404,7 +404,7 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         if (currentNodes.getLocalNode().equals(incomingState.nodes().getLocalNode()) == false) {
             logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", incomingState.nodes().getMasterNode());
-            throw new IllegalStateException("received state from local node that does not match the current local node");
+            throw new IllegalStateException("received state with a local node that does not match the current local node");
         }
 
         ZenDiscovery.validateStateIsFromCurrentMaster(logger, currentNodes, incomingState);

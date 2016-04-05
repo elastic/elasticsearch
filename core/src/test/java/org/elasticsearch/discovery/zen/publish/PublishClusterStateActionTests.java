@@ -635,7 +635,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state with non-existence local node");
         } catch (IllegalStateException OK) {
-            assertThat(OK.toString(), containsString("received state from local node that does not match the current local node"));
+            assertThat(OK.toString(), containsString("received state with a local node that does not match the current local node"));
         }
 
         try {
@@ -646,7 +646,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state with existent but wrong local node");
         } catch (IllegalStateException OK) {
-            assertThat(OK.toString(), containsString("received state from local node that does not match the current local node"));
+            assertThat(OK.toString(), containsString("received state with a local node that does not match the current local node"));
         }
 
         logger.info("--> testing acceptance of an old cluster state");

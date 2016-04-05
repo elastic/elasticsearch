@@ -5,7 +5,7 @@ request to port `9200` on `localhost`:
 
 [source,sh]
 --------------------------------------------
-curl locahost:9200
+curl localhost:9200
 --------------------------------------------
 
 which should give you a response something like this:

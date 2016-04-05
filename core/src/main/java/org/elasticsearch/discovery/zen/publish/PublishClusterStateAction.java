@@ -41,7 +41,6 @@ import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
@@ -64,6 +63,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  *
@@ -82,17 +82,22 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     private final TransportService transportService;
-    private final DiscoveryNodesProvider nodesProvider;
+    private final Supplier<ClusterState> clusterStateSupplier;
     private final NewPendingClusterStateListener newPendingClusterStatelistener;
     private final DiscoverySettings discoverySettings;
     private final ClusterName clusterName;
     private final PendingClusterStatesQueue pendingStatesQueue;
 
-    public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                     NewPendingClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+    public PublishClusterStateAction(
+            Settings settings,
+            TransportService transportService,
+            Supplier<ClusterState> clusterStateSupplier,
+            NewPendingClusterStateListener listener,
+            DiscoverySettings discoverySettings,
+            ClusterName clusterName) {
         super(settings);
         this.transportService = transportService;
-        this.nodesProvider = nodesProvider;
+        this.clusterStateSupplier = clusterStateSupplier;
         this.newPendingClusterStatelistener = listener;
         this.discoverySettings = discoverySettings;
         this.clusterName = clusterName;
@@ -364,7 +369,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             final ClusterState incomingState;
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
-                incomingState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().getLocalNode());
+                incomingState = ClusterState.Builder.readFrom(in, clusterStateSupplier.get().nodes().getLocalNode());
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
             } else if (lastSeenClusterState != null) {
                 Diff<ClusterState> diff = lastSeenClusterState.readDiffFrom(in);
@@ -395,11 +400,11 @@ public class PublishClusterStateAction extends AbstractComponent {
             logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", incomingState.nodes().getMasterNode(), incomingClusterName);
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }
-        final DiscoveryNodes currentNodes = nodesProvider.nodes();
+        final DiscoveryNodes currentNodes = clusterStateSupplier.get().nodes();
 
         if (currentNodes.getLocalNode().equals(incomingState.nodes().getLocalNode()) == false) {
             logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", incomingState.nodes().getMasterNode());
-            throw new IllegalStateException("received state from a node that is not part of the cluster");
+            throw new IllegalStateException("received state from local node that does not match the current local node");
         }
 
         ZenDiscovery.validateStateIsFromCurrentMaster(logger, currentNodes, incomingState);
@@ -407,11 +412,26 @@ public class PublishClusterStateAction extends AbstractComponent {
             final String message = String.format(
                     Locale.ROOT,
                     "received cluster state from current master superseded by last seen cluster state; " +
-                            "received version [%s] with uuid [%s], last seen version [%s] with uuid [%s]",
+                            "received version [%d] with uuid [%s], last seen version [%d] with uuid [%s]",
                     incomingState.version(),
                     incomingState.stateUUID(),
                     lastSeenClusterState.version(),
                     lastSeenClusterState.stateUUID()
+            );
+            logger.warn(message);
+            throw new IllegalStateException(message);
+        }
+
+        final ClusterState state = clusterStateSupplier.get();
+        if (state.nodes().getMasterNodeId() != null && incomingState.version() <= state.version()) {
+            assert !incomingState.stateUUID().equals(state.stateUUID());
+            final String message = String.format(
+                    Locale.ROOT,
+                    "received cluster state older than current cluster state; " +
+                            "received version [%d] with uuid [%s], current version [%d]",
+                    incomingState.version(),
+                    incomingState.stateUUID(),
+                    state.version()
             );
             logger.warn(message);
             throw new IllegalStateException(message);

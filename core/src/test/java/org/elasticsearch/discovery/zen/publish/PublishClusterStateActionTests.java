@@ -70,7 +70,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -161,7 +163,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(settings, version);
         DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(service.boundAddress().publishAddress());
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
-        node.action = buildPublishClusterStateAction(settings, service, node, node);
+        node.action = buildPublishClusterStateAction(settings, service, () -> node.clusterState, node);
         final CountDownLatch latch = new CountDownLatch(nodes.size() * 2 + 1);
         TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
@@ -233,10 +235,21 @@ public class PublishClusterStateActionTests extends ESTestCase {
         return transportService;
     }
 
-    protected MockPublishAction buildPublishClusterStateAction(Settings settings, MockTransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                                               PublishClusterStateAction.NewPendingClusterStateListener listener) {
-        DiscoverySettings discoverySettings = new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        return new MockPublishAction(settings, transportService, nodesProvider, listener, discoverySettings, ClusterName.DEFAULT);
+    protected MockPublishAction buildPublishClusterStateAction(
+            Settings settings,
+            MockTransportService transportService,
+            Supplier<ClusterState> clusterStateSupplier,
+            PublishClusterStateAction.NewPendingClusterStateListener listener
+    ) {
+        DiscoverySettings discoverySettings =
+                new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        return new MockPublishAction(
+                settings,
+                transportService,
+                clusterStateSupplier,
+                listener,
+                discoverySettings,
+                ClusterName.DEFAULT);
     }
 
     public void testSimpleClusterStatePublishing() throws Exception {
@@ -598,11 +611,12 @@ public class PublishClusterStateActionTests extends ESTestCase {
             node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state from another master");
         } catch (IllegalStateException OK) {
+            assertThat(OK.toString(), containsString("cluster state from a different master than the current one, rejecting"));
         }
 
         logger.info("--> test state from the current master is accepted");
         node.action.validateIncomingState(ClusterState.builder(node.clusterState)
-                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId("master")).build(), node.clusterState);
+                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId("master")).incrementVersion().build(), node.clusterState);
 
 
         logger.info("--> testing rejection of another cluster name");
@@ -610,6 +624,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             node.action.validateIncomingState(ClusterState.builder(new ClusterName(randomAsciiOfLength(10))).nodes(node.nodes()).build(), node.clusterState);
             fail("node accepted state with another cluster name");
         } catch (IllegalStateException OK) {
+            assertThat(OK.toString(), containsString("received state from a node that is not part of the cluster"));
         }
 
         logger.info("--> testing rejection of a cluster state with wrong local node");
@@ -620,6 +635,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state with non-existence local node");
         } catch (IllegalStateException OK) {
+            assertThat(OK.toString(), containsString("received state from local node that does not match the current local node"));
         }
 
         try {
@@ -630,6 +646,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state with existent but wrong local node");
         } catch (IllegalStateException OK) {
+            assertThat(OK.toString(), containsString("received state from local node that does not match the current local node"));
         }
 
         logger.info("--> testing acceptance of an old cluster state");
@@ -639,7 +656,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 expectThrows(IllegalStateException.class, () -> node.action.validateIncomingState(incomingState, node.clusterState));
         final String message = String.format(
                 Locale.ROOT,
-                "received older cluster state version [%s] from current master with uuid [%s] than last seen cluster state [%s] from current master with uuid [%s]",
+                "received cluster state from current master superseded by last seen cluster state; received version [%d] with uuid [%s], last seen version [%d] with uuid [%s]",
                 incomingState.version(),
                 incomingState.stateUUID(),
                 node.clusterState.version(),
@@ -678,19 +695,27 @@ public class PublishClusterStateActionTests extends ESTestCase {
             assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
             assertThat(channel.error.get(), nullValue());
             channel.clear();
+
         }
 
         logger.info("--> committing states");
 
+        long largestVersionSeen = Long.MIN_VALUE;
         Randomness.shuffle(states);
         for (ClusterState state : states) {
             node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state.stateUUID()), channel);
-            assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
-            if (channel.error.get() != null) {
-                throw channel.error.get();
+            if (largestVersionSeen < state.getVersion()) {
+                assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
+                if (channel.error.get() != null) {
+                    throw channel.error.get();
+                }
+                largestVersionSeen = state.getVersion();
+            } else {
+                assertNotNull(channel.error.get());
+                assertThat(channel.error.get(), instanceOf(IllegalStateException.class));
             }
+            channel.clear();
         }
-        channel.clear();
 
         //now check the last state held
         assertSameState(node.clusterState, finalState);
@@ -828,8 +853,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean timeoutOnCommit = new AtomicBoolean();
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
-        public MockPublishAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider, NewPendingClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
-            super(settings, transportService, nodesProvider, listener, discoverySettings, clusterName);
+        public MockPublishAction(Settings settings, TransportService transportService, Supplier<ClusterState> clusterStateSupplier, NewPendingClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+            super(settings, transportService, clusterStateSupplier, listener, discoverySettings, clusterName);
         }
 
         @Override

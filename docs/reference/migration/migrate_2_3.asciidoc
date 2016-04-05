@@ -7,9 +7,20 @@ your application to Elasticsearch 2.3.
 * <<breaking_23_index_apis>>
 * <<breaking_23_scripting>>
 
+[[breaking_23_rest]]
+[float]
+=== REST API
+
+==== CORS support broken in 2.3.0 and 2.3.1
+
+A change to the CORS implementation means that CORS support for pre-flight
+`OPTIONS` requests is broken in 2.3.0 and 2.3.1.  This will be fixed in 2.3.2.
+
 [[breaking_23_index_apis]]
+[float]
 === Mappings
 
+[float]
 ==== Limit to the number of `nested` fields
 
 Indexing a document with 100 nested fields actually indexes 101 documents as each nested
@@ -20,8 +31,10 @@ Note that the limit is only checked when new indices are created or mappings are
 will thus only affect existing pre-2.3 indices if their mapping is changed.
 
 [[breaking_23_scripting]]
+[float]
 === Scripting
 
+[float]
 ==== Groovy dependencies
 
 In previous versions of Elasticsearch, the Groovy scripting capabilities

@@ -59,6 +59,7 @@ import org.jboss.netty.handler.codec.http.HttpContentCompressor;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
+import sun.security.util.Length;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -105,8 +106,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     public static final int DEFAULT_SETTING_PIPELINING_MAX_EVENTS = 10000;
     public static final String DEFAULT_PORT_RANGE = "9200-9300";
 
-    private static final String DEFAULT_CORS_METHODS = "OPTIONS, HEAD, GET, POST, PUT, DELETE";
-    private static final String DEFAULT_CORS_HEADERS = "X-Requested-With, Content-Type, Content-Length";
+    private static final String[] DEFAULT_CORS_METHODS = { "OPTIONS", "HEAD", "GET", "POST", "PUT", "DELETE" };
+    private static final String[] DEFAULT_CORS_HEADERS = { "X-Requested-With", "Content-Type", "Content-Length" };
     private static final int DEFAULT_CORS_MAX_AGE = 1728000;
 
     protected final NetworkService networkService;
@@ -353,14 +354,14 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         if (settings.getAsBoolean(SETTING_CORS_ALLOW_CREDENTIALS, false)) {
             builder.allowCredentials();
         }
-        String[] strMethods = settings.getAsArray(settings.get(SETTING_CORS_ALLOW_METHODS, DEFAULT_CORS_METHODS), new String[0]);
+        String[] strMethods = settings.getAsArray(SETTING_CORS_ALLOW_METHODS, DEFAULT_CORS_METHODS);
         HttpMethod[] methods = new HttpMethod[strMethods.length];
         for (int i = 0; i < methods.length; i++) {
             methods[i] = HttpMethod.valueOf(strMethods[i]);
         }
         return builder.allowedRequestMethods(methods)
                       .maxAge(settings.getAsInt(SETTING_CORS_MAX_AGE, DEFAULT_CORS_MAX_AGE))
-                      .allowedRequestHeaders(settings.getAsArray(settings.get(SETTING_CORS_ALLOW_HEADERS, DEFAULT_CORS_HEADERS), new String[0]))
+                      .allowedRequestHeaders(settings.getAsArray(SETTING_CORS_ALLOW_HEADERS, DEFAULT_CORS_HEADERS))
                       .shortCircuit()
                       .build();
     }

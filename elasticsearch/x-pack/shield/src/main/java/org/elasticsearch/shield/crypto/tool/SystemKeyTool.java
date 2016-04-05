@@ -50,7 +50,7 @@ public class SystemKeyTool extends Command {
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
         final Path keyPath;
-        if (options.has(arguments)) {
+        if (options.hasArgument(arguments)) {
             List<String> args = arguments.values(options);
             if (args.size() > 1) {
                 throw new UserError(ExitCodes.USAGE, "No more than one key path can be supplied");

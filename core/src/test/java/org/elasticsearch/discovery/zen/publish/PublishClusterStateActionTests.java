@@ -711,6 +711,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 }
                 largestVersionSeen = state.getVersion();
             } else {
+                // older cluster states will be rejected
                 assertNotNull(channel.error.get());
                 assertThat(channel.error.get(), instanceOf(IllegalStateException.class));
             }

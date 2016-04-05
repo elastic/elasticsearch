@@ -312,25 +312,30 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         return nodeId.hashCode();
     }
 
+    private String toString;
+
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        if (nodeName.length() > 0) {
-            sb.append('{').append(nodeName).append('}');
+        if (toString == null) {
+            StringBuilder sb = new StringBuilder();
+            if (nodeName.length() > 0) {
+                sb.append('{').append(nodeName).append('}');
+            }
+            if (nodeId != null) {
+                sb.append('{').append(nodeId).append('}');
+            }
+            if (Strings.hasLength(hostName)) {
+                sb.append('{').append(hostName).append('}');
+            }
+            if (address != null) {
+                sb.append('{').append(address).append('}');
+            }
+            if (!attributes.isEmpty()) {
+                sb.append(attributes);
+            }
+            toString = sb.toString();
         }
-        if (nodeId != null) {
-            sb.append('{').append(nodeId).append('}');
-        }
-        if (Strings.hasLength(hostName)) {
-            sb.append('{').append(hostName).append('}');
-        }
-        if (address != null) {
-            sb.append('{').append(address).append('}');
-        }
-        if (!attributes.isEmpty()) {
-            sb.append(attributes);
-        }
-        return sb.toString();
+        return toString;
     }
 
     @Override

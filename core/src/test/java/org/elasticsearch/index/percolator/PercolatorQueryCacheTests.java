@@ -60,13 +60,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.BoolQueryParser;
 import org.elasticsearch.index.query.PercolatorQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryParser;
 import org.elasticsearch.index.shard.IndexShard;
@@ -105,9 +103,11 @@ public class PercolatorQueryCacheTests extends ESTestCase {
                 .build();
 
         Map<String, Tuple<ParseField, QueryParser<?>>> queryParsers = new HashMap<>();
-        queryParsers.put(TermQueryBuilder.NAME, new Tuple<>(TermQueryParser.QUERY_NAME_FIELD, new TermQueryParser()));
+        QueryParser<TermQueryBuilder> termParser = TermQueryBuilder::fromXContent;
+        queryParsers.put(TermQueryBuilder.NAME, new Tuple<>(TermQueryBuilder.QUERY_NAME_FIELD, termParser));
         queryParsers.put(WildcardQueryBuilder.NAME, new Tuple<>(WildcardQueryParser.QUERY_NAME_FIELD, new WildcardQueryParser()));
-        queryParsers.put(BoolQueryBuilder.NAME, new Tuple<>(BoolQueryParser.QUERY_NAME_FIELD, new BoolQueryParser()));
+        QueryParser<BoolQueryBuilder> boolQueryParser = BoolQueryBuilder::fromXContent;
+        queryParsers.put(BoolQueryBuilder.NAME, new Tuple<>(BoolQueryBuilder.QUERY_NAME_FIELD, boolQueryParser));
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, queryParsers);
 
         Settings indexSettings = Settings.settingsBuilder()

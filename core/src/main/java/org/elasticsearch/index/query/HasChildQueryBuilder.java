@@ -27,10 +27,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -38,6 +41,7 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -49,6 +53,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * The queries name
      */
     public static final String NAME = "has_child";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /**
      * The default maximum number of children that are required to match for the parent to be considered a match.
@@ -63,7 +68,16 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.None;
 
-    private final QueryBuilder query;
+    public static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
+
+    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
+    private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
+    private static final ParseField MAX_CHILDREN_FIELD = new ParseField("max_children");
+    private static final ParseField MIN_CHILDREN_FIELD = new ParseField("min_children");
+    private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
+    private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
+
+    private final QueryBuilder<?> query;
 
     private final String type;
 
@@ -75,9 +89,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     private InnerHitBuilder innerHitBuilder;
 
-    static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
 
-    public HasChildQueryBuilder(String type, QueryBuilder query, int maxChildren, int minChildren, ScoreMode scoreMode,
+    public HasChildQueryBuilder(String type, QueryBuilder<?> query, int maxChildren, int minChildren, ScoreMode scoreMode,
                                 InnerHitBuilder innerHitBuilder) {
         this(type, query);
         scoreMode(scoreMode);
@@ -90,7 +103,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
     }
 
-    public HasChildQueryBuilder(String type, QueryBuilder query) {
+    public HasChildQueryBuilder(String type, QueryBuilder<?> query) {
         if (type == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires 'type' field");
         }
@@ -154,7 +167,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     /**
      * Returns the children query to execute.
      */
-    public QueryBuilder query() {
+    public QueryBuilder<?> query() {
         return query;
     }
 
@@ -189,17 +202,91 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(HasChildQueryParser.QUERY_FIELD.getPreferredName());
+        builder.field(QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
-        builder.field(HasChildQueryParser.TYPE_FIELD.getPreferredName(), type);
-        builder.field(HasChildQueryParser.SCORE_MODE_FIELD.getPreferredName(), HasChildQueryParser.scoreModeAsString(scoreMode));
-        builder.field(HasChildQueryParser.MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
-        builder.field(HasChildQueryParser.MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
+        builder.field(TYPE_FIELD.getPreferredName(), type);
+        builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreModeAsString(scoreMode));
+        builder.field(MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
+        builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
         printBoostAndQueryName(builder);
         if (innerHitBuilder != null) {
-            builder.field(HasChildQueryParser.INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
+            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
         builder.endObject();
+    }
+
+    public static HasChildQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String childType = null;
+        ScoreMode scoreMode = HasChildQueryBuilder.DEFAULT_SCORE_MODE;
+        int minChildren = HasChildQueryBuilder.DEFAULT_MIN_CHILDREN;
+        int maxChildren = HasChildQueryBuilder.DEFAULT_MAX_CHILDREN;
+        String queryName = null;
+        InnerHitBuilder innerHitBuilder = null;
+        String currentFieldName = null;
+        XContentParser.Token token;
+        QueryBuilder<?> iqb = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                    iqb = parseContext.parseInnerQueryBuilder();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
+                    innerHitBuilder = InnerHitBuilder.fromXContent(parser, parseContext);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                    childType = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
+                    scoreMode = parseScoreMode(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MIN_CHILDREN_FIELD)) {
+                    minChildren = parser.intValue(true);
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MAX_CHILDREN_FIELD)) {
+                    maxChildren = parser.intValue(true);
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren,
+                scoreMode, innerHitBuilder);
+        hasChildQueryBuilder.queryName(queryName);
+        hasChildQueryBuilder.boost(boost);
+        return hasChildQueryBuilder;
+    }
+
+    public static ScoreMode parseScoreMode(String scoreModeString) {
+        if ("none".equals(scoreModeString)) {
+            return ScoreMode.None;
+        } else if ("min".equals(scoreModeString)) {
+            return ScoreMode.Min;
+        } else if ("max".equals(scoreModeString)) {
+            return ScoreMode.Max;
+        } else if ("avg".equals(scoreModeString)) {
+            return ScoreMode.Avg;
+        } else if ("sum".equals(scoreModeString)) {
+            return ScoreMode.Total;
+        }
+        throw new IllegalArgumentException("No score mode for child query [" + scoreModeString + "] found");
+    }
+
+    public static String scoreModeAsString(ScoreMode scoreMode) {
+        if (scoreMode == ScoreMode.Total) {
+            // Lucene uses 'total' but 'sum' is more consistent with other elasticsearch APIs
+            return "sum";
+        } else {
+            return scoreMode.name().toLowerCase(Locale.ROOT);
+        }
     }
 
     @Override
@@ -396,7 +483,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     @Override
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder rewrite = query.rewrite(queryRewriteContext);
+        QueryBuilder<?> rewrite = query.rewrite(queryRewriteContext);
         if (rewrite != query) {
             HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(type, rewrite);
             hasChildQueryBuilder.minChildren(minChildren);

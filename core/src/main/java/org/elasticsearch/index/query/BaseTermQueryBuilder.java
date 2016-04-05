@@ -102,7 +102,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     /**
      * Constructs a new base term query.
      * In case value is assigned to a string, we internally convert it to a {@link BytesRef}
-     * because in {@link TermQueryParser} and {@link SpanTermQueryParser} string values are parsed to {@link BytesRef}
+     * because in {@link TermQueryBuilder} and {@link SpanTermQueryParser} string values are parsed to {@link BytesRef}
      * and we want internal representation of query to be equal regardless of whether it was created from XContent or via Java API.
      *
      * @param fieldName  The name of the field

@@ -23,10 +23,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.InnerHitBuilder;
 
@@ -36,16 +39,23 @@ import java.util.Objects;
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
 
     /**
+     * The queries name used while parsing
+     */
+    public static final String NAME = "nested";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+    public static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
+
+    /**
      * The default score move for nested queries.
      */
     public static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.Avg;
 
-    /**
-     * The queries name used while parsing
-     */
-    public static final String NAME = "nested";
+    private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
+    private static final ParseField PATH_FIELD = new ParseField("path");
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
 
-    private final QueryBuilder query;
+    private final QueryBuilder<?> query;
 
     private final String path;
 
@@ -53,7 +63,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     private InnerHitBuilder innerHitBuilder;
 
-    public NestedQueryBuilder(String path, QueryBuilder query) {
+    public NestedQueryBuilder(String path, QueryBuilder<?> query) {
         if (path == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires 'path' field");
         }
@@ -119,17 +129,55 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(NestedQueryParser.QUERY_FIELD.getPreferredName());
+        builder.field(QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
-        builder.field(NestedQueryParser.PATH_FIELD.getPreferredName(), path);
+        builder.field(PATH_FIELD.getPreferredName(), path);
         if (scoreMode != null) {
-            builder.field(NestedQueryParser.SCORE_MODE_FIELD.getPreferredName(), HasChildQueryParser.scoreModeAsString(scoreMode));
+            builder.field(SCORE_MODE_FIELD.getPreferredName(), HasChildQueryBuilder.scoreModeAsString(scoreMode));
         }
         printBoostAndQueryName(builder);
         if (innerHitBuilder != null) {
-            builder.field(NestedQueryParser.INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
+            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
         builder.endObject();
+    }
+
+    public static NestedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        ScoreMode scoreMode = NestedQueryBuilder.DEFAULT_SCORE_MODE;
+        String queryName = null;
+        QueryBuilder query = null;
+        String path = null;
+        String currentFieldName = null;
+        InnerHitBuilder innerHitBuilder = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                    query = parseContext.parseInnerQueryBuilder();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
+                    innerHitBuilder = InnerHitBuilder.fromXContent(parser, parseContext);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, PATH_FIELD)) {
+                    path = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
+                    scoreMode = HasChildQueryBuilder.parseScoreMode(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        return new NestedQueryBuilder(path, query, scoreMode, innerHitBuilder).queryName(queryName).boost(boost);
     }
 
     @Override

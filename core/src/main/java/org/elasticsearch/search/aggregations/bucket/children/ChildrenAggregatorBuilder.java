@@ -20,12 +20,15 @@
 package org.elasticsearch.search.aggregations.bucket.children;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorBuilder;
@@ -115,6 +118,35 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(ParentToChildrenAggregator.TYPE_FIELD.getPreferredName(), childType);
         return builder;
+    }
+
+    public static ChildrenAggregatorBuilder parse(String aggregationName, XContentParser parser,
+            QueryParseContext context) throws IOException {
+        String childType = null;
+
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if ("type".equals(currentFieldName)) {
+                    childType = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
+            }
+        }
+
+        if (childType == null) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Missing [child_type] field for children aggregation [" + aggregationName + "]");
+        }
+
+        return new ChildrenAggregatorBuilder(aggregationName, childType);
     }
 
     @Override

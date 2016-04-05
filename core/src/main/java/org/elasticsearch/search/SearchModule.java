@@ -104,7 +104,6 @@ import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.children.ChildrenParser;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -142,7 +141,6 @@ import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregat
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedSamplerParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
@@ -451,9 +449,7 @@ public class SearchModule extends AbstractModule {
         registerAggregation(InternalMin.TYPE, MinAggregatorBuilder.PARSER, MinAggregatorBuilder::new);
         registerAggregation(InternalMax.TYPE, MaxAggregatorBuilder.PARSER, MaxAggregatorBuilder::new);
         registerAggregation(InternalStats.TYPE, StatsAggregatorBuilder.PARSER, StatsAggregatorBuilder::new);
-
         registerAggregation(InternalExtendedStats.TYPE, ExtendedStatsAggregatorBuilder.PARSER, ExtendedStatsAggregatorBuilder::new);
-
         registerAggregation(InternalValueCount.TYPE, ValueCountAggregatorBuilder.PARSER, ValueCountAggregatorBuilder::new);
 
         registerAggregation(InternalTDigestPercentiles.TYPE, new PercentilesParser(), PercentilesAggregatorBuilder::new);
@@ -467,8 +463,8 @@ public class SearchModule extends AbstractModule {
                 QueryParseContext context) -> FiltersAggregatorBuilder.parse(indicesQueriesRegistry, aggregationName, parser, context);
         registerAggregation(InternalFilters.TYPE, filtersParser, FiltersAggregatorBuilder::new);
         registerAggregation(InternalSampler.TYPE, SamplerAggregatorBuilder::parse, SamplerAggregatorBuilder::new);
+        registerAggregation(DiversifiedAggregatorBuilder.TYPE, DiversifiedAggregatorBuilder.PARSER, DiversifiedAggregatorBuilder::new);
 
-        registerAggregation(DiversifiedAggregatorBuilder.TYPE, new DiversifiedSamplerParser(), DiversifiedAggregatorBuilder::new);
         registerAggregation(StringTerms.TYPE, new TermsParser(), TermsAggregatorBuilder::new);
         registerAggregation(SignificantStringTerms.TYPE,
                 new SignificantTermsParser(significanceHeuristicParserMapper, indicesQueriesRegistry),
@@ -486,7 +482,8 @@ public class SearchModule extends AbstractModule {
         registerAggregation(InternalGeoBounds.TYPE, new GeoBoundsParser(), GeoBoundsAggregatorBuilder::new);
         registerAggregation(InternalGeoCentroid.TYPE, new GeoCentroidParser(), GeoCentroidAggregatorBuilder::new);
         registerAggregation(InternalScriptedMetric.TYPE, new ScriptedMetricParser(), ScriptedMetricAggregatorBuilder::new);
-        registerAggregation(InternalChildren.TYPE, new ChildrenParser(), ChildrenAggregatorBuilder::new);
+
+        registerAggregation(InternalChildren.TYPE, ChildrenAggregatorBuilder::parse, ChildrenAggregatorBuilder::new);
 
         registerPipelineParser(new DerivativeParser());
         registerPipelineParser(new MaxBucketParser());

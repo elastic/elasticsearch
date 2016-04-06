@@ -56,7 +56,7 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryParser;
-import org.elasticsearch.index.query.MultiMatchQueryParser;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.ParentIdQueryBuilder;
 import org.elasticsearch.index.query.PercolatorQueryBuilder;
@@ -315,8 +315,8 @@ public class SearchModule extends AbstractModule {
     }
 
     /**
-     * Register a query.
-     * TODO remove this in favor of registerQuery and rename innerRegisterQueryParser
+     * Register a query via its parser's prototype.
+     * TODO remove this in favor of registerQuery and merge innerRegisterQueryParser into registerQuery
      */
     public void registerQueryParser(QueryParser<?> queryParser, ParseField queryName) {
         innerRegisterQueryParser(queryParser, queryName);
@@ -328,7 +328,7 @@ public class SearchModule extends AbstractModule {
         for (String name: queryName.getAllNamesIncludedDeprecated()) {
             Tuple<ParseField, QueryParser<?>> previousValue = queryParsers.putIfAbsent(name, parseFieldQueryParserTuple);
             if (previousValue != null) {
-                throw new IllegalArgumentException("Query parser [" + queryParsers.get(name) + "] already registered for name [" +
+                throw new IllegalArgumentException("Query parser [" + previousValue.v2() + "] already registered for name [" +
                         name + "] while trying to register [" + parser + "]");
             }
         }
@@ -511,7 +511,8 @@ public class SearchModule extends AbstractModule {
                 MatchPhraseQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(MatchPhrasePrefixQueryBuilder.PROTOTYPE::readFrom, MatchPhrasePrefixQueryBuilder::fromXContent,
                 MatchPhrasePrefixQueryBuilder.QUERY_NAME_FIELD);
-        registerQueryParser(new MultiMatchQueryParser(), MultiMatchQueryParser.QUERY_NAME_FIELD);
+        registerQuery(MultiMatchQueryBuilder.PROTOTYPE::readFrom, MultiMatchQueryBuilder::fromXContent,
+                MultiMatchQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(NestedQueryBuilder.PROTOTYPE::readFrom, NestedQueryBuilder::fromXContent, NestedQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(HasChildQueryBuilder.PROTOTYPE::readFrom, HasChildQueryBuilder::fromXContent, HasChildQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(HasParentQueryBuilder.PROTOTYPE::readFrom, HasParentQueryBuilder::fromXContent,

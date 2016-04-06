@@ -486,8 +486,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
                 throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : scale must be > 0.0.");
             }
             if (decay <= 0.0 || decay >= 1.0) {
-                throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME
-                        + " : decay must be in the range [0..1].");
+                throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : decay must be in the range [0..1].");
             }
             this.scale = func.processScale(userSuppiedScale, decay);
             this.func = func;

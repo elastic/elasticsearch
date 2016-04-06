@@ -564,8 +564,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                         } else if ("phrase_prefix".equals(tStr) || ("phrasePrefix".equals(tStr))) {
                             type = MatchQuery.Type.PHRASE_PREFIX;
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + MatchQueryBuilder.NAME + "] query does not support type " + tStr);
+                            throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support type " + tStr);
                         }
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
                         analyzer = parser.text();
@@ -605,11 +604,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
-                                "[" + MatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]");
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "[" + MatchQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
                 }
             }
             parser.nextToken();

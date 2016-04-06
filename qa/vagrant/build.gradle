@@ -144,8 +144,20 @@ task packagingTest {
 }
 
 // Each box gets it own set of tasks
-for (String box : boxes) {
+for (String box : availableBoxes) {
   String boxTask = box.capitalize().replace('-', '')
+
+  // always add a halt task for all boxes, so clean makes sure they are all shutdown
+  Task halt = tasks.create("vagrant${boxTask}#halt", VagrantCommandTask) {
+    boxName box
+    commandLine 'halt', box
+  }
+  clean.dependsOn(halt)
+  if (boxes.contains(box) == false) {
+    // we only need a halt task if this box was not specified
+    continue;
+  }
+
   Task up = tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
     boxName box
     /* Its important that we try to reprovision the box even if it already
@@ -163,11 +175,6 @@ for (String box : boxes) {
       SKIPPED but that would require running vagrant status which is slow! */
     dependsOn checkVagrantVersion
   }
-  Task halt = tasks.create("vagrant${boxTask}#halt", VagrantCommandTask) {
-    boxName box
-    commandLine 'halt', box
-  }
-  clean.dependsOn(halt)
 
   Task smoke = tasks.create("vagrant${boxTask}#smoketest", Exec) {
     dependsOn up

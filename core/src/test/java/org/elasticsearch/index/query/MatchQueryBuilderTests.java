@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.core.SimpleAnalyzer;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -36,7 +34,6 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
@@ -80,10 +77,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
 
         if (randomBoolean()) {
-            Fuzziness fuzziness = randomFuzziness(fieldName);
-            if (fuzziness != null) {
-                matchQuery.fuzziness();
-            }
+            matchQuery.fuzziness(randomFuzziness(fieldName));
         }
 
         if (randomBoolean()) {

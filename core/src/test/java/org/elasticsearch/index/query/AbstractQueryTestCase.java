@@ -851,8 +851,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 return Fuzziness.build(1 + randomFloat() * 10);
             case DATE_FIELD_NAME:
                 return Fuzziness.build(randomTimeValue());
-            case BOOLEAN_FIELD_NAME:
-                return null;
             default:
                 if (randomBoolean()) {
                     return Fuzziness.fromEdits(randomIntBetween(0, 2));

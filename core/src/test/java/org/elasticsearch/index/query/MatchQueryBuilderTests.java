@@ -76,7 +76,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
-        if (randomBoolean()) {
+        if (fieldName.equals(BOOLEAN_FIELD_NAME) == false && randomBoolean()) {
             matchQuery.fuzziness(randomFuzziness(fieldName));
         }
 

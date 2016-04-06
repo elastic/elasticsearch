@@ -7,6 +7,10 @@
 
   The group to run as, defaults to `elasticsearch`.
 
+`JAVA_HOME`::
+
+  Set a custom Java path to be used.
+
 `ES_HEAP_SIZE`::
 
   The heap size to start with.

@@ -90,6 +90,11 @@ task clean(type: Delete) {
   delete buildDir
 }
 
+task stop {
+  group 'Verification'
+  description 'Stop any tasks from tests that still may be running'
+}
+
 File testRoot = new File("$buildDir/testroot")
 task createTestRoot {
   outputs.dir testRoot
@@ -153,7 +158,7 @@ for (String box : availableBoxes) {
     boxName box
     commandLine 'halt', box
   }
-  clean.dependsOn(halt)
+  stop.dependsOn(halt)
   if (boxes.contains(box) == false) {
     // we only need a halt task if this box was not specified
     continue;

@@ -663,7 +663,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         ensureYellow();
         int numDocs = 2;
         client().index(
-                indexRequest("test").type("type1").source(
+                indexRequest("test").type("type").source(
                         jsonBuilder().startObject().field("test", "value").startObject("geo").field("lat", 1).field("lon", 2).endObject()
                                 .endObject())).actionGet();
         refresh();
@@ -674,7 +674,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource()
                                 .size(numDocs)
-                                .query(functionScoreQuery(termQuery("test", "value"), linearDecayFunction("type1.geo", lonlat, "1000km"))
+                                .query(functionScoreQuery(termQuery("test", "value"), linearDecayFunction("type.geo", lonlat, "1000km"))
                                         .scoreMode(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY))));
         try {
             response.actionGet();

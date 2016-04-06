@@ -425,6 +425,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private void checkFieldUniqueness(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+        assert Thread.holdsLock(this);
+
+        // first check within mapping
         final Set<String> objectFullNames = new HashSet<>();
         for (ObjectMapper objectMapper : objectMappers) {
             final String fullPath = objectMapper.fullPath();
@@ -452,12 +455,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new IllegalArgumentException("Field [" + name + "] is defined twice in [" + type + "]");
             }
         }
+
+        // then check other types
+        for (String fieldName : fieldNames) {
+            if (fullPathObjectMappers.containsKey(fieldName)) {
+                throw new IllegalArgumentException("[" + fieldName + "] is defined as a field in mapping [" + type
+                        + "] but this name is already used for an object in other types");
+            }
+        }
+
+        for (String objectPath : objectFullNames) {
+            if (fieldTypes.get(objectPath) != null) {
+                throw new IllegalArgumentException("[" + objectPath + "] is defined as an object in mapping [" + type
+                        + "] but this name is already used for a field in other types");
+            }
+        }
     }
 
     private void checkObjectsCompatibility(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert Thread.holdsLock(this);
-
-        checkFieldUniqueness(type, objectMappers, fieldMappers);
 
         for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
@@ -465,12 +481,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // simulate a merge and ignore the result, we are just interested
                 // in exceptions here
                 existingObjectMapper.merge(newObjectMapper, updateAllTypes);
-            }
-        }
-
-        for (FieldMapper fieldMapper : fieldMappers) {
-            if (fullPathObjectMappers.containsKey(fieldMapper.name())) {
-                throw new IllegalArgumentException("Field [" + fieldMapper.name() + "] is defined as a field in mapping [" + type + "] but this name is already used for an object in other types");
             }
         }
     }

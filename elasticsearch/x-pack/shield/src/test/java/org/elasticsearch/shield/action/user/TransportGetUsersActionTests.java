@@ -159,7 +159,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
     }
 
     public void testGetAllUsers() {
-        final List<User> storeUsers = randomFrom(Collections.emptyList(), Collections.singletonList(new User("joe")),
+        final List<User> storeUsers = randomFrom(Collections.<User>emptyList(), Collections.singletonList(new User("joe")),
                 Arrays.asList(new User("jane"), new User("fred")), randomUsers());
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class),

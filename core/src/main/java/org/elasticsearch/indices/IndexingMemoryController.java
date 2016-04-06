@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -89,7 +90,6 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         this(settings, threadPool, indexServices, JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
     }
 
-    // for testing
     IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices, long jvmMemoryInBytes) {
         super(settings);
         this.indexShards = indexServices;
@@ -205,12 +205,20 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     @Override
     public void postIndex(Engine.Index index, boolean created) {
-        bytesWritten(index.getTranslogLocation().size);
+        recordOperationBytes(index);
     }
 
     @Override
     public void postDelete(Engine.Delete delete) {
-        bytesWritten(delete.getTranslogLocation().size);
+        recordOperationBytes(delete);
+    }
+
+    private void recordOperationBytes(Engine.Operation op) {
+        Translog.Location loc = op.getTranslogLocation();
+        // This can be null on (harmless) version conflict during recovery:
+        if (loc != null) {
+            bytesWritten(loc.size);
+        }
     }
 
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {

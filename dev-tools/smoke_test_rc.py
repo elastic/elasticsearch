@@ -53,6 +53,7 @@ import time
 import socket
 import json
 import base64
+from urllib.parse import urlparse
 
 from prepare_release_candidate import run
 from http.client import HTTPConnection
@@ -104,21 +105,24 @@ def read_fully(file):
      return f.read()
 
 
-def wait_for_node_startup(host='127.0.0.1', port=9200, timeout=60, header={}):
+def wait_for_node_startup(es_dir, timeout=60, header={}):
   print('     Waiting until node becomes available for at most %s seconds' % timeout)
   for _ in range(timeout):
-    conn = HTTPConnection(host=host, port=port, timeout=timeout)
+    conn = None
     try:
       time.sleep(1)
+      host, port = get_host_from_ports_file(es_dir)
+      conn = HTTPConnection(host=host, port=port, timeout=timeout)
       conn.request('GET', '', headers=header)
       res = conn.getresponse()
       if res.status == 200:
         return True
-    except socket.error as e:
+    except IOError as e:
       pass
       #that is ok it might not be there yet
     finally:
-      conn.close()
+      if conn:
+        conn.close()
   return False
 
 def download_and_verify(version, hash, files, base_url, plugins=DEFAULT_PLUGINS):
@@ -165,6 +169,11 @@ def download_and_verify(version, hash, files, base_url, plugins=DEFAULT_PLUGINS)
   finally:
     shutil.rmtree(tmp_dir)
 
+def get_host_from_ports_file(es_dir):
+  first_host_with_port = read_fully(os.path.join(es_dir, 'logs/http.ports')).splitlines()[0]
+  host = urlparse('http://%s' % first_host_with_port)
+  return host.hostname, host.port
+
 def smoke_test_release(release, files, expected_hash, plugins):
   for release_file in files:
     if not os.path.isfile(release_file):
@@ -177,9 +186,10 @@ def smoke_test_release(release, files, expected_hash, plugins):
     else:
       print('  Skip SmokeTest for [%s]' % release_file)
       continue # nothing to do here
-    es_run_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch')
+    es_dir = os.path.join(tmp_dir, 'elasticsearch-%s' % (release))
+    es_run_path = os.path.join(es_dir, 'bin/elasticsearch')
     print('  Smoke testing package [%s]' % release_file)
-    es_plugin_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch-plugin')
+    es_plugin_path = os.path.join(es_dir, 'bin/elasticsearch-plugin')
     plugin_names = {}
     for plugin  in plugins:
       print('     Install plugin [%s]' % (plugin))
@@ -187,24 +197,25 @@ def smoke_test_release(release, files, expected_hash, plugins):
       plugin_names[plugin] = True
     if 'x-pack' in plugin_names:
       headers = { 'Authorization' : 'Basic %s' % base64.b64encode(b"es_admin:foobar").decode("UTF-8") }
-      es_shield_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/x-pack/users')
+      es_shield_path = os.path.join(es_dir, 'bin/x-pack/users')
       print("     Install dummy shield user")
       run('%s; %s  useradd es_admin -r admin -p foobar' % (java_exe(), es_shield_path))
     else:
       headers = {}
-    print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
+    print('  Starting elasticsearch deamon from [%s]' % es_dir)
     try:
-      run('%s; %s -Ees.node.name=smoke_tester -Ees.cluster.name=prepare_release -Ees.script.inline=true -Ees.script.indexed=true -Ees.repositories.url.allowed_urls=http://snapshot.test* %s -Ees.pidfile=%s'
-          % (java_exe(), es_run_path, '-d', os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'es-smoke.pid')))
-      conn = HTTPConnection(host='127.0.0.1', port=9200, timeout=20)
-      if not wait_for_node_startup(header=headers):
+      run('%s; %s -Ees.node.name=smoke_tester -Ees.cluster.name=prepare_release -Ees.script.inline=true -Ees.script.indexed=true -Ees.repositories.url.allowed_urls=http://snapshot.test* %s -Ees.pidfile=%s -Ees.node.portsfile=true'
+          % (java_exe(), es_run_path, '-d', os.path.join(es_dir, 'es-smoke.pid')))
+      if not wait_for_node_startup(es_dir, header=headers):
         print("elasticsearch logs:")
         print('*' * 80)
-        logs = read_fully(os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'logs/prepare_release.log'))
+        logs = read_fully(os.path.join(es_dir, 'logs/prepare_release.log'))
         print(logs)
         print('*' * 80)
         raise RuntimeError('server didn\'t start up')
       try: # we now get / and /_nodes to fetch basic infos like hashes etc and the installed plugins
+        host,port = get_host_from_ports_file(es_dir)
+        conn = HTTPConnection(host=host, port=port, timeout=20)
         conn.request('GET', '', headers=headers)
         res = conn.getresponse()
         if res.status == 200:
@@ -236,7 +247,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
       finally:
         conn.close()
     finally:
-      pid_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'es-smoke.pid')
+      pid_path = os.path.join(es_dir, 'es-smoke.pid')
       if os.path.exists(pid_path): # try reading the pid and kill the node
         pid = int(read_fully(pid_path))
         os.kill(pid, signal.SIGKILL)

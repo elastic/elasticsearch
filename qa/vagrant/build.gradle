@@ -140,7 +140,8 @@ task packagingTest {
   description "Tests yum/apt packages using vagrant and bats.\n" +
               "    Specify the vagrant boxes to test using the gradle property 'vagrant.boxes'.\n" +
               "    'sample' can be used to test a single yum and apt box. 'all' can be used to\n" +
-              "    test all available boxes. The available boxes are: \n    ${availableBoxes}"
+              "    test all available boxes. The available boxes are: \n" +
+              "    ${availableBoxes}"
 }
 
 // Each box gets it own set of tasks

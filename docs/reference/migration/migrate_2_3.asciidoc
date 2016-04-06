@@ -4,9 +4,6 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 2.3.
 
-* <<breaking_23_index_apis>>
-* <<breaking_23_scripting>>
-
 [[breaking_23_rest]]
 [float]
 === REST API

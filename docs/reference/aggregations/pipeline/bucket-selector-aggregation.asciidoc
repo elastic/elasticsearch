@@ -58,7 +58,7 @@ The following snippet only retains buckets where the total sales for the month i
                     "sum": {
                         "field": "price"
                     }
-                }
+                },
                 "sales_bucket_filter": {
                     "bucket_selector": {
                         "buckets_path": {

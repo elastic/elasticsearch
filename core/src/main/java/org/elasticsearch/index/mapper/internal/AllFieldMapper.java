@@ -198,14 +198,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
         public Query queryStringTermQuery(Term term) {
             return new AllTermQuery(term);
         }

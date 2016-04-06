@@ -336,14 +336,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
         }
 
-        @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
     }
 
     /**

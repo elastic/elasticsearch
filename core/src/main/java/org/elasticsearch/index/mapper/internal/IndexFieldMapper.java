@@ -170,14 +170,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
         public IndexFieldData.Builder fielddataBuilder() {
             return new IndexIndexFieldData.Builder();
         }
@@ -196,11 +188,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public boolean enabled() {
         return this.enabledState.enabled;
-    }
-
-    public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().name());
-        return field == null ? null : (String)fieldType().value(field);
     }
 
     @Override

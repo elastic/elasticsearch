@@ -183,26 +183,12 @@ public class IpFieldMapper extends NumberFieldMapper {
             return CONTENT_TYPE;
         }
 
-        @Override
-        public Long value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Number) {
-                return ((Number) value).longValue();
-            }
-            if (value instanceof BytesRef) {
-                return Numbers.bytesToLong((BytesRef) value);
-            }
-            return ipToLong(value.toString());
-        }
-
         /**
          * IPs should return as a string.
          */
         @Override
         public Object valueForSearch(Object value) {
-            Long val = value(value);
+            Long val = (Long) value;
             if (val == null) {
                 return null;
             }

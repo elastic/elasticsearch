@@ -32,4 +32,10 @@ public class ShortFieldTypeTests extends FieldTypeTestCase {
     public void setupProperties() {
         setDummyNullValue((short)10);
     }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        // shorts are stored as ints
+        assertEquals(Short.valueOf((short) 3), ft.valueForSearch(Integer.valueOf(3)));
+    }
 }

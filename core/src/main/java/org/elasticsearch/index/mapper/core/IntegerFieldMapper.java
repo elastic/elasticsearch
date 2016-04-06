@@ -152,20 +152,6 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Integer value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Number) {
-                return ((Number) value).intValue();
-            }
-            if (value instanceof BytesRef) {
-                return Numbers.bytesToInt((BytesRef) value);
-            }
-            return Integer.parseInt(value.toString());
-        }
-
-        @Override
         public BytesRef indexedValueForSearch(Object value) {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
             LegacyNumericUtils.intToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match

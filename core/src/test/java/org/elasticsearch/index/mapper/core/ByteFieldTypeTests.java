@@ -32,4 +32,10 @@ public class ByteFieldTypeTests extends FieldTypeTestCase {
     public void setupProperties() {
         setDummyNullValue((byte)10);
     }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        // bytes are stored as ints
+        assertEquals(Byte.valueOf((byte) 3), ft.valueForSearch(Integer.valueOf(3)));
+    }
 }

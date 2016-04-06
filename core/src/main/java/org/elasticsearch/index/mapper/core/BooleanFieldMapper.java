@@ -169,26 +169,18 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Boolean value(Object value) {
+        public Boolean valueForSearch(Object value) {
             if (value == null) {
-                return Boolean.FALSE;
+                return null;
             }
-            String sValue = value.toString();
-            if (sValue.length() == 0) {
-                return Boolean.FALSE;
+            switch(value.toString()) {
+            case "F":
+                return false;
+            case "T":
+                return true;
+            default:
+                throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
             }
-            if (sValue.length() == 1 && sValue.charAt(0) == 'F') {
-                return Boolean.FALSE;
-            }
-            if (Booleans.parseBoolean(sValue, false)) {
-                return Boolean.TRUE;
-            }
-            return Boolean.FALSE;
-        }
-
-        @Override
-        public Object valueForSearch(Object value) {
-            return value(value);
         }
 
         @Override

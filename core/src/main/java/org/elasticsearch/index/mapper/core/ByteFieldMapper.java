@@ -143,17 +143,11 @@ public class ByteFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Byte value(Object value) {
+        public Byte valueForSearch(Object value) {
             if (value == null) {
                 return null;
             }
-            if (value instanceof Number) {
-                return ((Number) value).byteValue();
-            }
-            if (value instanceof BytesRef) {
-                return ((BytesRef) value).bytes[((BytesRef) value).offset];
-            }
-            return Byte.parseByte(value.toString());
+            return ((Number) value).byteValue();
         }
 
         @Override

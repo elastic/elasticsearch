@@ -43,4 +43,9 @@ public class LongFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomLong(), randomLong(),
                 randomBoolean(), randomBoolean(), null, null));
     }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals(Long.valueOf(3), ft.valueForSearch(Long.valueOf(3)));
+    }
 }

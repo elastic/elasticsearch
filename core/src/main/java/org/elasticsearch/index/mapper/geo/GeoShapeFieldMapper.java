@@ -412,11 +412,6 @@ public class GeoShapeFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
         }
 
-        @Override
-        public String value(Object value) {
-            throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
-        }
-
     }
 
     protected Explicit<Boolean> coerce;

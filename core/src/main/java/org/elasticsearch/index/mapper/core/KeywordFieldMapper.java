@@ -158,14 +158,6 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
         public Query nullValueQuery() {
             if (nullValue() == null) {
                 return null;

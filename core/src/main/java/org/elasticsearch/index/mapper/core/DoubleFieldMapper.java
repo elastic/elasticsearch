@@ -145,7 +145,7 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Double value(Object value) {
+        public Double valueForSearch(Object value) {
             if (value == null) {
                 return null;
             }

@@ -43,4 +43,9 @@ public class DoubleFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomDouble(), randomDouble(),
                 randomBoolean(), randomBoolean(), null, null));
     }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals(Double.valueOf(1.2), ft.valueForSearch(1.2));
+    }
 }

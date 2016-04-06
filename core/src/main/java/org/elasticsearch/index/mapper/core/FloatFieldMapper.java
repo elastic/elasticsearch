@@ -146,20 +146,6 @@ public class FloatFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Float value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Number) {
-                return ((Number) value).floatValue();
-            }
-            if (value instanceof BytesRef) {
-                return Numbers.bytesToFloat((BytesRef) value);
-            }
-            return Float.parseFloat(value.toString());
-        }
-
-        @Override
         public BytesRef indexedValueForSearch(Object value) {
             int intValue = NumericUtils.floatToSortableInt(parseValue(value));
             BytesRefBuilder bytesRef = new BytesRefBuilder();

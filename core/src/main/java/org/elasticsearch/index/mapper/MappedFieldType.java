@@ -302,12 +302,9 @@ public abstract class MappedFieldType extends FieldType {
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
-    /** Returns the actual value of the field. */
-    public Object value(Object value) {
-        return value;
-    }
-
-    /** Returns the value that will be used as a result for search. Can be only of specific types... */
+    /** Given a value that comes from the stored fields API, convert it to the
+     *  expected type. For instance a date field would store dates as longs and
+     *  format it back to a string in this method. */
     public Object valueForSearch(Object value) {
         return value;
     }

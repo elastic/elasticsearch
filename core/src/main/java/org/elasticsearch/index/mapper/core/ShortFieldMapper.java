@@ -33,7 +33,6 @@ import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -148,17 +147,11 @@ public class ShortFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Short value(Object value) {
+        public Short valueForSearch(Object value) {
             if (value == null) {
                 return null;
             }
-            if (value instanceof Number) {
-                return ((Number) value).shortValue();
-            }
-            if (value instanceof BytesRef) {
-                return Numbers.bytesToShort((BytesRef) value);
-            }
-            return Short.parseShort(value.toString());
+            return ((Number) value).shortValue();
         }
 
         @Override

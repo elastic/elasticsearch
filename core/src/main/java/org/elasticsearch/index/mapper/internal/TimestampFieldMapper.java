@@ -182,12 +182,9 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             return new TimestampFieldType(this);
         }
 
-        /**
-         * Override the default behavior to return a timestamp
-         */
         @Override
         public Object valueForSearch(Object value) {
-            return value(value);
+            return value;
         }
     }
 

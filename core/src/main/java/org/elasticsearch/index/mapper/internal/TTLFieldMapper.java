@@ -151,7 +151,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             } else {
                 now = System.currentTimeMillis();
             }
-            long val = value(value);
+            Long val = (Long) super.valueForSearch(value);
             return val - now;
         }
     }

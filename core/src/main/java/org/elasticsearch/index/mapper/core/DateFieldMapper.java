@@ -345,20 +345,6 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Long value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Number) {
-                return ((Number) value).longValue();
-            }
-            if (value instanceof BytesRef) {
-                return Numbers.bytesToLong((BytesRef) value);
-            }
-            return parseStringValue(value.toString());
-        }
-
-        @Override
         public BytesRef indexedValueForSearch(Object value) {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
             LegacyNumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
@@ -367,11 +353,7 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         @Override
         public Object valueForSearch(Object value) {
-            if (value instanceof String) {
-                // assume its the string that was indexed, just return it... (for example, with get)
-                return value;
-            }
-            Long val = value(value);
+            Long val = (Long) value;
             if (val == null) {
                 return null;
             }

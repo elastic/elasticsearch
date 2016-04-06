@@ -451,14 +451,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
         public Query nullValueQuery() {
             if (nullValue() == null) {
                 return null;

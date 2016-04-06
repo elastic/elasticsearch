@@ -105,12 +105,12 @@ public class BulkTests extends ESIntegTestCase {
                 .actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(2L));
+        assertThat(((Number) getResponse.getField("field").getValue()).longValue(), equalTo(2L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(3L));
+        assertThat(((Number) getResponse.getField("field").getValue()).longValue(), equalTo(3L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("3").setFields("field1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
@@ -143,7 +143,7 @@ public class BulkTests extends ESIntegTestCase {
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("6").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(1L));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(0L));
+        assertThat(((Number) getResponse.getField("field").getValue()).longValue(), equalTo(0L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("7").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
@@ -151,7 +151,7 @@ public class BulkTests extends ESIntegTestCase {
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(3L));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(4L));
+        assertThat(((Number) getResponse.getField("field").getValue()).longValue(), equalTo(4L));
     }
 
     public void testBulkVersioning() throws Exception {
@@ -276,7 +276,7 @@ public class BulkTests extends ESIntegTestCase {
                         .actionGet();
                 assertThat(getResponse.isExists(), equalTo(true));
                 assertThat(getResponse.getVersion(), equalTo(1L));
-                assertThat((Long) getResponse.getField("counter").getValue(), equalTo(1L));
+                assertThat(((Number) getResponse.getField("counter").getValue()).longValue(), equalTo(1L));
             }
         }
 

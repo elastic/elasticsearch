@@ -279,14 +279,6 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
         public Query nullValueQuery() {
             if (nullValue() == null) {
                 return null;

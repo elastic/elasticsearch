@@ -150,20 +150,6 @@ public class LongFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Long value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Number) {
-                return ((Number) value).longValue();
-            }
-            if (value instanceof BytesRef) {
-                return Numbers.bytesToLong((BytesRef) value);
-            }
-            return Long.parseLong(value.toString());
-        }
-
-        @Override
         public BytesRef indexedValueForSearch(Object value) {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
             LegacyNumericUtils.longToPrefixCoded(parseLongValue(value), 0, bytesRef);  // 0 because of exact match

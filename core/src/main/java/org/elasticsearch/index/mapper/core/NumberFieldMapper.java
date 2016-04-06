@@ -162,14 +162,6 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
         public abstract NumberFieldType clone();
 
         @Override
-        public abstract Object value(Object value);
-
-        @Override
-        public Object valueForSearch(Object value) {
-            return value(value);
-        }
-
-        @Override
         public abstract Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions);
 
         @Override

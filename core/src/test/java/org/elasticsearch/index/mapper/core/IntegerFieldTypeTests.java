@@ -43,4 +43,9 @@ public class IntegerFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomInt(), randomInt(),
                 randomBoolean(), randomBoolean(), null, null));
     }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals(Integer.valueOf(3), ft.valueForSearch(Integer.valueOf(3)));
+    }
 }

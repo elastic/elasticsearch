@@ -29,12 +29,12 @@ import java.io.IOException;
 public class FloatFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new DoubleFieldMapper.DoubleFieldType();
+        return new FloatFieldMapper.FloatFieldType();
     }
 
     @Before
     public void setupProperties() {
-        setDummyNullValue(10.0);
+        setDummyNullValue(10.0f);
     }
 
     public void testIsFieldWithinQuery() throws IOException {
@@ -42,5 +42,10 @@ public class FloatFieldTypeTests extends FieldTypeTestCase {
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomFloat(), randomFloat(),
                 randomBoolean(), randomBoolean(), null, null));
+    }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals(Float.valueOf(1.2f), ft.valueForSearch(1.2f));
     }
 }

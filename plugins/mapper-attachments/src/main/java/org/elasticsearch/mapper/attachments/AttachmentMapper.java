@@ -117,11 +117,6 @@ public class AttachmentMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-
-        @Override
-        public String value(Object value) {
-            return value == null?null:value.toString();
-        }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, AttachmentMapper> {

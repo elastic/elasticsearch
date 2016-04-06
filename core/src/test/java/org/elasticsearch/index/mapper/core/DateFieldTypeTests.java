@@ -140,4 +140,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-13").getMillis() - 1,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12||/d", true, null));
     }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        String date = "2015-10-12T12:09:55.000Z";
+        long instant = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
+        assertEquals(date, ft.valueForSearch(instant));
+    }
 }

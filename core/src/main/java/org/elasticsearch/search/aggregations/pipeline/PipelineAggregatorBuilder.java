@@ -39,9 +39,9 @@ import java.util.Objects;
 public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBuilder<PAB>> extends ToXContentToBytes
         implements NamedWriteable<PipelineAggregatorBuilder<PAB>>, ToXContent {
 
-    protected String name;
-    protected String type;
-    protected String[] bucketsPaths;
+    protected final String name;
+    protected final String type;
+    protected final String[] bucketsPaths;
     protected Map<String, Object> metaData;
 
     /**

@@ -42,8 +42,10 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregatorBuilder> {
 
@@ -58,7 +60,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     private HighlightBuilder highlightBuilder;
     private List<String> fieldNames;
     private List<String> fieldDataFields;
-    private List<ScriptField> scriptFields;
+    private Set<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregatorBuilder(String name) {
@@ -378,7 +380,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
             throw new IllegalArgumentException("scriptField [script] must not be null: [" + name + "]");
         }
         if (scriptFields == null) {
-            scriptFields = new ArrayList<>();
+            scriptFields = new HashSet<>();
         }
         scriptFields.add(new ScriptField(name, script, ignoreFailure));
         return this;
@@ -389,7 +391,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
             throw new IllegalArgumentException("[scriptFields] must not be null: [" + name + "]");
         }
         if (this.scriptFields == null) {
-            this.scriptFields = new ArrayList<>();
+            this.scriptFields = new HashSet<>();
         }
         this.scriptFields.addAll(scriptFields);
         return this;
@@ -398,7 +400,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     /**
      * Gets the script fields.
      */
-    public List<ScriptField> scriptFields() {
+    public Set<ScriptField> scriptFields() {
         return scriptFields;
     }
 
@@ -541,7 +543,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         factory.highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         if (in.readBoolean()) {
             int size = in.readVInt();
-            List<ScriptField> scriptFields = new ArrayList<>(size);
+            Set<ScriptField> scriptFields = new HashSet<>(size);
             for (int i = 0; i < size; i++) {
                 scriptFields.add(ScriptField.PROTOTYPE.readFrom(in));
             }

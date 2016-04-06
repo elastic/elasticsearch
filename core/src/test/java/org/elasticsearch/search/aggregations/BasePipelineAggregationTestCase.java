@@ -36,8 +36,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
@@ -216,9 +219,14 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
     public void testFromXContent() throws IOException {
         AF testAgg = createTestAggregatorFactory();
         AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().skipResolveOrder().addPipelineAggregator(testAgg);
-        String contentString = factoriesBuilder.toString();
-        logger.info("Content string: {}", contentString);
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
+        logger.info("Content string: {}", factoriesBuilder);
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+        XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
         parseContext.reset(parser);
         parseContext.parseFieldMatcher(parseFieldMatcher);

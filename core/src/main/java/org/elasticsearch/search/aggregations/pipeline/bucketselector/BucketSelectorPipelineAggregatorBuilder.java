@@ -24,17 +24,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.TreeMap;
 
 public class BucketSelectorPipelineAggregatorBuilder extends PipelineAggregatorBuilder<BucketSelectorPipelineAggregatorBuilder> {
 
@@ -43,10 +44,11 @@ public class BucketSelectorPipelineAggregatorBuilder extends PipelineAggregatorB
 
     private Script script;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
-    private Map<String, String> bucketsPathsMap;
+    private final Map<String, String> bucketsPathsMap;
 
     public BucketSelectorPipelineAggregatorBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
-        super(name, BucketSelectorPipelineAggregator.TYPE.name(), bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]));
+        super(name, BucketSelectorPipelineAggregator.TYPE.name(), new TreeMap<>(bucketsPathsMap).values()
+                .toArray(new String[bucketsPathsMap.size()]));
         this.bucketsPathsMap = bucketsPathsMap;
         this.script = script;
     }

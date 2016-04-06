@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
@@ -327,5 +328,45 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         assertFalse((Boolean) ((LinkedHashMap) response.getMappings().get("test2").get("type").getSourceAsMap().get("_all")).get("enabled"));
         assertNotNull(response.getMappings().get("test2").get("type").getSourceAsMap().get("_timestamp"));
         assertTrue((Boolean)((LinkedHashMap)response.getMappings().get("test2").get("type").getSourceAsMap().get("_timestamp")).get("enabled"));
+    }
+
+    public void testRejectFieldDefinedTwice() throws IOException {
+        String mapping1 = XContentFactory.jsonBuilder().startObject()
+                .startObject("type1")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "object")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+        String mapping2 = XContentFactory.jsonBuilder().startObject()
+                .startObject("type2")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "long")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        MapperService mapperService1 = createIndex("test1").mapperService();
+        mapperService1.merge("type1", new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE, false);
+        try {
+            mapperService1.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("[foo] is defined as a field in mapping [type2"
+                    + "] but this name is already used for an object in other types"));
+        }
+        
+
+        MapperService mapperService2 = createIndex("test2").mapperService();
+        mapperService2.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false);
+        try {
+            mapperService2.merge("type1", new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("[foo] is defined as an object in mapping [type1"
+                    + "] but this name is already used for a field in other types"));
+        }
     }
 }

@@ -27,14 +27,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -57,10 +57,11 @@ public class SearchAfterBuilderTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
+        QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
         indicesQueriesRegistry = new IndicesQueriesRegistry(
                 Settings.settingsBuilder().build(),
                 Collections.singletonMap(
-                        MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
+                        MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryBuilder.QUERY_NAME_FIELD, parser)));
     }
 
     @AfterClass

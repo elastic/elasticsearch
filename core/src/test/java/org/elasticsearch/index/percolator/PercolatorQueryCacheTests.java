@@ -66,7 +66,6 @@ import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.index.query.WildcardQueryParser;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -105,7 +104,8 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         Map<String, Tuple<ParseField, QueryParser<?>>> queryParsers = new HashMap<>();
         QueryParser<TermQueryBuilder> termParser = TermQueryBuilder::fromXContent;
         queryParsers.put(TermQueryBuilder.NAME, new Tuple<>(TermQueryBuilder.QUERY_NAME_FIELD, termParser));
-        queryParsers.put(WildcardQueryBuilder.NAME, new Tuple<>(WildcardQueryParser.QUERY_NAME_FIELD, new WildcardQueryParser()));
+        QueryParser<WildcardQueryBuilder> wildcardParser = WildcardQueryBuilder::fromXContent; 
+        queryParsers.put(WildcardQueryBuilder.NAME, new Tuple<>(WildcardQueryBuilder.QUERY_NAME_FIELD, wildcardParser));
         QueryParser<BoolQueryBuilder> boolQueryParser = BoolQueryBuilder::fromXContent;
         queryParsers.put(BoolQueryBuilder.NAME, new Tuple<>(BoolQueryBuilder.QUERY_NAME_FIELD, boolQueryParser));
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, queryParsers);

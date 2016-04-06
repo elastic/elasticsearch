@@ -33,7 +33,7 @@ Dynamic templates are specified as an array of named objects:
   ]
 --------------------------------------------------
 <1> The template name can be any string value.
-<2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `match_path`, `unmatch_path`.
+<2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `path_match`, `path_unmatch`.
 <3> The mapping that the matched field should use.
 
 

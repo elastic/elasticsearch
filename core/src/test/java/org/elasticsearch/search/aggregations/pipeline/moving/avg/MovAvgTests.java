@@ -19,7 +19,11 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
@@ -92,4 +96,35 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         return factory;
     }
 
+    public void testDefaultParsing() throws Exception {
+        MovAvgPipelineAggregatorBuilder expected = new MovAvgPipelineAggregatorBuilder("commits_moving_avg", "commits");
+        String json = "{" +
+            "    \"commits_moving_avg\": {" +
+            "        \"moving_avg\": {" +
+                "            \"buckets_path\": \"commits\"" +
+            "        }" +
+            "    }" +
+            "}";
+        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
+        parseContext.reset(parser);
+        parseContext.parseFieldMatcher(parseFieldMatcher);
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals(expected.name(), parser.currentName());
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals(expected.type(), parser.currentName());
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        PipelineAggregatorBuilder<?> newAgg = aggParsers.pipelineAggregator(expected.getWriteableName()).parse(expected.name(), parser,
+                parseContext);
+        assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertNull(parser.nextToken());
+        assertNotNull(newAgg);
+        assertNotSame(newAgg, expected);
+        assertEquals(expected, newAgg);
+        assertEquals(expected.hashCode(), newAgg.hashCode());
+    }
 }

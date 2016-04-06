@@ -163,7 +163,7 @@ public class MovAvgParser implements PipelineAggregator.Parser {
 
             MovAvgModel movAvgModel;
             try {
-                movAvgModel = modelParser.parse(settings, pipelineAggregatorName, window, context.parseFieldMatcher());
+                movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window(), context.parseFieldMatcher());
             } catch (ParseException exception) {
                 throw new ParsingException(parser.getTokenLocation(), "Could not parse settings for model [" + model + "].", exception);
             }

@@ -102,9 +102,9 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
 
     private static NamedWriteableRegistry namedWriteableRegistry;
 
-    private static AggregatorParsers aggParsers;
-    private static ParseFieldMatcher parseFieldMatcher;
-    private static IndicesQueriesRegistry queriesRegistry;
+    protected static AggregatorParsers aggParsers;
+    protected static ParseFieldMatcher parseFieldMatcher;
+    protected static IndicesQueriesRegistry queriesRegistry;
 
     protected abstract AF createTestAggregatorFactory();
 

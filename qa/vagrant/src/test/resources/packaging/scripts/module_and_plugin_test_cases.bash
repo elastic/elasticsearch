@@ -455,3 +455,24 @@ fi
     fi
     remove_jvm_example
 }
+
+@test "[$GROUP] test java home with space" {
+    # preserve JAVA_HOME
+    local java_home=$JAVA_HOME
+
+    # create a JAVA_HOME with a space
+    local java=$(which java)
+    local temp=`mktemp -d --suffix="java home"`
+    mkdir -p "$temp/bin"
+    ln -s "$java" "$temp/bin/java"
+    export JAVA_HOME="$temp"
+
+    # this will fail if the elasticsearch-plugin script does not
+    # properly handle JAVA_HOME with spaces
+    "$ESHOME/bin/elasticsearch-plugin" list
+
+    rm -rf "$temp"
+
+    # restore JAVA_HOME
+    export JAVA_HOME=$java_home
+}

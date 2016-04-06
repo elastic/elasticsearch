@@ -59,8 +59,8 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
     private FiltersAggregatorBuilder(String name, List<KeyedFilter> filters) {
         super(name, InternalFilters.TYPE);
         // internally we want to have a fixed order of filters, regardless of the order of the filters in the request
-        Collections.sort(filters, (KeyedFilter kf1, KeyedFilter kf2) -> kf1.key().compareTo(kf2.key()));
-        this.filters = filters;
+        this.filters = new ArrayList<>(filters);
+        Collections.sort(this.filters, (KeyedFilter kf1, KeyedFilter kf2) -> kf1.key().compareTo(kf2.key()));
         this.keyed = true;
     }
 
@@ -93,6 +93,13 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
      */
     public boolean otherBucket() {
         return otherBucket;
+    }
+
+    /**
+     * Get the filters. This will be an unmodifiable list
+     */
+    public List<KeyedFilter> filters() {
+        return Collections.unmodifiableList(this.filters);
     }
 
     /**

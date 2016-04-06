@@ -490,9 +490,7 @@ public class FiltersIT extends ESIntegTestCase {
     }
 
     private static KeyedFilter[] randomOrder(KeyedFilter... filters) {
-        List<KeyedFilter> asList = Arrays.asList(filters);
-        Collections.shuffle(asList);
-        return asList.toArray(new KeyedFilter[filters.length]);
+        Collections.shuffle(Arrays.asList(filters), random());
+        return filters;
     }
-
 }

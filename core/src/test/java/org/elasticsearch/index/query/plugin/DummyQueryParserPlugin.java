@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
@@ -50,15 +49,22 @@ public class DummyQueryParserPlugin extends Plugin {
     }
 
     public void onModule(SearchModule module) {
-        module.registerQueryParser(new DummyQueryParser(), new ParseField(DummyQueryBuilder.NAME));
+        module.registerQuery(new DummyQueryBuilder()::readFrom, DummyQueryBuilder::fromXContent, DummyQueryBuilder.QUERY_NAME_FIELD);
     }
 
     public static class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
         private static final String NAME = "dummy";
+        private static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME).endObject();
+        }
+
+        public static DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+            XContentParser.Token token = parseContext.parser().nextToken();
+            assert token == XContentParser.Token.END_OBJECT;
+            return new DummyQueryBuilder();
         }
 
         @Override
@@ -89,20 +95,6 @@ public class DummyQueryParserPlugin extends Plugin {
         @Override
         public String getWriteableName() {
             return NAME;
-        }
-    }
-
-    public static class DummyQueryParser implements QueryParser<DummyQueryBuilder> {
-        @Override
-        public DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-            XContentParser.Token token = parseContext.parser().nextToken();
-            assert token == XContentParser.Token.END_OBJECT;
-            return new DummyQueryBuilder();
-        }
-
-        @Override
-        public DummyQueryBuilder getBuilderPrototype() {
-            return new DummyQueryBuilder();
         }
     }
 

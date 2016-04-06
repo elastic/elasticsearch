@@ -419,20 +419,6 @@ public class PublishClusterStateAction extends AbstractComponent {
             throw new IllegalStateException(message);
         }
 
-        if (lastSeenClusterState != null && lastSeenClusterState.supersedes(incomingState)) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "received cluster state from current master superseded by last seen cluster state; " +
-                            "received version [%d] with uuid [%s], last seen version [%d] with uuid [%s]",
-                    incomingState.version(),
-                    incomingState.stateUUID(),
-                    lastSeenClusterState.version(),
-                    lastSeenClusterState.stateUUID()
-            );
-            logger.warn(message);
-            throw new IllegalStateException(message);
-        }
-
     }
 
     protected void handleCommitRequest(CommitClusterStateRequest request, final TransportChannel channel) {

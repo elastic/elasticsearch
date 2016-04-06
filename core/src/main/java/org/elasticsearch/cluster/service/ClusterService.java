@@ -210,6 +210,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     @Override
     synchronized protected void doStop() {
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
+            onGoingTimeout.cancel();
             try {
                 onGoingTimeout.cancel();
                 onGoingTimeout.listener.onClose();
@@ -218,6 +219,12 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             }
         }
         ThreadPool.terminate(updateTasksExecutor, 10, TimeUnit.SECONDS);
+        // close timeout listeners that did not have an ongoing timeout
+        postAppliedListeners
+                .stream()
+                .filter(listener -> listener instanceof TimeoutClusterStateListener)
+                .map(listener -> (TimeoutClusterStateListener)listener)
+                .forEach(TimeoutClusterStateListener::onClose);
         remove(localNodeMasterListeners);
     }
 

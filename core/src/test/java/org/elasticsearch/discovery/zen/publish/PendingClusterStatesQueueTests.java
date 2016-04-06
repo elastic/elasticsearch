@@ -195,10 +195,11 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
                 highestCommitted = context.state;
             }
         }
+        assert highestCommitted != null;
 
         queue.markAsProcessed(highestCommitted);
-        assertThat(queue.stats().getTotal(), equalTo(states.size() - committedContexts.size()));
-        assertThat(queue.stats().getPending(), equalTo(states.size() - committedContexts.size()));
+        assertThat((long)queue.stats().getTotal(), equalTo(states.size() - (1 + highestCommitted.version())));
+        assertThat((long)queue.stats().getPending(), equalTo(states.size() - (1 + highestCommitted.version())));
         assertThat(queue.stats().getCommitted(), equalTo(0));
     }
 

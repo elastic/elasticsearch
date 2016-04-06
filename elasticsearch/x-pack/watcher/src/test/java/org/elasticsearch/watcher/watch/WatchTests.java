@@ -5,6 +5,14 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -15,7 +23,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryParser;
+import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.ActionFactory;
@@ -78,8 +86,8 @@ import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
@@ -119,17 +127,10 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -352,8 +353,9 @@ public class WatchTests extends ESTestCase {
         Map<String, InputFactory> parsers = new HashMap<>();
         switch (input.type()) {
             case SearchInput.TYPE:
+                QueryParser<MatchAllQueryBuilder> termQueryParser = MatchAllQueryBuilder::fromXContent;
                 IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap(
-                        MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
+                        MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryBuilder.QUERY_NAME_FIELD, termQueryParser)));
             parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null));
             return new InputRegistry(parsers);
             default:
@@ -419,8 +421,9 @@ public class WatchTests extends ESTestCase {
     }
 
     private TransformRegistry transformRegistry() {
+        QueryParser<MatchAllQueryBuilder> termQueryParser = MatchAllQueryBuilder::fromXContent;
         IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY,
-                singletonMap(MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryParser.QUERY_NAME_FIELD, new MatchAllQueryParser())));
+                singletonMap(MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryBuilder.QUERY_NAME_FIELD, termQueryParser)));
         Map<String, TransformFactory> factories = new HashMap<>();
         ChainTransformFactory parser = new ChainTransformFactory();
         factories.put(ChainTransform.TYPE, parser);

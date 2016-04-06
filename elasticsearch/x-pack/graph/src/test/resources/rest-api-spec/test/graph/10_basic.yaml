@@ -33,6 +33,7 @@
 
   - do:
       cluster.health:
+           index: test_1
            wait_for_status: green
 
   - do:

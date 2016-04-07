@@ -7,7 +7,7 @@
       "paths": ["/_tasks/_cancel", "/_tasks/{task_id}/_cancel"],
       "parts": {
         "task_id": {
-          "type": "number",
+          "type": "string",
           "description": "Cancel the task with specified task id (node_id:task_number)"
         }
       },

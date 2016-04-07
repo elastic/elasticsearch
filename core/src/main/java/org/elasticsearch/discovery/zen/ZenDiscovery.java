@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -774,7 +773,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
      * If the first condition fails we reject the cluster state and throw an error.
      * If the second condition fails we ignore the cluster state.
      */
-    @SuppressForbidden(reason = "debug")
     public static boolean shouldIgnoreOrRejectNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
         validateStateIsFromCurrentMaster(logger, currentState.nodes(), newClusterState);
 

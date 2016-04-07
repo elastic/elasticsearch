@@ -533,7 +533,7 @@ public class Node implements Closeable {
                     // no link local, just causes problems
                     continue;
                 }
-                writer.write(NetworkAddress.formatAddress(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
+                writer.write(NetworkAddress.format(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to write ports file", e);

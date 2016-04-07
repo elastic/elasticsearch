@@ -53,7 +53,7 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_timeout"));
-            assertThat(e.getMessage(), containsString("[localhost/127.0.0.1:9876]"));
+            assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
     }
 }

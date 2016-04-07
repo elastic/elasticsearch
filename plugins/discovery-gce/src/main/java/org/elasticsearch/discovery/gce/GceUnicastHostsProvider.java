@@ -126,7 +126,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         try {
             InetAddress inetAddress = networkService.resolvePublishHostAddresses(null);
             if (inetAddress != null) {
-                ipAddress = NetworkAddress.formatAddress(inetAddress);
+                ipAddress = NetworkAddress.format(inetAddress);
             }
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(

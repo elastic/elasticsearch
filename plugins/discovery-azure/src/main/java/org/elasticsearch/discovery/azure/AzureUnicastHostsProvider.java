@@ -219,7 +219,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                             if (privateIp.equals(ipAddress)) {
                                 logger.trace("adding ourselves {}", NetworkAddress.format(ipAddress));
                             }
-                            networkAddress = NetworkAddress.formatAddress(privateIp);
+                            networkAddress = NetworkAddress.format(privateIp);
                         } else {
                             logger.trace("no private ip provided. ignoring [{}]...", instance.getInstanceName());
                         }
@@ -232,7 +232,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                                 continue;
                             }
 
-                            networkAddress = NetworkAddress.formatAddress(new InetSocketAddress(endpoint.getVirtualIPAddress(),
+                            networkAddress = NetworkAddress.format(new InetSocketAddress(endpoint.getVirtualIPAddress(),
                                     endpoint.getPort()));
                         }
 

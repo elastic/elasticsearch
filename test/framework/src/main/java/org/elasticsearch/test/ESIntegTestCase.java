@@ -2047,7 +2047,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort());
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(NetworkAddress.format(address.getAddress())).port(address.getPort());
     }
 
     /**

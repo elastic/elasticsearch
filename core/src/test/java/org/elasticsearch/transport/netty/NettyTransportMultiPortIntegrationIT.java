@@ -103,7 +103,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
             // publish address
             assertThat(nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress(), instanceOf(InetSocketTransportAddress.class));
             InetSocketTransportAddress publishAddress = (InetSocketTransportAddress) nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress();
-            assertThat(NetworkAddress.formatAddress(publishAddress.address().getAddress()), is("127.0.0.7"));
+            assertThat(NetworkAddress.format(publishAddress.address().getAddress()), is("127.0.0.7"));
             assertThat(publishAddress.address().getPort(), is(4321));
         }
     }

@@ -268,9 +268,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         List<CompletionSuggestion.Entry.Option> options = completionSuggestion.getEntries().get(0).getOptions();
         assertThat(options.size(), equalTo(2));
         assertThat(options.get(0).getText().toString(), equalTo("suggestion"));
-        assertThat(options.get(0).getScore(), equalTo(2f));
+        assertThat(options.get(0).getScore(), equalTo(2d));
         assertThat(options.get(1).getText().toString(), equalTo("suggest"));
-        assertThat(options.get(1).getScore(), equalTo(1f));
+        assertThat(options.get(1).getScore(), equalTo(1d));
 
         Map<String, List<Object>> firstPayload = options.get(0).getPayload();
         assertThat(firstPayload.keySet(), containsInAnyOrder("title", "count"));
@@ -457,6 +457,33 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         } catch (MapperParsingException e) {
             assertThat(e.toString(), containsString(weight));
         }
+    }
+
+    public void testWeightPrecision() throws Exception {
+        createIndexAndMapping(completionMappingBuilder);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+            .startObject().startObject(FIELD)
+            .field("input", "Foo Fighters")
+            .field("weight", 2144409647)
+            .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        String suggestionName = RandomStrings.randomAsciiOfLength(random(), 10);
+        SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(
+            new SuggestBuilder().addSuggestion(suggestionName,
+                SuggestBuilders.completionSuggestion(FIELD).text("f").size(10))
+        ).execute().actionGet();
+
+        Suggest.Suggestion<Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option>> suggestion =
+            searchResponse.getSuggest().getSuggestion(suggestionName);
+
+        assertThat(suggestion.getEntries().get(0).getOptions().size(), equalTo(1));
+        Suggest.Suggestion.Entry.Option option = suggestion.getEntries().get(0).getOptions().get(0);
+        assertThat(option.getText().toString(), equalTo("Foo Fighters"));
+        assertThat(option.getScore(), equalTo(2144409647d));
     }
 
     public void testThatInputCanBeAStringInsteadOfAnArray() throws Exception {

@@ -57,7 +57,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         @Override
         public int compare(Suggestion.Entry.Option first, Suggestion.Entry.Option second) {
             // first criteria: the distance
-            int cmp = Float.compare(second.getScore(), first.getScore());
+            int cmp = Double.compare(second.getScore(), first.getScore());
             if (cmp != 0) {
                 return cmp;
             }
@@ -80,7 +80,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             }
 
             // second criteria (if first criteria is equal): the distance
-            cmp = Float.compare(second.getScore(), first.getScore());
+            cmp = Double.compare(second.getScore(), first.getScore());
             if (cmp != 0) {
                 return cmp;
             }

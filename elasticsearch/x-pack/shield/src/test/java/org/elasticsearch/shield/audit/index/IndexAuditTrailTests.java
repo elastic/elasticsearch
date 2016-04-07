@@ -178,7 +178,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             Settings.Builder builder = Settings.builder()
                     .put(settings)
                     .put(XPackPlugin.featureEnabledSetting(Security.NAME), useShield)
-                    .put(remoteSettings(NetworkAddress.formatAddress(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
+                    .put(remoteSettings(NetworkAddress.format(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
                     .put("xpack.security.audit.index.client." + Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
 
             if (useSSL) {
@@ -264,7 +264,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         assertAuditMessage(hit, "rest", "anonymous_access_denied");
         Map<String, Object> sourceMap = hit.sourceAsMap();
-        assertThat(NetworkAddress.formatAddress(InetAddress.getLoopbackAddress()), equalTo(sourceMap.get("origin_address")));
+        assertThat(NetworkAddress.format(InetAddress.getLoopbackAddress()), equalTo(sourceMap.get("origin_address")));
         assertThat("_uri", equalTo(sourceMap.get("uri")));
         assertThat(sourceMap.get("origin_type"), is("rest"));
         assertThat(sourceMap.get("request_body"), notNullValue());

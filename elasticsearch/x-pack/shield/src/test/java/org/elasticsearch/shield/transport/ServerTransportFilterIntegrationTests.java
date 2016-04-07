@@ -90,7 +90,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
-        String unicastHost = NetworkAddress.formatAddress(inetSocketAddress);
+        String unicastHost = NetworkAddress.format(inetSocketAddress);
 
         // test that starting up a node works
         Settings nodeSettings = settingsBuilder()

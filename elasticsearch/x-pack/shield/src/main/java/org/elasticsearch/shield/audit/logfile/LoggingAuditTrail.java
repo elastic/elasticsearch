@@ -339,14 +339,14 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
     public void connectionGranted(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
         if (logger.isTraceEnabled()) {
             logger.trace("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix,
-                    NetworkAddress.formatAddress(inetAddress), profile, rule);
+                    NetworkAddress.format(inetAddress), profile, rule);
         }
     }
 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
         logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix,
-                NetworkAddress.formatAddress(inetAddress), profile, rule);
+                NetworkAddress.format(inetAddress), profile, rule);
     }
 
     @Override
@@ -377,7 +377,7 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         String formattedAddress;
         SocketAddress socketAddress = request.getRemoteAddress();
         if (socketAddress instanceof InetSocketAddress) {
-            formattedAddress = NetworkAddress.formatAddress(((InetSocketAddress) socketAddress).getAddress());
+            formattedAddress = NetworkAddress.format(((InetSocketAddress) socketAddress).getAddress());
         } else {
             formattedAddress = socketAddress.toString();
         }
@@ -391,7 +391,7 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
         if (restAddress != null) {
             builder.append("origin_type=[rest], origin_address=[").
-                    append(NetworkAddress.formatAddress(restAddress.getAddress())).
+                    append(NetworkAddress.format(restAddress.getAddress())).
                     append("]");
             return builder.toString();
         }
@@ -402,7 +402,7 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
             builder.append("origin_type=[transport], ");
             if (address instanceof InetSocketTransportAddress) {
                 builder.append("origin_address=[").
-                        append(NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress())).
+                        append(NetworkAddress.format(((InetSocketTransportAddress) address).address().getAddress())).
                         append("]");
             } else {
                 builder.append("origin_address=[").append(address).append("]");

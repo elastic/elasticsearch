@@ -194,7 +194,7 @@ public class IPFilterTests extends ESTestCase {
     public void testThatBoundAddressIsNeverRejected() throws Exception {
         List<String> addressStrings = new ArrayList<>();
         for (TransportAddress address : transport.boundAddress().boundAddresses()) {
-            addressStrings.add(NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress()));
+            addressStrings.add(NetworkAddress.format(((InetSocketTransportAddress) address).address().getAddress()));
         }
 
         Settings settings;

@@ -51,7 +51,7 @@ public class WatcherWithShieldIT extends ESRestTestCase {
     public void startWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
             InetSocketAddress address = cluster().httpAddresses()[0];
-            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.formatAddress(address.getAddress()), address.getPort(), "/_watcher/_start", null, null));
+            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.format(address.getAddress()), address.getPort(), "/_watcher/_start", null, null));
             String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
             request.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, token);
             client.execute(request);
@@ -62,7 +62,7 @@ public class WatcherWithShieldIT extends ESRestTestCase {
     public void stopWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
             InetSocketAddress address = cluster().httpAddresses()[0];
-            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.formatAddress(address.getAddress()), address.getPort(), "/_watcher/_stop", null, null));
+            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.format(address.getAddress()), address.getPort(), "/_watcher/_stop", null, null));
             String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
             request.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, token);
             client.execute(request);

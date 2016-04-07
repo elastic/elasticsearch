@@ -119,6 +119,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -268,6 +269,20 @@ public class Node implements Closeable {
      * Start the node. If the node is already started, this method is no-op.
      */
     public Node start() {
+        return start((s, b) -> {});
+    }
+
+    /**
+     * Start the node but invoke the registered callback after network
+     * services are started but before the cluster service is started
+     * and before the network service starts accepting incoming network
+     * requests. If the node is already started, this method is a
+     * no-op.
+     *
+     * @param nodeStartCallback the registered callback
+     * @return the started node
+     */
+    public Node start(BiConsumer<Settings, BoundTransportAddress> nodeStartCallback) {
         if (!lifecycle.moveToStarted()) {
             return this;
         }
@@ -314,6 +329,9 @@ public class Node implements Closeable {
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.start();
+
+        nodeStartCallback.accept(settings, transportService.boundAddress());
+
         DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class)
                 .buildLocalNode(transportService.boundAddress().publishAddress());
 

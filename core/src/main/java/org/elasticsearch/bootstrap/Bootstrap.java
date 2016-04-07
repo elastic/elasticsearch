@@ -184,8 +184,6 @@ final class Bootstrap {
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .build();
 
-        BootstrapCheck.check(nodeSettings);
-
         node = new Node(nodeSettings);
     }
 
@@ -199,7 +197,7 @@ final class Bootstrap {
     }
 
     private void start() {
-        node.start();
+        node.start(BootstrapCheck::check);
         keepAliveThread.start();
     }
 

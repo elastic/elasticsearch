@@ -46,5 +46,9 @@ public interface TransportAddress extends Writeable<TransportAddress> {
 
     boolean sameHost(TransportAddress other);
 
+    default boolean isLocalAddress() {
+        return false;
+    }
+
     public String toString();
 }

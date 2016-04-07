@@ -30,6 +30,7 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
@@ -43,8 +44,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.index.cache.query.index.IndexQueryCache;
-import org.elasticsearch.index.cache.query.none.NoneQueryCache;
+import org.elasticsearch.index.cache.query.IndexQueryCache;
+import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -320,9 +321,8 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexOperationListener(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addSimilarity(null, null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setSearcherWrapper(null)).getMessage());
-        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheType("foo")).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexStore("foo", null)).getMessage());
-        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.registerQueryCache("foo", null)).getMessage());
     }
 
     public void testSetupUnknownSimilarity() throws IOException {
@@ -355,47 +355,13 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
-    public void testCannotRegisterProvidedImplementations() {
+    public void testForceCustomQueryCache() throws IOException {
         Settings indexSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
-        try {
-            module.registerQueryCache("index", IndexQueryCache::new);
-            fail("only once");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [index]");
-        }
-
-        try {
-            module.registerQueryCache("none", (settings, x) -> new NoneQueryCache(settings));
-            fail("only once");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [none]");
-        }
-
-        try {
-            module.registerQueryCache("index", null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "provider must not be null");
-        }
-    }
-
-    public void testRegisterCustomQueryCache() throws IOException {
-        Settings indexSettings = Settings.builder()
-                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), "custom")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
-        module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
-        try {
-            module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
-            fail("only once");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [custom]");
-        }
-
+        module.forceQueryCacheProvider((a, b) -> new CustomQueryCache());
+        expectThrows(AlreadySetException.class, () -> module.forceQueryCacheProvider((a, b) -> new CustomQueryCache()));
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
             new IndicesFieldDataCache(settings, listener));
         assertTrue(indexService.cache().query() instanceof CustomQueryCache);
@@ -413,17 +379,16 @@ public class IndexModuleTests extends ESTestCase {
         indexService.close("simon says", false);
     }
 
-    public void testForceCacheType() throws IOException {
+    public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
         Settings indexSettings = Settings.builder()
-            .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), "none")
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
-        module.forceQueryCacheType("custom");
-        module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
+        module.forceQueryCacheProvider((a, b) -> new CustomQueryCache());
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
             new IndicesFieldDataCache(settings, listener));
-        assertTrue(indexService.cache().query() instanceof CustomQueryCache);
+        assertTrue(indexService.cache().query() instanceof DisabledQueryCache);
         indexService.close("simon says", false);
     }
 

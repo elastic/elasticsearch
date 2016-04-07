@@ -17,11 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.query.none;
+package org.elasticsearch.index.cache.query;
 
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -29,9 +28,9 @@ import org.elasticsearch.index.cache.query.QueryCache;
 /**
  *
  */
-public class NoneQueryCache extends AbstractIndexComponent implements QueryCache {
+public class DisabledQueryCache extends AbstractIndexComponent implements QueryCache {
 
-    public NoneQueryCache(IndexSettings indexSettings) {
+    public DisabledQueryCache(IndexSettings indexSettings) {
         super(indexSettings);
         logger.debug("Using no query cache");
     }

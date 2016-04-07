@@ -250,7 +250,7 @@ public class RestClient implements Closeable {
         return new HttpRequestBuilder(httpClient)
                 .addHeaders(headers)
                 .protocol(protocol)
-                .host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort());
+                .host(NetworkAddress.format(address.getAddress())).port(address.getPort());
     }
 
     protected HttpRequestBuilder httpRequestBuilder() {

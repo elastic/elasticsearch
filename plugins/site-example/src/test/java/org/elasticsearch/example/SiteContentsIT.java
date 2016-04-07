@@ -47,7 +47,7 @@ public class SiteContentsIT extends ESIntegTestCase {
             for (InetSocketAddress address :  externalCluster.httpAddresses()) {
                 RestResponse restResponse = new RestResponse(
                         new HttpRequestBuilder(httpClient)
-                        .host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort())
+                        .host(NetworkAddress.format(address.getAddress())).port(address.getPort())
                         .path("/_plugin/site-example/")
                         .method("GET").execute());
                 assertEquals(200, restResponse.getStatusCode());

@@ -81,7 +81,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String getAddress() {
-        return NetworkAddress.formatAddress(address.getAddress());
+        return NetworkAddress.format(address.getAddress());
     }
 
     @Override

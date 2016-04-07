@@ -78,7 +78,7 @@ public class HttpRequestBuilder {
 
     public HttpRequestBuilder httpTransport(HttpServerTransport httpServerTransport) {
         InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress();
-        return host(NetworkAddress.formatAddress(transportAddress.address().getAddress())).port(transportAddress.address().getPort());
+        return host(NetworkAddress.format(transportAddress.address().getAddress())).port(transportAddress.address().getPort());
     }
 
     public HttpRequestBuilder port(int port) {

@@ -16,8 +16,8 @@ link:/downloads/past-releases[Past Releases page].
 Download the `.zip` archive for Elastisearch v{version} from: https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
-+elasticsearch-{version}+, which we will refer to as `$ES_HOME`. In a terminal
-window, `CD` to the `$ES_HOME` directory, for instance:
++elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal
+window, `CD` to the `%ES_HOME%` directory, for instance:
 
 ["source","sh",subs="attributes"]
 ----------------------------
@@ -36,6 +36,28 @@ Elasticsearch can be started from the command line as follows:
 
 By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT`,
 and can be stopped by pressing `Ctrl-C`.
+
+[[windows-configuring]]
+==== Configuring Elasticsearch on the command line
+
+Elasticsearch loads its configuration from the `%ES_HOME%/config/elasticsearch.yml`
+file by default.  The format of this config file is explained in
+<<settings>>.
+
+Any settings that can be specified in the config file can also be specified on
+the command line, using the `-E` syntax, and prepending `es.` to the setting
+name, as follows:
+
+[source,sh]
+--------------------------------------------
+./bin/elasticsearch -E es.cluster.name=my_cluster -E es.node.name=node_1
+--------------------------------------------
+
+NOTE: Values that contain spaces must be surrounded with qoutes.  For instance `-E es.path.logs="C:\My Logs\logs"`.
+
+TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
+added to the `elasticsearch.yml` config file, while any node-specific settings
+such as `node.name` could be specified on the command line.
 
 include::check-running.asciidoc[]
 
@@ -72,11 +94,6 @@ The commands available are:
 
 `manager`:: Start a GUI for managing the installed service
 
-Note that the environment configuration options available during the
-installation are copied and will be used during the service lifecycle. This
-means any changes made to them after the installation will not be picked up
-unless the service is reinstalled.
-
 Based on the architecture of the available JDK/JRE (set through `JAVA_HOME`),
 the appropriate 64-bit(x64) or 32-bit(x86) service will be installed. This
 information is made available during install:
@@ -89,36 +106,99 @@ Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
 The service 'elasticsearch-service-x64' has been installed.
 --------------------------------------------------
 
-NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as oppose to a server JVM which
-offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
+NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
 
+NOTE: Upgrading (or downgrading) JVM versions does not require the service to be reinstalled. However, upgrading across JVM types (e.g. JRE versus SE) is not supported, and does require the service to be reinstalled.
+
+[[windows-service-settings]]
 [float]
 === Customizing service settings
 
-There are two ways to customize the service settings:
+The Elasticsearch service can be configured prior to installation by setting the the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the `System Properties->Environment Variables` GUI).
 
-Manager GUI:: accessible through `manager` command, the GUI offers insight into the installed service including its status, startup type,
-JVM, start and stop settings among other things. Simply invoking `service.bat` from the command-line with the aforementioned option
-will open up the manager window:
+[horizontal]
+`SERVICE_ID`::
+
+  A unique identifier for the service.  Useful if installing multiple instances on the same machine.  Defaults to `elasticsearch-service-x86` (on 32-bit Windows) or `elasticsearch-service-x64` (on 64-bit Windows).
+
+`SERVICE_USERNAME`::
+
+  The user to run as, defaults to the local system account.
+
+`SERVICE_PASSWORD`::
+
+  The password for the user specified in `%SERVICE_USERNAME%`.
+
+`SERVICE_DISPLAY_NAME`::
+
+  The name of the service.  Defaults to `Elasticsearch <version> %SERVICE_ID%`.
+
+`SERVICE_DESCRIPTION`::
+
+  The description of the service.  Defaults to `Elasticsearch <version> Windows Service - https://elastic.co`.
+
+`JAVA_HOME`::
+
+  The installation directory of the desired JVM to run the service under.
+
+`ES_HEAP_SIZE`::
+
+  The heap size to start with.
+
+`ES_MIN_MEM`::
+
+  The initial memory allocation pool for the JVM (`Xms`).  Defaults to `256m`, overriden by `%ES_HEAP_SIZE%`.
+
+`ES_MAX_MEM`::
+
+  The maxmimum memory allocation pool for the JVM (`Xmx`).  Defaults to `1g`, overriden by `%ES_HEAP_SIZE%`.
+
+`LOG_DIR`::
+
+    Log directory, defaults to `%ES_HOME%\logs`.
+
+`DATA_DIR`::
+
+    Data directory, defaults to `%ES_HOME%\data`.
+
+`CONF_DIR`::
+
+    Configuration file directory (which needs to include `elasticsearch.yml`
+    and `logging.yml` files), defaults to `%ES_HOME%\conf`.
+
+`ES_JAVA_OPTS`::
+
+    Any additional JVM system properties you may want to apply.
+
+`ES_START_TYPE`::
+
+    Startup mode for the service.  Can be either `auto` or `manual` (default).
+
+`ES_STOP_TIMEOUT` ::
+
+  The timeout in seconds that procrun waits for service to exit gracefully.  Defaults to `0`.
+
+NOTE: At its core, `service.bat` relies on http://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
+to install the service. Environment variables set prior to the service installation are copied and will be used during the service lifecycle. This means any changes made to them after the installation will not be picked up unless the service is reinstalled.
+
+Using the Manager GUI::
+
+It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things.  Simply invoking `service.bat manager` from the command-line will open up the manager window:
 
 image::images/service-manager-win.png["Windows Service Manager GUI",align="center"]
 
-Customizing `service.bat`:: at its core, `service.bat` relies on http://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
-to install the services. For full flexibility such as customizing the user under which the service runs, one can modify the installation
-parameters to tweak all the parameters accordingly. Do note that this requires reinstalling the service for the new settings to be applied.
-
-NOTE: There is also a community supported customizable MSI installer available: https://github.com/salyh/elasticsearch-msi-installer (by Hendrik Saly).
+Most changes (like JVM settings) made through the manager GUI will require a restart of the service in order to take affect.
 
 [[windows-layout]]
 ==== Directory layout of `.zip` archive
 
 The `.zip` package is entirely self-contained. All files and directories are,
-by default, contained within `$ES_HOME` -- the directory created when
+by default, contained within `%ES_HOME%` -- the directory created when
 unpacking the archive.
 
 This is very convenient because you don't have to create any directories to
 start using Elasticsearch, and uninstalling Elasticsearch is as easy as
-removing the `$ES_HOME` directory.  However, it is advisable to change the
+removing the `%ES_HOME%` directory.  However, it is advisable to change the
 default locations of the config directory, the data directory, and the logs
 directory so that you do not delete important data later on.
 
@@ -127,35 +207,35 @@ directory so that you do not delete important data later on.
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `$ES_HOME`
+  | Elasticsearch home directory or `%ES_HOME%`
  d| Directory created by unpacking the archive
   |
 
 | bin
   | Binary scripts including `elasticsearch` to start a node
     and `elasticsearch-plugin` to install plugins
-  | $ES_HOME\bin
+  | %ES_HOME%\bin
  d|
 
 | conf
   | Configuration files including `elasticsearch.yml`
-  | $ES_HOME\config
+  | %ES_HOME%\config
   | path.conf
 
 | data
   | The location of the data files of each index / shard allocated
     on the node. Can hold multiple locations.
-  | $ES_HOME\data
+  | %ES_HOME%\data
   | path.data
 
 | logs
   | Log files location.
-  | $ES_HOME\logs
+  | %ES_HOME%\logs
   | path.logs
 
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
-  | $ES_HOME\plugins
+  | %ES_HOME%\plugins
   | path.plugins
 
 | repo
@@ -165,10 +245,9 @@ directory so that you do not delete important data later on.
 
 | script
   | Location of script files.
-  | $ES_HOME\scripts
+  | %ES_HOME%\scripts
   | path.script
 
 |=======================================================================
-
 
 include::next-steps.asciidoc[]

@@ -834,7 +834,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             fail("Expected an exception due to trying to sort on completion field, but did not happen");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status().getStatus(), is(400));
-            assertThat(e.toString(), containsString("Sorting not supported for field[" + FIELD + "]"));
+            assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
         }
     }
 
@@ -1114,7 +1114,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             // Exception must be thrown
             assertFalse(true);
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString(), containsString("Fielddata is not supported on fields of type [completion]"));
+            assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
         }
     }
 

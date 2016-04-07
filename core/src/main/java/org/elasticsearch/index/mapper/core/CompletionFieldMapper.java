@@ -344,11 +344,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             return value.toString();
         }
 
-        @Override
-        public boolean isSortable() {
-            return false;
-        }
-
     }
 
     /**

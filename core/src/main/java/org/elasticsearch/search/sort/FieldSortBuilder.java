@@ -263,10 +263,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 }
             }
 
-            if (!fieldType.isSortable()) {
-                throw new QueryShardException(context, "Sorting not supported for field[" + fieldName + "]");
-            }
-
             MultiValueMode localSortMode = null;
             if (sortMode != null) {
                 localSortMode = MultiValueMode.fromString(sortMode.toString());

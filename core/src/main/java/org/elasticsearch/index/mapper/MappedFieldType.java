@@ -99,7 +99,7 @@ public abstract class MappedFieldType extends FieldType {
 
     /** Return a fielddata builder for this field. */
     public IndexFieldData.Builder fielddataBuilder() {
-        throw new IllegalArgumentException("Fielddata is not supported on fields of type [" + typeName() + "]");
+        throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
     @Override
@@ -220,10 +220,6 @@ public abstract class MappedFieldType extends FieldType {
                 conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [eager_global_ordinals] across all types.");
             }
         }
-    }
-
-    public boolean isSortable() {
-        return true;
     }
 
     public String name() {

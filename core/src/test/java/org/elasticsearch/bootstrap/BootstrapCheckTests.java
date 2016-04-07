@@ -26,12 +26,16 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -87,6 +91,42 @@ public class BootstrapCheckTests extends ESTestCase {
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
         assertTrue(BootstrapCheck.enforceLimits(boundTransportAddress));
+    }
+
+    public void testExceptionAggregation() {
+        final List<BootstrapCheck.Check> checks = Arrays.asList(
+                new BootstrapCheck.Check() {
+                    @Override
+                    public boolean check() {
+                        return true;
+                    }
+
+                    @Override
+                    public String errorMessage() {
+                        return "first";
+                    }
+                },
+                new BootstrapCheck.Check() {
+                    @Override
+                    public boolean check() {
+                        return true;
+                    }
+
+                    @Override
+                    public String errorMessage() {
+                        return "second";
+                    }
+                }
+        );
+        final RuntimeException e =
+                expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, checks, "testExceptionAggregation"));
+        assertThat(e, hasToString(allOf(containsString("bootstrap checks failed"), containsString("first"), containsString("second"))));
+        final Throwable[] suppressed = e.getSuppressed();
+        assertThat(suppressed.length, equalTo(2));
+        assertThat(suppressed[0], instanceOf(IllegalStateException.class));
+        assertThat(suppressed[0], hasToString(containsString("first")));
+        assertThat(suppressed[1], instanceOf(IllegalStateException.class));
+        assertThat(suppressed[1], hasToString(containsString("second")));
     }
 
     public void testFileDescriptorLimits() {

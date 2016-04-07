@@ -277,11 +277,12 @@ PUT /my_index
     "user": {
       "properties": {
         "name": { <1>
-          "type": "string",
+          "type": "text",
           "fields": {
             "sort": { <2>
-              "type":     "string",
-              "analyzer": "german_phonebook"
+              "type":      "text",
+              "fielddata": true,
+              "analyzer":  "german_phonebook"
             }
           }
         }

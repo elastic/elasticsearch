@@ -79,13 +79,6 @@ omit :
    each term in this field)
 
 [float]
-==== Distributed frequencies
-
-Setting `dfs` to `true` (default is `false`) will return the term statistics
-or the field statistics of the entire index, and not just at the shard. Use it
-with caution as distributed frequencies can have a serious performance impact.
-
-[float]
 ==== Terms Filtering
 
 With the parameter `filter`, the terms returned could also be filtered based
@@ -118,7 +111,7 @@ The following sub-parameters are supported:
 
 The term and field statistics are not accurate. Deleted documents
 are not taken into account. The information is only retrieved for the
-shard the requested document resides in, unless `dfs` is set to `true`.
+shard the requested document resides in.
 The term and field statistics are therefore only useful as relative measures
 whereas the absolute numbers have no meaning in this context. By default,
 when requesting term vectors of artificial documents, a shard to get the statistics
@@ -374,8 +367,7 @@ Response:
 
 Finally, the terms returned could be filtered based on their tf-idf scores. In
 the example below we obtain the three most "interesting" keywords from the
-artificial document having the given "plot" field value. Additionally, we are
-asking for distributed frequencies to obtain more accurate results. Notice
+artificial document having the given "plot" field value. Notice
 that the keyword "Tony" or any stop words are not part of the response, as
 their tf-idf must be too low.
 
@@ -388,7 +380,6 @@ GET /imdb/movies/_termvectors
     },
     "term_statistics" : true,
     "field_statistics" : true,
-    "dfs": true,
     "positions": false,
     "offsets": false,
     "filter" : {

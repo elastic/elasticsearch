@@ -3,6 +3,7 @@ cluster:admin/snapshot/status[nodes]
 cluster:admin/snapshot/status[nodes][n]
 cluster:admin/tasks/cancel[n]
 cluster:monitor/allocation/explain
+cluster:monitor/main
 cluster:monitor/nodes/hot_threads[n]
 cluster:monitor/nodes/info[n]
 cluster:monitor/nodes/liveness

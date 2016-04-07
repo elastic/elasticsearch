@@ -81,4 +81,4 @@ be removed in next major version.
 === Multicast plugin deprecated
 
 The `discovery-multicast` plugin has been deprecated in 2.2.0 and has
-been removed in 3.0.0.
+been removed in 5.0.

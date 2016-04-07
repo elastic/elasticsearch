@@ -47,7 +47,7 @@ ES_GROUP=elasticsearch
 ES_HOME=/usr/share/$NAME
 
 # Heap size defaults to 256m min, 1g max
-# Set ES_HEAP_SIZE to 50% of available RAM, but no more than 31g
+# Set ES_HEAP_SIZE to 50% of available RAM, but no more than 30500m
 #ES_HEAP_SIZE=2g
 
 # Heap new generation

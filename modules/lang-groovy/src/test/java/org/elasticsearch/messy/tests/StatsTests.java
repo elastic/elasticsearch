@@ -31,8 +31,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats.Bounds;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -42,7 +40,6 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -113,7 +110,7 @@ public class StatsTests extends AbstractNumericTestCase {
         Stats s1 = client().prepareSearch("idx")
                 .addAggregation(stats("stats").field("value")).get()
                 .getAggregations().get("stats");
-        ExtendedStats s2 = client().prepareSearch("idx", "idx_unmapped")
+        Stats s2 = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(stats("stats").field("value")).get()
                 .getAggregations().get("stats");
         assertEquals(s1.getAvg(), s2.getAvg(), 1e-10);

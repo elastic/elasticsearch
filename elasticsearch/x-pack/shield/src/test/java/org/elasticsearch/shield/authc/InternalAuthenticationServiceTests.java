@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -105,9 +106,13 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        AnonymousUser.initialize(Settings.EMPTY);
         service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService,
                 new DefaultAuthenticationFailureHandler(), threadPool);
+    }
+
+    @After
+    public void resetAnonymous() {
+        AnonymousUser.initialize(Settings.EMPTY);
     }
 
     @SuppressWarnings("unchecked")

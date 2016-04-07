@@ -70,6 +70,7 @@ import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -104,9 +105,13 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        AnonymousUser.initialize(Settings.EMPTY);
         internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService,
                 auditTrail, new DefaultAuthenticationFailureHandler(), threadPool);
+    }
+
+    @After
+    public void resetAnonymous() {
+        AnonymousUser.initialize(Settings.EMPTY);
     }
 
     public void testActionsSystemUserIsAuthorized() {

@@ -47,3 +47,8 @@ been added to the `jvm.options` file:
 
 Note that this option is provided solely for migration purposes and will be
 removed in Elasticsearch 6.0.0.
+
+==== Analyze API changes
+
+The deprecated `filters`/`token_filters`/`char_filters` parameter has been
+renamed `filter`/`token_filter`/`char_filter`.

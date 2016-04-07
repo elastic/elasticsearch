@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -51,9 +53,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         logger.info("--> creating 'test' index");
         prepareCreate("test").setSettings(Settings.settingsBuilder()
-                .put("index.unassigned.node_left.delayed_timeout", "1m")
-                .put("number_of_shards", 5)
-                .put("number_of_replicas", 1)).get();
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "1m")
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 5)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)).get();
         ensureGreen("test");
 
         logger.info("--> stopping a random node");

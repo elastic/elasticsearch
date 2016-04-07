@@ -236,7 +236,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
      *
      * @return calculated delay in nanoseconds
      */
-    public long getRemainingDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
+    public long getRemainingDelay(final long nanoTimeNow, final Settings settings, final Settings indexSettings) {
         final long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
         if (delayTimeoutNanos == 0L) {
             return 0L;
@@ -251,7 +251,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
      *
      * @return updated delay in nanoseconds
      */
-    public long updateDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
+    public long updateDelay(final long nanoTimeNow, final Settings settings, final Settings indexSettings) {
         final long newComputedLeftDelayNanos = getRemainingDelay(nanoTimeNow, settings, indexSettings);
         lastComputedLeftDelayNanos = newComputedLeftDelayNanos;
         return newComputedLeftDelayNanos;

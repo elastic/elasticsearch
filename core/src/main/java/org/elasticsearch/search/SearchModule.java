@@ -335,28 +335,16 @@ public class SearchModule extends AbstractModule {
      */
     public <QB extends QueryBuilder<QB>> void registerQuery(Writeable.Reader<QB> reader, QueryParser<QB> queryParser,
                                                                          ParseField queryName) {
-        innerRegisterQueryParser(queryParser, queryName);
-        namedWriteableRegistry.register(QueryBuilder.class, queryName.getPreferredName(), reader);
-    }
-
-    /**
-     * Register a query via its parser's prototype.
-     * TODO remove this in favor of registerQuery and merge innerRegisterQueryParser into registerQuery
-     */
-    public void registerQueryParser(QueryParser<?> queryParser, ParseField queryName) {
-        innerRegisterQueryParser(queryParser, queryName);
-        namedWriteableRegistry.registerPrototype(QueryBuilder.class, queryParser.getBuilderPrototype());
-    }
-
-    private <QB extends QueryBuilder<QB>> void innerRegisterQueryParser(QueryParser<QB> parser, ParseField queryName) {
-        Tuple<ParseField, QueryParser<?>> parseFieldQueryParserTuple = new Tuple<>(queryName, parser);
+        Tuple<ParseField, QueryParser<?>> parseFieldQueryParserTuple = new Tuple<>(queryName, queryParser);
         for (String name: queryName.getAllNamesIncludedDeprecated()) {
             Tuple<ParseField, QueryParser<?>> previousValue = queryParsers.putIfAbsent(name, parseFieldQueryParserTuple);
             if (previousValue != null) {
                 throw new IllegalArgumentException("Query parser [" + previousValue.v2() + "] already registered for name [" +
-                        name + "] while trying to register [" + parser + "]");
+                        name + "] while trying to register [" + queryParser + "]");
             }
         }
+
+        namedWriteableRegistry.register(QueryBuilder.class, queryName.getPreferredName(), reader);
     }
 
     Set<String> getRegisteredQueries() {

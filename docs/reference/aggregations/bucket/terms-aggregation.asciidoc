@@ -314,6 +314,15 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
 }
 --------------------------------------------------
 
+WARNING: Sorting by ascending `_count` or by sub aggregation is discouraged as it increases the
+<<search-aggregations-bucket-terms-aggregation-approximate-counts,error>> on document counts.
+It is fine when a single shard is queried, or when the field that is being aggregated was used
+as a routing key at index time: in these cases results will be accurate since shards have disjoint
+values. However otherwise, errors are unbounded. One particular case that could still be useful
+is sorting by <<search-aggregations-metrics-min-aggregation,`min`>> or
+<<search-aggregations-metrics-max-aggregation,`max`>> aggregation: counts will not be accurate
+but at least the top buckets will be correctly picked.
+
 It is also possible to order the buckets based on a "deeper" aggregation in the hierarchy. This is supported as long
 as the aggregations path are of a single-bucket type, where the last aggregation in the path may either be a single-bucket
 one or a metrics one. If it's a single-bucket type, the order will be defined by the number of docs in the bucket (i.e. `doc_count`),

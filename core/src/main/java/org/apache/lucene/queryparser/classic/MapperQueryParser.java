@@ -215,7 +215,8 @@ public class MapperQueryParser extends QueryParser {
                 }
                 if (currentFieldType != null) {
                     Query query = null;
-                    if (currentFieldType.useTermQueryWithQueryString()) {
+                    if (currentFieldType.tokenized() == false) {
+                        // this might be a structured field like a numeric
                         try {
                             query = currentFieldType.termQuery(queryText, context);
                         } catch (RuntimeException e) {
@@ -326,7 +327,7 @@ public class MapperQueryParser extends QueryParser {
     private Query getRangeQuerySingle(String field, String part1, String part2, boolean startInclusive, boolean endInclusive) {
         currentFieldType = context.fieldMapper(field);
         if (currentFieldType != null) {
-            if (lowercaseExpandedTerms && !currentFieldType.isNumeric()) {
+            if (lowercaseExpandedTerms && currentFieldType.tokenized()) {
                 part1 = part1 == null ? null : part1.toLowerCase(locale);
                 part2 = part2 == null ? null : part2.toLowerCase(locale);
             }
@@ -463,7 +464,7 @@ public class MapperQueryParser extends QueryParser {
                     setAnalyzer(context.getSearchAnalyzer(currentFieldType));
                 }
                 Query query = null;
-                if (currentFieldType.useTermQueryWithQueryString()) {
+                if (currentFieldType.tokenized() == false) {
                     query = currentFieldType.prefixQuery(termStr, multiTermRewriteMethod, context);
                 }
                 if (query == null) {
@@ -722,7 +723,7 @@ public class MapperQueryParser extends QueryParser {
                     setAnalyzer(context.getSearchAnalyzer(currentFieldType));
                 }
                 Query query = null;
-                if (currentFieldType.useTermQueryWithQueryString()) {
+                if (currentFieldType.tokenized() == false) {
                     query = currentFieldType.regexpQuery(termStr, RegExp.ALL, maxDeterminizedStates, multiTermRewriteMethod, context);
                 }
                 if (query == null) {

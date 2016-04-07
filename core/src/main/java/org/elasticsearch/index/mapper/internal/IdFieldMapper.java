@@ -66,6 +66,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public static final MappedFieldType FIELD_TYPE = new IdFieldType();
 
         static {
+            FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
@@ -133,11 +134,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 return null;
             }
             return value.toString();
-        }
-
-        @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
         }
 
         @Override

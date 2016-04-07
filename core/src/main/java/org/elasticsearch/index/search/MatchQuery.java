@@ -244,7 +244,7 @@ public class MatchQuery {
          * passing through QueryBuilder.
          */
         boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType != null && fieldType.useTermQueryWithQueryString() && noForcedAnalyzer) {
+        if (fieldType != null && fieldType.tokenized() == false && noForcedAnalyzer) {
             return termQuery(fieldType, value);
         }
 

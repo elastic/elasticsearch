@@ -319,7 +319,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testNonNumericField() {
         client().prepareIndex("test", "doc", "1").setSource("text", "this is not a number").setRefresh(true).get();
         try {
-            buildRequest("doc['text']").get();
+            buildRequest("doc['text.keyword']").get();
             fail("Expected text field to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ScriptException",

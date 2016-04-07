@@ -32,10 +32,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -193,12 +193,12 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     if (fieldType == null) {
                         throw new ScriptException("Field [" + fieldname + "] used in expression does not exist in mappings");
                     }
-                    if (fieldType.isNumeric() == false) {
+
+                    IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField(fieldType);
+                    if (fieldData instanceof IndexNumericFieldData == false) {
                         // TODO: more context (which expression?)
                         throw new ScriptException("Field [" + fieldname + "] used in expression must be numeric");
                     }
-
-                    IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper.NumberFieldType) fieldType);
                     if (methodname == null) {
                         bindings.add(variable, new FieldDataValueSource(fieldData, MultiValueMode.MIN));
                     } else {

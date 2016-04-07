@@ -190,11 +190,6 @@ public class BooleanFieldMapper extends FieldMapper {
         public Object valueForSearch(Object value) {
             return value(value);
         }
-        
-        @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
-        }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder() {

@@ -189,11 +189,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
-        }
-
-        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");

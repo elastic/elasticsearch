@@ -173,16 +173,6 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
         public abstract Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions);
 
         @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
-        }
-
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-
-        @Override
         public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
             if (timeZone != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
@@ -205,6 +195,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
                                 Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Settings indexSettings,
                                 MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        assert fieldType.tokenized() == false;
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
     }

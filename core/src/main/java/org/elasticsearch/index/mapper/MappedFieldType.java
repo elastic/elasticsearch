@@ -222,10 +222,6 @@ public abstract class MappedFieldType extends FieldType {
         }
     }
 
-    public boolean isNumeric() {
-        return false;
-    }
-
     public boolean isSortable() {
         return true;
     }
@@ -323,14 +319,6 @@ public abstract class MappedFieldType extends FieldType {
     /** Returns the indexed value used to construct search "values". */
     public BytesRef indexedValueForSearch(Object value) {
         return BytesRefs.toBytesRef(value);
-    }
-
-    /**
-     * Should the field query {@link #termQuery(Object, org.elasticsearch.index.query.QueryShardContext)}  be used when detecting this
-     * field in query string.
-     */
-    public boolean useTermQueryWithQueryString() {
-        return false;
     }
 
     /**

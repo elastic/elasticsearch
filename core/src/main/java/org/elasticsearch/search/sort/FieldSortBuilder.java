@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -271,17 +272,18 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 localSortMode = MultiValueMode.fromString(sortMode.toString());
             }
 
-            if (fieldType.isNumeric() == false && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
-                throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
-            }
-
             boolean reverse = (order == SortOrder.DESC);
             if (localSortMode == null) {
                 localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
             }
 
             final Nested nested = resolveNested(context, nestedPath, nestedFilter);
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.getForField(fieldType)
+            IndexFieldData<?> fieldData = context.getForField(fieldType);
+            if (fieldData instanceof IndexNumericFieldData == false
+                    && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+                throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
+            }
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource = fieldData
                     .comparatorSource(missing, localSortMode, nested);
             return new SortField(fieldType.name(), fieldComparatorSource, reverse);
         }

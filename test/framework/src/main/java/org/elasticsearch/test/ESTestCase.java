@@ -185,12 +185,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
     @After
     public final void ensureAllSearchContextsReleased() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                MockSearchService.assertNoInFLightContext();
-            }
-        });
+        assertBusy(() -> MockSearchService.assertNoInFlightContext());
     }
 
     // mockdirectorywrappers currently set this boolean if checkindex fails

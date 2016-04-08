@@ -1,0 +1,49 @@
+---
+"Metadata Fields":
+
+  - skip:
+      version:  "all"
+      reason:   "Update doesn't return metadata fields, waiting for #3259"
+
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              test:
+                _parent: { type: "foo" }
+                _timestamp:
+                  enabled:  1
+                _ttl:
+                  enabled:  1
+                  default:  10s
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      update:
+          index:  test_1
+          type:   test
+          id:     1
+          parent: 5
+          fields: [ _parent, _routing, _timestamp, _ttl ]
+          body:
+            doc:    { foo: baz }
+            upsert: { foo: bar }
+
+  - match:   { get._parent:  "5" }
+  - match:   { get._routing: "5" }
+  - is_true:   get._timestamp
+  - is_true:   get._ttl
+
+  - do:
+      get:
+          index:  test_1
+          type:   test
+          id:     1
+          parent: 5
+          fields: [ _parent, _routing, _timestamp, _ttl ]
+
+

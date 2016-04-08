@@ -1,0 +1,32 @@
+[[scripting]]
+== Scripting Plugins
+
+Scripting plugins extend the scripting functionality in Elasticsearch to allow
+the use of other scripting languages.
+
+[float]
+=== Core scripting plugins
+
+The core scripting plugins are:
+
+<<lang-javascript,JavaScript Language>>::
+
+The JavaScript language plugin enables the use of JavaScript in Elasticsearch
+scripts, via Mozilla's
+https://developer.mozilla.org/en-US/docs/Mozilla/Projects/Rhino[Rhino JavaScript] engine.
+
+<<lang-python,Python Language>>::
+
+The Python language plugin enables the use of Python in Elasticsearch
+scripts, via the http://www.jython.org/[Jython] Java implementation of Python.
+
+[float]
+=== Abandoned community scripting plugins
+
+This plugin has been contributed by our community, but appears to be abandoned:
+
+* https://github.com/hiredman/elasticsearch-lang-clojure[Clojure Language Plugin] (by Kevin Downey)
+
+include::lang-javascript.asciidoc[]
+
+include::lang-python.asciidoc[]

@@ -38,9 +38,9 @@ Range agg = sr.getAggregations().get("agg");
 
 // For each entry
 for (Range.Bucket entry : agg.getBuckets()) {
-    String key = entry.getKey();            // Range as key
-    Number from = entry.getFrom();          // Bucket from
-    Number to = entry.getTo();              // Bucket to
+    String key = entry.getKeyAsString();             // Range as key
+    Number from = (Number) entry.getFrom();          // Bucket from
+    Number to = (Number) entry.getTo();              // Bucket to
     long docCount = entry.getDocCount();    // Doc count
 
     logger.info("key [{}], from [{}], to [{}], doc_count [{}]", key, from, to, docCount);

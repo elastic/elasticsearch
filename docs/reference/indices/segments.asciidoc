@@ -74,11 +74,12 @@ compound::   Whether the segment is stored in a compound file. When true, this
              means that Lucene merged all files from the segment in a single
              one in order to save file descriptors.
 
+[float]
 === Verbose mode
 
 To add additional information that can be used for debugging, use the `verbose` flag.
 
-NOTE: The format of additional verbose information is experimental and can change at any time.
+experimental[The format of the additional verbose information is experimental and can change at any time]
 
 [source,js]
 --------------------------------------------------
@@ -108,7 +109,7 @@ Response:
                 },
                 ...
                 ]
-          
+
         }
     ...
 }

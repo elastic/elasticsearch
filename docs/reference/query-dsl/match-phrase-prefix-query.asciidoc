@@ -1,0 +1,32 @@
+[[query-dsl-match-query-phrase-prefix]]
+=== Match Phrase Prefix Query
+
+The `match_phrase_prefix` is the same as `match_phrase`, except that it
+allows for prefix matches on the last term in the text. For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "match_phrase_prefix" : {
+        "message" : "this is a test"
+    }
+}
+--------------------------------------------------
+
+It accepts the same parameters as the phrase type. In addition, it also
+accepts a `max_expansions` parameter that can control to how many
+prefixes the last term will be expanded. It is highly recommended to set
+it to an acceptable value to control the execution time of the query.
+For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "match_phrase_prefix" : {
+        "message" : {
+            "query" : "this is a test",
+            "max_expansions" : 10
+        }
+    }
+}
+--------------------------------------------------

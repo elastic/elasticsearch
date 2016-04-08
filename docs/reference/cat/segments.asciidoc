@@ -5,7 +5,7 @@ The `segments` command provides low level information about the segments
 in the shards of an index. It provides information similar to the
 link:indices-segments.html[_segments] endpoint.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'http://localhost:9200/_cat/segments?v'
 index shard prirep ip            segment generation docs.count [...]
@@ -14,7 +14,7 @@ test1 2     p      192.168.2.105 _0               0          1
 test1 3     p      192.168.2.105 _2               2          1
 --------------------------------------------------
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 [...] docs.deleted  size size.memory committed searchable version compound
                  0 2.9kb        7818 false     true       4.10.2  true
@@ -44,6 +44,8 @@ generation::    The generation number is incremented with each segment that is w
                 The name of the segment is derived from this generation number.
 
 docs.count::    The number of non-deleted documents that are stored in this segment.
+                Note that these are Lucene documents, so the count will include hidden
+				documents (e.g. from nested types).
 
 docs.deleted::  The number of deleted documents that are stored in this segment.
                 It is perfectly fine if this number is greater than 0, space is

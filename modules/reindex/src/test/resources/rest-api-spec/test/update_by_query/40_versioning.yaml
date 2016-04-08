@@ -1,0 +1,23 @@
+---
+"update_by_query increments the version number":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    {"text": "test"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index: test
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      get:
+        index: test
+        type:  test
+        id:    1
+  - match: {_version: 2}

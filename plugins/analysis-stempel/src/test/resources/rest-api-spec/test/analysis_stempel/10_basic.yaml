@@ -1,0 +1,18 @@
+# Integration tests for Polish analysis components
+#
+"Stemmer":
+    - do:
+        indices.analyze:
+          text:         studenci
+          tokenizer:    keyword
+          filters:      polish_stem
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: student  }
+---
+"Analyzer":
+    - do:
+        indices.analyze:
+          text:         studenta był
+          analyzer:     polish
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: student  }

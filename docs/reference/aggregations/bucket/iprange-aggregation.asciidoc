@@ -1,0 +1,98 @@
+[[search-aggregations-bucket-iprange-aggregation]]
+=== IPv4 Range Aggregation
+
+Just like the dedicated <<search-aggregations-bucket-daterange-aggregation,date>> range aggregation, there is also a dedicated range aggregation for IPv4 typed fields:
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "ip_ranges" : {
+            "ip_range" : {
+                "field" : "ip",
+                "ranges" : [
+                    { "to" : "10.0.0.5" },
+                    { "from" : "10.0.0.5" }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "ip_ranges": {
+            "buckets" : [
+                {
+                    "to": 167772165,
+                    "to_as_string": "10.0.0.5",
+                    "doc_count": 4
+                },
+                {
+                    "from": 167772165,
+                    "from_as_string": "10.0.0.5",
+                    "doc_count": 6
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+IP ranges can also be defined as CIDR masks:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "ip_ranges" : {
+            "ip_range" : {
+                "field" : "ip",
+                "ranges" : [
+                    { "mask" : "10.0.0.0/25" },
+                    { "mask" : "10.0.0.127/25" }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "ip_ranges": {
+            "buckets": [
+                {
+                    "key": "10.0.0.0/25",
+                    "from": 1.6777216E+8,
+                    "from_as_string": "10.0.0.0",
+                    "to": 167772287,
+                    "to_as_string": "10.0.0.127",
+                    "doc_count": 127
+                },
+                {
+                    "key": "10.0.0.127/25",
+                    "from": 1.6777216E+8,
+                    "from_as_string": "10.0.0.0",
+                    "to": 167772287,
+                    "to_as_string": "10.0.0.127",
+                    "doc_count": 127
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------

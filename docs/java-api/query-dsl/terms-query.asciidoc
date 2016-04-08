@@ -1,0 +1,12 @@
+[[java-query-dsl-terms-query]]
+==== Terms Query
+
+See {ref}/query-dsl-terms-query.html[Terms Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = termsQuery("tags",    <1>
+    "blue", "pill");                    <2>
+--------------------------------------------------
+<1> field
+<2> values

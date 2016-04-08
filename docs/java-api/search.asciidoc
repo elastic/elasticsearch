@@ -1,19 +1,15 @@
-[[search]]
+[[java-search]]
 == Search API
 
 The search API allows one to execute a search query and get back search hits
 that match the query. It can be executed across one or more indices and
-across one or more types. The query can either be provided using the
-<<query-dsl-queries,query Java API>> or
-the <<query-dsl-filters,filter Java API>>. 
-The body of the search request is built using the
-`SearchSourceBuilder`. Here is an example:
+across one or more types. The query can provided using the <<java-query-dsl,query Java API>>.
+The body of the search request is built using the `SearchSourceBuilder`. Here is an example:
 
 [source,java]
 --------------------------------------------------
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.index.query.FilterBuilders.*;
 import org.elasticsearch.index.query.QueryBuilders.*;
 --------------------------------------------------
 
@@ -22,8 +18,8 @@ import org.elasticsearch.index.query.QueryBuilders.*;
 SearchResponse response = client.prepareSearch("index1", "index2")
         .setTypes("type1", "type2")
         .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-        .setQuery(QueryBuilders.termQuery("multi", "test"))             // Query
-        .setPostFilter(FilterBuilders.rangeFilter("age").from(12).to(18))   // Filter
+        .setQuery(QueryBuilders.termQuery("multi", "test"))                 // Query
+        .setPostFilter(QueryBuilders.rangeQuery("age").from(12).to(18))     // Filter
         .setFrom(0).setSize(60).setExplain(true)
         .execute()
         .actionGet();
@@ -38,11 +34,15 @@ you can write:
 SearchResponse response = client.prepareSearch().execute().actionGet();
 --------------------------------------------------
 
+NOTE:   Although the Java API defines the additional search types QUERY_AND_FETCH and
+        DFS_QUERY_AND_FETCH, these modes are internal optimizations and should not
+        be specified explicitly by users of the API.
+
 For more information on the search operation, check out the REST
 {ref}/search.html[search] docs.
 
 
-[[scrolling]]
+[[java-search-scrolling]]
 === Using scrolls in Java
 
 Read the {ref}/search-request-scroll.html[scroll documentation]
@@ -50,49 +50,30 @@ first!
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 
 QueryBuilder qb = termQuery("multi", "test");
 
 SearchResponse scrollResp = client.prepareSearch(test)
-        .setSearchType(SearchType.SCAN)
+        .addSort(FieldSortBuilder.DOC_FIELD_NAME, SortOrder.ASC)
         .setScroll(new TimeValue(60000))
         .setQuery(qb)
         .setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll
 //Scroll until no hits are returned
-while (true) {
-
+do {
     for (SearchHit hit : scrollResp.getHits().getHits()) {
         //Handle the hit...
     }
-    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
-    //Break condition: No hits are returned
-    if (scrollResp.getHits().getHits().length == 0) {
-        break;
-    }
-}
+
+    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(60000)).execute().actionGet();
+} while(scrollResp.getHits().getHits().length != 0); // Zero hits mark the end of the scroll and the while loop.
 --------------------------------------------------
+[NOTE]
+====
+The size-parameter is per shard, so if you run a query against multiple indices (leading to many shards being involved in the query) the result might be more documents per execution of the scroll than you would expect!
+====
 
-
-=== Operation Threading
-
-The search API allows one to set the threading model the operation will be
-performed when the actual execution of the API is performed on the same
-node (the API is executed on a shard that is allocated on the same
-server).
-
-There are three threading modes.The `NO_THREADS` mode means that the
-search operation will be executed on the calling thread. The
-`SINGLE_THREAD` mode means that the search operation will be executed on
-a single different thread for all local shards. The `THREAD_PER_SHARD`
-mode means that the search operation will be executed on a different
-thread for each local shard.
-
-The default mode is `THREAD_PER_SHARD`.
-
-
-[[msearch]]
+[[java-search-msearch]]
 === MultiSearch API
 
 See {ref}/search-multi-search.html[MultiSearch API Query]
@@ -101,7 +82,7 @@ documentation
 [source,java]
 --------------------------------------------------
 SearchRequestBuilder srb1 = node.client()
-    .prepareSearch().setQuery(QueryBuilders.queryString("elasticsearch")).setSize(1);
+    .prepareSearch().setQuery(QueryBuilders.queryStringQuery("elasticsearch")).setSize(1);
 SearchRequestBuilder srb2 = node.client()
     .prepareSearch().setQuery(QueryBuilders.matchQuery("name", "kimchy")).setSize(1);
 
@@ -134,7 +115,7 @@ SearchResponse sr = node.client().prepareSearch()
     .addAggregation(
             AggregationBuilders.dateHistogram("agg2")
                     .field("birth")
-                    .interval(DateHistogram.Interval.YEAR)
+                    .dateHistogramInterval(DateHistogramInterval.YEAR)
     )
     .execute().actionGet();
 
@@ -146,69 +127,22 @@ DateHistogram agg2 = sr.getAggregations().get("agg2");
 See <<java-aggs,Aggregations Java API>>
 documentation for details.
 
-[[java-search-template]]
-=== Using Search Templates
 
-See {ref}/search-template.html[Search Template] documentation
+[[java-search-terminate-after]]
+=== Terminate After
 
-Define your template parameters as a `Map<String,Object>`:
+The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early.
+If set, you will be able to check if the operation terminated early by asking for `isTerminatedEarly()` in the
+`SearchResponse` onject:
 
 [source,java]
 --------------------------------------------------
-Map<String, Object> template_params = new HashMap<>();
-template_params.put("param_gender", "male");
---------------------------------------------------
+SearchResponse sr = client.prepareSearch(INDEX)
+    .setTerminateAfter(1000)    <1>
+    .get();
 
-You can use your stored search templates in `config/scripts`.
-For example, if you have a file named `config/scripts/template_gender.mustache` containing:
-
-[source,js]
---------------------------------------------------
-{
-    "template" : {
-        "query" : {
-            "match" : {
-                "gender" : "{{param_gender}}"
-            }
-        }
-    }
+if (sr.isTerminatedEarly()) {
+    // We finished early
 }
 --------------------------------------------------
-
-Execute it with:
-
-[source,java]
---------------------------------------------------
-SearchResponse sr = client.prepareSearch()
-        .setTemplateName("template_gender")
-        .setTemplateType(ScriptService.ScriptType.FILE)
-        .setTemplateParams(template_params)
-        .get();
---------------------------------------------------
-
-You can also store your template in a special index named `.scripts`:
-
-[source,java]
---------------------------------------------------
-client.preparePutIndexedScript("mustache", "template_gender",
-        "{\n" +
-        "    \"template\" : {\n" +
-        "        \"query\" : {\n" +
-        "            \"match\" : {\n" +
-        "                \"gender\" : \"{{param_gender}}\"\n" +
-        "            }\n" +
-        "        }\n" +
-        "    }\n" +
-        "}").get();
---------------------------------------------------
-
-To execute an indexed templates, use `ScriptService.ScriptType.INDEXED`:
-
-[source,java]
---------------------------------------------------
-SearchResponse sr = client.prepareSearch()
-        .setTemplateName("template_gender")
-        .setTemplateType(ScriptService.ScriptType.INDEXED)
-        .setTemplateParams(template_params)
-        .get();
---------------------------------------------------
+<1> Finish after 1000 docs

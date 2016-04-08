@@ -43,6 +43,9 @@ time setting format). Defaults to `30s`.
 
 |`transport.tcp.compress` |Set to `true` to enable compression (LZF)
 between all nodes. Defaults to `false`.
+
+|`transport.ping_schedule` | Schedule a regular ping message to ensure that connections are kept alive. Defaults to `5s` in the transport client and `-1` (disabled) elsewhere.
+
 |=======================================================================
 
 It also uses the common
@@ -83,3 +86,33 @@ The following parameters can be configured like that
 This is a handy transport to use when running integration tests within
 the JVM. It is automatically enabled when using
 `NodeBuilder#local(true)`.
+
+[float]
+=== Transport Tracer
+
+The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated
+by settings the level of the `transport.tracer` logger to `TRACE`:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "logger.transport.tracer" : "TRACE"
+    }
+}'
+--------------------------------------------------
+
+You can also control which actions will be traced, using a set of include and exclude wildcard patterns. By default every request will be traced
+except for fault detection pings:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "transport.tracer.include" : "*"
+        "transport.tracer.exclude" : "internal:discovery/zen/fd*"
+    }
+}'
+--------------------------------------------------
+
+

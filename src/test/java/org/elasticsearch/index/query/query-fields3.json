@@ -1,7 +1,0 @@
-{
-    query_string:{
-        fields:["content^2.2", "name"],
-        use_dis_max:true,
-        query:"test"
-    }
-}

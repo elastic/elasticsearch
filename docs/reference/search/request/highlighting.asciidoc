@@ -2,9 +2,9 @@
 === Highlighting
 
 Allows to highlight search results on one or more fields. The
-implementation uses either the lucene `highlighter`, `fast-vector-highlighter`
-or `postings-highlighter`. The following is an example of the  search request
-body:
+implementation uses either the lucene `plain` highlighter, the
+fast vector highlighter (`fvh`) or `postings` highlighter.
+The following is an example of the search request body:
 
 [source,js]
 --------------------------------------------------
@@ -37,6 +37,18 @@ be used for highlighting if it mapped to have `store` set to `true`.
 The field name supports wildcard notation. For example, using `comment_*`
 will cause all fields that match the expression to be highlighted.
 
+[[plain-highlighter]]
+==== Plain highlighter
+
+The default choice of highlighter is of type `plain` and uses the Lucene highlighter.
+It tries hard to reflect the query matching logic in terms of understanding word importance and any word positioning criteria in phrase queries.
+
+[WARNING]
+If you want to highlight a lot of fields in a lot of documents with complex queries this highlighter will not be fast.
+In its efforts to accurately reflect query logic it creates a tiny in-memory index and re-runs the original query criteria through 
+Lucene's query execution planner to get access to low-level match information on the current document. 
+This is repeated for every field and every document that needs highlighting. If this presents a performance issue in your system consider using an alternative highlighter. 
+
 [[postings-highlighter]]
 ==== Postings highlighter
 
@@ -52,7 +64,7 @@ natural languages, not as well with fields containing for instance html markup
 * Treats the document as the whole corpus, and scores individual sentences as
 if they were documents in this corpus, using the  BM25 algorithm
 
-Here is an example of setting the `content` field to allow for
+Here is an example of setting the `content` field in the index mapping to allow for
 highlighting using the postings highlighter on it:
 
 [source,js]
@@ -72,11 +84,9 @@ that the query is composed of, regardless of whether they are actually part of
 a query match, effectively ignoring their positions.
 
 [WARNING]
-The postings highlighter does support highlighting of multi term queries, like
-prefix queries, wildcard queries and so on. On the other hand, this requires
-the queries to be rewritten using a proper
-<<query-dsl-multi-term-rewrite,rewrite method>> that supports multi term
-extraction, which is a potentially expensive operation.
+The postings highlighter doesn't support highlighting some complex queries,
+like a `match` query with `type` set to `match_phrase_prefix`. No highlighted
+snippets will be returned in that case.
 
 [[fast-vector-highlighter]]
 ==== Fast vector highlighter
@@ -275,7 +285,7 @@ is required. Note that `fragment_size` is ignored in this case.
 }
 --------------------------------------------------
 
-When using `fast-vector-highlighter` one can use `fragment_offset`
+When using `fvh` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
 
 In the case where there is no matching fragment to highlight, the default is
@@ -406,10 +416,21 @@ at the field level.
 [[field-match]]
 ==== Require Field Match
 
-`require_field_match` can be set to `true` which will cause a field to
-be highlighted only if a query matched that field. `false` means that
-terms are highlighted on all requested fields regardless if the query
-matches specifically on them.
+`require_field_match` can be set to `false` which will cause any field to
+be highlighted regardless of whether the query matched specifically on them.
+The default behaviour is `true`, meaning that only fields that hold a query
+match will be highlighted.
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {...},
+    "highlight" : {
+        "require_field_match": false
+        "fields" : {...}
+    }
+}
+--------------------------------------------------
 
 [[boundary-characters]]
 ==== Boundary Characters
@@ -544,7 +565,7 @@ to
 
 [[phrase-limit]]
 ==== Phrase Limit
-The `fast-vector-highlighter` has a `phrase_limit` parameter that prevents
+The fast vector highlighter has a `phrase_limit` parameter that prevents
 it from analyzing too many phrases and eating tons of memory.  It defaults
 to 256 so only the first 256 matching phrases in the document scored
 considered.  You can raise the limit with the `phrase_limit` parameter but
@@ -553,6 +574,7 @@ keep in mind that scoring more phrases consumes more time and memory.
 If using `matched_fields` keep in mind that `phrase_limit` phrases per
 matched field are considered.
 
+[float]
 [[explicit-field-order]]
 === Field Highlight Order
 Elasticsearch highlights the fields in the order that they are sent.  Per the

@@ -1,0 +1,8 @@
+
+apply plugin: 'elasticsearch.rest-test'
+
+integTest {
+  cluster {
+    numNodes = 2
+  }
+}

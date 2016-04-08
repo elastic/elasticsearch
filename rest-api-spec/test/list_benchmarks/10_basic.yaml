@@ -1,9 +1,0 @@
----
-"Test benchmark list":
-
-  - skip:
-        features:    "benchmark"
-
-  - do:
-        list_benchmarks: {}
-

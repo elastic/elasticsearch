@@ -1,31 +1,102 @@
 [[mapping-fields]]
-== Fields
+== Meta-Fields
 
-Each mapping has a number of fields associated with it
-which can be used to control how the document metadata
-(eg <<mapping-all-field>>) is indexed.
+Each document has metadata associated with it, such as the `_index`, mapping
+<<mapping-type-field,`_type`>>, and `_id` meta-fields.  The behaviour of some of these meta-fields
+can be customised when a mapping type is created.
 
-include::fields/uid-field.asciidoc[]
+[float]
+=== Identity meta-fields
 
-include::fields/id-field.asciidoc[]
+[horizontal]
+<<mapping-index-field,`_index`>>::
 
-include::fields/type-field.asciidoc[]
+    The index to which the document belongs.
 
-include::fields/source-field.asciidoc[]
+<<mapping-uid-field,`_uid`>>::
+
+    A composite field consisting of the `_type` and the `_id`.
+
+<<mapping-type-field,`_type`>>::
+
+    The document's <<mapping-type,mapping type>>.
+
+<<mapping-id-field,`_id`>>::
+
+    The document's ID.
+
+[float]
+=== Document source meta-fields
+
+<<mapping-source-field,`_source`>>::
+
+    The original JSON representing the body of the document.
+
+{plugins}/mapper-size.html[`_size`]::
+
+    The size of the `_source` field in bytes, provided by the
+    {plugins}/mapper-size.html[`mapper-size` plugin].
+
+[float]
+=== Indexing meta-fields
+
+<<mapping-all-field,`_all`>>::
+
+    A _catch-all_  field that indexes the values of all other fields.
+
+<<mapping-field-names-field,`_field_names`>>::
+
+    All fields in the document which contain non-null values.
+
+<<mapping-timestamp-field,`_timestamp`>>::
+
+    A timestamp associated with the document, either specified manually or auto-generated.
+
+<<mapping-ttl-field,`_ttl`>>::
+
+    How long a document should live before it is automatically deleted.
+
+[float]
+=== Routing meta-fields
+
+<<mapping-parent-field,`_parent`>>::
+
+    Used to create a parent-child relationship between two mapping types.
+
+<<mapping-routing-field,`_routing`>>::
+
+    A custom routing value which routes a document to a particular shard.
+
+[float]
+=== Other meta-field
+
+<<mapping-meta-field,`_meta`>>::
+
+    Application specific metadata.
+
+
 
 include::fields/all-field.asciidoc[]
 
-include::fields/parent-field.asciidoc[]
-
 include::fields/field-names-field.asciidoc[]
 
-include::fields/routing-field.asciidoc[]
+include::fields/id-field.asciidoc[]
 
 include::fields/index-field.asciidoc[]
 
-include::fields/size-field.asciidoc[]
+include::fields/meta-field.asciidoc[]
+
+include::fields/parent-field.asciidoc[]
+
+include::fields/routing-field.asciidoc[]
+
+include::fields/source-field.asciidoc[]
 
 include::fields/timestamp-field.asciidoc[]
 
 include::fields/ttl-field.asciidoc[]
+
+include::fields/type-field.asciidoc[]
+
+include::fields/uid-field.asciidoc[]
 

@@ -36,7 +36,9 @@ Histogram agg = sr.getAggregations().get("agg");
 
 // For each entry
 for (Histogram.Bucket entry : agg.getBuckets()) {
-    String key = entry.getKey();            // Key
+    Long key = (Long) entry.getKey();       // Key
     long docCount = entry.getDocCount();    // Doc count
+
+    logger.info("key [{}], doc_count [{}]", key, docCount);
 }
 --------------------------------------------------

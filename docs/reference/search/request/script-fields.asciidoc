@@ -15,9 +15,11 @@ evaluation>> (based on different fields) for each hit, for example:
             "script" : "doc['my_field_name'].value * 2"
         },
         "test2" : {
-            "script" : "doc['my_field_name'].value * factor",
-            "params" : {
-                "factor"  : 2.0
+            "script" : {
+                "inline": "doc['my_field_name'].value * factor",
+                "params" : {
+                    "factor"  : 2.0
+                }
             }
         }
     }

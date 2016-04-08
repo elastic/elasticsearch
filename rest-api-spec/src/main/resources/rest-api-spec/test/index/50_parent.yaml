@@ -1,0 +1,42 @@
+---
+"Parent":
+
+ - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              test:
+                _parent: { type: "foo" }
+ - do:
+      cluster.health:
+          wait_for_status: yellow
+
+ - do:
+      catch:  /routing_missing_exception/
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          body:    { foo: bar }
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  5
+          body:    { foo: bar }
+
+ - do:
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  5
+          fields:  [_parent, _routing]
+
+ - match:   { _id:      "1"}
+ - match:   { _parent: "5"}
+ - match:   { _routing: "5"}
+

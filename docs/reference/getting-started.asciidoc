@@ -28,7 +28,12 @@ Elasticsearch is a near real time search platform. What this means is there is a
 [float]
 === Cluster
 
-A cluster is a collection of one or more nodes (servers) that together holds your entire data and provides federated indexing and search capabilities across all nodes. A cluster is identified by a unique name which by default is "elasticsearch". This name is important because a node can only be part of a cluster if the node is set up to join the cluster by its name. It is good practice to explicitly set the cluster name in production, but it is fine to use the default for testing/development purposes.
+A cluster is a collection of one or more nodes (servers) that together holds your entire data and provides federated indexing and search capabilities across all nodes. A cluster is identified by a unique name which by default is "elasticsearch". This name is important because a node can only be part of a cluster if the node is set up to join the cluster by its name.
+
+Make sure that you don't reuse the same cluster names in different
+environments, otherwise you might end up with nodes joining the wrong cluster.
+For instance you could use `logging-dev`, `logging-stage`, and `logging-prod`
+for the development, staging, and production clusters.
 
 Note that it is valid and perfectly fine to have a cluster with only a single node in it. Furthermore, you may also have multiple independent clusters each with its own unique cluster name.
 
@@ -71,7 +76,7 @@ To solve this problem, Elasticsearch provides the ability to subdivide your inde
 Sharding is important for two primary reasons:
 
 * It allows you to horizontally split/scale your content volume
-* It allows you distribute and parallelize operations across shards (potentially on multiple nodes) thus increasing performance/throughput
+* It allows you to distribute and parallelize operations across shards (potentially on multiple nodes) thus increasing performance/throughput
 
 
 The mechanics of how a shard is distributed and also how its documents are aggregated back into search requests are completely managed by Elasticsearch and is transparent to you as the user.
@@ -89,11 +94,14 @@ The number of shards and replicas can be defined per index at the time the index
 
 By default, each index in Elasticsearch is allocated 5 primary shards and 1 replica which means that if you have at least two nodes in your cluster, your index will have 5 primary shards and another 5 replica shards (1 complete replica) for a total of 10 shards per index.
 
+NOTE: Each Elasticsearch shard is a Lucene index.  There is a maximum number of documents you can have in a single Lucene index.  As of https://issues.apache.org/jira/browse/LUCENE-5843[`LUCENE-5843`], the limit is `2,147,483,519` (= Integer.MAX_VALUE - 128) documents.
+You can monitor shard sizes using the <<cat-shards,`_cat/shards`>> api.
+
 With that out of the way, let's get started with the fun part...
 
 == Installation
 
-Elasticsearch requires Java 7. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
+Elasticsearch requires at least Java 8. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Oracle's recommended installation documentation can be found on http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html[Oracle's website]. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
 
 [source,sh]
 --------------------------------------------------
@@ -101,13 +109,13 @@ java -version
 echo $JAVA_HOME
 --------------------------------------------------
 
-Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elasticsearch.org/download[`www.elasticsearch.org/download`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, or a `DEB` or `RPM` package. For simplicity, let's use the tar file.
+Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, or a `DEB` or `RPM` package. For simplicity, let's use the tar file.
 
 Let's download the Elasticsearch {version} tar as follows (Windows users should download the zip package):
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-{version}.tar.gz
+curl -L -O https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz
 --------------------------------------------------
 
 Then extract it as follows (Windows users should unzip the zip package):
@@ -155,7 +163,7 @@ As mentioned previously, we can override either the cluster or node name. This c
 
 [source,sh]
 --------------------------------------------------
-./elasticsearch --cluster.name my_cluster_name --node.name my_node_name
+./elasticsearch -Ees.cluster.name=my_cluster_name -Ees.node.name=my_node_name
 --------------------------------------------------
 
 Also note the line marked http with information about the HTTP address (`192.168.8.112`) and port (`9200`) that our node is reachable from. By default, Elasticsearch uses port `9200` to provide access to its REST API. This port is configurable if necessary.
@@ -176,7 +184,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 
 Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
 
-To check the cluster health, we will be using the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cat.html[`_cat` API]. Remember previously that our node HTTP endpoint is available at port `9200`:
+To check the cluster health, we will be using the <<cat,`_cat` API>>. Remember previously that our node HTTP endpoint is available at port `9200`:
 
 [source,sh]
 --------------------------------------------------
@@ -195,7 +203,7 @@ We can see that our cluster named "elasticsearch" is up with a green status.
 
 Whenever we ask for the cluster health, we either get green, yellow, or red. Green means everything is good (cluster is fully functional), yellow means all data is available but some replicas are not yet allocated (cluster is fully functional), and red means some data is not available for whatever reason. Note that even if a cluster is red, it still is partially functional (i.e. it will continue to serve search requests from the available shards) but you will likely need to fix it ASAP since you have missing data.
 
-Also from the above response, we can see and total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we are using the default cluster name (elasticsearch) and since Elasticsearch uses multicast network discovery by default to find other nodes, it is possible that you could accidentally start up more than one node in your network and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
+Also from the above response, we can see and total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we are using the default cluster name (elasticsearch) and since Elasticsearch uses unicast network discovery by default to find other nodes on the same machine, it is possible that you could accidentally start up more than one node on your computer and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
 
 We can also get a list of nodes in our cluster as follows:
 
@@ -215,9 +223,9 @@ mwubuntu1    127.0.1.1            8           4 0.00 d         *      New Goblin
 
 Here, we can see our one node named "New Goblin", which is the single node that is currently in our cluster.
 
-=== List All Indexes
+=== List All Indices
 
-Now let's take a peek at our indexes:
+Now let's take a peek at our indices:
 
 [source,sh]
 --------------------------------------------------
@@ -232,7 +240,7 @@ curl 'localhost:9200/_cat/indices?v'
 health index pri rep docs.count docs.deleted store.size pri.store.size
 --------------------------------------------------
 
-Which simply means we have no indexes yet in the cluster.
+Which simply means we have no indices yet in the cluster.
 
 === Create an Index
 
@@ -447,7 +455,7 @@ curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
 }'
 --------------------------------------------------
 
-Updates can also be performed by using simple scripts. This example uses a script to increment the age by 5:
+Updates can also be performed by using simple scripts. Note that dynamic scripts like the following are disabled by default as of `1.4.3`, have a look at the <<modules-scripting,scripting docs>> for more details. This example uses a script to increment the age by 5:
 
 [source,sh]
 --------------------------------------------------
@@ -459,7 +467,7 @@ curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
 
 In the above example, `ctx._source` refers to the current source document that is about to be updated.
 
-Note that as of this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch will provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
+Note that as of this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch might provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
 
 === Deleting Documents
 
@@ -470,21 +478,11 @@ Deleting a document is fairly straightforward. This example shows how to delete 
 curl -XDELETE 'localhost:9200/customer/external/2?pretty'
 --------------------------------------------------
 
-We also have the ability to delete multiple documents that match a query condition. This example shows how to delete all customers whose names contain "John":
-
-[source,sh]
---------------------------------------------------
-curl -XDELETE 'localhost:9200/customer/external/_query?pretty' -d '
-{
-  "query": { "match": { "name": "John" } }
-}'
---------------------------------------------------
-
-Note above that the URI has changed to `/_query` to signify a delete-by-query API with the delete query criteria in the body, but we are still using the DELETE verb. Don't worry yet about the query syntax as we will cover that later in this tutorial.
+The `delete-by-query` plugin can delete all documents matching a specific query.
 
 === Batch Processing
 
-In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as little network roundtrips as possible.
+In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the <<docs-bulk,`_bulk` API>>. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as little network roundtrips as possible.
 
 As a quick example, the following call indexes two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
 
@@ -546,7 +544,7 @@ You can download the sample dataset (accounts.json) from https://github.com/bly2
 
 [source,sh]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/account/_bulk?pretty' --data-binary @accounts.json
+curl -XPOST 'localhost:9200/bank/account/_bulk?pretty' --data-binary "@accounts.json"
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 
@@ -563,7 +561,7 @@ Which means that we just successfully bulk indexed 1000 documents into the bank 
 
 === The Search API
 
-Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-uri-request.html[REST request URI] and the other by sending them through the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-request-body.html[REST request body]. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
+Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the <<search-uri-request,REST request URI>> and the other by sending them through the <<search-request-body,REST request body>>. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
 
 The REST API for search is accessible from the `_search` endpoint. This example returns all documents in the bank index:
 
@@ -666,7 +664,7 @@ It is important to understand that once you get your search results back, Elasti
 
 === Introducing the Query Language
 
-Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl.html[Query DSL]. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
+Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the <<query-dsl,Query DSL>>. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
 
 Going back to our last example, we executed this query:
 
@@ -736,7 +734,7 @@ Note that the above example simply reduces the `_source` field. It will still on
 
 If you come from a SQL background, the above is somewhat similar in concept to the `SQL SELECT FROM` field list.
 
-Now let's move on to the query part. Previously, we've seen how the `match_all` query is used to match all documents. Let's now introduce a new query called the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-match-query.html[`match` query], which can be thought of as a basic fielded search query (i.e. a search done against a specific field or set of fields).
+Now let's move on to the query part. Previously, we've seen how the `match_all` query is used to match all documents. Let's now introduce a new query called the <<query-dsl-match-query,`match` query>>, which can be thought of as a basic fielded search query (i.e. a search done against a specific field or set of fields).
 
 This example returns the account numbered 20:
 
@@ -778,7 +776,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 }'
 --------------------------------------------------
 
-Let's now introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-bool-query.html[`bool`(ean) query]. The `bool` query allows us to compose smaller queries into bigger queries using boolean logic.
+Let's now introduce the <<query-dsl-bool-query,`bool`(ean) query>>. The `bool` query allows us to compose smaller queries into bigger queries using boolean logic.
 
 This example composes two `match` queries and returns all accounts containing "mill" and "lane" in the address:
 
@@ -862,22 +860,19 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 
 In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
 
-All queries in Elasticsearch trigger computation of the relevance scores. In cases where we do not need the relevance scores, Elasticsearch provides another query capability in the form of http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-filters.html[filters]. Filters are similar in concept to queries except that they are optimized for much faster execution speeds for two primary reasons:
+But queries do not always need to produce scores, in particular when they are only used for "filtering" the document set. Elasticsearch detects these situations and automatically optimizes query execution in order not to compute useless scores.
 
-* Filters do not score so they are faster to execute than queries
-* Filters can be http://www.elasticsearch.org/blog/all-about-elasticsearch-filter-bitsets/[cached in memory] allowing repeated search executions to be significantly faster than queries
+The <<query-dsl-bool-query,`bool` query>> that we introduced in the previous section also supports `filter` clauses which allow to use a query to restrict the documents that will be matched by other clauses, without changing how scores are computed. As an example, let's introduce the <<query-dsl-range-query,`range` query>>, which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
 
-To understand filters, let's first introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-filtered-query.html[`filtered` query], which allows you to combine a query (like `match_all`, `match`, `bool`, etc.) together with a filter. As an example, let's introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-range-filter.html[`range` filter], which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
-
-This example uses a filtered query to return all accounts with balances between 20000 and 30000, inclusive. In other words, we want to find accounts with a balance that is greater than or equal to 20000 and less than or equal to 30000.
+This example uses a bool query to return all accounts with balances between 20000 and 30000, inclusive. In other words, we want to find accounts with a balance that is greater than or equal to 20000 and less than or equal to 30000.
 
 [source,sh]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 {
   "query": {
-    "filtered": {
-      "query": { "match_all": {} },
+    "bool": {
+      "must": { "match_all": {} },
       "filter": {
         "range": {
           "balance": {
@@ -891,11 +886,9 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 }'
 --------------------------------------------------
 
-Dissecting the above, the filtered query contains a `match_all` query (the query part) and a `range` filter (the filter part). We can substitute any other query into the query part as well as any other filter into the filter part. In the above case, the range filter makes perfect sense since documents falling into the range all match "equally", i.e., no document is more relevant than another.
+Dissecting the above, the bool query contains a `match_all` query (the query part) and a `range` query (the filter part). We can substitute any other queries into the query and the filter parts. In the above case, the range query makes perfect sense since documents falling into the range all match "equally", i.e., no document is more relevant than another.
 
-In general, the easiest way to decide whether you want a filter or a query is to ask yourself if you care about the relevance score or not. If relevance is not important, use filters, otherwise, use queries. If you come from a SQL background, queries and filters are similar in concept to the `SELECT WHERE` clause, although more so for filters than queries.
-
-In addition to the `match_all`, `match`, `bool`, `filtered`, and `range` queries, there are a lot of other query/filter types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query/filter types.
+In addition to the `match_all`, `match`, `bool`, and `range` queries, there are a lot of other query types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query types.
 
 === Executing Aggregations
 
@@ -922,7 +915,7 @@ In SQL, the above aggregation is similar in concept to:
 
 [source,sh]
 --------------------------------------------------
-SELECT COUNT(*) from bank GROUP BY state ORDER BY COUNT(*) DESC
+SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC
 --------------------------------------------------
 
 And the response (partially shown):
@@ -1074,9 +1067,8 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 }'
 --------------------------------------------------
 
-There are a many other aggregations capabilities that we won't go into detail here. The http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-aggregations.html[aggregations reference guide] is a great starting point if you want to do further experimentation.
+There are a many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
 
 == Conclusion
 
 Elasticsearch is both a simple and complex product. We've so far learned the basics of what it is, how to look inside of it, and how to work with it using some of the REST APIs. I hope that this tutorial has given you a better understanding of what Elasticsearch is and more importantly, inspired you to further experiment with the rest of its great features!
-

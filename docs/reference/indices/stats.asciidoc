@@ -34,19 +34,22 @@ specified as well in the URI. Those stats can be any of:
 
 `get`:: 		Get statistics, including missing stats.
 
-`search`:: 		Search statistics. You can include statistics for custom groups by adding
+`search`:: 		Search statistics including suggest statistics.
+                You can include statistics for custom groups by adding
                 an extra `groups` parameter (search operations can be associated with one or more
                 groups). The `groups` parameter accepts a comma separated list of group names.
                 Use `_all` to return statistics for all groups.
+
+`segments`::    Retrieve the memory use of the open segments. Optionally, setting the `include_segment_file_sizes` flag, report the aggregated disk usage of each one of the Lucene index files.
 
 `completion`::  Completion suggest statistics.
 `fielddata`::   Fielddata statistics.
 `flush`::       Flush statistics.
 `merge`::       Merge statistics.
-`query_cache`:: <<index-modules-shard-query-cache,Shard query cache>> statistics.
+`request_cache`:: <<shard-request-cache,Shard request cache>> statistics.
 `refresh`::     Refresh statistics.
-`suggest`::     Suggest statistics.
 `warmer`::      Warmer statistics.
+`translog`::    Translog statistics.
 
 Some statistics allow per field granularity which accepts a list
 comma-separated list of included fields. By default all fields are included:
@@ -79,8 +82,10 @@ curl 'localhost:9200/_stats/search?groups=group1,group2
 --------------------------------------------------
 
 The stats returned are aggregated on the index level, with
-`primaries` and `total` aggregations. In order to get back shard level
-stats, set the `level` parameter to `shards`.
+`primaries` and `total` aggregations, where `primaries` are the values for only the
+primary shards, and `total` are the cumulated values for both primary and replica shards.
+
+In order to get back shard level stats, set the `level` parameter to `shards`.
 
 Note, as shards move around the cluster, their stats will be cleared as
 they are created on other nodes. On the other hand, even though a shard

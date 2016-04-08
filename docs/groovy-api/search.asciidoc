@@ -2,7 +2,8 @@
 == Search API
 
 The search API is very similar to the
-{java}/search.html[Java search API]. The Groovy
+// {java}/java-search.html[]
+Java search API. The Groovy
 extension allows to provide the search source to execute as a `Closure`
 including the query itself (similar to GORM criteria builder):
 

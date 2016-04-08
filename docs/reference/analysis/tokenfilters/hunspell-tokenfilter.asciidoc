@@ -3,7 +3,7 @@
 
 Basic support for hunspell stemming. Hunspell dictionaries will be
 picked up from a dedicated hunspell directory on the filesystem
-(defaults to `<path.conf>/hunspell`). Each dictionary is expected to
+(`<path.conf>/hunspell`). Each dictionary is expected to
 have its own directory named after its associated locale (language).
 This dictionary directory is expected to hold a single `*.aff` and
 one or more `*.dic` files (all of which will automatically be picked up).
@@ -18,10 +18,6 @@ following directory layout will define the `en_US` dictionary:
     |    |    |-- en_US.dic
     |    |    |-- en_US.aff
 --------------------------------------------------
-
-The location of the hunspell directory can be configured using the
-`indices.analysis.hunspell.dictionary.location` settings in
-_elasticsearch.yml_.
 
 Each dictionary can be configured with one setting:
 
@@ -91,9 +87,9 @@ the stemming is determined by the quality of the dictionary.
 [float]
 ==== Dictionary loading
 
-By default, the configured (`indices.analysis.hunspell.dictionary.location`)
-or default Hunspell directory (`config/hunspell/`) is checked for dictionaries
-when the node starts up, and any dictionaries are automatically loaded.
+By default, the default Hunspell directory (`config/hunspell/`) is checked 
+for dictionaries when the node starts up, and any dictionaries are 
+automatically loaded.
 
 Dictionary loading can be deferred until they are actually used by setting
 `indices.analysis.hunspell.dictionary.lazy` to `true`in the config file.

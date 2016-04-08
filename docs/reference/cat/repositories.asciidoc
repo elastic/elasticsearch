@@ -1,0 +1,14 @@
+[[cat-repositories]]
+== cat repositories
+
+The `repositories` command shows the snapshot repositories registered in the cluster.
+
+[source,sh]
+--------------------------------------------------
+% curl 'localhost:9200/_cat/repositories?v'
+id    type
+repo1   fs
+repo2   s3
+--------------------------------------------------
+
+We can quickly see which repositories are registered and their type.

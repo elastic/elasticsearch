@@ -1,0 +1,35 @@
+# Integration tests for Phonetic analysis components
+#
+
+
+"Double Metaphone":
+    - do:
+        indices.create:
+            index:  phonetic_sample
+            body:
+                settings:
+                    index:
+                        analysis:
+                            analyzer:
+                                my_analyzer:
+                                    tokenizer:  standard
+                                    filter: ["standard", "lowercase", "beider_morse"]
+                            filter:
+                                beider_morse:
+                                    type: phonetic
+                                    encoder: beider_morse
+                                    rule_type: exact
+                                    name_type: ashkenazi
+                                    languageset: polish
+    - do:
+        cluster.health:
+            wait_for_status: yellow
+    - do:
+        indices.analyze:
+            index: phonetic_sample
+            analyzer: my_analyzer
+            text: Szwarc
+
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: Svarts }
+

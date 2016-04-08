@@ -1,0 +1,56 @@
+[[circuit-breaker]]
+=== Circuit Breaker
+
+Elasticsearch contains multiple circuit breakers used to prevent operations from
+causing an OutOfMemoryError. Each breaker specifies a limit for how much memory
+it can use. Additionally, there is a parent-level breaker that specifies the
+total amount of memory that can be used across all breakers.
+
+These settings can be dynamically updated on a live cluster with the
+<<cluster-update-settings,cluster-update-settings>> API.
+
+[[parent-circuit-breaker]]
+[float]
+==== Parent circuit breaker
+
+The parent-level breaker can be configured with the following setting:
+
+`indices.breaker.total.limit`::
+
+    Starting limit for overall parent breaker, defaults to 70% of JVM heap.
+
+[[fielddata-circuit-breaker]]
+[float]
+==== Field data circuit breaker
+The field data circuit breaker allows Elasticsearch to estimate the amount of
+memory a field will require to be loaded into memory. It can then prevent the
+field data loading by raising an exception. By default the limit is configured
+to 60% of the maximum JVM heap. It can be configured with the following
+parameters:
+
+`indices.breaker.fielddata.limit`::
+
+    Limit for fielddata breaker, defaults to 60% of JVM heap
+
+`indices.breaker.fielddata.overhead`::
+
+    A constant that all field data estimations are multiplied with to determine a
+    final estimation. Defaults to 1.03
+
+[[request-circuit-breaker]]
+[float]
+==== Request circuit breaker
+
+The request circuit breaker allows Elasticsearch to prevent per-request data
+structures (for example, memory used for calculating aggregations during a
+request) from exceeding a certain amount of memory.
+
+`indices.breaker.request.limit`::
+
+    Limit for request breaker, defaults to 40% of JVM heap
+
+`indices.breaker.request.overhead`::
+
+    A constant that all request estimations are multiplied with to determine a
+    final estimation. Defaults to 1
+

@@ -56,8 +56,17 @@ query.
 
 |`analyzer` |The analyzer name to be used when analyzing the query string.
 
+|`lowercase_expanded_terms` |Should terms be automatically lowercased or
+not. Defaults to `true`.
+
+|`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
+not. Defaults to `false`.
+
 |`default_operator` |The default operator to be used, can be `AND` or
 `OR`. Defaults to `OR`.
+
+|`lenient` |If set to true will cause format based failures (like
+providing text to a numeric field) to be ignored. Defaults to false.
 
 |`explain` |For each hit, contain an explanation of how scoring of the
 hits was computed.
@@ -93,15 +102,9 @@ Defaults to no terminate_after.
 |`size` |The number of hits to return. Defaults to `10`.
 
 |`search_type` |The type of the search operation to perform. Can be
-`dfs_query_then_fetch`, `dfs_query_and_fetch`, `query_then_fetch`,
-`query_and_fetch`, `count`, `scan`. Defaults to `query_then_fetch`. See
+`dfs_query_then_fetch` or `query_then_fetch`.
+Defaults to `query_then_fetch`. See
 <<search-request-search-type,_Search Type_>> for
 more details on the different types of search that can be performed.
-
-|`lowercase_expanded_terms` |Should terms be automatically lowercased or
-not. Defaults to `true`.
-
-|`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
-not. Defaults to `false`.
 |=======================================================================
 

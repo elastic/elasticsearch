@@ -29,20 +29,20 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRange;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
 --------------------------------------------------
 
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-DateRange agg = sr.getAggregations().get("agg");
+Range agg = sr.getAggregations().get("agg");
 
 // For each entry
-for (DateRange.Bucket entry : agg.getBuckets()) {
-    String key = entry.getKey();                    // Date range as key
-    DateTime fromAsDate = entry.getFromAsDate();    // Date bucket from as a Date
-    DateTime toAsDate = entry.getToAsDate();        // Date bucket to as a Date
-    long docCount = entry.getDocCount();            // Doc count
+for (Range.Bucket entry : agg.getBuckets()) {
+    String key = entry.getKeyAsString();                // Date range as key
+    DateTime fromAsDate = (DateTime) entry.getFrom();   // Date bucket from as a Date
+    DateTime toAsDate = (DateTime) entry.getTo();       // Date bucket to as a Date
+    long docCount = entry.getDocCount();                // Doc count
 
     logger.info("key [{}], from [{}], to [{}], doc_count [{}]", key, fromAsDate, toAsDate, docCount);
 }

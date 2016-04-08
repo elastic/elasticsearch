@@ -40,17 +40,17 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4Range;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
 --------------------------------------------------
 
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-IPv4Range agg = sr.getAggregations().get("agg");
+Range agg = sr.getAggregations().get("agg");
 
 // For each entry
-for (IPv4Range.Bucket entry : agg.getBuckets()) {
-    String key = entry.getKey();                    // Ip range as key
+for (Range.Bucket entry : agg.getBuckets()) {
+    String key = entry.getKeyAsString();            // Ip range as key
     String fromAsString = entry.getFromAsString();  // Ip bucket from as a String
     String toAsString = entry.getToAsString();      // Ip bucket to as a String
     long docCount = entry.getDocCount();            // Doc count

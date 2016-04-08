@@ -1,11 +1,59 @@
 [[mapping-uid-field]]
-=== `_uid`
+=== `_uid` field
 
-Each document indexed is associated with an id and a type, the internal
-`_uid` field is the unique identifier of a document within an index and
-is composed of the type and the id (meaning that different types can
-have the same id and still maintain uniqueness).
+Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
+<<mapping-type>>) and an <<mapping-id-field,`_id`>>.  These values are
+combined as `{type}#{id}` and indexed as the `_uid` field.
 
-The `_uid` field is automatically used when `_type` is not indexed to
-perform type based filtering, and does not require the `_id` to be
-indexed.
+The value of the `_uid` field is accessible in queries, aggregations, scripts,
+and when sorting:
+
+[source,js]
+--------------------------
+# Example documents
+PUT my_index/my_type/1
+{
+  "text": "Document with ID 1"
+}
+
+PUT my_index/my_type/2
+{
+  "text": "Document with ID 2"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "terms": {
+      "_uid": [ "my_type#1", "my_type#2" ] <1>
+    }
+  },
+  "aggs": {
+    "UIDs": {
+      "terms": {
+        "field": "_uid", <2>
+        "size": 10
+      }
+    }
+  },
+  "sort": [
+    {
+      "_uid": { <3>
+        "order": "desc"
+      }
+    }
+  ],
+  "script_fields": {
+    "UID": {
+      "script": "doc['_uid']" <4>
+    }
+  }
+}
+--------------------------
+// AUTOSENSE
+
+<1> Querying on the `_uid` field (also see the <<query-dsl-ids-query,`ids` query>>)
+<2> Aggregating on the `_uid` field
+<3> Sorting on the `_uid` field
+<4> Accessing the `_uid` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
+

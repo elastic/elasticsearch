@@ -1,28 +1,30 @@
 [[index-modules-slowlog]]
-== Index Slow Log
+== Slow Log
 
 [float]
 [[search-slow-log]]
 === Search Slow Log
 
 Shard level slow search log allows to log slow search (query and fetch
-executions) into a dedicated log file.
+phases) into a dedicated log file.
 
 Thresholds can be set for both the query phase of the execution, and
 fetch phase, here is a sample:
 
-[source,js]
+[source,yaml]
 --------------------------------------------------
-#index.search.slowlog.threshold.query.warn: 10s
-#index.search.slowlog.threshold.query.info: 5s
-#index.search.slowlog.threshold.query.debug: 2s
-#index.search.slowlog.threshold.query.trace: 500ms
+index.search.slowlog.threshold.query.warn: 10s
+index.search.slowlog.threshold.query.info: 5s
+index.search.slowlog.threshold.query.debug: 2s
+index.search.slowlog.threshold.query.trace: 500ms
 
-#index.search.slowlog.threshold.fetch.warn: 1s
-#index.search.slowlog.threshold.fetch.info: 800ms
-#index.search.slowlog.threshold.fetch.debug: 500ms
-#index.search.slowlog.threshold.fetch.trace: 200ms
+index.search.slowlog.threshold.fetch.warn: 1s
+index.search.slowlog.threshold.fetch.info: 800ms
+index.search.slowlog.threshold.fetch.debug: 500ms
+index.search.slowlog.threshold.fetch.trace: 200ms
 --------------------------------------------------
+
+All of the above settings are _dynamic_ and can be set per-index.
 
 By default, none are enabled (set to `-1`). Levels (`warn`, `info`,
 `debug`, `trace`) allow to control under which logging level the log
@@ -37,14 +39,10 @@ execute. Some of the benefits of shard level logging is the association
 of the actual execution on the specific machine, compared with request
 level.
 
-All settings are index level settings (and each index can have different
-values for it), and can be changed in runtime using the index update
-settings API.
-
 The logging file is configured by default using the following
 configuration (found in `logging.yml`):
 
-[source,js]
+[source,yaml]
 --------------------------------------------------
 index_search_slow_log_file:
   type: dailyRollingFile
@@ -64,18 +62,27 @@ log. The log file is ends with `_index_indexing_slowlog.log`. Log and
 the thresholds are configured in the elasticsearch.yml file in the same
 way as the search slowlog. Index slowlog sample:
 
-[source,js]
+[source,yaml]
 --------------------------------------------------
-#index.indexing.slowlog.threshold.index.warn: 10s
-#index.indexing.slowlog.threshold.index.info: 5s
-#index.indexing.slowlog.threshold.index.debug: 2s
-#index.indexing.slowlog.threshold.index.trace: 500ms
+index.indexing.slowlog.threshold.index.warn: 10s
+index.indexing.slowlog.threshold.index.info: 5s
+index.indexing.slowlog.threshold.index.debug: 2s
+index.indexing.slowlog.threshold.index.trace: 500ms
+index.indexing.slowlog.level: info
+index.indexing.slowlog.source: 1000
 --------------------------------------------------
+
+All of the above settings are _dynamic_ and can be set per-index.
+
+By default Elasticsearch will log the first 1000 characters of the _source in
+the slowlog. You can change that with `index.indexing.slowlog.source`. Setting
+it to `false` or `0` will skip logging the source entirely an setting it to
+`true` will log the entire source regardless of size.
 
 The index slow log file is configured by default in the `logging.yml`
 file:
 
-[source,js]
+[source,yaml]
 --------------------------------------------------
 index_indexing_slow_log_file:
     type: dailyRollingFile

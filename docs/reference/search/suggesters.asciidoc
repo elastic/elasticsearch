@@ -141,14 +141,15 @@ level override the suggest text on the global level.
 In the below example we request suggestions for the following suggest
 text: `devloping distibutd saerch engies` on the `title` field with a
 maximum of 3 suggestions per term inside the suggest text. Note that in
-this example we use the `count` search type. This isn't required, but a
-nice optimization. The suggestions are gather in the `query` phase and
+this example we set `size` to `0`. This isn't required, but a
+nice optimization. The suggestions are gathered in the `query` phase and
 in the case that we only care about suggestions (so no hits) we don't
 need to execute the `fetch` phase.
 
 [source,js]
 --------------------------------------------------
-curl -s -XPOST 'localhost:9200/_search?search_type=count' -d '{
+curl -s -XPOST 'localhost:9200/_search' -d '{
+  "size": 0,
   "suggest" : {
     "my-title-suggestions-1" : {
       "text" : "devloping distibutd saerch engies",

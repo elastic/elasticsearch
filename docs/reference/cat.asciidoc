@@ -27,7 +27,7 @@ the available commands.
 Each of the commands accepts a query string parameter `v` to turn on
 verbose output.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/master?v'
 id                     ip        node
@@ -41,7 +41,7 @@ EGtKWZlWQYWDmX29fUnp3Q 127.0.0.1 Grey, Sara
 Each of the commands accepts a query string parameter `help` which will
 output its available columns.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/master?help'
 id   | node id
@@ -56,7 +56,7 @@ node | node name
 Each of the commands accepts a query string parameter `h` which forces
 only those columns to appear.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'n1:9200/_cat/nodes?h=ip,port,heapPercent,name'
 192.168.56.40 9300 40.3 Captain Universe
@@ -65,6 +65,10 @@ only those columns to appear.
 192.168.56.10 9300 12.3 Remy LeBeau
 192.168.56.30 9300 43.9 Ramsey, Doug
 --------------------------------------------------
+
+You can also request multiple columns using simple wildcards like
+`/_cat/thread_pool?h=ip,bulk.*` to get all headers (or aliases) starting
+with `bulk.`.
 
 [float]
 [[numeric-formats]]
@@ -83,7 +87,7 @@ off human mode.  We'll use a byte-level resolution.  Then we'll pipe
 our output into `sort` using the appropriate column, which in this
 case is the eight one.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/indices?bytes=b' | sort -rnk8
 green wiki2 3 0 10000   0 105274918 105274918
@@ -91,6 +95,55 @@ green wiki1 3 0 10000 413 103776272 103776272
 green foo   1 0   227   0   2065131   2065131
 --------------------------------------------------
 
+[float]
+=== Response as text, json, smile, yaml or cbor
+
+[source,sh]
+--------------------------------------------------
+% curl '192.168.56.10:9200/_cat/indices?format=json' | jq .
+[
+  {
+    "pri.store.size": "650b",
+    "health": "yellow",
+    "status": "open",
+    "index": "twitter",
+    "pri": "5",
+    "rep": "1",
+    "docs.count": "0",
+    "docs.deleted": "0",
+    "store.size": "650b"
+  }
+]
+--------------------------------------------------
+
+Currently supported formats (for the `?format=` parameter):
+- text (default)
+- json
+- smile
+- yaml
+- cbor
+
+Alternatively you can set the "Accept" HTTP header to the appropriate media format.
+All formats above are supported, the GET parameter takes precedence over the header.
+For example:
+
+[source,sh]
+--------------------------------------------------
+% curl '192.168.56.10:9200/_cat/indices' -H "Accept: application/json" | jq .
+[
+  {
+    "pri.store.size": "650b",
+    "health": "yellow",
+    "status": "open",
+    "index": "twitter",
+    "pri": "5",
+    "rep": "1",
+    "docs.count": "0",
+    "docs.deleted": "0",
+    "store.size": "650b"
+  }
+]
+--------------------------------------------------
 
 --
 
@@ -108,6 +161,8 @@ include::cat/indices.asciidoc[]
 
 include::cat/master.asciidoc[]
 
+include::cat/nodeattrs.asciidoc[]
+
 include::cat/nodes.asciidoc[]
 
 include::cat/pending_tasks.asciidoc[]
@@ -116,8 +171,12 @@ include::cat/plugins.asciidoc[]
 
 include::cat/recovery.asciidoc[]
 
+include::cat/repositories.asciidoc[]
+
 include::cat/thread_pool.asciidoc[]
 
 include::cat/shards.asciidoc[]
 
 include::cat/segments.asciidoc[]
+
+include::cat/snapshots.asciidoc[]

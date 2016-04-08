@@ -9,7 +9,22 @@ analyzers:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?analyzer=standard' -d 'this is a test'
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "analyzer" : "standard",
+  "text" : "this is a test"
+}'
+--------------------------------------------------
+
+If text parameter is provided as array of strings, it is analyzed as a multi-valued field.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "analyzer" : "standard",
+  "text" : ["this is a test", "the second text"]
+}'
 --------------------------------------------------
 
 Or by building a custom transient analyzer out of tokenizers,
@@ -18,17 +33,30 @@ parameter name:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filters=lowercase' -d 'this is a test'
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "tokenizer" : "keyword",
+  "filters" : ["lowercase"],
+  "text" : "this is a test"
+}'
 
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filters=lowercase&char_filters=html_strip' -d 'this is a <b>test</b>'
-
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "tokenizer" : "keyword",
+  "token_filters" : ["lowercase"],
+  "char_filters" : ["html_strip"],
+  "text" : "this is a <b>test</b>"
+}'
 --------------------------------------------------
 
 It can also run against a specific index:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/test/_analyze?text=this+is+a+test'
+curl -XGET 'localhost:9200/test/_analyze' -d '
+{
+  "text" : "this is a test"
+}'
 --------------------------------------------------
 
 The above will run an analysis on the "this is a test" text, using the
@@ -37,18 +65,109 @@ can also be provided to use a different analyzer:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/test/_analyze?analyzer=whitespace' -d 'this is a test'
+curl -XGET 'localhost:9200/test/_analyze' -d '
+{
+  "analyzer" : "whitespace",
+  "text : "this is a test"
+}'
 --------------------------------------------------
 
 Also, the analyzer can be derived based on a field mapping, for example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/test/_analyze?field=obj1.field1' -d 'this is a test'
+curl -XGET 'localhost:9200/test/_analyze' -d '
+{
+  "field" : "obj1.field1",
+  "text" : "this is a test"
+}'
 --------------------------------------------------
 
 Will cause the analysis to happen based on the analyzer configured in the
 mapping for `obj1.field1` (and if not, the default index analyzer).
 
-Also, the text can be provided as part of the request body, and not as a
-parameter.
+All parameters can also supplied as request parameters. For example:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filters=lowercase&text=this+is+a+test'
+--------------------------------------------------
+
+For backwards compatibility, we also accept the text parameter as the body of the request,
+provided it doesn't start with `{` :
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filters=lowercase&char_filters=html_strip' -d 'this is a <b>test</b>'
+--------------------------------------------------
+
+=== Explain Analyze
+
+If you want to get more advanced details, set `explain` to `true` (defaults to `false`). It will output all token attributes for each token.
+You can filter token attributes you want to output by setting `attributes` option.
+
+experimental[The format of the additional detail information is experimental and can change at any time]
+
+[source,js]
+--------------------------------------------------
+GET test/_analyze
+{
+  "tokenizer" : "standard",
+  "token_filters" : ["snowball"],
+  "text" : "detailed output",
+  "explain" : true,
+  "attributes" : ["keyword"] <1>
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> Set "keyword" to output "keyword" attribute only
+
+coming[2.0.0, body based parameters were added in 2.0.0]
+
+The request returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "detail" : {
+    "custom_analyzer" : true,
+    "charfilters" : [ ],
+    "tokenizer" : {
+      "name" : "standard",
+      "tokens" : [ {
+        "token" : "detailed",
+        "start_offset" : 0,
+        "end_offset" : 8,
+        "type" : "<ALPHANUM>",
+        "position" : 0
+      }, {
+        "token" : "output",
+        "start_offset" : 9,
+        "end_offset" : 15,
+        "type" : "<ALPHANUM>",
+        "position" : 1
+      } ]
+    },
+    "tokenfilters" : [ {
+      "name" : "snowball",
+      "tokens" : [ {
+        "token" : "detail",
+        "start_offset" : 0,
+        "end_offset" : 8,
+        "type" : "<ALPHANUM>",
+        "position" : 0,
+        "keyword" : false <1>
+      }, {
+        "token" : "output",
+        "start_offset" : 9,
+        "end_offset" : 15,
+        "type" : "<ALPHANUM>",
+        "position" : 1,
+        "keyword" : false <1>
+      } ]
+    } ]
+  }
+}
+--------------------------------------------------
+<1> Output only "keyword" attribute, since specify "attributes" in the request.
+

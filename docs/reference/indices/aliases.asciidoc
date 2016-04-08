@@ -8,7 +8,7 @@ converting the alias name to the actual index name. An alias can also be
 mapped to more than one index, and when specifying it, the alias will
 automatically expand to the aliases indices. An alias can also be
 associated with a filter that will automatically be applied when
-searching, and routing values.
+searching, and routing values. An alias cannot have the same name as an index.
 
 Here is a sample of associating the alias `alias1` with index `test1`:
 
@@ -63,6 +63,38 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 }'
 --------------------------------------------------
 
+Multiple indices can be specified for an action with the `indices` array syntax:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
+    ]
+}'
+--------------------------------------------------
+
+To specify multiple aliases in one action, the corresponding `aliases` array
+syntax exists as well.
+
+For the example above, a glob pattern can also be used to associate an alias to
+more than one index that share a common name:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
+    ]
+}'
+--------------------------------------------------
+
+In this case, the alias is a point-in-time alias that will group all
+current indices that match, it will not automatically update as new
+indices that match this pattern are added/removed.
+
 It is an error to index to an alias which points to more than one index.
 
 [float]
@@ -84,8 +116,7 @@ curl -XPUT 'http://localhost:9200/test1' -d '{
     "type1": {
       "properties": {
         "user" : {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         }
       }
     }
@@ -161,8 +192,8 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 As shown in the example above, search routing may contain several values
 separated by comma. Index routing can contain only a single value.
 
-If an operation that uses routing alias also has a routing parameter, an
-intersection of both alias routing and routing specified in the
+If a search operation that uses routing alias also has a routing parameter, an
+intersection of both search alias routing and routing specified in the
 parameter is used. For example the following command will use "2" as a
 routing value:
 
@@ -170,6 +201,9 @@ routing value:
 --------------------------------------------------
 curl -XGET 'http://localhost:9200/alias2/_search?q=user:kimchy&routing=2,3'
 --------------------------------------------------
+
+If an index operation that uses index routing alias also has a parent routing, the
+parent routing is ignored.
 
 [float]
 [[alias-adding]]
@@ -305,7 +339,7 @@ Possible options:
     multiple alias names separated by a comma.
 
 `ignore_unavailable`::
-    What to do is an specified index name doesn't
+    What to do if an specified index name doesn't
     exist. If set to `true` then those indices are ignored.
 
 The rest endpoint is: `/{index}/_alias/{alias}`.
@@ -410,7 +444,7 @@ option as the get indices aliases api. Examples:
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD 'localhost:9200/_alias/2013'
-curl -XHEAD 'localhost:9200/_alias/2013_01*'
-curl -XHEAD 'localhost:9200/users/_alias/*'
+curl -XHEAD -i 'localhost:9200/_alias/2013'
+curl -XHEAD -i 'localhost:9200/_alias/2013_01*'
+curl -XHEAD -i 'localhost:9200/users/_alias/*'
 --------------------------------------------------

@@ -1,0 +1,18 @@
+[[alerting]]
+== Alerting Plugins
+
+Alerting plugins allow Elasticsearch to monitor indices and to trigger alerts when thresholds are breached.
+
+[float]
+=== Core alerting plugins
+
+The core alerting plugins are:
+
+link:/products/watcher[Watcher]::
+
+Watcher is the alerting and notification product for Elasticsearch that lets
+you take action based on changes in your data. It is designed around the
+principle that if you can query something in Elasticsearch, you can alert on
+it. Simply define a query, condition, schedule, and the actions to take, and
+Watcher will do the rest.
+

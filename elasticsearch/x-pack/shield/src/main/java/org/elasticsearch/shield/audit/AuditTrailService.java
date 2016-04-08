@@ -106,6 +106,13 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
+    public void tamperedRequest(RestRequest request) {
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.tamperedRequest(request);
+        }
+    }
+
+    @Override
     public void tamperedRequest(String action, TransportMessage message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.tamperedRequest(action, message);

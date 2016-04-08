@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
 
@@ -32,11 +33,12 @@ public interface AuthenticationFailureHandler {
      * This method is called when there has been an authentication failure for the given REST request and authentication
      * token.
      *
-     * @param request The request that could not be authenticated
+     * @param request The request that was being authenticated when the exception occurred
      * @param token   The token that was extracted from the request
+     * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException unsuccessfulAuthentication(RestRequest request, AuthenticationToken token);
+    ElasticsearchSecurityException failedAuthentication(RestRequest request, AuthenticationToken token, ThreadContext context);
 
     /**
      * This method is called when there has been an authentication failure for the given message and token
@@ -44,9 +46,11 @@ public interface AuthenticationFailureHandler {
      * @param message The transport message that could not be authenticated
      * @param token   The token that was extracted from the message
      * @param action  The name of the action that the message is trying to perform
+     * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException unsuccessfulAuthentication(TransportMessage message, AuthenticationToken token, String action);
+    ElasticsearchSecurityException failedAuthentication(TransportMessage message, AuthenticationToken token, String action,
+                                                        ThreadContext context);
 
     /**
      * The method is called when an exception has occurred while processing the REST request. This could be an error that
@@ -54,28 +58,32 @@ public interface AuthenticationFailureHandler {
      *
      * @param request The request that was being authenticated when the exception occurred
      * @param e       The exception that was thrown
+     * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e);
+    ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context);
 
     /**
      * The method is called when an exception has occurred while processing the transport message. This could be an error that
      * occurred while attempting to extract a token or while attempting to authenticate the request
      *
      * @param message The message that was being authenticated when the exception occurred
+     * @param action  The name of the action that the message is trying to perform
      * @param e       The exception that was thrown
+     * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException exceptionProcessingRequest(TransportMessage message, Exception e);
+    ElasticsearchSecurityException exceptionProcessingRequest(TransportMessage message, String action, Exception e, ThreadContext context);
 
     /**
      * This method is called when a REST request is received and no authentication token could be extracted AND anonymous
      * access is disabled. If anonymous access is enabled, this method will not be called
      *
      * @param request The request that did not have a token
+     * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException missingToken(RestRequest request);
+    ElasticsearchSecurityException missingToken(RestRequest request, ThreadContext context);
 
     /**
      * This method is called when a transport message is received and no authentication token could be extracted AND
@@ -83,17 +91,19 @@ public interface AuthenticationFailureHandler {
      *
      * @param message The message that did not have a token
      * @param action  The name of the action that the message is trying to perform
+     * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException missingToken(TransportMessage message, String action);
+    ElasticsearchSecurityException missingToken(TransportMessage message, String action, ThreadContext context);
 
     /**
      * This method is called when anonymous access is enabled, a request does not pass authorization with the anonymous
-     * user, AND the anonymous service is configured to thrown a authentication exception instead of a authorization
+     * user, AND the anonymous service is configured to throw an authentication exception instead of an authorization
      * exception
      *
      * @param action the action that failed authorization for anonymous access
+     * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException authenticationRequired(String action);
+    ElasticsearchSecurityException authenticationRequired(String action, ThreadContext context);
 }

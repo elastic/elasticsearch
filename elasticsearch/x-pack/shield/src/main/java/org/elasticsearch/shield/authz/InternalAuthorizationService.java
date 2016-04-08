@@ -347,7 +347,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         // Special case for anonymous user
         if (AnonymousUser.enabled() && AnonymousUser.is(user)) {
             if (anonymousAuthzExceptionEnabled == false) {
-                throw authcFailureHandler.authenticationRequired(action);
+                throw authcFailureHandler.authenticationRequired(action, threadContext);
             }
         }
         if (user.runAs() != null) {

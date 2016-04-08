@@ -458,6 +458,17 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
+    public void tamperedRequest(RestRequest request) {
+        if (events.contains(TAMPERED_REQUEST)) {
+            try {
+                enqueue(message("tampered_request", null, null, null, null, request), "tampered_request");
+            } catch (Exception e) {
+                logger.warn("failed to index audit event: [tampered_request]", e);
+            }
+        }
+    }
+
+    @Override
     public void tamperedRequest(String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             try {

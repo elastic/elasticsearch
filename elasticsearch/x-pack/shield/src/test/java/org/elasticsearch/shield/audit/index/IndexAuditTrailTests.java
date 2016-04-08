@@ -595,6 +595,22 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         }
     }
 
+    public void testTamperedRequestRest() throws Exception {
+        initialize();
+        RestRequest request = mockRestRequest();
+        auditor.tamperedRequest(request);
+        awaitAuditDocumentCreation(resolveIndexName());
+
+        SearchHit hit = getIndexedAuditMessage();
+        assertAuditMessage(hit, "rest", "tampered_request");
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertThat(sourceMap.get("principal"), nullValue());
+        assertThat("127.0.0.1", equalTo(sourceMap.get("origin_address")));
+        assertThat("_uri", equalTo(sourceMap.get("uri")));
+        assertThat(sourceMap.get("origin_type"), is("rest"));
+        assertThat(sourceMap.get("request_body"), notNullValue());
+    }
+
     public void testTamperedRequest() throws Exception {
         initialize();
         TransportRequest message = new RemoteHostMockTransportRequest();
@@ -642,11 +658,21 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public void testTamperedRequestMuted() throws Exception {
         initialize("tampered_request");
         TransportRequest message = new RemoteHostMockTransportRequest();
-        if (randomBoolean()) {
-            auditor.tamperedRequest(new User("_username", new String[]{"r1"}), "_action", message);
-        } else {
-            auditor.tamperedRequest("_action", message);
+        final int type = randomIntBetween(0, 2);
+        switch (type) {
+            case 0:
+                auditor.tamperedRequest(new User("_username", new String[]{"r1"}), "_action", message);
+                break;
+            case 1:
+                auditor.tamperedRequest("_action", message);
+                break;
+            case 2:
+                auditor.tamperedRequest(mockRestRequest());
+                break;
+            default:
+                throw new IllegalStateException("invalid value for type: " + type);
         }
+
         try {
             getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
             fail("Expected IndexNotFoundException");

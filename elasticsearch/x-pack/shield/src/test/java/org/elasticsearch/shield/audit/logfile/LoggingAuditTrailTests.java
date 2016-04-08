@@ -513,6 +513,33 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
     }
 
+    public void testTamperedRequestRest() throws Exception {
+        RestRequest request = mock(RestRequest.class);
+        InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
+        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(address, 9200));
+        when(request.uri()).thenReturn("_uri");
+        String expectedMessage = prepareRestContent(request);
+
+        for (Level level : Level.values()) {
+            threadContext = new ThreadContext(Settings.EMPTY);
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, transport, logger, threadContext).start();
+            auditTrail.tamperedRequest(request);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                    assertMsg(logger, Level.ERROR, prefix + "[rest] [tampered_request]\torigin_address=[" +
+                            NetworkAddress.format(address) + "], uri=[_uri]");
+                    break;
+                case DEBUG:
+                case TRACE:
+                    assertMsg(logger, Level.DEBUG, prefix + "[rest] [tampered_request]\torigin_address=[" +
+                            NetworkAddress.format(address) + "], uri=[_uri], request_body=[" + expectedMessage + "]");
+            }
+        }
+    }
+
     public void testTamperedRequest() throws Exception {
         String action = "_action";
         for (Level level : Level.values()) {

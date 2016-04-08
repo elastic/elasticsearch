@@ -36,7 +36,7 @@ public class ShieldLicenseeTests extends AbstractLicenseeTestCase {
     }
 
     public void testDoesNotStartWithTribeNode() {
-        Settings settings = Settings.settingsBuilder().put("tribe.fake.cluster.name", "notchecked").build();
+        Settings settings = Settings.builder().put("tribe.fake.cluster.name", "notchecked").build();
         ShieldLicensee licensee = new ShieldLicensee(settings, registry, shieldState);
 
         // starting the Licensee as a tribe node should not trigger it being registered

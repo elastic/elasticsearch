@@ -1,0 +1,10 @@
+{
+  "template": ".monitoring-data-${monitoring.template.version}",
+  "mappings": {
+    "type_1": {
+      "_meta": {
+        "template.version": "${monitoring.template.version}"
+      }
+    }
+  }
+}

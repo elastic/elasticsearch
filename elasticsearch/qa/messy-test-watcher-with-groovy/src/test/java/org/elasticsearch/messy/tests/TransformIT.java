@@ -24,7 +24,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -68,7 +67,7 @@ public class TransformIT extends AbstractWatcherIntegrationTestCase {
             throw new RuntimeException(ex);
         }
         //Set path so ScriptService will pick up the test scripts
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("path.conf", configDir.toString()).build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("path.conf", configDir.toString()).build();
     }
 
     public void testScriptTransform() throws Exception {

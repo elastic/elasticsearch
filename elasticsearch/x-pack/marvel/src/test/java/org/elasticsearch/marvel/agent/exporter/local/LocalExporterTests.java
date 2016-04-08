@@ -36,12 +36,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.dataTemplateName;
-import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.indexTemplateName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +48,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class LocalExporterTests extends MarvelIntegTestCase {
-    private final static AtomicLong timeStampGenerator = new AtomicLong();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -108,8 +104,7 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         updateMarvelInterval(3L, TimeUnit.SECONDS);
 
         // lets wait until the monitoring template will be installed
-        waitForMarvelTemplate(indexTemplateName());
-        waitForMarvelTemplate(dataTemplateName());
+        waitForMarvelTemplates();
     }
 
     public void testIndexTimestampFormat() throws Exception {

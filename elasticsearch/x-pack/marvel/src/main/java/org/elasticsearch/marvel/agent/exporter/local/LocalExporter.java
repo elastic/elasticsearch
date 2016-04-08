@@ -21,11 +21,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
@@ -35,6 +35,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -56,23 +57,21 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
 
-    /** Version number of built-in templates **/
-    private final Integer templateVersion;
-
     public LocalExporter(Exporter.Config config, MonitoringClientProxy client,
                          ClusterService clusterService, CleanerService cleanerService) {
         super(TYPE, config);
         this.client = client;
         this.clusterService = clusterService;
         this.cleanerService = cleanerService;
+        this.resolvers = new ResolversRegistry(config.settings());
 
-        // Loads the current version number of built-in templates
-        templateVersion = MarvelTemplateUtils.TEMPLATE_VERSION;
-        if (templateVersion == null) {
-            throw new IllegalStateException("unable to find built-in template version");
+        // Checks that required templates are loaded
+        for (MonitoringIndexNameResolver resolver : resolvers) {
+            if (resolver.template() == null) {
+                throw new IllegalStateException("unable to find built-in template " + resolver.templateName());
+            }
         }
 
-        resolvers = new ResolversRegistry(config.settings());
         clusterService.add(this);
         cleanerService.add(this);
     }
@@ -117,21 +116,23 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             return null;
         }
 
-        String templateName = MarvelTemplateUtils.indexTemplateName(templateVersion);
-        boolean templateInstalled = hasTemplate(templateName, clusterState);
+        // List of distinct templates
+        Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+                .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
 
-        // if this is not the master, we'll just look to see if the monitoring timestamped template is already
-        // installed and if so, if it has a compatible version. If it is (installed and compatible)
-        // we'll be able to start this exporter. Otherwise, we'll just wait for a new cluster state.
+
+        // if this is not the master, we'll just look to see if the monitoring templates are installed.
+        // If they all are, we'll be able to start this exporter. Otherwise, we'll just wait for a new cluster state.
         if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-            // We only need to check the index template for timestamped indices
-            if (templateInstalled == false) {
-                // the template for timestamped indices is not yet installed in the given cluster state, we'll wait.
-                logger.debug("monitoring index template does not exist, so service cannot start");
-                return null;
+            for (String template : templates.keySet()) {
+                if (hasTemplate(template, clusterState) == false) {
+                    // the required template is not yet installed in the given cluster state, we'll wait.
+                    logger.debug("monitoring index template [{}] does not exist, so service cannot start", template);
+                    return null;
+                }
             }
 
-            logger.debug("monitoring index template found, service can start");
+            logger.debug("monitoring index templates are installed, service can start");
 
         } else {
 
@@ -143,24 +144,18 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 return null;
             }
 
-            // Install the index template for timestamped indices first, so that other nodes can ship data
-            if (templateInstalled == false) {
-                logger.debug("could not find existing monitoring template for timestamped indices, installing a new one");
-                putTemplate(templateName, MarvelTemplateUtils.loadTimestampedIndexTemplate());
-                // we'll get that template on the next cluster state update
-                return null;
+            // Check that each required template exist, installing it if needed
+            for (Map.Entry<String, String> template : templates.entrySet()) {
+                if (hasTemplate(template.getKey(), clusterState) == false) {
+                    logger.debug("template [{}] not found", template.getKey());
+                    putTemplate(template.getKey(), template.getValue());
+                    return null;
+                } else {
+                    logger.debug("template [{}] found", template.getKey());
+                }
             }
 
-            // Install the index template for data index
-            templateName = MarvelTemplateUtils.dataTemplateName(templateVersion);
-            if (hasTemplate(templateName, clusterState) == false) {
-                logger.debug("could not find existing monitoring template for data index, installing a new one");
-                putTemplate(templateName, MarvelTemplateUtils.loadDataIndexTemplate());
-                // we'll get that template on the next cluster state update
-                return null;
-            }
-
-            logger.debug("monitoring index template found on master node, service can start");
+            logger.debug("monitoring index templates are installed on master node, service can start");
         }
 
         if (state.compareAndSet(State.INITIALIZED, State.RUNNING)) {
@@ -197,7 +192,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         return templates.size() > 0;
     }
 
-    void putTemplate(String template, byte[] source) {
+    void putTemplate(String template, String source) {
         logger.debug("installing template [{}]",template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source);

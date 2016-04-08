@@ -7,7 +7,6 @@ package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.test.ESTestCase;
@@ -47,7 +46,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -71,11 +69,11 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
         randomPort = randomIntBetween(49000, 65500);
         iterations = randomIntBetween(10, 100);
 
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("xpack.security.ssl.keystore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks"))
                 .put("xpack.security.ssl.keystore.password", "testnode")
                 .build();
-        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
+        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         ServerSSLService sslService = new ServerSSLService(settings, env);
 
         sslContext = sslService.sslContext();

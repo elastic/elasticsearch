@@ -5,103 +5,80 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Properties;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 public final class MarvelTemplateUtils {
 
-    static final String INDEX_TEMPLATE_FILE         = "/monitoring-es.json";
-    static final String INDEX_TEMPLATE_NAME_PREFIX  = ".monitoring-es-";
+    private static final String TEMPLATE_FILE = "/monitoring-%s.json";
+    private static final String TEMPLATE_VERSION_PROPERTY = Pattern.quote("${monitoring.template.version}");
 
-    static final String DATA_TEMPLATE_FILE          = "/monitoring-data.json";
-    static final String DATA_TEMPLATE_NAME_PREFIX   = ".monitoring-data-";
-
-    static final String PROPERTIES_FILE             = "/monitoring.properties";
-    static final String TEMPLATE_VERSION_PROPERTY   = "template.version";
-
-    public static final Integer TEMPLATE_VERSION    = loadTemplateVersion();
+    /** Current version of es and data templates **/
+    public static final Integer TEMPLATE_VERSION = 2;
 
     private MarvelTemplateUtils() {
     }
 
     /**
-     * Loads the default template for the timestamped indices
+     * Loads a built-in template and returns its source.
      */
-    public static byte[] loadTimestampedIndexTemplate() {
+    public static String loadTemplate(String id, Integer version) {
+        String resource = String.format(Locale.ROOT, TEMPLATE_FILE, id);
         try {
-            return load(INDEX_TEMPLATE_FILE);
-        } catch (IOException e) {
-            throw new IllegalStateException("unable to load monitoring template", e);
+            BytesReference source = load(resource);
+            validate(source);
+
+            return filter(source, version);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Unable to load monitoring template [" + resource + "]", e);
         }
     }
 
     /**
-     * Loads the default template for the data index
+     * Loads a resource from the classpath and returns it as a {@link BytesReference}
      */
-    public static byte[] loadDataIndexTemplate() {
-        try {
-            return load(DATA_TEMPLATE_FILE);
-        } catch (IOException e) {
-            throw new IllegalStateException("unable to load monitoring data template", e);
-        }
-    }
-
-    /**
-     * Loads a resource with a given name and returns it as a byte array.
-     */
-    static byte[] load(String name) throws IOException {
+    static BytesReference load(String name) throws IOException {
         try (InputStream is = MarvelTemplateUtils.class.getResourceAsStream(name)) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Streams.copy(is, out);
-            return out.toByteArray();
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                Streams.copy(is, out);
+                return new BytesArray(out.toByteArray());
+            }
         }
     }
 
     /**
-     * Loads the current version of templates
-     *
-     * When executing tests in Intellij, the properties file might not be
-     * resolved: try running 'gradle processResources' first.
+     * Parses and validates that the source is not empty.
      */
-    static Integer loadTemplateVersion() {
-        try (InputStream is = MarvelTemplateUtils.class.getResourceAsStream(PROPERTIES_FILE)) {
-            Properties properties = new Properties();
-            properties.load(is);
-            String version = properties.getProperty(TEMPLATE_VERSION_PROPERTY);
-            if (Strings.hasLength(version)) {
-                return Integer.parseInt(version);
-            }
-            throw new IllegalArgumentException("no monitoring template version found");
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("failed to parse monitoring template version");
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to load monitoring template version");
+    static void validate(BytesReference source) {
+        if (source == null) {
+            throw new ElasticsearchParseException("Monitoring template must not be null");
+        }
+
+        try {
+            XContentHelper.convertToMap(source, false).v2();
+        } catch (NotXContentException e) {
+            throw new ElasticsearchParseException("Monitoring template must not be empty");
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("Invalid monitoring template", e);
         }
     }
 
-    public static String indexTemplateName() {
-        return indexTemplateName(TEMPLATE_VERSION);
-    }
-
-    public static String indexTemplateName(Integer version) {
-        return templateName(INDEX_TEMPLATE_NAME_PREFIX, version);
-    }
-
-    public static String dataTemplateName() {
-        return dataTemplateName(TEMPLATE_VERSION);
-    }
-
-    public static String dataTemplateName(Integer version) {
-        return templateName(DATA_TEMPLATE_NAME_PREFIX, version);
-    }
-
-    static String templateName(String prefix, Integer version) {
-        assert version != null && version >= 0 : "version must be not null and greater or equal to zero";
-        return prefix + String.valueOf(version);
+    /**
+     * Filters the source: replaces any template version property with the version number
+     */
+    static String filter(BytesReference source, Integer version) {
+        return Pattern.compile(TEMPLATE_VERSION_PROPERTY)
+                .matcher(source.toUtf8())
+                .replaceAll(String.valueOf(version));
     }
 }

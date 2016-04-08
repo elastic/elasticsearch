@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class ShieldServerTransportServiceTests extends ShieldIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.transportClientSettings())
                 .put(Security.enabledSetting(), true)
                 .build();

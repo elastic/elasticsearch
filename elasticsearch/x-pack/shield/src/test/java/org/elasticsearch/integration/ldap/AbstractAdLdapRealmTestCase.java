@@ -26,7 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.shield.authc.ldap.support.LdapSearchScope.ONE_LEVEL;
 import static org.elasticsearch.shield.authc.ldap.support.LdapSearchScope.SUB_TREE;
@@ -75,7 +74,7 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Path nodeFiles = createTempDir();
-        return settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(realmConfig.buildSettings())
                 //we need ssl to the LDAP server
@@ -160,7 +159,7 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
             throw new ElasticsearchException("store path [" + store + "] doesn't exist");
         }
 
-        return settingsBuilder()
+        return Settings.builder()
                 .put("xpack.security.ssl.keystore.path", store)
                 .put("xpack.security.ssl.keystore.password", password)
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
@@ -174,7 +173,7 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
     enum RealmConfig {
 
         AD(false, AD_ROLE_MAPPING,
-                settingsBuilder()
+                Settings.builder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", ActiveDirectoryRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".domain_name", "ad.test.elasticsearch.com")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -183,7 +182,7 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
                         .build()),
 
         AD_LDAP_GROUPS_FROM_SEARCH(true, AD_ROLE_MAPPING,
-                settingsBuilder()
+                Settings.builder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
@@ -193,7 +192,7 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
                         .build()),
 
         AD_LDAP_GROUPS_FROM_ATTRIBUTE(true, AD_ROLE_MAPPING,
-                settingsBuilder()
+                Settings.builder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .putArray(SHIELD_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
@@ -201,7 +200,7 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
                         .build()),
 
         OLDAP(false, OLDAP_ROLE_MAPPING,
-                settingsBuilder()
+                Settings.builder()
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.TYPE)
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://54.200.235.244:636")
                         .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn",
@@ -224,7 +223,7 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
         }
 
         public Settings buildSettings() {
-            return settingsBuilder()
+            return Settings.builder()
                     .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".order", 1)
                     .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".hostname_verification", false)
                     .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".unmapped_groups_as_roles", mapGroupsAsRoles)

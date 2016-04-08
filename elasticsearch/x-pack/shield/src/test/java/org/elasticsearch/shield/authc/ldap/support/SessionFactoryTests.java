@@ -13,7 +13,6 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -29,7 +28,7 @@ public class SessionFactoryTests extends ESTestCase {
     }
 
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(SessionFactory.TIMEOUT_TCP_CONNECTION_SETTING, "10ms")
                 .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, "false")
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "20ms")
@@ -57,7 +56,7 @@ public class SessionFactoryTests extends ESTestCase {
     }
 
     private SessionFactory createSessionFactory() {
-        Settings global = settingsBuilder().put("path.home", createTempDir()).build();
+        Settings global = Settings.builder().put("path.home", createTempDir()).build();
         return new SessionFactory(new RealmConfig("_name", Settings.builder().put("url", "ldap://localhost:389").build(), global), null) {
 
             @Override

@@ -26,7 +26,7 @@ public class AlwaysConditionTests extends ESTestCase {
     }
 
     public void testParserValid() throws Exception {
-        AlwaysConditionFactory factory = new AlwaysConditionFactory(Settings.settingsBuilder().build());
+        AlwaysConditionFactory factory = new AlwaysConditionFactory(Settings.builder().build());
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.endObject();
@@ -38,7 +38,7 @@ public class AlwaysConditionTests extends ESTestCase {
     }
 
     public void testParserInvalid() throws Exception {
-        ConditionFactory factor = new AlwaysConditionFactory(Settings.settingsBuilder().build());
+        ConditionFactory factor = new AlwaysConditionFactory(Settings.builder().build());
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .field("foo", "bar")

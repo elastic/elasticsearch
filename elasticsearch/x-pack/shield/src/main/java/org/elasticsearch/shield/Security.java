@@ -178,7 +178,7 @@ public class Security {
             return Settings.EMPTY;
         }
 
-        Settings.Builder settingsBuilder = Settings.settingsBuilder();
+        Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME);
         settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
         settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME);

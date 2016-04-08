@@ -170,7 +170,7 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testScriptConditionParserBadScript() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         switch (scriptType) {
@@ -202,7 +202,7 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testScriptConditionParserBadLang() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), getScriptServiceProxy(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script = "return true";
         XContentBuilder builder = jsonBuilder().startObject()

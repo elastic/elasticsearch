@@ -235,7 +235,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testYaml() throws Exception {
         Path file = getDataPath("role_mapping.yml");
-        Settings ldapSettings = Settings.settingsBuilder()
+        Settings ldapSettings = Settings.builder()
                 .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
         RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);

@@ -13,7 +13,6 @@ import org.elasticsearch.transport.TransportSettings;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.is;
 
 public class IPHostnameVerificationTests extends ShieldIntegTestCase {
@@ -34,7 +33,7 @@ public class IPHostnameVerificationTests extends ShieldIntegTestCase {
             unicastAddresses[i] = address.replace("localhost", "127.0.0.1");
         }
 
-        Settings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = Settings.builder()
                 .put(settings)
                 .putArray("discovery.zen.ping.unicast.hosts", unicastAddresses);
 
@@ -60,7 +59,7 @@ public class IPHostnameVerificationTests extends ShieldIntegTestCase {
 
     @Override
     protected Settings transportClientSettings() {
-        return settingsBuilder().put(super.transportClientSettings())
+        return Settings.builder().put(super.transportClientSettings())
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
                 .put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath())

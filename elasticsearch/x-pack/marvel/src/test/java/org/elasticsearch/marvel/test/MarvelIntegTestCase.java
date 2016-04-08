@@ -20,9 +20,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.AgentService;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
+import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.file.FileRealm;
@@ -57,6 +57,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -164,10 +166,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        Set<String> templates = new HashSet<>();
-        templates.add(MarvelTemplateUtils.indexTemplateName());
-        templates.add(MarvelTemplateUtils.dataTemplateName());
-        return templates;
+        return monitoringTemplates().keySet();
     }
 
     @Before
@@ -275,6 +274,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    protected Map<String, String> monitoringTemplates() {
+        return StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+                .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
+    }
+
     protected void assertTemplateInstalled(String name) {
         boolean found = false;
         for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
@@ -292,6 +296,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 assertTemplateInstalled(name);
             }
         }, 30, TimeUnit.SECONDS);
+    }
+
+    protected void waitForMarvelTemplates() throws Exception {
+        assertBusy(() -> monitoringTemplates().keySet().forEach(this::assertTemplateInstalled), 30, TimeUnit.SECONDS);
     }
 
     protected void waitForMarvelIndices() throws Exception {

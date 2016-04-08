@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerParser;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 

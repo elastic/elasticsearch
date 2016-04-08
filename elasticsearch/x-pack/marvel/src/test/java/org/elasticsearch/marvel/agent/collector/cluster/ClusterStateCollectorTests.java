@@ -39,7 +39,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
 
     public void testClusterStateCollectorOneIndex() throws Exception {
         int nbShards = randomIntBetween(1, 5);
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nbShards)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
@@ -65,7 +65,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         for (int i = 0; i < nbIndices; i++) {
             shardsPerIndex[i] = randomIntBetween(1, 5);
             nbShards += shardsPerIndex[i];
-            assertAcked(prepareCreate("test-" + i).setSettings(Settings.settingsBuilder()
+            assertAcked(prepareCreate("test-" + i).setSettings(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardsPerIndex[i])
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                     .build()));

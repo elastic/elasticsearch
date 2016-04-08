@@ -35,7 +35,6 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
@@ -48,7 +47,7 @@ import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
  */
 public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZen {
 
-    public static final Settings DEFAULT_SETTINGS = settingsBuilder()
+    public static final Settings DEFAULT_SETTINGS = Settings.builder()
             .put("node.mode", "network")
             .build();
 
@@ -120,7 +119,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         Path folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
-        Settings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
 
                 //TODO: for now isolate shield tests from watcher & monitoring (randomize this later)
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
@@ -144,7 +143,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     @Override
     public Settings transportClientSettings() {
-        Settings.Builder builder = settingsBuilder().put(super.transportClientSettings())
+        Settings.Builder builder = Settings.builder().put(super.transportClientSettings())
                 .put(getClientSSLSettings());
         if (randomBoolean()) {
             builder.put(Security.USER_SETTING.getKey(),
@@ -247,7 +246,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
         final String sslEnabledSetting =
                 randomFrom(ShieldNettyTransport.SSL_SETTING.getKey(), ShieldNettyTransport.DEPRECATED_SSL_SETTING.getKey());
-        Settings.Builder builder = settingsBuilder().put(sslEnabledSetting, sslTransportEnabled);
+        Settings.Builder builder = Settings.builder().put(sslEnabledSetting, sslTransportEnabled);
 
         if (transportClient == false) {
             builder.put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), false);

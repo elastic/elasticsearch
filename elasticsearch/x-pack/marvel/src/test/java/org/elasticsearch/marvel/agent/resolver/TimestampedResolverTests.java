@@ -20,7 +20,6 @@ import java.util.Arrays;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver.DELIMITER;
 import static org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver.PREFIX;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,7 +67,7 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
         for (String format : Arrays.asList("YYYY", "YYYY.MM", "YYYY.MM.dd", "YYYY.MM.dd-HH", "YYYY.MM.dd-HH.mm", "YYYY.MM.dd-HH.mm.SS")) {
             Settings settings = Settings.EMPTY;
             if (format != null) {
-                settings = settingsBuilder()
+                settings = Settings.builder()
                             .put(MonitoringIndexNameResolver.Timestamped.INDEX_NAME_TIME_FORMAT_SETTING.getKey(), format)
                             .build();
             }

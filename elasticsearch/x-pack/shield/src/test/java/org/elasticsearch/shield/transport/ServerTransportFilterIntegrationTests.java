@@ -32,7 +32,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.createFolder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
@@ -54,7 +53,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settingsBuilder = settingsBuilder();
+        Settings.Builder settingsBuilder = Settings.builder();
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
 
         Path store;
@@ -93,7 +92,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
         String unicastHost = NetworkAddress.format(inetSocketAddress);
 
         // test that starting up a node works
-        Settings nodeSettings = settingsBuilder()
+        Settings nodeSettings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
@@ -119,7 +118,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
         Path folder = createFolder(createTempDir(), getClass().getSimpleName() + "-" + randomAsciiOfLength(10));
 
         // test that starting up a node works
-        Settings nodeSettings = settingsBuilder()
+        Settings nodeSettings = Settings.builder()
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
                 .put("xpack.security.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))

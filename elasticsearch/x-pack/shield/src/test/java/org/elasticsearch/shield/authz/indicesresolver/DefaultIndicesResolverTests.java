@@ -843,7 +843,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?
 
     private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(Settings.settingsBuilder()
+        return IndexMetaData.builder(index).settings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
     }

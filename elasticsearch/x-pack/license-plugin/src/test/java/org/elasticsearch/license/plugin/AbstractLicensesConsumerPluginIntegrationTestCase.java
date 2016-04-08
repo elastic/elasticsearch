@@ -42,7 +42,7 @@ public abstract class AbstractLicensesConsumerPluginIntegrationTestCase extends 
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // this setting is only used in tests
                 .put("_trial_license_duration_in_seconds", trialLicenseDurationInSeconds)

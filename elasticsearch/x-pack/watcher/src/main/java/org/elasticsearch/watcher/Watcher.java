@@ -93,8 +93,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 public class Watcher {
 
     public static final String NAME = "watcher";
@@ -162,7 +160,7 @@ public class Watcher {
         if (enabled == false || transportClient) {
             return Settings.EMPTY;
         }
-        Settings additionalSettings = settingsBuilder()
+        Settings additionalSettings = Settings.builder()
                 .put(HistoryModule.additionalSettings(settings))
                 .build();
 

@@ -17,7 +17,6 @@ import org.joda.time.DateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,7 +40,7 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
     @Override
     protected void createIndex(String name, DateTime creationDate) {
         assertAcked(prepareCreate(name)
-                .setSettings(settingsBuilder().put(IndexMetaData.SETTING_CREATION_DATE, creationDate.getMillis()).build()));
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, creationDate.getMillis()).build()));
         ensureYellow(name);
     }
 

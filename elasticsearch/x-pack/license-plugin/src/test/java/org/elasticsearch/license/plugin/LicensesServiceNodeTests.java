@@ -25,7 +25,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 public class LicensesServiceNodeTests extends AbstractLicensesIntegrationTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();

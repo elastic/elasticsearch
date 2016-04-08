@@ -22,7 +22,6 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.util.Locale;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -33,11 +32,11 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
     @Before
     public void createSSLService() throws Exception {
         Path testnodeStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks");
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("xpack.security.ssl.keystore.path", testnodeStore)
                 .put("xpack.security.ssl.keystore.password", "testnode")
                 .build();
-        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
+        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         serverSSLService = new ServerSSLService(settings, env);
     }
 

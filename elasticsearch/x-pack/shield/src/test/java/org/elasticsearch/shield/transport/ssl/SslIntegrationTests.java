@@ -37,7 +37,6 @@ import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -46,7 +45,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SslIntegrationTests extends ShieldIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true).build();
     }
@@ -58,7 +57,7 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatUnconfiguredCiphersAreRejected() {
-        try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settingsBuilder()
+        try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
@@ -77,7 +76,7 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
-        try(TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settingsBuilder()
+        try(TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())

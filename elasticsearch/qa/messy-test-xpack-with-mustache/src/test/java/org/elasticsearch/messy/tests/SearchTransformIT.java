@@ -65,7 +65,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -122,7 +121,7 @@ public class SearchTransformIT extends ESIntegTestCase {
             throw new RuntimeException("failed to copy mustache template");
         }
         //Set path so ScriptService will pick up the test scripts
-        return settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // we're not extending from the base watcher test case, so we should prevent the watcher plugin from being loaded
                 .put("path.conf", configPath).build();
@@ -137,7 +136,7 @@ public class SearchTransformIT extends ESIntegTestCase {
 
     @Override
     public Settings indexSettings() {
-        return settingsBuilder()
+        return Settings.builder()
                 .put(super.indexSettings())
 
                 // we have to test this on an index that has at least 2 shards. Otherwise when searching indices with

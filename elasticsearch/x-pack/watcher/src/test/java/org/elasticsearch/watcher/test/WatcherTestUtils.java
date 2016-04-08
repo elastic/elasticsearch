@@ -238,7 +238,7 @@ public final class WatcherTestUtils {
     }
 
     public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("script.inline", "true")
                 .put("script.indexed", "true")
                 .put("path.home", createTempDir())

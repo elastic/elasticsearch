@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.not;
 public class WatcherPluginDisableTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
 

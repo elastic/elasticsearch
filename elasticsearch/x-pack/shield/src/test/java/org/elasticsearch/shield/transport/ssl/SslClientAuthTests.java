@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.Matchers.containsString;
@@ -38,7 +37,7 @@ import static org.hamcrest.Matchers.containsString;
 public class SslClientAuthTests extends ShieldIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // invert the require auth settings
                 .put(ShieldNettyTransport.SSL_SETTING.getKey(), true)
@@ -74,7 +73,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
     }
 
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
         ClientSSLService sslService = new ClientSSLService(settings);
@@ -102,7 +101,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
             throw new ElasticsearchException("store path doesn't exist");
         }
 
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(ShieldNettyTransport.SSL_SETTING.getKey(), true)
                 .put("xpack.security.ssl.keystore.path", store)
                 .put("xpack.security.ssl.keystore.password", "testclient-client-profile")

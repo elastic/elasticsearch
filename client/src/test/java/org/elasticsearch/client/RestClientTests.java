@@ -26,11 +26,10 @@ import org.apache.lucene.util.LuceneTestCase;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+
 public class RestClientTests extends LuceneTestCase {
     //TODO this should be refactored into a base test!!
     HttpServer server;
@@ -96,7 +95,8 @@ public class RestClientTests extends LuceneTestCase {
         HttpHost httpHost = new HttpHost("127.0.0.1", server.getAddress().getPort(), "http");
         try(RestClient client = new RestClient(httpHost)) {
             assertEquals(3, client.fetchNodes(httpHost, true, true, false).size());
-            assertTrue(client.fetchNodes(httpHost, true, true, false).toString(), client.fetchNodes(httpHost, true, true, false).contains(new HttpHost("127.0.0.2", 9200, "http")));
+            assertTrue(client.fetchNodes(httpHost, true, true, false).toString(), client.fetchNodes(httpHost, true, true, false)
+                    .contains(new HttpHost("127.0.0.2", 9200, "http")));
             assertTrue(client.fetchNodes(httpHost, true, true, false).contains(new HttpHost("127.0.0.3", 9200, "http")));
             assertTrue(client.fetchNodes(httpHost, true, true, false).contains(httpHost));
             assertEquals(1, client.fetchNodes(httpHost, true, true, true).size());
@@ -115,7 +115,8 @@ public class RestClientTests extends LuceneTestCase {
                 client.httpGet("/_cat/health", Collections.emptyMap());
                 fail();
             } catch (IOException ex) {
-                assertTrue(ex.getMessage(), ex.getMessage().endsWith("failed: connect timed out") || ex.getMessage().endsWith("failed: Connection refused"));
+                assertTrue(ex.getMessage(), ex.getMessage().endsWith("failed: connect timed out") ||
+                        ex.getMessage().endsWith("failed: Connection refused"));
             }
         }
     }
@@ -132,7 +133,8 @@ public class RestClientTests extends LuceneTestCase {
                 client.httpGet("/_cat/health", Collections.emptyMap());
                 fail();
             } catch (IOException ex) {
-                assertTrue(ex.getMessage(), ex.getMessage().endsWith("failed: connect timed out") || ex.getMessage().endsWith("failed: Connection refused"));
+                assertTrue(ex.getMessage(), ex.getMessage().endsWith("failed: connect timed out") ||
+                        ex.getMessage().endsWith("failed: Connection refused"));
             }
             assertEquals(3, client.getNumHosts());
             assertEquals(3, client.getNumBlacklistedHosts());
@@ -147,6 +149,4 @@ public class RestClientTests extends LuceneTestCase {
             assertEquals(3, num);
         }
     }
-
-
 }

@@ -1,14 +1,30 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.client;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Created by simon on 2/16/16.
- */
 public class IndexClient {
 
     private final RestClient client;
@@ -24,7 +40,7 @@ public class IndexClient {
         Objects.requireNonNull(index, "index must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");
-        String deleteEndpoint = String.format("/%s/%s/%s", index, type, id);
+        String deleteEndpoint = String.format(Locale.ROOT, "/%s/%s/%s", index, type, id);
         client.httpDelete(deleteEndpoint, params == null ? Collections.emptyMap() : params.options);
     }
 
@@ -59,7 +75,4 @@ public class IndexClient {
             options.put("timeout", timeout);
         };
     }
-
-
-
 }

@@ -60,7 +60,8 @@ public class RestClient implements Closeable{
     private final Set<HttpHost> blackList = new CopyOnWriteArraySet<>();
 
     public RestClient(HttpHost... hosts) {
-        this("http", HttpClientBuilder.create().setDefaultRequestConfig(RequestConfig.custom().setConnectTimeout(100).build()).build(), hosts);
+        this("http", HttpClientBuilder.create().setDefaultRequestConfig(
+                RequestConfig.custom().setConnectTimeout(100).build()).build(), hosts);
     }
 
     public RestClient(String scheme, CloseableHttpClient client, HttpHost[] hosts) {

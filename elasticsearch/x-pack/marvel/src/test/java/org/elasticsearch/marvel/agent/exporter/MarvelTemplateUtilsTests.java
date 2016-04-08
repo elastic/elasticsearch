@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
@@ -31,7 +34,7 @@ public class MarvelTemplateUtilsTests extends ESTestCase {
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertThat(source, equalTo("{\n" +
+        assertThat(source, templateEqualTo("{\n" +
                 "  \"template\": \".monitoring-data-" + version + "\",\n" +
                 "  \"mappings\": {\n" +
                 "    \"type_1\": {\n" +
@@ -76,17 +79,26 @@ public class MarvelTemplateUtilsTests extends ESTestCase {
     }
 
     public void testFilter() {
-        assertThat(MarvelTemplateUtils.filter(new BytesArray("${monitoring.template.version}"), 0), equalTo("0"));
+        assertThat(MarvelTemplateUtils.filter(new BytesArray("${monitoring.template.version}"), 0), templateEqualTo("0"));
         assertThat(MarvelTemplateUtils.filter(new BytesArray("{\"template\": \"test-${monitoring.template.version}\"}"), 1),
-                equalTo("{\"template\": \"test-1\"}"));
+                templateEqualTo("{\"template\": \"test-1\"}"));
         assertThat(MarvelTemplateUtils.filter(new BytesArray("{\"template\": \"${monitoring.template.version}-test\"}"), 2),
-                equalTo("{\"template\": \"2-test\"}"));
+                templateEqualTo("{\"template\": \"2-test\"}"));
         assertThat(MarvelTemplateUtils.filter(new BytesArray("{\"template\": \"test-${monitoring.template.version}-test\"}"), 3),
-                equalTo("{\"template\": \"test-3-test\"}"));
+                templateEqualTo("{\"template\": \"test-3-test\"}"));
 
         final int version = randomIntBetween(0, 100);
         assertThat(MarvelTemplateUtils.filter(new BytesArray("{\"foo-${monitoring.template.version}\": " +
                         "\"bar-${monitoring.template.version}\"}"), version),
-                equalTo("{\"foo-" + version + "\": \"bar-" + version + "\"}"));
+                templateEqualTo("{\"foo-" + version + "\": \"bar-" + version + "\"}"));
     }
+
+    public static Matcher<String> templateEqualTo(String template) {
+        if (Constants.WINDOWS) {
+            // translate Windows line endings (\r\n) to standard ones (\n)
+            return equalTo(Strings.replace(template, System.lineSeparator(), "\n"));
+        }
+        return equalTo(template);
+    }
+
 }

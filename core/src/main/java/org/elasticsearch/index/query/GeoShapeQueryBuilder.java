@@ -36,7 +36,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -60,8 +59,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
     public static final ShapeRelation DEFAULT_SHAPE_RELATION = ShapeRelation.INTERSECTS;
-
-    public static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder("field", new PointBuilder());
 
     private static final ParseField SHAPE_FIELD = new ParseField("shape");
     private static final ParseField STRATEGY_FIELD = new ParseField("strategy");
@@ -129,6 +126,44 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         this.shape = shape;
         this.indexedShapeId = indexedShapeId;
         this.indexedShapeType = indexedShapeType;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoShapeQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        if (in.readBoolean()) {
+            shape = in.readShape();
+            indexedShapeId = null;
+            indexedShapeType = null;
+        } else {
+            shape = null;
+            indexedShapeId = in.readOptionalString();
+            indexedShapeType = in.readOptionalString();
+            indexedShapeIndex = in.readOptionalString();
+            indexedShapePath = in.readOptionalString();
+        }
+        relation = ShapeRelation.DISJOINT.readFrom(in);
+        strategy = in.readOptionalWriteable(SpatialStrategy.RECURSIVE::readFrom);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        boolean hasShape = shape != null;
+        out.writeBoolean(hasShape);
+        if (hasShape) {
+            out.writeShape(shape);
+        } else {
+            out.writeOptionalString(indexedShapeId);
+            out.writeOptionalString(indexedShapeType);
+            out.writeOptionalString(indexedShapeIndex);
+            out.writeOptionalString(indexedShapePath);
+        }
+        relation.writeTo(out);
+        out.writeOptionalWriteable(strategy);
     }
 
     /**
@@ -493,54 +528,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         }
             builder.boost(boost);
         return builder;
-    }
-
-    @Override
-    protected GeoShapeQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        GeoShapeQueryBuilder builder;
-        if (in.readBoolean()) {
-            builder = new GeoShapeQueryBuilder(fieldName, in.readShape());
-        } else {
-            String indexedShapeId = in.readOptionalString();
-            String indexedShapeType = in.readOptionalString();
-            String indexedShapeIndex = in.readOptionalString();
-            String indexedShapePath = in.readOptionalString();
-            builder = new GeoShapeQueryBuilder(fieldName, indexedShapeId, indexedShapeType);
-            if (indexedShapeIndex != null) {
-                builder.indexedShapeIndex = indexedShapeIndex;
-            }
-            if (indexedShapePath != null) {
-                builder.indexedShapePath = indexedShapePath;
-            }
-        }
-        builder.relation = ShapeRelation.DISJOINT.readFrom(in);
-        if (in.readBoolean()) {
-            builder.strategy = SpatialStrategy.RECURSIVE.readFrom(in);
-        }
-        return builder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        boolean hasShape = shape != null;
-        out.writeBoolean(hasShape);
-        if (hasShape) {
-            out.writeShape(shape);
-        } else {
-            out.writeOptionalString(indexedShapeId);
-            out.writeOptionalString(indexedShapeType);
-            out.writeOptionalString(indexedShapeIndex);
-            out.writeOptionalString(indexedShapePath);
-        }
-        relation.writeTo(out);
-        if (strategy == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            strategy.writeTo(out);
-        }
     }
 
     @Override

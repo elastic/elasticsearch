@@ -56,8 +56,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
         return fetchSourceContext;
     }
 
-    FetchSourceContext() {
-
+    public FetchSourceContext() {
     }
 
     public FetchSourceContext(boolean fetchSource) {
@@ -113,24 +112,6 @@ public class FetchSourceContext implements Streamable, ToXContent {
     public FetchSourceContext excludes(String[] excludes) {
         this.excludes = excludes;
         return this;
-    }
-
-    public static FetchSourceContext optionalReadFromStream(StreamInput in) throws IOException {
-        if (!in.readBoolean()) {
-            return null;
-        }
-        FetchSourceContext context = new FetchSourceContext();
-        context.readFrom(in);
-        return context;
-    }
-
-    public static void optionalWriteToStream(FetchSourceContext context, StreamOutput out) throws IOException {
-        if (context == null) {
-            out.writeBoolean(false);
-            return;
-        }
-        out.writeBoolean(true);
-        context.writeTo(out);
     }
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {

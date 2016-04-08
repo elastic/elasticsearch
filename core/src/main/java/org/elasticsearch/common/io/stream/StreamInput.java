@@ -511,6 +511,23 @@ public abstract class StreamInput extends InputStream {
         return new GeoPoint(readDouble(), readDouble());
     }
 
+    /**
+     * Read a {@linkplain DateTimeZone}.
+     */
+    public DateTimeZone readTimeZone() throws IOException {
+        return DateTimeZone.forID(readString());
+    }
+
+    /**
+     * Read an optional {@linkplain DateTimeZone}.
+     */
+    public DateTimeZone readOptionalTimeZone() throws IOException {
+        if (readBoolean()) {
+            return DateTimeZone.forID(readString());
+        }
+        return null;
+    }
+
     public int[] readIntArray() throws IOException {
         int length = readVInt();
         int[] values = new int[length];

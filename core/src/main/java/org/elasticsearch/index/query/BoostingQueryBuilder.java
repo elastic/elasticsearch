@@ -47,15 +47,14 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     public static final String NAME = "boosting";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder(EmptyQueryBuilder.PROTOTYPE, EmptyQueryBuilder.PROTOTYPE);
 
     private static final ParseField POSITIVE_FIELD = new ParseField("positive");
     private static final ParseField NEGATIVE_FIELD = new ParseField("negative");
     private static final ParseField NEGATIVE_BOOST_FIELD = new ParseField("negative_boost");
 
-    private final QueryBuilder positiveQuery;
+    private final QueryBuilder<?> positiveQuery;
 
-    private final QueryBuilder negativeQuery;
+    private final QueryBuilder<?> negativeQuery;
 
     private float negativeBoost = -1;
 
@@ -66,7 +65,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
      * @param positiveQuery the positive query for this boosting query.
      * @param negativeQuery the negative query for this boosting query.
      */
-    public BoostingQueryBuilder(QueryBuilder positiveQuery, QueryBuilder negativeQuery) {
+    public BoostingQueryBuilder(QueryBuilder<?> positiveQuery, QueryBuilder<?> negativeQuery) {
         if (positiveQuery == null) {
             throw new IllegalArgumentException("inner clause [positive] cannot be null.");
         }
@@ -75,6 +74,23 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         }
         this.positiveQuery = positiveQuery;
         this.negativeQuery = negativeQuery;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public BoostingQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        positiveQuery = in.readQuery();
+        negativeQuery = in.readQuery();
+        negativeBoost = in.readFloat();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(positiveQuery);
+        out.writeQuery(negativeQuery);
+        out.writeFloat(negativeBoost);
     }
 
     /**
@@ -206,22 +222,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         return Objects.equals(negativeBoost, other.negativeBoost) &&
                 Objects.equals(positiveQuery, other.positiveQuery) &&
                 Objects.equals(negativeQuery, other.negativeQuery);
-    }
-
-    @Override
-    protected BoostingQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder positiveQuery = in.readQuery();
-        QueryBuilder negativeQuery = in.readQuery();
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
-        boostingQuery.negativeBoost = in.readFloat();
-        return boostingQuery;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(positiveQuery);
-        out.writeQuery(negativeQuery);
-        out.writeFloat(negativeBoost);
     }
 
     @Override

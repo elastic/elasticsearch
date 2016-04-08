@@ -40,7 +40,6 @@ import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -48,11 +47,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     public static final String NAME = "geo_polygon";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-
-    private static final List<GeoPoint> PROTO_SHAPE = Arrays.asList(new GeoPoint(1.0, 1.0), new GeoPoint(1.0, 2.0),
-            new GeoPoint(2.0, 1.0));
-
-    public static final GeoPolygonQueryBuilder PROTOTYPE = new GeoPolygonQueryBuilder("field", PROTO_SHAPE);
 
     private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
     private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
@@ -88,6 +82,30 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         if (!shell.get(shell.size() - 1).equals(shell.get(0))) {
             shell.add(shell.get(0));
         }
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoPolygonQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        int size = in.readVInt();
+        shell = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            shell.add(in.readGeoPoint());
+        }
+        validationMethod = GeoValidationMethod.readFromStream(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeVInt(shell.size());
+        for (GeoPoint point : shell) {
+            out.writeGeoPoint(point);
+        }
+        validationMethod.writeTo(out);
     }
 
     public String fieldName() {
@@ -266,29 +284,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             builder.boost(boost);
         }
         return builder;
-    }
-
-    @Override
-    protected GeoPolygonQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        List<GeoPoint> shell = new ArrayList<>();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            shell.add(in.readGeoPoint());
-        }
-        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, shell);
-        builder.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
-        return builder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeVInt(shell.size());
-        for (GeoPoint point : shell) {
-            out.writeGeoPoint(point);
-        }
-        validationMethod.writeTo(out);
     }
 
     @Override

@@ -210,7 +210,7 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
             factory.addRange(Range.PROTOTYPE.readFrom(in));
         }
         factory.keyed = in.readBoolean();
-        factory.distanceType = GeoDistance.readGeoDistanceFrom(in);
+        factory.distanceType = GeoDistance.readFromStream(in);
         factory.unit = DistanceUnit.readFromStream(in);
         return factory;
     }

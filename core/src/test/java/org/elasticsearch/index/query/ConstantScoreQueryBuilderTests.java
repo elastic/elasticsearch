@@ -96,12 +96,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     public void testIllegalArguments() {
-        try {
-            new ConstantScoreQueryBuilder(null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new ConstantScoreQueryBuilder((QueryBuilder<?>) null));
     }
 
     @Override

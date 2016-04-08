@@ -40,8 +40,6 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     public static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
 
-    public static final MatchPhraseQueryBuilder PROTOTYPE = new MatchPhraseQueryBuilder("", "");
-
     private final String fieldName;
 
     private final Object value;
@@ -59,6 +57,25 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         }
         this.fieldName = fieldName;
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MatchPhraseQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readGenericValue();
+        slop = in.readVInt();
+        analyzer = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGenericValue(value);
+        out.writeVInt(slop);
+        out.writeOptionalString(analyzer);
     }
 
     /** Returns the field name used in this query. */
@@ -131,22 +148,6 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         matchQuery.setPhraseSlop(slop);
 
         return matchQuery.parse(MatchQuery.Type.PHRASE, fieldName, value);
-    }
-
-    @Override
-    protected MatchPhraseQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        MatchPhraseQueryBuilder matchQuery = new MatchPhraseQueryBuilder(in.readString(), in.readGenericValue());
-        matchQuery.slop = in.readVInt();
-        matchQuery.analyzer = in.readOptionalString();
-        return matchQuery;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGenericValue(value);
-        out.writeVInt(slop);
-        out.writeOptionalString(analyzer);
     }
 
     @Override

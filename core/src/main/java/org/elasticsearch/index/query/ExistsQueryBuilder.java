@@ -45,7 +45,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     public static final String NAME = "exists";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder("field");
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
 
@@ -56,6 +55,19 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             throw new IllegalArgumentException("field name is null or empty");
         }
         this.fieldName = fieldName;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ExistsQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
     }
 
     /**
@@ -150,16 +162,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     protected boolean doEquals(ExistsQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName);
-    }
-
-    @Override
-    protected ExistsQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new ExistsQueryBuilder(in.readString());
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
     }
 
     @Override

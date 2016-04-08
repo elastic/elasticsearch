@@ -64,14 +64,11 @@ public class MatchQuery {
 
         private final int ordinal;
 
-        private static final Type PROTOTYPE = BOOLEAN;
-
         private Type(int ordinal) {
             this.ordinal = ordinal;
         }
 
-        @Override
-        public Type readFrom(StreamInput in) throws IOException {
+        public static Type readFromStream(StreamInput in) throws IOException {
             int ord = in.readVInt();
             for (Type type : Type.values()) {
                 if (type.ordinal == ord) {
@@ -79,10 +76,6 @@ public class MatchQuery {
                 }
             }
             throw new ElasticsearchException("unknown serialized type [" + ord + "]");
-        }
-
-        public static Type readTypeFrom(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
         }
 
         @Override
@@ -97,14 +90,11 @@ public class MatchQuery {
 
         private final int ordinal;
 
-        private static final ZeroTermsQuery PROTOTYPE = NONE;
-
         private ZeroTermsQuery(int ordinal) {
             this.ordinal = ordinal;
         }
 
-        @Override
-        public ZeroTermsQuery readFrom(StreamInput in) throws IOException {
+        public static ZeroTermsQuery readFromStream(StreamInput in) throws IOException {
             int ord = in.readVInt();
             for (ZeroTermsQuery zeroTermsQuery : ZeroTermsQuery.values()) {
                 if (zeroTermsQuery.ordinal == ord) {
@@ -112,10 +102,6 @@ public class MatchQuery {
                 }
             }
             throw new ElasticsearchException("unknown serialized type [" + ord + "]");
-        }
-
-        public static ZeroTermsQuery readZeroTermsQueryFrom(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
         }
 
         @Override

@@ -68,8 +68,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.None;
 
-    public static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
-
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
     private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
     private static final ParseField MAX_CHILDREN_FIELD = new ParseField("max_children");
@@ -112,6 +110,29 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
         this.type = type;
         this.query = query;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public HasChildQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        type = in.readString();
+        minChildren = in.readInt();
+        maxChildren = in.readInt();
+        scoreMode = ScoreMode.values()[in.readVInt()];
+        query = in.readQuery();
+        innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(type);
+        out.writeInt(minChildren());
+        out.writeInt(maxChildren());
+        out.writeVInt(scoreMode.ordinal());
+        out.writeQuery(query);
+        out.writeOptionalWriteable(innerHitBuilder);
     }
 
     /**
@@ -449,36 +470,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     @Override
     protected int doHashCode() {
         return Objects.hash(query, type, scoreMode, minChildren, maxChildren, innerHitBuilder);
-    }
-
-    protected HasChildQueryBuilder(StreamInput in) throws IOException {
-        type = in.readString();
-        minChildren = in.readInt();
-        maxChildren = in.readInt();
-        final int ordinal = in.readVInt();
-        scoreMode = ScoreMode.values()[ordinal];
-        query = in.readQuery();
-        innerHitBuilder = InnerHitBuilder.optionalReadFromStream(in);
-    }
-
-    @Override
-    protected HasChildQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new HasChildQueryBuilder(in);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(type);
-        out.writeInt(minChildren());
-        out.writeInt(maxChildren());
-        out.writeVInt(scoreMode.ordinal());
-        out.writeQuery(query);
-        if (innerHitBuilder != null) {
-            out.writeBoolean(true);
-            innerHitBuilder.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
     }
 
     @Override

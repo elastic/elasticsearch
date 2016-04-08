@@ -47,10 +47,6 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
 
     private final String fuzziness;
 
-    /** the prototype constant is intended for deserialization when used with
-     * {@link org.elasticsearch.common.io.stream.StreamableReader#readFrom(StreamInput)} */
-    static final Fuzziness PROTOTYPE = AUTO;
-
     private Fuzziness(int fuzziness) {
         if (fuzziness != 0 && fuzziness != 1 && fuzziness != 2) {
             throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
@@ -63,6 +59,18 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
             throw new IllegalArgumentException("fuzziness can't be null!");
         }
         this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public Fuzziness(StreamInput in) throws IOException {
+        fuzziness = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(fuzziness);
     }
 
     /**
@@ -236,19 +244,5 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
     @Override
     public int hashCode() {
         return fuzziness.hashCode();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fuzziness);
-    }
-
-    @Override
-    public Fuzziness readFrom(StreamInput in) throws IOException {
-        return new Fuzziness(in.readString());
-    }
-
-    public static Fuzziness readFuzzinessFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
     }
 }

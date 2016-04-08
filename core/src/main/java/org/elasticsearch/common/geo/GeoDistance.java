@@ -136,7 +136,7 @@ public enum GeoDistance implements Writeable<GeoDistance> {
         return GeoDistance.values()[ord];
     }
 
-    public static GeoDistance readGeoDistanceFrom(StreamInput in) throws IOException {
+    public static GeoDistance readFromStream(StreamInput in) throws IOException {
         return DEFAULT.readFrom(in);
     }
 

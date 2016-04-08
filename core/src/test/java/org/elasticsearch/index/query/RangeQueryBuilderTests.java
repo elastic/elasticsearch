@@ -135,16 +135,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testIllegalArguments() {
-        try {
-            if (randomBoolean()) {
-                new RangeQueryBuilder(null);
-            } else {
-                new RangeQueryBuilder("");
-            }
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new RangeQueryBuilder((String) null));
+        expectThrows(IllegalArgumentException.class, () -> new RangeQueryBuilder(""));
 
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("test");
         try {

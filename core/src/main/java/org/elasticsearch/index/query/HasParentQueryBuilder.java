@@ -46,7 +46,6 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     public static final String NAME = "has_parent";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
 
     public static final boolean DEFAULT_SCORE = false;
 
@@ -84,6 +83,25 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             this.innerHit.setParentChildType(type);
             this.innerHit.setQuery(query);
         }
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public HasParentQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        type = in.readString();
+        score = in.readBoolean();
+        query = in.readQuery();
+        innerHit = in.readOptionalWriteable(InnerHitBuilder::new);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(type);
+        out.writeBoolean(score);
+        out.writeQuery(query);
+        out.writeOptionalWriteable(innerHit);
     }
 
     /**
@@ -261,31 +279,6 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    protected HasParentQueryBuilder(StreamInput in) throws IOException {
-        type = in.readString();
-        score = in.readBoolean();
-        query = in.readQuery();
-        innerHit = InnerHitBuilder.optionalReadFromStream(in);
-    }
-
-    @Override
-    protected HasParentQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new HasParentQueryBuilder(in);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(type);
-        out.writeBoolean(score);
-        out.writeQuery(query);
-        if (innerHit != null) {
-            out.writeBoolean(true);
-            innerHit.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
     }
 
     @Override

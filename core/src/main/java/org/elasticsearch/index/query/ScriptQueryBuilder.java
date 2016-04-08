@@ -52,8 +52,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     public static final String NAME = "script";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder(new Script(""));
-
     private static final ParseField PARAMS_FIELD = new ParseField("params");
 
     private final Script script;
@@ -63,6 +61,19 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             throw new IllegalArgumentException("script cannot be null");
         }
         this.script = script;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ScriptQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        script = Script.readScript(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        script.writeTo(out);
     }
 
     public Script script() {
@@ -215,16 +226,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 }
             };
         }
-    }
-
-    @Override
-    protected ScriptQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new ScriptQueryBuilder(Script.readScript(in));
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        script.writeTo(out);
     }
 
     @Override

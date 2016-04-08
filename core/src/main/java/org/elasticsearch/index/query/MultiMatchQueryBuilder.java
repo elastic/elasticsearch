@@ -78,7 +78,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     private final Object value;
     private final Map<String, Float> fieldsBoosts;
-    private MultiMatchQueryBuilder.Type type = DEFAULT_TYPE;
+    private Type type = DEFAULT_TYPE;
     private Operator operator = DEFAULT_OPERATOR;
     private String analyzer;
     private int slop = DEFAULT_PHRASE_SLOP;
@@ -92,8 +92,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private boolean lenient = DEFAULT_LENIENCY;
     private Float cutoffFrequency = null;
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
-
-    public static final MultiMatchQueryBuilder PROTOTYPE = new MultiMatchQueryBuilder("");
 
     public enum Type implements Writeable<Type> {
 
@@ -127,8 +125,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
          * a tie-breaker to adjust the score based on remaining field matches
          */
         PHRASE_PREFIX(MatchQuery.Type.PHRASE_PREFIX, 0.0f, new ParseField("phrase_prefix"));
-
-        private static final Type PROTOTYPE = BEST_FIELDS;
 
         private MatchQuery.Type matchQueryType;
         private final float tieBreaker;
@@ -167,13 +163,8 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             return type;
         }
 
-        @Override
-        public Type readFrom(StreamInput in) throws IOException {
+        public static Type readFromStream(StreamInput in) throws IOException {
             return Type.values()[in.readVInt()];
-        }
-
-        public static Type readTypeFrom(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
         }
 
         @Override
@@ -204,6 +195,57 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         for (String field : fields) {
             field(field);
         }
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MultiMatchQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        value = in.readGenericValue();
+        int size = in.readVInt();
+        fieldsBoosts = new TreeMap<>();
+        for (int i = 0; i < size; i++) {
+            fieldsBoosts.put(in.readString(), in.readFloat());
+        }
+        type = Type.readFromStream(in);
+        operator = Operator.readFromStream(in);
+        analyzer = in.readOptionalString();
+        slop = in.readVInt();
+        fuzziness = in.readOptionalWriteable(Fuzziness::new);
+        prefixLength = in.readVInt();
+        maxExpansions = in.readVInt();
+        minimumShouldMatch = in.readOptionalString();
+        fuzzyRewrite = in.readOptionalString();
+        useDisMax = in.readOptionalBoolean();
+        tieBreaker = in.readOptionalFloat();
+        lenient = in.readBoolean();
+        cutoffFrequency = in.readOptionalFloat();
+        zeroTermsQuery = MatchQuery.ZeroTermsQuery.readFromStream(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeGenericValue(value);
+        out.writeVInt(fieldsBoosts.size());
+        for (Map.Entry<String, Float> fieldsEntry : fieldsBoosts.entrySet()) {
+            out.writeString(fieldsEntry.getKey());
+            out.writeFloat(fieldsEntry.getValue());
+        }
+        type.writeTo(out);
+        operator.writeTo(out);
+        out.writeOptionalString(analyzer);
+        out.writeVInt(slop);
+        out.writeOptionalWriteable(fuzziness);
+        out.writeVInt(prefixLength);
+        out.writeVInt(maxExpansions);
+        out.writeOptionalString(minimumShouldMatch);
+        out.writeOptionalString(fuzzyRewrite);
+        out.writeOptionalBoolean(useDisMax);
+        out.writeOptionalFloat(tieBreaker);
+        out.writeBoolean(lenient);
+        out.writeOptionalFloat(cutoffFrequency);
+        zeroTermsQuery.writeTo(out);
     }
 
     public Object value() {
@@ -719,61 +761,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             }
         }
         return newFieldsBoosts;
-    }
-
-    @Override
-    protected MultiMatchQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        MultiMatchQueryBuilder multiMatchQuery = new MultiMatchQueryBuilder(in.readGenericValue());
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            multiMatchQuery.fieldsBoosts.put(in.readString(), in.readFloat());
-        }
-        multiMatchQuery.type = MultiMatchQueryBuilder.Type.readTypeFrom(in);
-        multiMatchQuery.operator = Operator.readOperatorFrom(in);
-        multiMatchQuery.analyzer = in.readOptionalString();
-        multiMatchQuery.slop = in.readVInt();
-        if (in.readBoolean()) {
-            multiMatchQuery.fuzziness = Fuzziness.readFuzzinessFrom(in);
-        }
-        multiMatchQuery.prefixLength = in.readVInt();
-        multiMatchQuery.maxExpansions = in.readVInt();
-        multiMatchQuery.minimumShouldMatch = in.readOptionalString();
-        multiMatchQuery.fuzzyRewrite = in.readOptionalString();
-        multiMatchQuery.useDisMax = in.readOptionalBoolean();
-        multiMatchQuery.tieBreaker = (Float) in.readGenericValue();
-        multiMatchQuery.lenient = in.readBoolean();
-        multiMatchQuery.cutoffFrequency = (Float) in.readGenericValue();
-        multiMatchQuery.zeroTermsQuery = MatchQuery.ZeroTermsQuery.readZeroTermsQueryFrom(in);
-        return multiMatchQuery;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeGenericValue(value);
-        out.writeVInt(fieldsBoosts.size());
-        for (Map.Entry<String, Float> fieldsEntry : fieldsBoosts.entrySet()) {
-            out.writeString(fieldsEntry.getKey());
-            out.writeFloat(fieldsEntry.getValue());
-        }
-        type.writeTo(out);
-        operator.writeTo(out);
-        out.writeOptionalString(analyzer);
-        out.writeVInt(slop);
-        if (fuzziness != null) {
-            out.writeBoolean(true);
-            fuzziness.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeVInt(prefixLength);
-        out.writeVInt(maxExpansions);
-        out.writeOptionalString(minimumShouldMatch);
-        out.writeOptionalString(fuzzyRewrite);
-        out.writeOptionalBoolean(useDisMax);
-        out.writeGenericValue(tieBreaker);
-        out.writeBoolean(lenient);
-        out.writeGenericValue(cutoffFrequency);
-        zeroTermsQuery.writeTo(out);
     }
 
     @Override

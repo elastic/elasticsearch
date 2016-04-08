@@ -57,8 +57,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     /** Default type for executing this query (memory as of this writing). */
     public static final GeoExecType DEFAULT_TYPE = GeoExecType.MEMORY;
-    /** Needed for serialization. */
-    public static final GeoBoundingBoxQueryBuilder PROTOTYPE = new GeoBoundingBoxQueryBuilder("");
 
     private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     private static final ParseField TYPE_FIELD = new ParseField("type");
@@ -94,6 +92,27 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             throw new IllegalArgumentException("Field name must not be empty.");
         }
         this.fieldName = fieldName;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoBoundingBoxQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        topLeft = in.readGeoPoint();
+        bottomRight = in.readGeoPoint();
+        type = GeoExecType.readTypeFrom(in);
+        validationMethod = GeoValidationMethod.readFromStream(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGeoPoint(topLeft);
+        out.writeGeoPoint(bottomRight);
+        type.writeTo(out);
+        validationMethod.writeTo(out);
     }
 
     /**
@@ -451,26 +470,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     @Override
     protected int doHashCode() {
         return Objects.hash(topLeft, bottomRight, type, validationMethod, fieldName);
-    }
-
-    @Override
-    protected GeoBoundingBoxQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        GeoBoundingBoxQueryBuilder geo = new GeoBoundingBoxQueryBuilder(fieldName);
-        geo.topLeft = in.readGeoPoint();
-        geo.bottomRight = in.readGeoPoint();
-        geo.type = GeoExecType.readTypeFrom(in);
-        geo.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
-        return geo;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGeoPoint(topLeft);
-        out.writeGeoPoint(bottomRight);
-        type.writeTo(out);
-        validationMethod.writeTo(out);
     }
 
     @Override

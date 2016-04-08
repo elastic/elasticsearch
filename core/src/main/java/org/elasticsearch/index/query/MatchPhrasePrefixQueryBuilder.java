@@ -42,8 +42,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
 
-    public static final MatchPhrasePrefixQueryBuilder PROTOTYPE = new MatchPhrasePrefixQueryBuilder("", "");
-
     private final String fieldName;
 
     private final Object value;
@@ -63,6 +61,27 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         }
         this.fieldName = fieldName;
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MatchPhrasePrefixQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readGenericValue();
+        slop = in.readVInt();
+        maxExpansions = in.readVInt();
+        analyzer = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGenericValue(value);
+        out.writeVInt(slop);
+        out.writeVInt(maxExpansions);
+        out.writeOptionalString(analyzer);
     }
 
     /** Returns the field name used in this query. */
@@ -156,24 +175,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         matchQuery.setMaxExpansions(maxExpansions);
 
         return matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, fieldName, value);
-    }
-
-    @Override
-    protected MatchPhrasePrefixQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(in.readString(), in.readGenericValue());
-        matchQuery.slop = in.readVInt();
-        matchQuery.maxExpansions = in.readVInt();
-        matchQuery.analyzer = in.readOptionalString();
-        return matchQuery;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGenericValue(value);
-        out.writeVInt(slop);
-        out.writeVInt(maxExpansions);
-        out.writeOptionalString(analyzer);
     }
 
     @Override

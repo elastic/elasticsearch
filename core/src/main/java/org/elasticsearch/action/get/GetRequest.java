@@ -287,8 +287,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
-
-        fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
     }
 
     @Override
@@ -319,8 +318,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeBoolean(ignoreErrorsOnGeneratedFields);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
-
-        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+        out.writeOptionalStreamable(fetchSourceContext);
     }
 
     @Override

@@ -522,7 +522,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     protected TopHitsAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
         TopHitsAggregatorBuilder factory = new TopHitsAggregatorBuilder(name);
         factory.explain = in.readBoolean();
-        factory.fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+        factory.fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
         if (in.readBoolean()) {
             int size = in.readVInt();
             List<String> fieldDataFields = new ArrayList<>(size);
@@ -566,7 +566,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(explain);
-        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+        out.writeOptionalStreamable(fetchSourceContext);
         boolean hasFieldDataFields = fieldDataFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {

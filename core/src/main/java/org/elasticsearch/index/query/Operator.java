@@ -53,7 +53,7 @@ public enum Operator implements Writeable<Operator> {
         }
     }
 
-    public static Operator readOperatorFrom(StreamInput in) throws IOException {
+    public static Operator readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown Operator ordinal [" + ordinal + "]");

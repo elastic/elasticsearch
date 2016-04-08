@@ -39,11 +39,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     public static final String NAME = "constant_score";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder(EmptyQueryBuilder.PROTOTYPE);
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 
-    private final QueryBuilder filterBuilder;
+    private final QueryBuilder<?> filterBuilder;
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -51,7 +50,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
      *
      * @param filterBuilder The query to wrap in a constant score query
      */
-    public ConstantScoreQueryBuilder(QueryBuilder filterBuilder) {
+    public ConstantScoreQueryBuilder(QueryBuilder<?> filterBuilder) {
         if (filterBuilder == null) {
             throw new IllegalArgumentException("inner clause [filter] cannot be null.");
         }
@@ -59,9 +58,22 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     /**
+     * Read from a stream.
+     */
+    public ConstantScoreQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        filterBuilder = in.readQuery();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(filterBuilder);
+    }
+
+    /**
      * @return the query that was wrapped in this constant score query
      */
-    public QueryBuilder innerQuery() {
+    public QueryBuilder<?> innerQuery() {
         return this.filterBuilder;
     }
 
@@ -150,19 +162,8 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    protected ConstantScoreQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder innerFilterBuilder = in.readQuery();
-        return new ConstantScoreQueryBuilder(innerFilterBuilder);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(filterBuilder);
-    }
-
-    @Override
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder rewrite = filterBuilder.rewrite(queryRewriteContext);
+        QueryBuilder<?> rewrite = filterBuilder.rewrite(queryRewriteContext);
         if (rewrite != filterBuilder) {
             return new ConstantScoreQueryBuilder(rewrite);
         }

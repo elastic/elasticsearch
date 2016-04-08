@@ -44,20 +44,31 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     public static final String NAME = "span_multi";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final SpanMultiTermQueryBuilder PROTOTYPE = new SpanMultiTermQueryBuilder(RangeQueryBuilder.PROTOTYPE);
-
     private static final ParseField MATCH_FIELD = new ParseField("match");
 
-    private final MultiTermQueryBuilder multiTermQueryBuilder;
+    private final MultiTermQueryBuilder<?> multiTermQueryBuilder;
 
-    public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
+    public SpanMultiTermQueryBuilder(MultiTermQueryBuilder<?> multiTermQueryBuilder) {
         if (multiTermQueryBuilder == null) {
             throw new IllegalArgumentException("inner multi term query cannot be null");
         }
         this.multiTermQueryBuilder = multiTermQueryBuilder;
     }
 
-    public MultiTermQueryBuilder innerQuery() {
+    /**
+     * Read from a stream.
+     */
+    public SpanMultiTermQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        multiTermQueryBuilder = (MultiTermQueryBuilder<?>) in.readQuery();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(multiTermQueryBuilder);
+    }
+
+    public MultiTermQueryBuilder<?> innerQuery() {
         return this.multiTermQueryBuilder;
     }
 
@@ -131,17 +142,6 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             wrapper = new SpanBoostQuery(wrapper, boost);
         }
         return wrapper;
-    }
-
-    @Override
-    protected SpanMultiTermQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        MultiTermQueryBuilder multiTermBuilder = (MultiTermQueryBuilder)in.readQuery();
-        return new SpanMultiTermQueryBuilder(multiTermBuilder);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(multiTermQueryBuilder);
     }
 
     @Override

@@ -94,8 +94,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     public static final String NAME = "simple_query_string";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final SimpleQueryStringBuilder PROTOTYPE = new SimpleQueryStringBuilder("");
-
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -136,6 +134,48 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             throw new IllegalArgumentException("query text missing");
         }
         this.queryText = queryText;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SimpleQueryStringBuilder(StreamInput in) throws IOException {
+        super(in);
+        queryText = in.readString();
+        int size = in.readInt();
+        Map<String, Float> fields = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            String field = in.readString();
+            Float weight = in.readFloat();
+            fields.put(field, weight);
+        }
+        fieldsAndWeights.putAll(fields);
+        flags = in.readInt();
+        analyzer = in.readOptionalString();
+        defaultOperator = Operator.readFromStream(in);
+        settings.lowercaseExpandedTerms(in.readBoolean());
+        settings.lenient(in.readBoolean());
+        settings.analyzeWildcard(in.readBoolean());
+        settings.locale(Locale.forLanguageTag(in.readString()));
+        minimumShouldMatch = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(queryText);
+        out.writeInt(fieldsAndWeights.size());
+        for (Map.Entry<String, Float> entry : fieldsAndWeights.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeFloat(entry.getValue());
+        }
+        out.writeInt(flags);
+        out.writeOptionalString(analyzer);
+        defaultOperator.writeTo(out);
+        out.writeBoolean(settings.lowercaseExpandedTerms());
+        out.writeBoolean(settings.lenient());
+        out.writeBoolean(settings.analyzeWildcard());
+        out.writeString(settings.locale().toLanguageTag());
+        out.writeOptionalString(minimumShouldMatch);
     }
 
     /** Returns the text to parse the query from. */
@@ -480,47 +520,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    protected SimpleQueryStringBuilder doReadFrom(StreamInput in) throws IOException {
-        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(in.readString());
-        int size = in.readInt();
-        Map<String, Float> fields = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            String field = in.readString();
-            Float weight = in.readFloat();
-            fields.put(field, weight);
-        }
-        result.fieldsAndWeights.putAll(fields);
-        result.flags = in.readInt();
-        result.analyzer = in.readOptionalString();
-        result.defaultOperator = Operator.readOperatorFrom(in);
-        result.settings.lowercaseExpandedTerms(in.readBoolean());
-        result.settings.lenient(in.readBoolean());
-        result.settings.analyzeWildcard(in.readBoolean());
-        String localeStr = in.readString();
-        result.settings.locale(Locale.forLanguageTag(localeStr));
-        result.minimumShouldMatch = in.readOptionalString();
-        return result;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(queryText);
-        out.writeInt(fieldsAndWeights.size());
-        for (Map.Entry<String, Float> entry : fieldsAndWeights.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeFloat(entry.getValue());
-        }
-        out.writeInt(flags);
-        out.writeOptionalString(analyzer);
-        defaultOperator.writeTo(out);
-        out.writeBoolean(settings.lowercaseExpandedTerms());
-        out.writeBoolean(settings.lenient());
-        out.writeBoolean(settings.analyzeWildcard());
-        out.writeString(settings.locale().toLanguageTag());
-        out.writeOptionalString(minimumShouldMatch);
     }
 
     @Override

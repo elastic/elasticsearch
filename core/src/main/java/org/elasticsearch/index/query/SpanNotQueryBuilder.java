@@ -36,8 +36,6 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
 
     public static final String NAME = "span_not";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final SpanNotQueryBuilder PROTOTYPE = new SpanNotQueryBuilder(SpanTermQueryBuilder.PROTOTYPE,
-            SpanTermQueryBuilder.PROTOTYPE);
 
     /** the default pre parameter size */
     public static final int DEFAULT_PRE = 0;
@@ -50,9 +48,9 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     private static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
     private static final ParseField INCLUDE_FIELD = new ParseField("include");
 
-    private final SpanQueryBuilder include;
+    private final SpanQueryBuilder<?> include;
 
-    private final SpanQueryBuilder exclude;
+    private final SpanQueryBuilder<?> exclude;
 
     private int pre = DEFAULT_PRE;
 
@@ -64,7 +62,7 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
      * @param include the span query whose matches are filtered
      * @param exclude the span query whose matches must not overlap
      */
-    public SpanNotQueryBuilder(SpanQueryBuilder include, SpanQueryBuilder exclude) {
+    public SpanNotQueryBuilder(SpanQueryBuilder<?> include, SpanQueryBuilder<?> exclude) {
         if (include == null) {
             throw new IllegalArgumentException("inner clause [include] cannot be null.");
         }
@@ -73,6 +71,25 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         }
         this.include = include;
         this.exclude = exclude;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SpanNotQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        include = (SpanQueryBuilder<?>) in.readQuery();
+        exclude = (SpanQueryBuilder<?>) in.readQuery();
+        pre = in.readVInt();
+        post = in.readVInt();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(include);
+        out.writeQuery(exclude);
+        out.writeVInt(pre);
+        out.writeVInt(post);
     }
 
     /**
@@ -230,24 +247,6 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         assert excludeQuery instanceof SpanQuery;
 
         return new SpanNotQuery((SpanQuery) includeQuery, (SpanQuery) excludeQuery, pre, post);
-    }
-
-    @Override
-    protected SpanNotQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        SpanQueryBuilder include = (SpanQueryBuilder)in.readQuery();
-        SpanQueryBuilder exclude = (SpanQueryBuilder)in.readQuery();
-        SpanNotQueryBuilder queryBuilder = new SpanNotQueryBuilder(include, exclude);
-        queryBuilder.pre(in.readVInt());
-        queryBuilder.post(in.readVInt());
-        return queryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(include);
-        out.writeQuery(exclude);
-        out.writeVInt(pre);
-        out.writeVInt(post);
     }
 
     @Override

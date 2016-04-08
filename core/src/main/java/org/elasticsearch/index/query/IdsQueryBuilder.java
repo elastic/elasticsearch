@@ -49,7 +49,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     public static final String NAME = "ids";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final IdsQueryBuilder PROTOTYPE = new IdsQueryBuilder();
 
     private static final ParseField TYPE_FIELD = new ParseField("type", "types", "_type");
     private static final ParseField VALUES_FIELD = new ParseField("values");
@@ -57,7 +56,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     private final Set<String> ids = new HashSet<>();
 
     private final String[] types;
-
 
     /**
      * Creates a new IdsQueryBuilder without providing the types of the documents to look for
@@ -74,6 +72,21 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             throw new IllegalArgumentException("[ids] types cannot be null");
         }
         this.types = types;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public IdsQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        types = in.readStringArray();
+        Collections.addAll(ids, in.readStringArray());
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeStringArray(types);
+        out.writeStringArray(ids.toArray(new String[ids.size()]));
     }
 
     /**
@@ -206,19 +219,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));
         }
         return query;
-    }
-
-    @Override
-    protected IdsQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        IdsQueryBuilder idsQueryBuilder = new IdsQueryBuilder(in.readStringArray());
-        idsQueryBuilder.addIds(in.readStringArray());
-        return idsQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeStringArray(types);
-        out.writeStringArray(ids.toArray(new String[ids.size()]));
     }
 
     @Override

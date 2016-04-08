@@ -535,85 +535,68 @@ public class SearchModule extends AbstractModule {
     }
 
     private void registerBuiltinQueryParsers() {
-        registerQuery(MatchQueryBuilder.PROTOTYPE::readFrom, MatchQueryBuilder::fromXContent, MatchQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(MatchPhraseQueryBuilder.PROTOTYPE::readFrom, MatchPhraseQueryBuilder::fromXContent,
-                MatchPhraseQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(MatchPhrasePrefixQueryBuilder.PROTOTYPE::readFrom, MatchPhrasePrefixQueryBuilder::fromXContent,
+        registerQuery(MatchQueryBuilder::new, MatchQueryBuilder::fromXContent, MatchQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MatchPhraseQueryBuilder::new, MatchPhraseQueryBuilder::fromXContent, MatchPhraseQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MatchPhrasePrefixQueryBuilder::new, MatchPhrasePrefixQueryBuilder::fromXContent,
                 MatchPhrasePrefixQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(MultiMatchQueryBuilder.PROTOTYPE::readFrom, MultiMatchQueryBuilder::fromXContent,
-                MultiMatchQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(NestedQueryBuilder.PROTOTYPE::readFrom, NestedQueryBuilder::fromXContent, NestedQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(HasChildQueryBuilder.PROTOTYPE::readFrom, HasChildQueryBuilder::fromXContent, HasChildQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(HasParentQueryBuilder.PROTOTYPE::readFrom, HasParentQueryBuilder::fromXContent,
-                HasParentQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(DisMaxQueryBuilder.PROTOTYPE::readFrom, DisMaxQueryBuilder::fromXContent, DisMaxQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(IdsQueryBuilder.PROTOTYPE::readFrom, IdsQueryBuilder::fromXContent, IdsQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(MatchAllQueryBuilder.PROTOTYPE::readFrom, MatchAllQueryBuilder::fromXContent, MatchAllQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(QueryStringQueryBuilder.PROTOTYPE::readFrom, QueryStringQueryBuilder::fromXContent,
-                QueryStringQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(BoostingQueryBuilder.PROTOTYPE::readFrom, BoostingQueryBuilder::fromXContent, BoostingQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MultiMatchQueryBuilder::new, MultiMatchQueryBuilder::fromXContent, MultiMatchQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(NestedQueryBuilder::new, NestedQueryBuilder::fromXContent, NestedQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(HasChildQueryBuilder::new, HasChildQueryBuilder::fromXContent, HasChildQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(HasParentQueryBuilder::new, HasParentQueryBuilder::fromXContent, HasParentQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(DisMaxQueryBuilder::new, DisMaxQueryBuilder::fromXContent, DisMaxQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(IdsQueryBuilder::new, IdsQueryBuilder::fromXContent, IdsQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(QueryStringQueryBuilder::new, QueryStringQueryBuilder::fromXContent, QueryStringQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent, BoostingQueryBuilder.QUERY_NAME_FIELD);
         BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count",
                 settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
-        registerQuery(BoolQueryBuilder.PROTOTYPE::readFrom, BoolQueryBuilder::fromXContent, BoolQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(TermQueryBuilder.PROTOTYPE::readFrom, TermQueryBuilder::fromXContent, TermQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(TermsQueryBuilder.PROTOTYPE::readFrom, TermsQueryBuilder::fromXContent, TermsQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(FuzzyQueryBuilder.PROTOTYPE::readFrom, FuzzyQueryBuilder::fromXContent, FuzzyQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(RegexpQueryBuilder.PROTOTYPE::readFrom, RegexpQueryBuilder::fromXContent, RegexpQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(RangeQueryBuilder.PROTOTYPE::readFrom, RangeQueryBuilder::fromXContent, RangeQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(PrefixQueryBuilder.PROTOTYPE::readFrom, PrefixQueryBuilder::fromXContent, PrefixQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(WildcardQueryBuilder.PROTOTYPE::readFrom, WildcardQueryBuilder::fromXContent, WildcardQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(ConstantScoreQueryBuilder.PROTOTYPE::readFrom, ConstantScoreQueryBuilder::fromXContent,
-                ConstantScoreQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(SpanTermQueryBuilder.PROTOTYPE::readFrom, SpanTermQueryBuilder::fromXContent, SpanTermQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(SpanNotQueryBuilder.PROTOTYPE::readFrom, SpanNotQueryBuilder::fromXContent, SpanNotQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(SpanWithinQueryBuilder.PROTOTYPE::readFrom, SpanWithinQueryBuilder::fromXContent,
-                SpanWithinQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(SpanContainingQueryBuilder.PROTOTYPE::readFrom, SpanContainingQueryBuilder::fromXContent,
+        registerQuery(BoolQueryBuilder::new, BoolQueryBuilder::fromXContent, BoolQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(TermQueryBuilder::new, TermQueryBuilder::fromXContent, TermQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(TermsQueryBuilder::new, TermsQueryBuilder::fromXContent, TermsQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(FuzzyQueryBuilder::new, FuzzyQueryBuilder::fromXContent, FuzzyQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(RegexpQueryBuilder::new, RegexpQueryBuilder::fromXContent, RegexpQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(RangeQueryBuilder::new, RangeQueryBuilder::fromXContent, RangeQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(PrefixQueryBuilder::new, PrefixQueryBuilder::fromXContent, PrefixQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(WildcardQueryBuilder::new, WildcardQueryBuilder::fromXContent, WildcardQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ConstantScoreQueryBuilder::new, ConstantScoreQueryBuilder::fromXContent, ConstantScoreQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanTermQueryBuilder::new, SpanTermQueryBuilder::fromXContent, SpanTermQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanNotQueryBuilder::new, SpanNotQueryBuilder::fromXContent, SpanNotQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanWithinQueryBuilder::new, SpanWithinQueryBuilder::fromXContent, SpanWithinQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanContainingQueryBuilder::new, SpanContainingQueryBuilder::fromXContent,
                 SpanContainingQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(FieldMaskingSpanQueryBuilder.PROTOTYPE::readFrom, FieldMaskingSpanQueryBuilder::fromXContent,
+        registerQuery(FieldMaskingSpanQueryBuilder::new, FieldMaskingSpanQueryBuilder::fromXContent,
                 FieldMaskingSpanQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(SpanFirstQueryBuilder.PROTOTYPE::readFrom, SpanFirstQueryBuilder::fromXContent,
-                SpanFirstQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(SpanNearQueryBuilder.PROTOTYPE::readFrom, SpanNearQueryBuilder::fromXContent, SpanNearQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(SpanOrQueryBuilder.PROTOTYPE::readFrom, SpanOrQueryBuilder::fromXContent, SpanOrQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(MoreLikeThisQueryBuilder.PROTOTYPE::readFrom, MoreLikeThisQueryBuilder::fromXContent,
-                MoreLikeThisQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(WrapperQueryBuilder.PROTOTYPE::readFrom, WrapperQueryBuilder::fromXContent, WrapperQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(IndicesQueryBuilder.PROTOTYPE::readFrom, IndicesQueryBuilder::fromXContent, IndicesQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(CommonTermsQueryBuilder.PROTOTYPE::readFrom, CommonTermsQueryBuilder::fromXContent,
-                CommonTermsQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(SpanMultiTermQueryBuilder.PROTOTYPE::readFrom, SpanMultiTermQueryBuilder::fromXContent,
-                SpanMultiTermQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(FunctionScoreQueryBuilder.PROTOTYPE::readFrom, c -> FunctionScoreQueryBuilder.fromXContent(scoreFunctionsRegistry, c),
+        registerQuery(SpanFirstQueryBuilder::new, SpanFirstQueryBuilder::fromXContent, SpanFirstQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanNearQueryBuilder::new, SpanNearQueryBuilder::fromXContent, SpanNearQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanOrQueryBuilder::new, SpanOrQueryBuilder::fromXContent, SpanOrQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MoreLikeThisQueryBuilder::new, MoreLikeThisQueryBuilder::fromXContent, MoreLikeThisQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(WrapperQueryBuilder::new, WrapperQueryBuilder::fromXContent, WrapperQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(IndicesQueryBuilder::new, IndicesQueryBuilder::fromXContent, IndicesQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(CommonTermsQueryBuilder::new, CommonTermsQueryBuilder::fromXContent, CommonTermsQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanMultiTermQueryBuilder::new, SpanMultiTermQueryBuilder::fromXContent, SpanMultiTermQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(FunctionScoreQueryBuilder::new, c -> FunctionScoreQueryBuilder.fromXContent(scoreFunctionsRegistry, c),
                 FunctionScoreQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(SimpleQueryStringBuilder.PROTOTYPE::readFrom, SimpleQueryStringBuilder::fromXContent,
-                SimpleQueryStringBuilder.QUERY_NAME_FIELD);
-        registerQuery(TemplateQueryBuilder.PROTOTYPE::readFrom, TemplateQueryBuilder::fromXContent, TemplateQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(TypeQueryBuilder.PROTOTYPE::readFrom, TypeQueryBuilder::fromXContent, TypeQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(ScriptQueryBuilder.PROTOTYPE::readFrom, ScriptQueryBuilder::fromXContent, ScriptQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(GeoDistanceQueryBuilder.PROTOTYPE::readFrom, GeoDistanceQueryBuilder::fromXContent,
-                GeoDistanceQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(GeoDistanceRangeQueryBuilder.PROTOTYPE::readFrom, GeoDistanceRangeQueryBuilder::fromXContent,
+        registerQuery(SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent, SimpleQueryStringBuilder.QUERY_NAME_FIELD);
+        registerQuery(TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent, TemplateQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(TypeQueryBuilder::new, TypeQueryBuilder::fromXContent, TypeQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ScriptQueryBuilder::new, ScriptQueryBuilder::fromXContent, ScriptQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeoDistanceQueryBuilder::new, GeoDistanceQueryBuilder::fromXContent, GeoDistanceQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeoDistanceRangeQueryBuilder::new, GeoDistanceRangeQueryBuilder::fromXContent,
                 GeoDistanceRangeQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(GeoBoundingBoxQueryBuilder.PROTOTYPE::readFrom, GeoBoundingBoxQueryBuilder::fromXContent,
+        registerQuery(GeoBoundingBoxQueryBuilder::new, GeoBoundingBoxQueryBuilder::fromXContent,
                 GeoBoundingBoxQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(GeohashCellQuery.Builder.PROTOTYPE::readFrom, GeohashCellQuery.Builder::fromXContent,
-                GeohashCellQuery.QUERY_NAME_FIELD);
-        registerQuery(GeoPolygonQueryBuilder.PROTOTYPE::readFrom, GeoPolygonQueryBuilder::fromXContent,
-                GeoPolygonQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(ExistsQueryBuilder.PROTOTYPE::readFrom, ExistsQueryBuilder::fromXContent, ExistsQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(MatchNoneQueryBuilder.PROTOTYPE::readFrom, MatchNoneQueryBuilder::fromXContent,
-                MatchNoneQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(ParentIdQueryBuilder.PROTO::readFrom, ParentIdQueryBuilder::fromXContent, ParentIdQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(PercolatorQueryBuilder.PROTO::readFrom, PercolatorQueryBuilder::fromXContent,
-                PercolatorQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeohashCellQuery.Builder::new, GeohashCellQuery.Builder::fromXContent, GeohashCellQuery.QUERY_NAME_FIELD);
+        registerQuery(GeoPolygonQueryBuilder::new, GeoPolygonQueryBuilder::fromXContent, GeoPolygonQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ExistsQueryBuilder::new, ExistsQueryBuilder::fromXContent, ExistsQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent, MatchNoneQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ParentIdQueryBuilder::new, ParentIdQueryBuilder::fromXContent, ParentIdQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(PercolatorQueryBuilder::new, PercolatorQueryBuilder::fromXContent, PercolatorQueryBuilder.QUERY_NAME_FIELD);
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            registerQuery(GeoShapeQueryBuilder.PROTOTYPE::readFrom, GeoShapeQueryBuilder::fromXContent,
-                    GeoShapeQueryBuilder.QUERY_NAME_FIELD);
+            registerQuery(GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent, GeoShapeQueryBuilder.QUERY_NAME_FIELD);
         }
         // EmptyQueryBuilder is not registered as query parser but used internally.
         // We need to register it with the NamedWriteableRegistry in order to serialize it
-        namedWriteableRegistry.registerPrototype(QueryBuilder.class, EmptyQueryBuilder.PROTOTYPE);
+        namedWriteableRegistry.register(QueryBuilder.class, EmptyQueryBuilder.NAME, EmptyQueryBuilder::new);
     }
 
     static {

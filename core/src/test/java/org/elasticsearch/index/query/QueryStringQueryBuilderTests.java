@@ -155,12 +155,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testIllegalArguments() {
-        try {
-            new QueryStringQueryBuilder(null);
-            fail("null is not allowed");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new QueryStringQueryBuilder((String) null));
     }
 
     public void testToQueryMatchAllQuery() throws Exception {

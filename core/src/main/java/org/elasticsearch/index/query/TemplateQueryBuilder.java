@@ -56,8 +56,6 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     /** Template to fill. */
     private final Template template;
 
-    public static final TemplateQueryBuilder PROTOTYPE = new TemplateQueryBuilder(new Template("proto"));
-
     /**
      * @param template
      *            the template to use for that query.
@@ -97,6 +95,19 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     @Deprecated
     public TemplateQueryBuilder(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
         this(new Template(template, templateType, null, null, vars));
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public TemplateQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        template = Template.readTemplate(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        template.writeTo(out);
     }
 
     @Override
@@ -149,17 +160,6 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         throw new UnsupportedOperationException("this query must be rewritten first");
-    }
-
-    @Override
-    protected TemplateQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(Template.readTemplate(in));
-        return templateQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        template.writeTo(out);
     }
 
     @Override

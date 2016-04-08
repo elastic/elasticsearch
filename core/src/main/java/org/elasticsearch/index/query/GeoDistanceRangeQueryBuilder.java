@@ -59,8 +59,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     public static final DistanceUnit DEFAULT_UNIT = DistanceUnit.DEFAULT;
     public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
 
-    public static final GeoDistanceRangeQueryBuilder PROTOTYPE = new GeoDistanceRangeQueryBuilder("_na_", new GeoPoint());
-
     private static final ParseField FROM_FIELD = new ParseField("from");
     private static final ParseField TO_FIELD = new ParseField("to");
     private static final ParseField INCLUDE_LOWER_FIELD = new ParseField("include_lower");
@@ -112,6 +110,37 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     public GeoDistanceRangeQueryBuilder(String fieldName, String geohash) {
         this(fieldName, geohash == null ? null : new GeoPoint().resetFromGeoHash(geohash));
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoDistanceRangeQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        point = in.readGeoPoint();
+        from = in.readGenericValue();
+        to = in.readGenericValue();
+        includeLower = in.readBoolean();
+        includeUpper = in.readBoolean();
+        unit = DistanceUnit.valueOf(in.readString());
+        geoDistance = GeoDistance.readFromStream(in);
+        optimizeBbox = in.readString();
+        validationMethod = GeoValidationMethod.readFromStream(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGeoPoint(point);
+        out.writeGenericValue(from);
+        out.writeGenericValue(to);
+        out.writeBoolean(includeLower);
+        out.writeBoolean(includeUpper);
+        out.writeString(unit.name());
+        geoDistance.writeTo(out);;
+        out.writeString(optimizeBbox);
+        validationMethod.writeTo(out);
     }
 
     public String fieldName() {
@@ -534,34 +563,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             queryBuilder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
         return queryBuilder;
-    }
-
-    @Override
-    protected GeoDistanceRangeQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder(in.readString(), in.readGeoPoint());
-        queryBuilder.from = in.readGenericValue();
-        queryBuilder.to = in.readGenericValue();
-        queryBuilder.includeLower = in.readBoolean();
-        queryBuilder.includeUpper = in.readBoolean();
-        queryBuilder.unit = DistanceUnit.valueOf(in.readString());
-        queryBuilder.geoDistance = GeoDistance.readGeoDistanceFrom(in);
-        queryBuilder.optimizeBbox = in.readString();
-        queryBuilder.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
-        return queryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGeoPoint(point);
-        out.writeGenericValue(from);
-        out.writeGenericValue(to);
-        out.writeBoolean(includeLower);
-        out.writeBoolean(includeUpper);
-        out.writeString(unit.name());
-        geoDistance.writeTo(out);;
-        out.writeString(optimizeBbox);
-        validationMethod.writeTo(out);
     }
 
     @Override

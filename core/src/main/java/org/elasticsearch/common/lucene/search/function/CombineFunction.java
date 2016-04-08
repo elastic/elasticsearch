@@ -146,17 +146,12 @@ public enum CombineFunction implements Writeable<CombineFunction> {
         out.writeVInt(this.ordinal());
     }
 
-    @Override
-    public CombineFunction readFrom(StreamInput in) throws IOException {
+    public static CombineFunction readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown CombineFunction ordinal [" + ordinal + "]");
         }
         return values()[ordinal];
-    }
-
-    public static CombineFunction readCombineFunctionFrom(StreamInput in) throws IOException {
-        return CombineFunction.MULTIPLY.readFrom(in);
     }
 
     public static CombineFunction fromString(String combineFunction) {

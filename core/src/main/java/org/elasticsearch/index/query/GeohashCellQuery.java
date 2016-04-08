@@ -98,7 +98,6 @@ public class GeohashCellQuery {
      * <code>false</code>.
      */
     public static class Builder extends AbstractQueryBuilder<Builder> {
-        public static final Builder PROTOTYPE = new Builder("field", new GeoPoint());
         // we need to store the geohash rather than the corresponding point,
         // because a transformation from a geohash to a point an back to the
         // geohash will extend the accuracy of the hash to max precision
@@ -126,6 +125,25 @@ public class GeohashCellQuery {
             this.fieldName = field;
             this.geohash = geohash;
             this.neighbors = neighbors;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public Builder(StreamInput in) throws IOException {
+            super(in);
+            fieldName = in.readString();
+            geohash = in.readString();
+            levels = in.readOptionalVInt();
+            neighbors = in.readBoolean();
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            out.writeString(fieldName);
+            out.writeString(geohash);
+            out.writeOptionalVInt(levels);
+            out.writeBoolean(neighbors);
         }
 
         public Builder point(GeoPoint point) {
@@ -305,30 +323,6 @@ public class GeohashCellQuery {
                 builder.boost(boost);
             }
             return builder;
-        }
-
-        @Override
-        protected Builder doReadFrom(StreamInput in) throws IOException {
-            String field = in.readString();
-            String geohash = in.readString();
-            Builder builder = new Builder(field, geohash);
-            if (in.readBoolean()) {
-                builder.precision(in.readVInt());
-            }
-            builder.neighbors(in.readBoolean());
-            return builder;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            out.writeString(fieldName);
-            out.writeString(geohash);
-            boolean hasLevels = levels != null;
-            out.writeBoolean(hasLevels);
-            if (hasLevels) {
-                out.writeVInt(levels);
-            }
-            out.writeBoolean(neighbors);
         }
 
         @Override

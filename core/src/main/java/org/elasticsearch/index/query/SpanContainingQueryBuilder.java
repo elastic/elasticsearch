@@ -40,20 +40,18 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
 
     public static final String NAME = "span_containing";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final SpanContainingQueryBuilder PROTOTYPE =
-            new SpanContainingQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
 
     private static final ParseField BIG_FIELD = new ParseField("big");
     private static final ParseField LITTLE_FIELD = new ParseField("little");
 
-    private final SpanQueryBuilder big;
-    private final SpanQueryBuilder little;
+    private final SpanQueryBuilder<?> big;
+    private final SpanQueryBuilder<?> little;
 
     /**
      * @param big the big clause, it must enclose {@code little} for a match.
      * @param little the little clause, it must be contained within {@code big} for a match.
      */
-    public SpanContainingQueryBuilder(SpanQueryBuilder big, SpanQueryBuilder little) {
+    public SpanContainingQueryBuilder(SpanQueryBuilder<?> big, SpanQueryBuilder<?> little) {
         if (big == null) {
             throw new IllegalArgumentException("inner clause [big] cannot be null.");
         }
@@ -62,6 +60,21 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
         }
         this.little = little;
         this.big = big;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SpanContainingQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        big = (SpanQueryBuilder<?>) in.readQuery();
+        little = (SpanQueryBuilder<?>) in.readQuery();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(big);
+        out.writeQuery(little);
     }
 
     /**
@@ -140,19 +153,6 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
         Query innerLittle = little.toQuery(context);
         assert innerLittle instanceof SpanQuery;
         return new SpanContainingQuery((SpanQuery) innerBig, (SpanQuery) innerLittle);
-    }
-
-    @Override
-    protected SpanContainingQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        SpanQueryBuilder big = (SpanQueryBuilder)in.readQuery();
-        SpanQueryBuilder little = (SpanQueryBuilder)in.readQuery();
-        return new SpanContainingQueryBuilder(big, little);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(big);
-        out.writeQuery(little);
     }
 
     @Override

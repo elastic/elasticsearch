@@ -285,6 +285,9 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalBytesReference(new BytesArray("test"));
         out.writeOptionalDouble(null);
         out.writeOptionalDouble(1.2);
+        out.writeTimeZone(DateTimeZone.forID("CET"));
+        out.writeOptionalTimeZone(DateTimeZone.getDefault());
+        out.writeOptionalTimeZone(null);
         final byte[] bytes = out.bytes().toBytes();
         StreamInput in = StreamInput.wrap(out.bytes().toBytes());
         assertEquals(in.available(), bytes.length);
@@ -311,6 +314,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
+        assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
+        assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
+        assertNull(in.readOptionalTimeZone());
         assertEquals(0, in.available());
         in.close();
         out.close();
@@ -543,5 +549,4 @@ public class BytesStreamsTests extends ESTestCase {
             assertEquals(point, geoPoint);
         }
     }
-
 }

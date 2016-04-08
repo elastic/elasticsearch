@@ -50,7 +50,6 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     public static final String NAME = "wildcard";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final WildcardQueryBuilder PROTOTYPE = new WildcardQueryBuilder("field", "value");
 
     private static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -82,6 +81,23 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
         this.fieldName = fieldName;
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public WildcardQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readString();
+        rewrite = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeString(value);
+        out.writeOptionalString(rewrite);
     }
 
     public String fieldName() {
@@ -162,7 +178,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
 
         if (value == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No value specified for prefix query");
+            throw new ParsingException(parser.getTokenLocation(), "No value specified for wildcard query");
         }
         return new WildcardQueryBuilder(fieldName, value)
                 .rewrite(rewrite)
@@ -185,20 +201,6 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
         QueryParsers.setRewriteMethod(query, rewriteMethod);
         return query;
-    }
-
-    @Override
-    protected WildcardQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(in.readString(), in.readString());
-        wildcardQueryBuilder.rewrite = in.readOptionalString();
-        return wildcardQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeString(value);
-        out.writeOptionalString(rewrite);
     }
 
     @Override

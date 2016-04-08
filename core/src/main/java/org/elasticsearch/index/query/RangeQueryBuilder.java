@@ -48,7 +48,6 @@ import java.util.Objects;
 public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder<RangeQueryBuilder> {
     public static final String NAME = "range";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final RangeQueryBuilder PROTOTYPE = new RangeQueryBuilder("field");
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
@@ -91,6 +90,38 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             throw new IllegalArgumentException("field name is null or empty");
         }
         this.fieldName = fieldName;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public RangeQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        from = in.readGenericValue();
+        to = in.readGenericValue();
+        includeLower = in.readBoolean();
+        includeUpper = in.readBoolean();
+        timeZone = in.readOptionalTimeZone();
+        String formatString = in.readOptionalString();
+        if (formatString != null) {
+            format = Joda.forPattern(formatString);
+        }
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(this.fieldName);
+        out.writeGenericValue(this.from);
+        out.writeGenericValue(this.to);
+        out.writeBoolean(this.includeLower);
+        out.writeBoolean(this.includeUpper);
+        out.writeOptionalTimeZone(timeZone);
+        String formatString = null;
+        if (this.format != null) {
+            formatString = this.format.format();
+        }
+        out.writeOptionalString(formatString);
     }
 
     /**
@@ -432,43 +463,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             query = new TermRangeQuery(this.fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
         return query;
-    }
-
-    @Override
-    protected RangeQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(in.readString());
-        rangeQueryBuilder.from = in.readGenericValue();
-        rangeQueryBuilder.to = in.readGenericValue();
-        rangeQueryBuilder.includeLower = in.readBoolean();
-        rangeQueryBuilder.includeUpper = in.readBoolean();
-        String timeZoneId = in.readOptionalString();
-        if (timeZoneId != null) {
-            rangeQueryBuilder.timeZone = DateTimeZone.forID(timeZoneId);
-        }
-        String formatString = in.readOptionalString();
-        if (formatString != null) {
-            rangeQueryBuilder.format = Joda.forPattern(formatString);
-        }
-        return rangeQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(this.fieldName);
-        out.writeGenericValue(this.from);
-        out.writeGenericValue(this.to);
-        out.writeBoolean(this.includeLower);
-        out.writeBoolean(this.includeUpper);
-        String timeZoneId = null;
-        if (this.timeZone != null) {
-            timeZoneId = this.timeZone.getID();
-        }
-        out.writeOptionalString(timeZoneId);
-        String formatString = null;
-        if (this.format != null) {
-            formatString = this.format.format();
-        }
-        out.writeOptionalString(formatString);
     }
 
     @Override

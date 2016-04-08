@@ -81,7 +81,7 @@ public class SearchModuleTests extends ModuleTestCase {
     public void testRegisterQueryParserDuplicate() {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> module
-                .registerQuery(TermQueryBuilder.PROTOTYPE::readFrom, TermQueryBuilder::fromXContent, TermQueryBuilder.QUERY_NAME_FIELD));
+                .registerQuery(TermQueryBuilder::new, TermQueryBuilder::fromXContent, TermQueryBuilder.QUERY_NAME_FIELD));
         assertThat(e.getMessage(), containsString("already registered for name [term] while trying to register [org.elasticsearch."));
     }
 

@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -55,12 +54,7 @@ import java.util.Objects;
  * score.
  */
 public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder> {
-
-    public static final FunctionScoreQueryBuilder PROTOTYPE = new FunctionScoreQueryBuilder(EmptyQueryBuilder.PROTOTYPE,
-            new FunctionScoreQueryBuilder.FilterFunctionBuilder[0]);
-
     public static final String NAME = "function_score";
-
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     // For better readability of error message
@@ -147,6 +141,29 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
         this.query = query;
         this.filterFunctionBuilders = filterFunctionBuilders;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public FunctionScoreQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        query = in.readQuery();
+        filterFunctionBuilders = in.readList(FilterFunctionBuilder::new).toArray(new FilterFunctionBuilder[0]);
+        maxBoost = in.readFloat();
+        minScore = in.readOptionalFloat();
+        boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);
+        scoreMode = FiltersFunctionScoreQuery.ScoreMode.readFromStream(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(query);
+        out.writeList(Arrays.asList(filterFunctionBuilders));
+        out.writeFloat(maxBoost);
+        out.writeOptionalFloat(minScore);
+        out.writeOptionalWriteable(boostMode);
+        scoreMode.writeTo(out);
     }
 
     /**
@@ -273,49 +290,6 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     protected int doHashCode() {
         return Objects.hash(this.query, Arrays.hashCode(this.filterFunctionBuilders), this.boostMode, this.scoreMode, this.minScore,
                 this.maxBoost);
-    }
-
-    @Override
-    protected FunctionScoreQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder<?> query = in.readQuery();
-        int size = in.readVInt();
-        FilterFunctionBuilder[] filterFunctionBuilders = new FilterFunctionBuilder[size];
-        for (int i = 0; i < size; i++) {
-            filterFunctionBuilders[i] = new FilterFunctionBuilder(in);
-        }
-        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(query, filterFunctionBuilders);
-        functionScoreQueryBuilder.maxBoost(in.readFloat());
-        if (in.readBoolean()) {
-            functionScoreQueryBuilder.setMinScore(in.readFloat());
-        }
-        if (in.readBoolean()) {
-            functionScoreQueryBuilder.boostMode(CombineFunction.readCombineFunctionFrom(in));
-        }
-        functionScoreQueryBuilder.scoreMode(FiltersFunctionScoreQuery.ScoreMode.readScoreModeFrom(in));
-        return functionScoreQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(query);
-        out.writeVInt(filterFunctionBuilders.length);
-        for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
-            filterFunctionBuilder.writeTo(out);
-        }
-        out.writeFloat(maxBoost);
-        if (minScore == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeFloat(minScore);
-        }
-        if (boostMode == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            boostMode.writeTo(out);
-        }
-        scoreMode.writeTo(out);
     }
 
     @Override

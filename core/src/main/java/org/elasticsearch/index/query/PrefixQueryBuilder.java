@@ -44,7 +44,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     public static final String NAME = "prefix";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final PrefixQueryBuilder PROTOTYPE = new PrefixQueryBuilder("field", "value");
 
     private static final ParseField PREFIX_FIELD = new ParseField("value", "prefix");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
@@ -70,6 +69,23 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         }
         this.fieldName = fieldName;
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public PrefixQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readString();
+        rewrite = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeString(value);
+        out.writeOptionalString(rewrite);
     }
 
     public String fieldName() {
@@ -176,20 +192,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         }
 
         return query;
-    }
-
-    @Override
-    protected PrefixQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        PrefixQueryBuilder prefixQueryBuilder = new PrefixQueryBuilder(in.readString(), in.readString());
-        prefixQueryBuilder.rewrite = in.readOptionalString();
-        return prefixQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeString(value);
-        out.writeOptionalString(rewrite);
     }
 
     @Override

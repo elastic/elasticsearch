@@ -81,7 +81,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
             if (randomBoolean()) {
                 new GeoDistanceQueryBuilder("");
             } else {
-                new GeoDistanceQueryBuilder(null);
+                new GeoDistanceQueryBuilder((String) null);
             }
             fail("must not be null or empty");
         } catch (IllegalArgumentException ex) {

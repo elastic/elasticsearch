@@ -83,17 +83,12 @@ public class FiltersFunctionScoreQuery extends Query {
             out.writeVInt(this.ordinal());
         }
 
-        @Override
-        public ScoreMode readFrom(StreamInput in) throws IOException {
+        public static ScoreMode readFromStream(StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown ScoreMode ordinal [" + ordinal + "]");
             }
             return values()[ordinal];
-        }
-
-        public static ScoreMode readScoreModeFrom(StreamInput in) throws IOException {
-            return ScoreMode.MULTIPLY.readFrom(in);
         }
 
         public static ScoreMode fromString(String scoreMode) {

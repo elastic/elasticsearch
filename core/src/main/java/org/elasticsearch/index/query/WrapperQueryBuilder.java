@@ -53,8 +53,6 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     public static final String NAME = "wrapper";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder((byte[]) new byte[]{0});
-
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
     private final byte[] source;
@@ -87,6 +85,19 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
             throw new IllegalArgumentException("query source text cannot be null or empty");
         }
         this.source = source.array();
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public WrapperQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        source = in.readByteArray();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeByteArray(this.source);
     }
 
     public byte[] source() {
@@ -136,16 +147,6 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         throw new UnsupportedOperationException("this query must be rewritten first");
-    }
-
-    @Override
-    protected WrapperQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new WrapperQueryBuilder(in.readByteArray());
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeByteArray(this.source);
     }
 
     @Override

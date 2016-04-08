@@ -60,7 +60,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     public static final String NAME = "common";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final CommonTermsQueryBuilder PROTOTYPE = new CommonTermsQueryBuilder("field", "text");
 
     public static final float DEFAULT_CUTOFF_FREQ = 0.01f;
     public static final Operator DEFAULT_HIGH_FREQ_OCCUR = Operator.OR;
@@ -107,6 +106,35 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         }
         this.fieldName = fieldName;
         this.text = text;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public CommonTermsQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        text = in.readGenericValue();
+        highFreqOperator = Operator.readFromStream(in);
+        lowFreqOperator = Operator.readFromStream(in);
+        analyzer = in.readOptionalString();
+        lowFreqMinimumShouldMatch = in.readOptionalString();
+        highFreqMinimumShouldMatch = in.readOptionalString();
+        disableCoord = in.readBoolean();
+        cutoffFrequency = in.readFloat();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(this.fieldName);
+        out.writeGenericValue(this.text);
+        highFreqOperator.writeTo(out);
+        lowFreqOperator.writeTo(out);
+        out.writeOptionalString(analyzer);
+        out.writeOptionalString(lowFreqMinimumShouldMatch);
+        out.writeOptionalString(highFreqMinimumShouldMatch);
+        out.writeBoolean(disableCoord);
+        out.writeFloat(cutoffFrequency);
     }
 
     public String fieldName() {
@@ -239,7 +267,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         XContentParser parser = parseContext.parser();
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] query malformed, no field");
+            throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query malformed, no field");
         }
         String fieldName = parser.currentName();
         Object text = null;
@@ -395,32 +423,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
         query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
         return query;
-    }
-
-    @Override
-    protected CommonTermsQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        CommonTermsQueryBuilder commonTermsQueryBuilder = new CommonTermsQueryBuilder(in.readString(), in.readGenericValue());
-        commonTermsQueryBuilder.highFreqOperator = Operator.readOperatorFrom(in);
-        commonTermsQueryBuilder.lowFreqOperator = Operator.readOperatorFrom(in);
-        commonTermsQueryBuilder.analyzer = in.readOptionalString();
-        commonTermsQueryBuilder.lowFreqMinimumShouldMatch = in.readOptionalString();
-        commonTermsQueryBuilder.highFreqMinimumShouldMatch = in.readOptionalString();
-        commonTermsQueryBuilder.disableCoord = in.readBoolean();
-        commonTermsQueryBuilder.cutoffFrequency = in.readFloat();
-        return commonTermsQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(this.fieldName);
-        out.writeGenericValue(this.text);
-        highFreqOperator.writeTo(out);
-        lowFreqOperator.writeTo(out);
-        out.writeOptionalString(analyzer);
-        out.writeOptionalString(lowFreqMinimumShouldMatch);
-        out.writeOptionalString(highFreqMinimumShouldMatch);
-        out.writeBoolean(disableCoord);
-        out.writeFloat(cutoffFrequency);
     }
 
     @Override

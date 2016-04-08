@@ -82,7 +82,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     public static final String NAME = "more_like_this";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "mlt");
-    public static final MoreLikeThisQueryBuilder PROTOTYPE = new MoreLikeThisQueryBuilder(new String[]{"_na_"}, null);
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
     public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
@@ -233,7 +232,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             perFieldAnalyzer = (Map<String, String>) in.readGenericValue();
             routing = in.readOptionalString();
             version = in.readLong();
-            versionType = VersionType.readVersionTypeFrom(in);
+            versionType = VersionType.readFromStream(in);
         }
 
         @Override
@@ -508,6 +507,51 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         this.fields = fields;
         this.likeTexts = Optional.ofNullable(likeTexts).orElse(Strings.EMPTY_ARRAY);
         this.likeItems = Optional.ofNullable(likeItems).orElse(new Item[0]);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MoreLikeThisQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fields = in.readOptionalStringArray();
+        likeTexts = in.readStringArray();
+        likeItems = in.readList(Item::new).toArray(new Item[0]);
+        unlikeTexts = in.readStringArray();
+        unlikeItems = in.readList(Item::new).toArray(new Item[0]);
+        maxQueryTerms = in.readVInt();
+        minTermFreq = in.readVInt();
+        minDocFreq = in.readVInt();
+        maxDocFreq = in.readVInt();
+        minWordLength = in.readVInt();
+        maxWordLength = in.readVInt();
+        stopWords = in.readOptionalStringArray();
+        analyzer = in.readOptionalString();
+        minimumShouldMatch = in.readString();
+        boostTerms = (Float) in.readGenericValue();
+        include = in.readBoolean();
+        failOnUnsupportedField = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalStringArray(fields);
+        out.writeStringArray(likeTexts);
+        out.writeList(Arrays.asList(likeItems));
+        out.writeStringArray(unlikeTexts);
+        out.writeList(Arrays.asList(unlikeItems));
+        out.writeVInt(maxQueryTerms);
+        out.writeVInt(minTermFreq);
+        out.writeVInt(minDocFreq);
+        out.writeVInt(maxDocFreq);
+        out.writeVInt(minWordLength);
+        out.writeVInt(maxWordLength);
+        out.writeOptionalStringArray(stopWords);
+        out.writeOptionalString(analyzer);
+        out.writeString(minimumShouldMatch);
+        out.writeGenericValue(boostTerms);
+        out.writeBoolean(include);
+        out.writeBoolean(failOnUnsupportedField);
     }
 
     public String[] fields() {
@@ -1138,66 +1182,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         if (!uids.isEmpty()) {
             TermsQuery query = new TermsQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[uids.size()]));
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
-        }
-    }
-
-    @Override
-    protected MoreLikeThisQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String[] fields = in.readOptionalStringArray();
-        String[] likeTexts = in.readStringArray();
-        Item[] likeItems = readItems(in);
-        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fields, likeTexts, likeItems);
-        moreLikeThisQueryBuilder.unlikeTexts = in.readStringArray();
-        moreLikeThisQueryBuilder.unlikeItems = readItems(in);
-        moreLikeThisQueryBuilder.maxQueryTerms = in.readVInt();
-        moreLikeThisQueryBuilder.minTermFreq = in.readVInt();
-        moreLikeThisQueryBuilder.minDocFreq = in.readVInt();
-        moreLikeThisQueryBuilder.maxDocFreq = in.readVInt();
-        moreLikeThisQueryBuilder.minWordLength = in.readVInt();
-        moreLikeThisQueryBuilder.maxWordLength = in.readVInt();
-        moreLikeThisQueryBuilder.stopWords = in.readOptionalStringArray();
-        moreLikeThisQueryBuilder.analyzer = in.readOptionalString();
-        moreLikeThisQueryBuilder.minimumShouldMatch = in.readString();
-        moreLikeThisQueryBuilder.boostTerms = (Float) in.readGenericValue();
-        moreLikeThisQueryBuilder.include = in.readBoolean();
-        moreLikeThisQueryBuilder.failOnUnsupportedField = in.readBoolean();
-        return moreLikeThisQueryBuilder;
-    }
-
-    private static Item[] readItems(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Item[] items = new Item[size];
-        for (int i = 0; i < size; i++) {
-            items[i] = new Item(in);
-        }
-        return items;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalStringArray(fields);
-        out.writeStringArray(likeTexts);
-        writeItems(likeItems, out);
-        out.writeStringArray(unlikeTexts);
-        writeItems(unlikeItems, out);
-        out.writeVInt(maxQueryTerms);
-        out.writeVInt(minTermFreq);
-        out.writeVInt(minDocFreq);
-        out.writeVInt(maxDocFreq);
-        out.writeVInt(minWordLength);
-        out.writeVInt(maxWordLength);
-        out.writeOptionalStringArray(stopWords);
-        out.writeOptionalString(analyzer);
-        out.writeString(minimumShouldMatch);
-        out.writeGenericValue(boostTerms);
-        out.writeBoolean(include);
-        out.writeBoolean(failOnUnsupportedField);
-    }
-
-    private static void writeItems(Item[] items, StreamOutput out) throws IOException {
-        out.writeVInt(items.length);
-        for (Item item : items) {
-            item.writeTo(out);
         }
     }
 

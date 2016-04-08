@@ -41,7 +41,6 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
 
     public static final String NAME = "indices";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, "index");
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query");
@@ -63,6 +62,23 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         }
         this.innerQuery = Objects.requireNonNull(innerQuery);
         this.indices = indices;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public IndicesQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        innerQuery = in.readQuery();
+        indices = in.readStringArray();
+        noMatchQuery = in.readQuery();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(innerQuery);
+        out.writeStringArray(indices);
+        out.writeQuery(noMatchQuery);
     }
 
     public QueryBuilder<?> innerQuery() {
@@ -200,20 +216,6 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
             return innerQuery.toQuery(context);
         }
         return noMatchQuery.toQuery(context);
-    }
-
-    @Override
-    protected IndicesQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        IndicesQueryBuilder indicesQueryBuilder = new IndicesQueryBuilder(in.readQuery(), in.readStringArray());
-        indicesQueryBuilder.noMatchQuery = in.readQuery();
-        return indicesQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(innerQuery);
-        out.writeStringArray(indices);
-        out.writeQuery(noMatchQuery);
     }
 
     @Override

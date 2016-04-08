@@ -66,8 +66,6 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Default for optimising query through pre computed bounding box query. */
     public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
 
-    public static final GeoDistanceQueryBuilder PROTOTYPE = new GeoDistanceQueryBuilder("_na_");
-
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
@@ -97,6 +95,29 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             throw new IllegalArgumentException("fieldName must not be null or empty");
         }
         this.fieldName = fieldName;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoDistanceQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        distance = in.readDouble();
+        validationMethod = GeoValidationMethod.readFromStream(in);
+        center = in.readGeoPoint();
+        optimizeBbox = in.readString();
+        geoDistance = GeoDistance.readFromStream(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeDouble(distance);
+        validationMethod.writeTo(out);
+        out.writeGeoPoint(center);
+        out.writeString(optimizeBbox);
+        geoDistance.writeTo(out);
     }
 
     /** Name of the field this query is operating on. */
@@ -399,28 +420,6 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                 Objects.equals(center, other.center) &&
                 Objects.equals(optimizeBbox, other.optimizeBbox) &&
                 Objects.equals(geoDistance, other.geoDistance);
-    }
-
-    @Override
-    protected GeoDistanceQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        GeoDistanceQueryBuilder result = new GeoDistanceQueryBuilder(fieldName);
-        result.distance = in.readDouble();
-        result.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
-        result.center = in.readGeoPoint();
-        result.optimizeBbox = in.readString();
-        result.geoDistance = GeoDistance.readGeoDistanceFrom(in);
-        return result;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeDouble(distance);
-        validationMethod.writeTo(out);
-        out.writeGeoPoint(center);
-        out.writeString(optimizeBbox);
-        geoDistance.writeTo(out);
     }
 
     private QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {

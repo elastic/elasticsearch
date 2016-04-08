@@ -656,9 +656,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             output.writeQuery(testQuery);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 QueryBuilder<?> deserializedQuery = in.readQuery();
-                assertEquals(deserializedQuery, testQuery);
-                assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
-                assertNotSame(deserializedQuery, testQuery);
+                assertEquals(testQuery, deserializedQuery);
+                assertEquals(testQuery.hashCode(), deserializedQuery.hashCode());
+                assertNotSame(testQuery, deserializedQuery);
                 return (QB) deserializedQuery;
             }
         }

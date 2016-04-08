@@ -59,7 +59,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public static final String NAME = "query_string";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final QueryStringQueryBuilder PROTOTYPE = new QueryStringQueryBuilder("");
 
     public static final boolean DEFAULT_AUTO_GENERATE_PHRASE_QUERIES = false;
     public static final int DEFAULT_MAX_DETERMINED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
@@ -166,6 +165,76 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             throw new IllegalArgumentException("query text missing");
         }
         this.queryString = queryString;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public QueryStringQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        queryString = in.readString();
+        defaultField = in.readOptionalString();
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            fieldsAndWeights.put(in.readString(), in.readFloat());
+        }
+        defaultOperator = Operator.readFromStream(in);
+        analyzer = in.readOptionalString();
+        quoteAnalyzer = in.readOptionalString();
+        quoteFieldSuffix = in.readOptionalString();
+        autoGeneratePhraseQueries = in.readBoolean();
+        allowLeadingWildcard = in.readOptionalBoolean();
+        analyzeWildcard = in.readOptionalBoolean();
+        lowercaseExpandedTerms = in.readBoolean();
+        enablePositionIncrements = in.readBoolean();
+        locale = Locale.forLanguageTag(in.readString());
+        fuzziness = new Fuzziness(in);
+        fuzzyPrefixLength = in.readVInt();
+        fuzzyMaxExpansions = in.readVInt();
+        fuzzyRewrite = in.readOptionalString();
+        phraseSlop = in.readVInt();
+        useDisMax = in.readBoolean();
+        tieBreaker = in.readFloat();
+        rewrite = in.readOptionalString();
+        minimumShouldMatch = in.readOptionalString();
+        lenient = in.readOptionalBoolean();
+        timeZone = in.readOptionalTimeZone();
+        escape = in.readBoolean();
+        maxDeterminizedStates = in.readVInt();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(this.queryString);
+        out.writeOptionalString(this.defaultField);
+        out.writeVInt(this.fieldsAndWeights.size());
+        for (Map.Entry<String, Float> fieldsEntry : this.fieldsAndWeights.entrySet()) {
+            out.writeString(fieldsEntry.getKey());
+            out.writeFloat(fieldsEntry.getValue());
+        }
+        this.defaultOperator.writeTo(out);
+        out.writeOptionalString(this.analyzer);
+        out.writeOptionalString(this.quoteAnalyzer);
+        out.writeOptionalString(this.quoteFieldSuffix);
+        out.writeBoolean(this.autoGeneratePhraseQueries);
+        out.writeOptionalBoolean(this.allowLeadingWildcard);
+        out.writeOptionalBoolean(this.analyzeWildcard);
+        out.writeBoolean(this.lowercaseExpandedTerms);
+        out.writeBoolean(this.enablePositionIncrements);
+        out.writeString(this.locale.toLanguageTag());
+        this.fuzziness.writeTo(out);
+        out.writeVInt(this.fuzzyPrefixLength);
+        out.writeVInt(this.fuzzyMaxExpansions);
+        out.writeOptionalString(this.fuzzyRewrite);
+        out.writeVInt(this.phraseSlop);
+        out.writeBoolean(this.useDisMax);
+        out.writeFloat(this.tieBreaker);
+        out.writeOptionalString(this.rewrite);
+        out.writeOptionalString(this.minimumShouldMatch);
+        out.writeOptionalBoolean(this.lenient);
+        out.writeOptionalTimeZone(timeZone);
+        out.writeBoolean(this.escape);
+        out.writeVInt(this.maxDeterminizedStates);
     }
 
     public String queryString() {
@@ -729,81 +798,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    protected QueryStringQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(in.readString());
-        queryStringQueryBuilder.defaultField = in.readOptionalString();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            queryStringQueryBuilder.fieldsAndWeights.put(in.readString(), in.readFloat());
-        }
-        queryStringQueryBuilder.defaultOperator = Operator.readOperatorFrom(in);
-        queryStringQueryBuilder.analyzer = in.readOptionalString();
-        queryStringQueryBuilder.quoteAnalyzer = in.readOptionalString();
-        queryStringQueryBuilder.quoteFieldSuffix = in.readOptionalString();
-        queryStringQueryBuilder.autoGeneratePhraseQueries = in.readBoolean();
-        queryStringQueryBuilder.allowLeadingWildcard = in.readOptionalBoolean();
-        queryStringQueryBuilder.analyzeWildcard = in.readOptionalBoolean();
-        queryStringQueryBuilder.lowercaseExpandedTerms = in.readBoolean();
-        queryStringQueryBuilder.enablePositionIncrements = in.readBoolean();
-        queryStringQueryBuilder.locale = Locale.forLanguageTag(in.readString());
-        queryStringQueryBuilder.fuzziness = Fuzziness.readFuzzinessFrom(in);
-        queryStringQueryBuilder.fuzzyPrefixLength = in.readVInt();
-        queryStringQueryBuilder.fuzzyMaxExpansions = in.readVInt();
-        queryStringQueryBuilder.fuzzyRewrite = in.readOptionalString();
-        queryStringQueryBuilder.phraseSlop = in.readVInt();
-        queryStringQueryBuilder.useDisMax = in.readBoolean();
-        queryStringQueryBuilder.tieBreaker = in.readFloat();
-        queryStringQueryBuilder.rewrite = in.readOptionalString();
-        queryStringQueryBuilder.minimumShouldMatch = in.readOptionalString();
-        queryStringQueryBuilder.lenient = in.readOptionalBoolean();
-        if (in.readBoolean()) {
-            queryStringQueryBuilder.timeZone = DateTimeZone.forID(in.readString());
-        }
-        queryStringQueryBuilder.escape = in.readBoolean();
-        queryStringQueryBuilder.maxDeterminizedStates = in.readVInt();
-        return queryStringQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(this.queryString);
-        out.writeOptionalString(this.defaultField);
-        out.writeVInt(this.fieldsAndWeights.size());
-        for (Map.Entry<String, Float> fieldsEntry : this.fieldsAndWeights.entrySet()) {
-            out.writeString(fieldsEntry.getKey());
-            out.writeFloat(fieldsEntry.getValue());
-        }
-        this.defaultOperator.writeTo(out);
-        out.writeOptionalString(this.analyzer);
-        out.writeOptionalString(this.quoteAnalyzer);
-        out.writeOptionalString(this.quoteFieldSuffix);
-        out.writeBoolean(this.autoGeneratePhraseQueries);
-        out.writeOptionalBoolean(this.allowLeadingWildcard);
-        out.writeOptionalBoolean(this.analyzeWildcard);
-        out.writeBoolean(this.lowercaseExpandedTerms);
-        out.writeBoolean(this.enablePositionIncrements);
-        out.writeString(this.locale.toLanguageTag());
-        this.fuzziness.writeTo(out);
-        out.writeVInt(this.fuzzyPrefixLength);
-        out.writeVInt(this.fuzzyMaxExpansions);
-        out.writeOptionalString(this.fuzzyRewrite);
-        out.writeVInt(this.phraseSlop);
-        out.writeBoolean(this.useDisMax);
-        out.writeFloat(this.tieBreaker);
-        out.writeOptionalString(this.rewrite);
-        out.writeOptionalString(this.minimumShouldMatch);
-        out.writeOptionalBoolean(this.lenient);
-        if (this.timeZone == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(this.timeZone.getID());
-        }
-        out.writeBoolean(this.escape);
-        out.writeVInt(this.maxDeterminizedStates);
     }
 
     @Override

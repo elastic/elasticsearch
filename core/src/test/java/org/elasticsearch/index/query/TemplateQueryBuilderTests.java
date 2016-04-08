@@ -64,12 +64,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     }
 
     public void testIllegalArgument() {
-        try {
-            new TemplateQueryBuilder(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new TemplateQueryBuilder((Template) null));
     }
 
     /**

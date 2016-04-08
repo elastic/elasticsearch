@@ -1196,7 +1196,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.aggregations = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
             }
         builder.explain = in.readOptionalBoolean();
-        builder.fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+        builder.fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
         boolean hasFieldDataFields = in.readBoolean();
         if (hasFieldDataFields) {
             int size = in.readVInt();
@@ -1300,7 +1300,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             aggregations.writeTo(out);
         }
         out.writeOptionalBoolean(explain);
-        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+        out.writeOptionalStreamable(fetchSourceContext);
         boolean hasFieldDataFields = fieldDataFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {

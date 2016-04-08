@@ -173,12 +173,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testIllegalConstructorArg() {
-        try {
-            new SimpleQueryStringBuilder(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new SimpleQueryStringBuilder((String) null));
     }
 
     public void testFieldCannotBeNull() {

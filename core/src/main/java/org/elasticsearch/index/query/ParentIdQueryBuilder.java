@@ -43,8 +43,6 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     public static final String NAME = "parent_id";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final ParentIdQueryBuilder PROTO = new ParentIdQueryBuilder(null, null);
-
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
 
@@ -54,6 +52,21 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     public ParentIdQueryBuilder(String type, String id) {
         this.type = type;
         this.id = id;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ParentIdQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        type = in.readString();
+        id = in.readString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(type);
+        out.writeString(id);
     }
 
     public String getType() {
@@ -124,19 +137,6 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         // Need to take child type into account, otherwise a child doc of different type with the same id could match
         query.add(new TermQuery(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.FILTER);
         return query.build();
-    }
-
-    @Override
-    protected ParentIdQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String type = in.readString();
-        String id = in.readString();
-        return new ParentIdQueryBuilder(type, id);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(type);
-        out.writeString(id);
     }
 
     @Override

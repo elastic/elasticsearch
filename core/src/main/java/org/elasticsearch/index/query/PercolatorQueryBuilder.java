@@ -71,8 +71,6 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
     public static final String NAME = "percolator";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final PercolatorQueryBuilder PROTO = new PercolatorQueryBuilder(null, null, null, null, null, null, null, null);
-
     static final ParseField DOCUMENT_FIELD = new ParseField("document");
     private static final ParseField DOCUMENT_TYPE_FIELD = new ParseField("document_type");
     private static final ParseField INDEXED_DOCUMENT_FIELD_INDEX = new ParseField("index");
@@ -134,17 +132,40 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
         this.document = null;
     }
 
-    private PercolatorQueryBuilder(String documentType, BytesReference document, String indexedDocumentIndex, String indexedDocumentType,
-                                   String indexedDocumentId, String indexedDocumentRouting, String indexedDocumentPreference,
-                                   Long indexedDocumentVersion) {
-        this.documentType = documentType;
-        this.document = document;
-        this.indexedDocumentIndex = indexedDocumentIndex;
-        this.indexedDocumentType = indexedDocumentType;
-        this.indexedDocumentId = indexedDocumentId;
-        this.indexedDocumentRouting = indexedDocumentRouting;
-        this.indexedDocumentPreference = indexedDocumentPreference;
-        this.indexedDocumentVersion = indexedDocumentVersion;
+    /**
+     * Read from a stream.
+     */
+    public PercolatorQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        documentType = in.readString();
+        indexedDocumentIndex = in.readOptionalString();
+        indexedDocumentType = in.readOptionalString();
+        indexedDocumentId = in.readOptionalString();
+        indexedDocumentRouting = in.readOptionalString();
+        indexedDocumentPreference = in.readOptionalString();
+        if (in.readBoolean()) {
+            indexedDocumentVersion = in.readVLong();
+        } else {
+            indexedDocumentVersion = null;
+        }
+        document = in.readOptionalBytesReference();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(documentType);
+        out.writeOptionalString(indexedDocumentIndex);
+        out.writeOptionalString(indexedDocumentType);
+        out.writeOptionalString(indexedDocumentId);
+        out.writeOptionalString(indexedDocumentRouting);
+        out.writeOptionalString(indexedDocumentPreference);
+        if (indexedDocumentVersion != null) {
+            out.writeBoolean(true);
+            out.writeVLong(indexedDocumentVersion);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeOptionalBytesReference(document);
     }
 
     @Override
@@ -265,48 +286,6 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
         return queryBuilder;
-    }
-
-    @Override
-    protected PercolatorQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String docType = in.readString();
-        String documentIndex = in.readOptionalString();
-        String documentType = in.readOptionalString();
-        String documentId = in.readOptionalString();
-        String documentRouting = in.readOptionalString();
-        String documentPreference = in.readOptionalString();
-        Long documentVersion = null;
-        if (in.readBoolean()) {
-            documentVersion = in.readVLong();
-        }
-        BytesReference documentSource = null;
-        if (in.readBoolean()) {
-            documentSource = in.readBytesReference();
-        }
-        return new PercolatorQueryBuilder(docType, documentSource, documentIndex, documentType, documentId,
-                documentRouting, documentPreference, documentVersion);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(documentType);
-        out.writeOptionalString(indexedDocumentIndex);
-        out.writeOptionalString(indexedDocumentType);
-        out.writeOptionalString(indexedDocumentId);
-        out.writeOptionalString(indexedDocumentRouting);
-        out.writeOptionalString(indexedDocumentPreference);
-        if (indexedDocumentVersion != null) {
-            out.writeBoolean(true);
-            out.writeVLong(indexedDocumentVersion);
-        } else {
-            out.writeBoolean(false);
-        }
-        if (document != null) {
-            out.writeBoolean(true);
-            out.writeBytesReference(document);
-        } else {
-            out.writeBoolean(false);
-        }
     }
 
     @Override

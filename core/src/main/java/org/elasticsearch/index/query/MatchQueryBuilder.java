@@ -102,8 +102,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private Float cutoffFrequency = null;
 
-    public static final MatchQueryBuilder PROTOTYPE = new MatchQueryBuilder("","");
-
     /**
      * Constructs a new match query.
      */
@@ -116,6 +114,49 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         }
         this.fieldName = fieldName;
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MatchQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readGenericValue();
+        type = MatchQuery.Type.readFromStream(in);
+        operator = Operator.readFromStream(in);
+        slop = in.readVInt();
+        prefixLength = in.readVInt();
+        maxExpansions = in.readVInt();
+        fuzzyTranspositions = in.readBoolean();
+        lenient = in.readBoolean();
+        zeroTermsQuery = MatchQuery.ZeroTermsQuery.readFromStream(in);
+        // optional fields
+        analyzer = in.readOptionalString();
+        minimumShouldMatch = in.readOptionalString();
+        fuzzyRewrite = in.readOptionalString();
+        fuzziness = in.readOptionalWriteable(Fuzziness::new);
+        cutoffFrequency = in.readOptionalFloat();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGenericValue(value);
+        type.writeTo(out);
+        operator.writeTo(out);
+        out.writeVInt(slop);
+        out.writeVInt(prefixLength);
+        out.writeVInt(maxExpansions);
+        out.writeBoolean(fuzzyTranspositions);
+        out.writeBoolean(lenient);
+        zeroTermsQuery.writeTo(out);
+        // optional fields
+        out.writeOptionalString(analyzer);
+        out.writeOptionalString(minimumShouldMatch);
+        out.writeOptionalString(fuzzyRewrite);
+        out.writeOptionalWriteable(fuzziness);
+        out.writeOptionalFloat(cutoffFrequency);
     }
 
     /** Returns the field name used in this query. */
@@ -459,60 +500,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return Objects.hash(fieldName, value, type, operator, analyzer, slop,
                 fuzziness, prefixLength, maxExpansions, minimumShouldMatch,
                 fuzzyRewrite, lenient, fuzzyTranspositions, zeroTermsQuery, cutoffFrequency);
-    }
-
-    @Override
-    protected MatchQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        MatchQueryBuilder matchQuery = new MatchQueryBuilder(in.readString(), in.readGenericValue());
-        matchQuery.type = MatchQuery.Type.readTypeFrom(in);
-        matchQuery.operator = Operator.readOperatorFrom(in);
-        matchQuery.slop = in.readVInt();
-        matchQuery.prefixLength = in.readVInt();
-        matchQuery.maxExpansions = in.readVInt();
-        matchQuery.fuzzyTranspositions = in.readBoolean();
-        matchQuery.lenient = in.readBoolean();
-        matchQuery.zeroTermsQuery = MatchQuery.ZeroTermsQuery.readZeroTermsQueryFrom(in);
-        // optional fields
-        matchQuery.analyzer = in.readOptionalString();
-        matchQuery.minimumShouldMatch = in.readOptionalString();
-        matchQuery.fuzzyRewrite = in.readOptionalString();
-        if (in.readBoolean()) {
-            matchQuery.fuzziness = Fuzziness.readFuzzinessFrom(in);
-        }
-        if (in.readBoolean()) {
-            matchQuery.cutoffFrequency = in.readFloat();
-        }
-        return matchQuery;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGenericValue(value);
-        type.writeTo(out);
-        operator.writeTo(out);
-        out.writeVInt(slop);
-        out.writeVInt(prefixLength);
-        out.writeVInt(maxExpansions);
-        out.writeBoolean(fuzzyTranspositions);
-        out.writeBoolean(lenient);
-        zeroTermsQuery.writeTo(out);
-        // optional fields
-        out.writeOptionalString(analyzer);
-        out.writeOptionalString(minimumShouldMatch);
-        out.writeOptionalString(fuzzyRewrite);
-        if (fuzziness == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            fuzziness.writeTo(out);
-        }
-        if (cutoffFrequency == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeFloat(cutoffFrequency);
-        }
     }
 
     @Override

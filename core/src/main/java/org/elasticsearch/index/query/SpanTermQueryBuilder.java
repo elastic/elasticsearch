@@ -25,6 +25,7 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -71,6 +72,13 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     /** @see BaseTermQueryBuilder#BaseTermQueryBuilder(String, Object) */
     public SpanTermQueryBuilder(String name, Object value) {
         super(name, value);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SpanTermQueryBuilder(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
@@ -136,11 +144,6 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         SpanTermQueryBuilder result = new SpanTermQueryBuilder(fieldName, value);
         result.boost(boost).queryName(queryName);
         return result;
-    }
-
-    @Override
-    protected SpanTermQueryBuilder createBuilder(String fieldName, Object value) {
-        return new SpanTermQueryBuilder(fieldName, value);
     }
 
     @Override

@@ -38,7 +38,20 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
     public static final String NAME = "match_none";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final MatchNoneQueryBuilder PROTOTYPE = new MatchNoneQueryBuilder();
+    public MatchNoneQueryBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MatchNoneQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        // all state is in the superclass
+    }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -91,16 +104,6 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
     @Override
     protected int doHashCode() {
         return 0;
-    }
-
-    @Override
-    protected MatchNoneQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new MatchNoneQueryBuilder();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        //nothing to write really
     }
 
     @Override

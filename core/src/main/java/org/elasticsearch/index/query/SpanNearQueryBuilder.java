@@ -43,7 +43,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     public static final String NAME = "span_near";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final SpanNearQueryBuilder PROTOTYPE = new SpanNearQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 0);
 
     /** Default for flag controlling whether matches are required to be in-order */
     public static boolean DEFAULT_IN_ORDER = true;
@@ -69,6 +68,25 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
         this.clauses.add(initialClause);
         this.slop = slop;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SpanNearQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        for (QueryBuilder<?> clause : readQueries(in)) {
+            this.clauses.add((SpanQueryBuilder<?>) clause);
+        }
+        slop = in.readVInt();
+        inOrder = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        writeQueries(out, clauses);
+        out.writeVInt(slop);
+        out.writeBoolean(inOrder);
     }
 
     /**
@@ -197,25 +215,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             spanQueries[i] = (SpanQuery) query;
         }
         return new SpanNearQuery(spanQueries, slop, inOrder);
-    }
-
-    @Override
-    protected SpanNearQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        List<QueryBuilder<?>> clauses = readQueries(in);
-        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder((SpanQueryBuilder<?>)clauses.get(0), in.readVInt());
-        for (int i = 1; i < clauses.size(); i++) {
-            queryBuilder.clauses.add((SpanQueryBuilder<?>)clauses.get(i));
-        }
-        queryBuilder.inOrder = in.readBoolean();
-        return queryBuilder;
-
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        writeQueries(out, clauses);
-        out.writeVInt(slop);
-        out.writeBoolean(inOrder);
     }
 
     @Override

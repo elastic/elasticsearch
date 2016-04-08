@@ -155,7 +155,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public GeoDistanceSortBuilder(StreamInput in) throws IOException {
         fieldName = in.readString();
         points.addAll((List<GeoPoint>) in.readGenericValue());
-        geoDistance = GeoDistance.readGeoDistanceFrom(in);
+        geoDistance = GeoDistance.readFromStream(in);
         unit = DistanceUnit.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);

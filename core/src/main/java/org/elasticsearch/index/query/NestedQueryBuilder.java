@@ -43,7 +43,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      */
     public static final String NAME = "nested";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
 
     /**
      * The default score move for nested queries.
@@ -82,6 +81,25 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             this.innerHitBuilder.setNestedPath(path);
             this.innerHitBuilder.setQuery(query);
         }
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public NestedQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        path = in.readString();
+        scoreMode = ScoreMode.values()[in.readVInt()];
+        query = in.readQuery();
+        innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(path);
+        out.writeVInt(scoreMode.ordinal());
+        out.writeQuery(query);
+        out.writeOptionalWriteable(innerHitBuilder);
     }
 
     /**
@@ -196,32 +214,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     @Override
     protected int doHashCode() {
         return Objects.hash(query, path, scoreMode, innerHitBuilder);
-    }
-
-    private NestedQueryBuilder(StreamInput in) throws IOException {
-        path = in.readString();
-        final int ordinal = in.readVInt();
-        scoreMode = ScoreMode.values()[ordinal];
-        query = in.readQuery();
-        innerHitBuilder = InnerHitBuilder.optionalReadFromStream(in);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(path);
-        out.writeVInt(scoreMode.ordinal());
-        out.writeQuery(query);
-        if (innerHitBuilder != null) {
-            out.writeBoolean(true);
-            innerHitBuilder.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
-    }
-
-    @Override
-    protected NestedQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new NestedQueryBuilder(in);
     }
 
     @Override

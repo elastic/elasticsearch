@@ -44,6 +44,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.tasks.Task;
+import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -757,6 +758,25 @@ public abstract class StreamOutput extends OutputStream {
     public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
         writeDouble(geoPoint.lat());
         writeDouble(geoPoint.lon());
+    }
+
+    /**
+     * Write a {@linkplain DateTimeZone} to the stream.
+     */
+    public void writeTimeZone(DateTimeZone timeZone) throws IOException {
+        writeString(timeZone.getID());
+    }
+
+    /**
+     * Write an optional {@linkplain DateTimeZone} to the stream.
+     */
+    public void writeOptionalTimeZone(DateTimeZone timeZone) throws IOException {
+        if (timeZone == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeTimeZone(timeZone);
+        }
     }
 
     /**

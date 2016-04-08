@@ -79,7 +79,7 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.settingsBuilder()
+        Settings.Builder builder = Settings.builder()
                 .put(Storage.CONTAINER_SETTING.getKey(), "snapshots");
         return builder.build();
     }

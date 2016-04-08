@@ -28,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -47,7 +48,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -63,7 +63,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testDynamicUpdates() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
@@ -98,7 +98,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingWithoutType() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).addMapping("doc", "{\"doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
@@ -119,7 +119,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingWithoutTypeMultiObjects() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
@@ -139,7 +139,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingWithConflicts() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
                 ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
@@ -175,7 +175,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingNoChanges() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
                 ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")

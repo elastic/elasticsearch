@@ -44,7 +44,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             Version v = VersionUtils.randomVersion(random());
-            Settings settings = Settings.settingsBuilder()
+            Settings settings = Settings.builder()
                     .put("index.analysis.filter.my_english.type", "stemmer")
                     .put("index.analysis.filter.my_english.language", "english")
                     .put("index.analysis.analyzer.my_english.tokenizer","whitespace")
@@ -71,7 +71,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
         for (int i = 0; i < iters; i++) {
 
             Version v = VersionUtils.randomVersion(random());
-            Settings settings = Settings.settingsBuilder()
+            Settings settings = Settings.builder()
                     .put("index.analysis.filter.my_porter2.type", "stemmer")
                     .put("index.analysis.filter.my_porter2.language", "porter2")
                     .put("index.analysis.analyzer.my_porter2.tokenizer","whitespace")

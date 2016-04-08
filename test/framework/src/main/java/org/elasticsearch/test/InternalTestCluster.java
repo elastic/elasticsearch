@@ -124,7 +124,6 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
@@ -275,7 +274,7 @@ public final class InternalTestCluster extends TestCluster {
 
         logger.info("Setup InternalTestCluster [{}] with seed [{}] using [{}] data nodes and [{}] client nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedAllRolesNodes, numShareCoordOnlyNodes);
         this.nodeConfigurationSource = nodeConfigurationSource;
-        Builder builder = Settings.settingsBuilder();
+        Builder builder = Settings.builder();
         if (random.nextInt(5) == 0) { // sometimes set this
             // randomize (multi/single) data path, special case for 0, don't set it at all...
             final int numOfDataPaths = random.nextInt(5);
@@ -350,7 +349,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
-        Builder builder = Settings.settingsBuilder().put(defaultSettings)
+        Builder builder = Settings.builder().put(defaultSettings)
                 .put(getRandomNodeSettings(nodeSeed));
         Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
         if (settings != null) {
@@ -378,7 +377,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
-        Builder builder = Settings.settingsBuilder();
+        Builder builder = Settings.builder();
         if (isLocalTransportConfigured() == false) {
             builder.put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), rarely(random));
         }
@@ -575,7 +574,7 @@ public final class InternalTestCluster extends TestCluster {
         Collection<Class<? extends Plugin>> plugins = getPlugins();
         String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
-        Settings finalSettings = settingsBuilder()
+        Settings finalSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
                 .put(settings)
                 .put("node.name", name)
@@ -657,7 +656,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized Client startCoordinatingOnlyNode(Settings settings) {
         ensureOpen(); // currently unused
-        Builder builder = settingsBuilder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false)
+        Builder builder = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false)
             .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
         if (size() == 0) {
             // if we are the first node - don't wait for a state
@@ -871,7 +870,7 @@ public final class InternalTestCluster extends TestCluster {
         public Client client(Node node, String clusterName) {
             TransportAddress addr = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             Settings nodeSettings = node.settings();
-            Builder builder = settingsBuilder()
+            Builder builder = Settings.builder()
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
                     .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))

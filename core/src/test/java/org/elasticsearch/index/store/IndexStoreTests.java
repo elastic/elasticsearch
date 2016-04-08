@@ -51,7 +51,7 @@ public class IndexStoreTests extends ESTestCase {
         final Path tempDir = createTempDir().resolve(index.getUUID()).resolve("0");
         final IndexModule.Type[] values = IndexModule.Type.values();
         final IndexModule.Type type = RandomPicks.randomFrom(random(), values);
-        Settings settings = Settings.settingsBuilder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), type.name().toLowerCase(Locale.ROOT))
+        Settings settings = Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), type.name().toLowerCase(Locale.ROOT))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
@@ -87,7 +87,7 @@ public class IndexStoreTests extends ESTestCase {
     public void testStoreDirectoryDefault() throws IOException {
         Index index = new Index("bar", "foo");
         final Path tempDir = createTempDir().resolve(index.getUUID()).resolve("0");
-        FsDirectoryService service = new FsDirectoryService(IndexSettingsModule.newIndexSettings("bar", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build()), null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
+        FsDirectoryService service = new FsDirectoryService(IndexSettingsModule.newIndexSettings("bar", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build()), null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             if (Constants.WINDOWS) {
                 assertTrue(directory.toString(), directory instanceof MMapDirectory || directory instanceof SimpleFSDirectory);
@@ -100,7 +100,7 @@ public class IndexStoreTests extends ESTestCase {
     }
 
     public void testUpdateThrottleType() throws IOException {
-        Settings settings = Settings.settingsBuilder().put(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING.getKey(), "all")
+        Settings settings = Settings.builder().put(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING.getKey(), "all")
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexStoreConfig indexStoreConfig = new IndexStoreConfig(settings);

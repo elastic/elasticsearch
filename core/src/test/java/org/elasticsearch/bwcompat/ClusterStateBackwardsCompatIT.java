@@ -99,7 +99,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
     }
 
     private TransportClient newTransportClient() {
-        Settings settings = Settings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
+        Settings settings = Settings.builder().put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
         return TransportClient.builder().settings(settings).build();
     }

@@ -62,8 +62,6 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
@@ -227,7 +225,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
     public void testPercolateQueriesWithRouting() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
+                .setSettings(Settings.builder().put("index.number_of_shards", 2))
                 .execute().actionGet();
         ensureGreen();
 
@@ -301,7 +299,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
     // see #2814
     public void testPercolateCustomAnalyzer() throws Exception {
-        Builder builder = builder();
+        Builder builder = Settings.builder();
         builder.put("index.analysis.analyzer.lwhitespacecomma.tokenizer", "whitespacecomma");
         builder.putArray("index.analysis.analyzer.lwhitespacecomma.filter", "lowercase");
         builder.put("index.analysis.tokenizer.whitespacecomma.type", "pattern");
@@ -1728,7 +1726,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
     public void testMapUnmappedFieldAsString() throws IOException{
         // If index.percolator.map_unmapped_fields_as_string is set to true, unmapped field is mapped as an analyzed string.
-        Settings.Builder settings = Settings.settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.percolator.map_unmapped_fields_as_string", true);
         assertAcked(prepareCreate("test")
@@ -1747,7 +1745,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
     public void testGeoShapeWithMapUnmappedFieldAsString() throws Exception {
         // If index.percolator.map_unmapped_fields_as_string is set to true, unmapped field is mapped as an analyzed string.
-        Settings.Builder settings = Settings.settingsBuilder()
+        Settings.Builder settings = Settings.builder()
             .put(indexSettings())
             .put("index.percolator.map_unmapped_fields_as_string", true);
         assertAcked(prepareCreate("test")

@@ -36,7 +36,6 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,7 +90,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         assertNotNull(excludedNodeId);
 
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
         assertAcked(clusterUpdateSettingsResponse);
         assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
 
@@ -115,7 +114,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("number_of_shards", between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
@@ -134,7 +133,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         assertNotNull(excludedNodeId);
 
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings().setTimeout("0s")
-                .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
         assertThat(clusterUpdateSettingsResponse.isAcknowledged(), equalTo(false));
         assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
     }

@@ -83,7 +83,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     }
 
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
-        IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
+        IndexService indexService = createIndex("test", Settings.builder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
         indexService.mapperService().merge("type", new CompressedXContent(mappingUpdate.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
         // make sure mappings applied
@@ -104,7 +104,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     }
 
     protected void testConflictWhileMergingAndMappingUnchanged(XContentBuilder mapping, XContentBuilder mappingUpdate) throws IOException {
-        IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
+        IndexService indexService = createIndex("test", Settings.builder().build(), "type", mapping);
         CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
         try {
@@ -122,7 +122,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("foo").field("type", "long").endObject()
                 .endObject().endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().build(), "type", mapping).mapperService();
 
         XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("foo").field("type", "double").endObject()
@@ -149,7 +149,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("foo").field("type", "long").endObject()
                 .endObject().endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build(), "type1", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().build(), "type1", mapping).mapperService();
 
         XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type2")
                 .startObject("properties").startObject("foo").field("type", "double").endObject()
@@ -181,7 +181,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("foo").field("type", "long").endObject()
                 .endObject().endObject().endObject();
         XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build()).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().build()).mapperService();
 
         mapperService.merge("type1", new CompressedXContent(mapping1.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge("type2", new CompressedXContent(mapping2.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -215,7 +215,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("_id").field("type", "text").endObject()
                 .endObject().endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build()).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().build()).mapperService();
 
         try {
             mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -278,7 +278,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testSizeTimestampIndexParsing() throws IOException {
-        IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
+        IndexService indexService = createIndex("test", Settings.builder().build());
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(mapping), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
@@ -287,8 +287,8 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultApplied() throws IOException {
-        createIndex("test1", Settings.settingsBuilder().build());
-        createIndex("test2", Settings.settingsBuilder().build());
+        createIndex("test1", Settings.builder().build());
+        createIndex("test2", Settings.builder().build());
         XContentBuilder defaultMapping = XContentFactory.jsonBuilder().startObject()
                 .startObject(MapperService.DEFAULT_MAPPING).startObject("_timestamp").field("enabled", true).endObject().endObject()
                 .endObject();

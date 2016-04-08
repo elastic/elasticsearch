@@ -38,7 +38,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -52,7 +51,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
             addresses[i++] = instance.boundAddress().publishAddress();
         }
 
-        Settings.Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
+        Settings.Builder builder = Settings.builder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("node.name", "transport_client_retry_test")
                 .put(Node.NODE_MODE_SETTING.getKey(), internalCluster().getNodeMode())
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), internalCluster().getClusterName())

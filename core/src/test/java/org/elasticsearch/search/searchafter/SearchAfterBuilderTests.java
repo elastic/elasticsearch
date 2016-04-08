@@ -59,7 +59,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         namedWriteableRegistry = new NamedWriteableRegistry();
         QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
         indicesQueriesRegistry = new IndicesQueriesRegistry(
-                Settings.settingsBuilder().build(),
+                Settings.builder().build(),
                 Collections.singletonMap(
                         MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryBuilder.QUERY_NAME_FIELD, parser)));
     }

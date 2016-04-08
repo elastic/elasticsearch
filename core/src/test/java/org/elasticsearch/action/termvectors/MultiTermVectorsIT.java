@@ -85,7 +85,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testMultiTermVectorsWithVersion() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         MultiTermVectorsResponse response = client().prepareMultiTermVectors().add(indexOrAlias(), "type1", "1").get();

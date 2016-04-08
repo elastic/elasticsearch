@@ -88,7 +88,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -730,7 +729,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     @SafeVarargs
     public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
-        Settings indexSettings = settingsBuilder().put(settings)
+        Settings indexSettings = Settings.builder().put(settings)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         Environment env = new Environment(nodeSettings);

@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -32,7 +31,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
 
     public void testSimpleYamlSettings() throws Exception {
         final String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
-        final Settings settings = settingsBuilder()
+        final Settings settings = Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .build();
 
@@ -53,7 +52,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
         final SettingsException e =
                 expectThrows(
                         SettingsException.class,
-                        () -> settingsBuilder().loadFromStream(yaml, getClass().getResourceAsStream(yaml)).build());
+                        () -> Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml)).build());
         assertThat(e.getMessage(), containsString("Failed to load settings"));
     }
 
@@ -62,13 +61,13 @@ public class YamlSettingsLoaderTests extends ESTestCase {
         final SettingsException e =
                 expectThrows(
                         SettingsException.class,
-                        () -> settingsBuilder().loadFromStream(yaml, getClass().getResourceAsStream(yaml)).build());
+                        () -> Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml)).build());
         assertThat(e.getMessage(), containsString("Failed to load settings"));
     }
 
     public void testDuplicateKeysThrowsException() {
         final String yaml = "foo: bar\nfoo: baz";
-        final SettingsException e = expectThrows(SettingsException.class, () -> settingsBuilder().loadFromSource(yaml).build());
+        final SettingsException e = expectThrows(SettingsException.class, () -> Settings.builder().loadFromSource(yaml).build());
         assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
         assertThat(
                 e.toString(),

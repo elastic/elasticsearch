@@ -73,7 +73,7 @@ public class UnicastZenPingIT extends ESTestCase {
 
         InetSocketTransportAddress addressB = (InetSocketTransportAddress) transportB.boundAddress().publishAddress();
 
-        Settings hostsSettings = Settings.settingsBuilder().putArray("discovery.zen.ping.unicast.hosts",
+        Settings hostsSettings = Settings.builder().putArray("discovery.zen.ping.unicast.hosts",
                 NetworkAddress.format(new InetSocketAddress(addressA.address().getAddress(), addressA.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(addressB.address().getAddress(), addressB.address().getPort())))
                 .build();

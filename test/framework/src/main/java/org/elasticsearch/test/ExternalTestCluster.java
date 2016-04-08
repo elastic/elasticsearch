@@ -70,7 +70,7 @@ public final class ExternalTestCluster extends TestCluster {
 
     public ExternalTestCluster(Path tempDir, Settings additionalSettings, Collection<Class<? extends Plugin>> pluginClasses, TransportAddress... transportAddresses) {
         super(0);
-        Settings clientSettings = Settings.settingsBuilder()
+        Settings clientSettings = Settings.builder()
                 .put(additionalSettings)
                 .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // prevents any settings to be replaced by system properties.

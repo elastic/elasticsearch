@@ -282,7 +282,7 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testAddSimilarity() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put("index.similarity.my_similarity.key", "there is a key")
@@ -326,7 +326,7 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testSetupUnknownSimilarity() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -341,7 +341,7 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testSetupWithoutType() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put("index.similarity.my_similarity.foo", "bar")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -356,7 +356,7 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testCannotRegisterProvidedImplementations() {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
@@ -383,7 +383,7 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testRegisterCustomQueryCache() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), "custom")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -403,7 +403,7 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testDefaultQueryCacheImplIsSelected() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
@@ -414,7 +414,7 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testForceCacheType() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), "none")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();

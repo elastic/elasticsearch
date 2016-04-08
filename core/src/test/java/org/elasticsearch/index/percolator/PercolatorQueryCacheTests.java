@@ -96,7 +96,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
     private PercolatorQueryCache cache;
 
     void initialize(Object... fields) throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", PercolatorQueryCacheTests.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
@@ -110,7 +110,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         queryParsers.put(BoolQueryBuilder.NAME, new Tuple<>(BoolQueryBuilder.QUERY_NAME_FIELD, boolQueryParser));
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, queryParsers);
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("_index", ClusterState.UNKNOWN_UUID), indexSettings);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());

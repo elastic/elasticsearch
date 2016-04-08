@@ -57,7 +57,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
 
         client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.settingsBuilder()
+            .setSettings(Settings.builder()
                 .put("index.refresh_interval", -1)
                 .put("index.translog.flush_threshold_size", "1024b")
             )
@@ -72,7 +72,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             }
         }
         client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.settingsBuilder()
+            .setSettings(Settings.builder()
                 .putNull("index.refresh_interval")
             )
             .execute().actionGet();
@@ -90,7 +90,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
         try {
             client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                             .put("index.refresh_interval", -1) // this one can change
                             .put("index.fielddata.cache", "none") // this one can't
                     )
@@ -110,7 +110,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), nullValue());
 
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", -1) // this one can change
                 )
                 .execute().actionGet();
@@ -131,7 +131,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         try {
             client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                     )
                     .execute().actionGet();
@@ -142,7 +142,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             // expected
         }
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", "1s") // this one can change
                         .put("index.fielddata.cache", "none") // this one can't
                 )
@@ -164,7 +164,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().prepareDelete("test", "type", "1").get(); // sets version to 2
         client().prepareIndex("test", "type", "1").setSource("f", 2).setVersion(2).get(); // delete is still in cache this should work & set version to 3
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.gc_deletes", 0)
                 ).get();
 

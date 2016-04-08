@@ -222,7 +222,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws UnknownHostException {
-        Settings nodeSettings = Settings.settingsBuilder()
+        Settings nodeSettings = Settings.builder()
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
             .build();
         String masterOnlyNode = internalCluster().startMasterOnlyNode(nodeSettings);
@@ -275,7 +275,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testHandleNodeJoin_incompatibleMinVersion() throws UnknownHostException {
-        Settings nodeSettings = Settings.settingsBuilder()
+        Settings nodeSettings = Settings.builder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .build();
         String nodeName = internalCluster().startNode(nodeSettings, Version.V_5_0_0_alpha1);
@@ -320,7 +320,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "  }\n" +
                 "}";
 
-        Settings nodeSettings = Settings.settingsBuilder()
+        Settings nodeSettings = Settings.builder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .build();
         internalCluster().startNode(nodeSettings);

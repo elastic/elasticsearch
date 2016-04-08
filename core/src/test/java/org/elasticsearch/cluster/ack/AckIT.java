@@ -47,7 +47,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -121,7 +120,7 @@ public class AckIT extends ESIntegTestCase {
 
     public void testClusterRerouteNoAcknowledgement() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
@@ -134,7 +133,7 @@ public class AckIT extends ESIntegTestCase {
 
     public void testClusterRerouteAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
@@ -169,7 +168,7 @@ public class AckIT extends ESIntegTestCase {
 
     public void testClusterRerouteNoAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();

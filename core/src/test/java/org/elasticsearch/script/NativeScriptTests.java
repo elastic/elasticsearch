@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class NativeScriptTests extends ESTestCase {
     public void testNativeScript() throws InterruptedException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", "testNativeScript")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
@@ -68,7 +68,7 @@ public class NativeScriptTests extends ESTestCase {
     }
 
     public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {
-        Settings.Builder builder = Settings.settingsBuilder();
+        Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             ScriptType scriptType = randomFrom(ScriptType.values());
             builder.put("script" + "." + scriptType.getScriptType(), randomFrom(ScriptMode.values()));

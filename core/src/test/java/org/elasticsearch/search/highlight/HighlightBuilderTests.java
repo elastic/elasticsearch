@@ -287,7 +287,7 @@ public class HighlightBuilderTests extends ESTestCase {
      * than what we have in the random {@link HighlightBuilder}
      */
     public void testBuildSearchContextHighlight() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);

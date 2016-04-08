@@ -27,7 +27,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -105,7 +104,7 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
         }
 
         // Unless the global ignore_malformed option is set to true
-        Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
+        Settings indexSettings = Settings.builder().put("index.mapping.ignore_malformed", true).build();
         defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
         assertThat(doc.rootDoc().getField("field3"), nullValue());

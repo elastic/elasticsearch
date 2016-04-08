@@ -157,7 +157,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      * than the test builder
      */
     public void testBuildRescoreSearchContext() throws ElasticsearchParseException, IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer

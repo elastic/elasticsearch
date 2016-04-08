@@ -65,7 +65,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
@@ -181,7 +180,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         }
 
         public Settings build() {
-            return settingsBuilder().put(settings).build();
+            return Settings.builder().put(settings).build();
         }
     }
 

@@ -59,7 +59,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testNameMatch() {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("xxx.name", "name1")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
@@ -72,7 +72,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIdMatch() {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("xxx._id", "id1")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
@@ -85,7 +85,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIdOrNameMatch() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx._id", "id1,blah")
                 .put("xxx.name", "blah,name2")
                 .build());
@@ -102,7 +102,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testTagAndGroupMatch() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx.group", "B")
                 .build());
@@ -136,7 +136,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testStarMatch() {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("xxx.name", "*")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
@@ -146,7 +146,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIpBindFilteringMatchingAnd() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.54")
                 .build());
@@ -157,7 +157,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIpBindFilteringNotMatching() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "B")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.54")
                 .build());
@@ -168,7 +168,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIpBindFilteringNotMatchingAnd() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "8.8.8.8")
                 .build());
@@ -179,7 +179,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIpBindFilteringMatchingOr() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.54")
                 .put("xxx.tag", "A")
                 .build());
@@ -190,7 +190,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIpBindFilteringNotMatchingOr() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "8.8.8.8")
                 .build());
@@ -201,7 +201,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIpPublishFilteringMatchingAnd() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx._publish_ip", "192.1.1.54")
                 .build());
@@ -212,7 +212,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIpPublishFilteringNotMatchingAnd() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx._publish_ip", "8.8.8.8")
                 .build());
@@ -223,7 +223,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIpPublishFilteringMatchingOr() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx._publish_ip", "192.1.1.54")
                 .put("xxx.tag", "A")
                 .build());
@@ -234,7 +234,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public void testIpPublishFilteringNotMatchingOr() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx._publish_ip", "8.8.8.8")
                 .build());
@@ -245,7 +245,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     private Settings shuffleSettings(Settings source) {
-        Settings.Builder settings = Settings.settingsBuilder();
+        Settings.Builder settings = Settings.builder();
         List<String> keys = new ArrayList<>(source.getAsMap().keySet());
         Collections.shuffle(keys, random());
         for (String o : keys) {

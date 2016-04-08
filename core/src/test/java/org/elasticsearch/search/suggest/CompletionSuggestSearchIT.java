@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -64,7 +63,6 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -564,7 +562,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testThatSynonymsWork() throws Exception {
-        Settings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = Settings.builder()
                 .put("analysis.analyzer.suggest_analyzer_synonyms.type", "custom")
                 .put("analysis.analyzer.suggest_analyzer_synonyms.tokenizer", "standard")
                 .putArray("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
@@ -776,7 +774,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
         client().admin().indices().prepareCreate(INDEX)
-                .setSettings(Settings.settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
+                .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .execute().actionGet();
         ensureGreen();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
@@ -841,7 +839,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testThatSuggestStopFilterWorks() throws Exception {
-        Settings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = Settings.builder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
@@ -1001,7 +999,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
 
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-                .setSettings(Settings.settingsBuilder().put(indexSettings()).put(settings))
+                .setSettings(Settings.builder().put(indexSettings()).put(settings))
                 .addMapping(TYPE, mapping)
                 .get());
         ensureYellow();
@@ -1013,7 +1011,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see #3555
     public void testPrunedSegments() throws IOException {
-        createIndexAndMappingAndSettings(settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build(), completionMappingBuilder);
+        createIndexAndMappingAndSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build(), completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)

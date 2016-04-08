@@ -126,7 +126,6 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -337,7 +336,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                                 profileSettings.toDelimitedString(','));
                         continue;
                     } else if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
-                        profileSettings = settingsBuilder()
+                        profileSettings = Settings.builder()
                                 .put(profileSettings)
                                 .put("port", profileSettings.get("port", TransportSettings.PORT.get(this.settings)))
                                 .build();
@@ -348,7 +347,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     }
 
                     // merge fallback settings with default settings with profile settings so we have complete settings with default values
-                    Settings mergedSettings = settingsBuilder()
+                    Settings mergedSettings = Settings.builder()
                             .put(fallbackSettings)
                             .put(defaultSettings)
                             .put(profileSettings)
@@ -414,7 +413,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     private Settings createFallbackSettings() {
-        Settings.Builder fallbackSettingsBuilder = settingsBuilder();
+        Settings.Builder fallbackSettingsBuilder = Settings.builder();
 
         List<String> fallbackBindHost = TransportSettings.BIND_HOST.get(settings);
         if (fallbackBindHost.isEmpty() == false) {

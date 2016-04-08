@@ -73,7 +73,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
         if (cause.length() == 0) {
             cause = "api";
         }
-        final Settings.Builder templateSettingsBuilder = Settings.settingsBuilder();
+        final Settings.Builder templateSettingsBuilder = Settings.builder();
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder);
         indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())

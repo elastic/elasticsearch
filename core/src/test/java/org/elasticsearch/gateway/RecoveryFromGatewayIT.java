@@ -49,7 +49,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -283,7 +282,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                return settingsBuilder().put("gateway.recover_after_nodes", 2).build();
+                return Settings.builder().put("gateway.recover_after_nodes", 2).build();
             }
 
             @Override
@@ -304,7 +303,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-        internalCluster().startNodesAsync(2, settingsBuilder().put("gateway.recover_after_nodes", 2).build()).get();
+        internalCluster().startNodesAsync(2, Settings.builder().put("gateway.recover_after_nodes", 2).build()).get();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
@@ -378,7 +377,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     }
 
     public void testReusePeerRecovery() throws Exception {
-        final Settings settings = settingsBuilder()
+        final Settings settings = Settings.builder()
                 .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                 .put("gateway.recover_after_nodes", 4)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)
@@ -414,7 +413,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
             // Disable allocations while we are closing nodes
             client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(settingsBuilder()
+                    .setTransientSettings(Settings.builder()
                             .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                     .get();
             logger.info("--> full cluster restart");
@@ -431,7 +430,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> disabling allocation while the cluster is shut down{}", useSyncIds ? "" : " a second time");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(settingsBuilder()
+                .setTransientSettings(Settings.builder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                 .get();
 
@@ -490,11 +489,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 
-        final String node_1 = internalCluster().startNode(settingsBuilder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+        final String node_1 = internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        internalCluster().startNode(settingsBuilder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+        internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
 
         ensureGreen();
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);

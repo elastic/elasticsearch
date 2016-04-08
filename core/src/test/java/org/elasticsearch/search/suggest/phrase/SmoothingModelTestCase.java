@@ -95,7 +95,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
      */
     public void testFromXContent() throws IOException {
         QueryParseContext context = new QueryParseContext(
-                new IndicesQueriesRegistry(Settings.settingsBuilder().build(), Collections.emptyMap()));
+                new IndicesQueriesRegistry(Settings.builder().build(), Collections.emptyMap()));
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
 
         SmoothingModel testModel = createTestModel();

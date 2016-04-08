@@ -52,7 +52,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         });
 
         logger.info("--> creating 'test' index");
-        prepareCreate("test").setSettings(Settings.settingsBuilder()
+        prepareCreate("test").setSettings(Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "1m")
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 5)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)).get();

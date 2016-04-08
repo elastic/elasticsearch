@@ -50,7 +50,7 @@ public class SimilarityIT extends ESIntegTestCase {
                             .endObject()
                         .endObject()
                     .endObject())
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("similarity.custom.type", "BM25")

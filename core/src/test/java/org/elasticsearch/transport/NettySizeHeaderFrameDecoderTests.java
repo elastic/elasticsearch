@@ -41,7 +41,6 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -50,7 +49,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
 
-    private final Settings settings = settingsBuilder()
+    private final Settings settings = Settings.builder()
             .put("node.name", "NettySizeHeaderFrameDecoderTests")
             .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
             .put(TransportSettings.PORT.getKey(), "0")

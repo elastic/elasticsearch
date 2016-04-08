@@ -97,7 +97,7 @@ public final class SettingsFilter extends AbstractComponent {
     }
 
     private static Settings filterSettings(Iterable<String> patterns, Settings settings) {
-        Settings.Builder builder = Settings.settingsBuilder().put(settings);
+        Settings.Builder builder = Settings.builder().put(settings);
         List<String> simpleMatchPatternList = new ArrayList<>();
         for (String pattern : patterns) {
             if (Regex.isSimpleMatchPattern(pattern)) {

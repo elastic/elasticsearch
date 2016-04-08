@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -48,7 +49,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
@@ -190,7 +190,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                         .endObject())
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("analysis.tokenizer.autocomplete.max_gram", 20)
                         .put("analysis.tokenizer.autocomplete.min_gram", 1)
@@ -233,7 +233,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("test", "body", "type=text,analyzer=custom_analyzer,search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
                 .setSettings(
-                        settingsBuilder().put(indexSettings())
+                        Settings.builder().put(indexSettings())
                                 .put("analysis.filter.wordDelimiter.type", "word_delimiter")
                                 .put("analysis.filter.wordDelimiter.type.split_on_numerics", false)
                                 .put("analysis.filter.wordDelimiter.generate_word_parts", true)
@@ -273,7 +273,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .addMapping("test",
                         "name", "type=text,analyzer=name_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets",
                         "name2", "type=text,analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("analysis.filter.my_ngram.max_gram", 20)
                         .put("analysis.filter.my_ngram.min_gram", 1)
@@ -1357,7 +1357,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testPhrasePrefix() throws IOException {
-        Builder builder = settingsBuilder()
+        Builder builder = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
                 .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
@@ -1545,7 +1545,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     // Issue #3200
     public void testResetTwice() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("analysis.analyzer.my_analyzer.type", "pattern")
                         .put("analysis.analyzer.my_analyzer.pattern", "\\s+")

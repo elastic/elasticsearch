@@ -34,7 +34,7 @@ public class MarvelTemplateUtilsTests extends ESTestCase {
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertThat(source, templateEqualTo("{\n" +
+        assertTemplate(source, equalTo("{\n" +
                 "  \"template\": \".monitoring-data-" + version + "\",\n" +
                 "  \"mappings\": {\n" +
                 "    \"type_1\": {\n" +
@@ -79,26 +79,26 @@ public class MarvelTemplateUtilsTests extends ESTestCase {
     }
 
     public void testFilter() {
-        assertThat(MarvelTemplateUtils.filter(new BytesArray("${monitoring.template.version}"), 0), templateEqualTo("0"));
-        assertThat(MarvelTemplateUtils.filter(new BytesArray("{\"template\": \"test-${monitoring.template.version}\"}"), 1),
-                templateEqualTo("{\"template\": \"test-1\"}"));
-        assertThat(MarvelTemplateUtils.filter(new BytesArray("{\"template\": \"${monitoring.template.version}-test\"}"), 2),
-                templateEqualTo("{\"template\": \"2-test\"}"));
-        assertThat(MarvelTemplateUtils.filter(new BytesArray("{\"template\": \"test-${monitoring.template.version}-test\"}"), 3),
-                templateEqualTo("{\"template\": \"test-3-test\"}"));
+        assertTemplate(MarvelTemplateUtils.filter(new BytesArray("${monitoring.template.version}"), 0), equalTo("0"));
+        assertTemplate(MarvelTemplateUtils.filter(new BytesArray("{\"template\": \"test-${monitoring.template.version}\"}"), 1),
+                equalTo("{\"template\": \"test-1\"}"));
+        assertTemplate(MarvelTemplateUtils.filter(new BytesArray("{\"template\": \"${monitoring.template.version}-test\"}"), 2),
+                equalTo("{\"template\": \"2-test\"}"));
+        assertTemplate(MarvelTemplateUtils.filter(new BytesArray("{\"template\": \"test-${monitoring.template.version}-test\"}"), 3),
+                equalTo("{\"template\": \"test-3-test\"}"));
 
         final int version = randomIntBetween(0, 100);
-        assertThat(MarvelTemplateUtils.filter(new BytesArray("{\"foo-${monitoring.template.version}\": " +
+        assertTemplate(MarvelTemplateUtils.filter(new BytesArray("{\"foo-${monitoring.template.version}\": " +
                         "\"bar-${monitoring.template.version}\"}"), version),
-                templateEqualTo("{\"foo-" + version + "\": \"bar-" + version + "\"}"));
+                equalTo("{\"foo-" + version + "\": \"bar-" + version + "\"}"));
     }
 
-    public static Matcher<String> templateEqualTo(String template) {
+    public static void assertTemplate(String actual, Matcher<? super String> matcher) {
         if (Constants.WINDOWS) {
             // translate Windows line endings (\r\n) to standard ones (\n)
-            return equalTo(Strings.replace(template, System.lineSeparator(), "\n"));
+            actual = Strings.replace(actual, System.lineSeparator(), "\n");
         }
-        return equalTo(template);
+        assertThat(actual, matcher);
     }
 
 }

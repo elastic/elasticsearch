@@ -53,6 +53,7 @@ import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.InnerHitBuilderTests;
+import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -69,7 +70,6 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
@@ -321,15 +321,9 @@ public class SearchSourceBuilderTests extends ESTestCase {
             }
         }
         if (randomBoolean()) {
-            // NORELEASE make RandomQueryBuilder work outside of the
-            // AbstractQueryTestCase
-            // builder.query(RandomQueryBuilder.createQuery(getRandom()));
             builder.query(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
         }
         if (randomBoolean()) {
-            // NORELEASE make RandomQueryBuilder work outside of the
-            // AbstractQueryTestCase
-            // builder.postFilter(RandomQueryBuilder.createQuery(getRandom()));
             builder.postFilter(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
         }
         if (randomBoolean()) {
@@ -431,11 +425,9 @@ public class SearchSourceBuilderTests extends ESTestCase {
             }
         }
         if (randomBoolean()) {
-            // NORELEASE need a random aggregation builder method
             builder.aggregation(AggregationBuilders.avg(randomAsciiOfLengthBetween(5, 20)));
         }
         if (randomBoolean()) {
-            // NORELEASE need a method to randomly build content for ext
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
             xContentBuilder.startObject();
             xContentBuilder.field("term_vectors_fetch", randomAsciiOfLengthBetween(5, 20));

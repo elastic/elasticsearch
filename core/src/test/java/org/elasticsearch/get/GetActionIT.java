@@ -729,7 +729,7 @@ public class GetActionIT extends ESIntegTestCase {
 
         GetResponse getResponse = client().prepareGet(indexOrAlias(), "my-type1", "1").setFields("_all").get();
         assertNotNull(getResponse.getField("_all").getValue());
-        assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text" + " "));
+        assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text"));
     }
 
     public void testUngeneratedFieldsThatAreNeverStored() throws IOException {

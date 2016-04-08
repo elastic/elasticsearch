@@ -283,6 +283,7 @@ public final class IndexModule {
         MMAPFS,
         SIMPLEFS,
         FS,
+        @Deprecated
         DEFAULT;
 
         public String getSettingsKey() {

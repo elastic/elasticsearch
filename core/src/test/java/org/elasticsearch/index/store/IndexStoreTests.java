@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.MMapDirectory;
@@ -49,10 +48,21 @@ public class IndexStoreTests extends ESTestCase {
     public void testStoreDirectory() throws IOException {
         Index index = new Index("foo", "fooUUID");
         final Path tempDir = createTempDir().resolve(index.getUUID()).resolve("0");
-        final IndexModule.Type[] values = IndexModule.Type.values();
-        final IndexModule.Type type = RandomPicks.randomFrom(random(), values);
-        Settings settings = Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), type.name().toLowerCase(Locale.ROOT))
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        // default
+        doTestStoreDirectory(index, tempDir, null, IndexModule.Type.FS);
+        // explicit directory impls
+        for (IndexModule.Type type : IndexModule.Type.values()) {
+            doTestStoreDirectory(index, tempDir, type.name().toLowerCase(Locale.ROOT), type);
+        }
+    }
+
+    private void doTestStoreDirectory(Index index, Path tempDir, String typeSettingValue, IndexModule.Type type) throws IOException {
+        Settings.Builder settingsBuilder = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        if (typeSettingValue != null) {
+            settingsBuilder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), typeSettingValue);
+        }
+        Settings settings = settingsBuilder.build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
@@ -67,6 +77,14 @@ public class IndexStoreTests extends ESTestCase {
                     assertTrue(type + " " + directory.toString(), directory instanceof SimpleFSDirectory);
                     break;
                 case FS:
+                    if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+                        assertTrue(directory.toString(), directory instanceof MMapDirectory);
+                    } else if (Constants.WINDOWS) {
+                        assertTrue(directory.toString(), directory instanceof SimpleFSDirectory);
+                    } else {
+                        assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
+                    }
+                    break;
                 case DEFAULT:
                    if (Constants.WINDOWS) {
                         if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
@@ -80,21 +98,8 @@ public class IndexStoreTests extends ESTestCase {
                         assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     }
                     break;
-            }
-        }
-    }
-
-    public void testStoreDirectoryDefault() throws IOException {
-        Index index = new Index("bar", "foo");
-        final Path tempDir = createTempDir().resolve(index.getUUID()).resolve("0");
-        FsDirectoryService service = new FsDirectoryService(IndexSettingsModule.newIndexSettings("bar", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build()), null, new ShardPath(false, tempDir, tempDir, new ShardId(index, 0)));
-        try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
-            if (Constants.WINDOWS) {
-                assertTrue(directory.toString(), directory instanceof MMapDirectory || directory instanceof SimpleFSDirectory);
-            } else if (Constants.JRE_IS_64BIT) {
-                assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
-            } else {
-                assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
+                default:
+                    fail();
             }
         }
     }

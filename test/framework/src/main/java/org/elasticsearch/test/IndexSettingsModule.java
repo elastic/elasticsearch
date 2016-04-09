@@ -65,4 +65,13 @@ public class IndexSettingsModule extends AbstractModule {
         }
         return new IndexSettings(metaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, metaData.getIndex().getName()), new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
+
+    public static IndexSettings newIndexSettings(final IndexMetaData indexMetaData, Setting<?>... setting) {
+        Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        if (setting.length > 0) {
+            settingSet.addAll(Arrays.asList(setting));
+        }
+        return new IndexSettings(indexMetaData, Settings.EMPTY, (idx) -> Regex.simpleMatch(idx, indexMetaData.getIndex().getName()),
+                                 new IndexScopedSettings(Settings.EMPTY, settingSet));
+    }
 }

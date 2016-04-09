@@ -63,8 +63,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
                 .build());
-        assertFalse("shard on shared filesystem", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings, false));
-        assertTrue("shard on shared filesystem and closed", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings, true));
+        assertFalse("shard on shared filesystem", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings));
+
+        final IndexMetaData.Builder newIndexMetaData = IndexMetaData.builder(idxSettings.getIndexMetaData());
+        newIndexMetaData.state(IndexMetaData.State.CLOSE);
+        idxSettings = IndexSettingsModule.newIndexSettings(newIndexMetaData.build());
+        assertTrue("shard on shared filesystem, but closed, so it should be deletable",
+            indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings));
     }
 
     public void testCanDeleteShardContent() {
@@ -81,7 +86,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         test.removeShard(0, "boom");
         assertTrue("shard is removed", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()));
         ShardId notAllocated = new ShardId(test.index(), 100);
-        assertFalse("shard that was never on this node should NOT be deletable", indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()));
+        assertFalse("shard that was never on this node should NOT be deletable",
+            indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()));
     }
 
     public void testDeleteIndexStore() throws Exception {
@@ -92,7 +98,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertTrue(test.hasShard(0));
 
         try {
-            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state(), false);
+            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
             fail();
         } catch (IllegalStateException ex) {
             // all good
@@ -119,7 +125,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertTrue(path.exists());
 
         try {
-            indicesService.deleteIndexStore("boom", secondMetaData, clusterService.state(), false);
+            indicesService.deleteIndexStore("boom", secondMetaData, clusterService.state());
             fail();
         } catch (IllegalStateException ex) {
             // all good
@@ -129,7 +135,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         // now delete the old one and make sure we resolve against the name
         try {
-            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state(), false);
+            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
             fail();
         } catch (IllegalStateException ex) {
             // all good
@@ -187,4 +193,5 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareOpen("test"));
 
     }
+
 }

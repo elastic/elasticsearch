@@ -456,6 +456,34 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         }
     }
 
+    //nocommit need to decide if this method is useful/needed
+    /**
+     * Do any of the index directories exist for this index?  Used to know if there is anything
+     * to delete by {@link #deleteIndexDirectorySafe(Index, long, IndexSettings)}.
+     */
+    public boolean indexDirectoryExists(final Index index, final IndexSettings indexSettings) {
+        boolean exists = false;
+        for (Path path : indexPaths(index)) {
+            if (Files.exists(path)) {
+                exists = true;
+                break;
+            }
+        }
+        if (exists == false && indexSettings.hasCustomDataPath()) {
+            exists = Files.exists(resolveIndexCustomLocation(indexSettings));
+        }
+        return exists;
+    }
+
+    //nocommit just a convenience for debugging
+    public String indicesPathDirectoryTree() {
+        final StringBuilder buf = new StringBuilder();
+        for (NodePath nodePath : nodePaths()) {
+            buf.append("Node path [").append(nodePath.path).append("]:\n")
+               .append(FileSystemUtils.directoryTree(nodePath.indicesPath)).append("\n");
+        }
+        return buf.toString();
+    }
 
     /**
      * Tries to lock all local shards for the given index. If any of the shard locks can't be acquired

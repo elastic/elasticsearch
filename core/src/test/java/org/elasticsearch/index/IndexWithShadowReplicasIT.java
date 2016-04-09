@@ -37,8 +37,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
+import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryTargetService;
@@ -87,9 +89,9 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     private Settings nodeSettings(String dataPath) {
         return Settings.builder()
-                .put("node.add_id_to_custom_path", false)
+                .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), false)
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
-                .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
+                .put(FsDirectoryService.INDEX_LOCK_FACTOR_SETTING.getKey(), randomFrom("native", "simple"))
                 .build();
     }
 
@@ -544,7 +546,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Settings nodeSettings = nodeSettings(dataPath);
 
         int nodeCount = randomIntBetween(2, 5);
-        internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
+        final List<String> nodes = internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -557,6 +559,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureGreen(IDX);
+
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
         flushAndRefresh(IDX);
@@ -571,8 +574,14 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, 2);
 
         assertAcked(client().admin().indices().prepareDelete(IDX));
+        //nocommit - remove
+        logger.info("IndexWithShadowReplicaIT.testIndexWithShadowReplicasCleansUp - indices paths after deletion has completed:");
+        for (String node : nodes) {
+            logger.info(internalCluster().getInstance(NodeEnvironment.class, node).indicesPathDirectoryTree());
+        }
 
         assertPathHasBeenCleared(dataPath);
+        assertIndicesDirsDeleted(nodes);
     }
 
     /**
@@ -583,7 +592,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        internalCluster().startNodesAsync(2, nodeSettings).get();
+        final List<String> nodes = internalCluster().startNodesAsync(2, nodeSettings).get();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -608,6 +617,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         // start a third node, with 5 shards each on the other nodes, they
         // should relocate some to the third node
         final String node3 = internalCluster().startNode(nodeSettings);
+        nodes.add(node3);
 
         assertBusy(new Runnable() {
             @Override
@@ -628,8 +638,14 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, docCount);
 
         assertAcked(client().admin().indices().prepareDelete(IDX));
+        //nocommit - remove
+        logger.info("IndexWithShadowReplicaIT.testShadowReplicaNaturalRelocation - indices paths after deletion has completed:");
+        for (String node : nodes) {
+            logger.info(internalCluster().getInstance(NodeEnvironment.class, node).indicesPathDirectoryTree());
+        }
 
         assertPathHasBeenCleared(dataPath);
+        assertIndicesDirsDeleted(nodes);
     }
 
     public void testShadowReplicasUsingFieldData() throws Exception {
@@ -782,7 +798,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath2 = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath.getParent());
 
-        internalCluster().startNodesAsync(2, nodeSettings).get();
+        final List<String> nodes = internalCluster().startNodesAsync(2, nodeSettings).get();
         String IDX = "test";
         String IDX2 = "test2";
 
@@ -823,5 +839,14 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         logger.info("--> deleting closed index");
         client().admin().indices().prepareDelete(IDX).get();
         assertPathHasBeenCleared(dataPath);
+        assertIndicesDirsDeleted(nodes);
     }
+
+    private void assertIndicesDirsDeleted(final List<String> nodes) throws IOException {
+        for (String node : nodes) {
+            final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class, node);
+            assertThat(nodeEnv.availableIndexFolders().size(), equalTo(0));
+        }
+    }
+
 }

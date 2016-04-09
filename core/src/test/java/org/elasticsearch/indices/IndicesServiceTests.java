@@ -64,7 +64,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
                 .build());
         assertFalse("shard on shared filesystem", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings, false));
-        assertTrue("shard on shared filesystem and closed", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings, true));
+        assertTrue("shard on shared filesystem, but closed, so it should be deletable",
+            indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings, true));
     }
 
     public void testCanDeleteShardContent() {
@@ -81,7 +82,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         test.removeShard(0, "boom");
         assertTrue("shard is removed", indicesService.canDeleteShardContent(shardId, test.getIndexSettings()));
         ShardId notAllocated = new ShardId(test.index(), 100);
-        assertFalse("shard that was never on this node should NOT be deletable", indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()));
+        assertFalse("shard that was never on this node should NOT be deletable",
+            indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()));
     }
 
     public void testDeleteIndexStore() throws Exception {

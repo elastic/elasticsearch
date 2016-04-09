@@ -70,7 +70,6 @@ public class IngestService implements Closeable {
 
     @Override
     public void close() throws IOException {
-        pipelineStore.getProcessorRegistry().close();
         pipelineStore.close();
     }
 

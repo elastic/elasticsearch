@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -62,22 +61,10 @@ public class MockSearchService extends SearchService {
     public static void assertNoInFlightContext() {
         final Map<SearchContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {
-            Map.Entry<SearchContext, Throwable> firstOpen = copy.entrySet().iterator().next();
-            SearchContext context = firstOpen.getKey();
-            StringBuilder message = new StringBuilder().append(context.shardTarget());
-            if (context.searchType() != SearchType.DEFAULT) {
-                message.append("searchType=[").append(context.searchType()).append("]");
-            }
-            if (context.scrollContext() != null) {
-                message.append("scroll=[").append(context.scrollContext().scroll.keepAlive()).append("]");
-            }
-            message.append(" query=[").append(context.query()).append("]");
-            RuntimeException cause = new RuntimeException(message.toString());
-            cause.setStackTrace(firstOpen.getValue().getStackTrace());
             throw new AssertionError(
-                    "There are still " + copy.size()
-                            + " in-flight contexts. The first one's creation site is listed as the cause of this exception.",
-                    cause);
+                    "There are still [" + copy.size()
+                            + "] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
+                    copy.values().iterator().next());
         }
     }
 
@@ -85,7 +72,7 @@ public class MockSearchService extends SearchService {
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
     static void addActiveContext(SearchContext context) {
-        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException());
+        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(context.toString()));
     }
 
     /**

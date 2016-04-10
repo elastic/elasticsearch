@@ -53,7 +53,7 @@ public class MockSearchServiceTests extends ESTestCase {
         MockSearchService.addActiveContext(s);
         try {
             Throwable e = expectThrows(AssertionError.class, () -> MockSearchService.assertNoInFlightContext());
-            assertEquals("There are still 1 in-flight contexts. The first one's creation site is listed as the cause of this exception.",
+            assertEquals("There are still [1] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
                     e.getMessage());
             e = e.getCause();
             // The next line with throw an exception if the date looks wrong

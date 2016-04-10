@@ -403,4 +403,16 @@ public abstract class SearchContext implements Releasable {
 
     public abstract QueryShardContext getQueryShardContext();
 
+    @Override
+    public String toString() {
+        StringBuilder result = new StringBuilder().append(shardTarget());
+        if (searchType() != SearchType.DEFAULT) {
+            result.append("searchType=[").append(searchType()).append("]");
+        }
+        if (scrollContext() != null) {
+            result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+        }
+        result.append(" query=[").append(query()).append("]");
+        return result.toString();
+    }
 }

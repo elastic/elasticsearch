@@ -19,11 +19,15 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,6 +39,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.List;
 
 public final class QueryRescorer implements Rescorer {
 
@@ -56,27 +62,14 @@ public final class QueryRescorer implements Rescorer {
 
         final QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
 
-        org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.query()) {
-
-            @Override
-            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
-                if (secondPassMatches) {
-                    return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(), secondPassScore * rescore.rescoreQueryWeight());
-                }
-                // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
-                // secondary score?
-                return firstPassScore * rescore.queryWeight();
-            }
-        };
-
         // First take top slice of incoming docs, to be rescored:
-        TopDocs topNFirstPass = topN(topDocs, rescoreContext.window());
+        TopDocs topNFirstPass = topN(topDocs, rescore.window());
 
         // Rescore them:
-        TopDocs rescored = rescorer.rescore(context.searcher(), topNFirstPass, rescoreContext.window());
+        HashMap<Integer, Float> rescored = rescore(context.searcher(), topNFirstPass, rescore.query(), rescore);
 
         // Splice back to non-topN hits and resort all of them:
-        return combine(topDocs, rescored, (QueryRescoreContext) rescoreContext);
+        return combine(topDocs, rescored, rescore);
     }
 
     @Override
@@ -121,12 +114,24 @@ public final class QueryRescorer implements Rescorer {
     }
 
     private static final ObjectParser<QueryRescoreContext, QueryShardContext> RESCORE_PARSER = new ObjectParser<>("query", null);
+    private float topScore = 0.0f;
+    private float bottomScore = 0.0f;
+    private float denominator = Float.NaN;
+    private final float getDenominator() {
+        if (Float.isNaN(denominator))
+        {
+            denominator = (topScore == bottomScore) ? 1 : topScore - bottomScore;
+        }
+
+        return denominator;
+    }
 
     static {
         RESCORE_PARSER.declareObject(QueryRescoreContext::setQuery, (p, c) -> c.parse(p).query(), new ParseField("rescore_query"));
         RESCORE_PARSER.declareFloat(QueryRescoreContext::setQueryWeight, new ParseField("query_weight"));
         RESCORE_PARSER.declareFloat(QueryRescoreContext::setRescoreQueryWeight, new ParseField("rescore_query_weight"));
         RESCORE_PARSER.declareString(QueryRescoreContext::setScoreMode, new ParseField("score_mode"));
+        RESCORE_PARSER.declareBoolean(QueryRescoreContext::setNormalization, new ParseField("normalization"));
     }
 
     @Override
@@ -156,32 +161,113 @@ public final class QueryRescorer implements Rescorer {
         return new TopDocs(in.totalHits, subset, in.getMaxScore());
     }
 
-    /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
-    private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
+    /** Returns rescored records that matched the TopDocs returned from topN. This is overriding the Lucene rescore method which requires
+     *  additional knowledge of the query and the RescoreContext
+     * */
+    public HashMap<Integer, Float> rescore(IndexSearcher searcher, TopDocs firstPassTopDocs, Query query, QueryRescoreContext ctx)
+        throws IOException {
+        ScoreDoc[] hits = firstPassTopDocs.scoreDocs.clone();
+        Arrays.sort(hits, new Comparator<ScoreDoc>() {
+            @Override
+            public int compare(ScoreDoc a, ScoreDoc b) {
+                return a.doc - b.doc;
+            }
+        });
 
-        System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
-        if (in.scoreDocs.length > resorted.scoreDocs.length) {
-            // These hits were not rescored (beyond the rescore window), so we treat them the same as a hit that did get rescored but did
-            // not match the 2nd pass query:
-            for(int i=resorted.scoreDocs.length;i<in.scoreDocs.length;i++) {
-                // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
-                // secondary score?
-                in.scoreDocs[i].score *= ctx.queryWeight();
+        HashMap<Integer, Float> rescoreHits = new HashMap<Integer, Float>();
+        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+
+        Weight weight = searcher.createNormalizedWeight(query, true);
+
+        // Now merge sort docIDs from hits, with reader's leaves:
+        int hitUpto = 0;
+        int readerUpto = -1;
+        int endDoc = 0;
+        int docBase = 0;
+        boolean firstMatch = true;
+
+        // Scorer returns results by document ID, when looping through, there is no Random Access so scorer.advance(int)
+        // has to be the next ID in the TopDocs
+        for(Scorer scorer = null; hitUpto < hits.length; ++hitUpto) {
+            ScoreDoc hit = hits[hitUpto];
+            int docID = hit.doc;
+
+            LeafReaderContext readerContext = null;
+            while (docID >= endDoc) {
+                readerUpto++;
+                readerContext = leaves.get(readerUpto);
+                endDoc = readerContext.docBase + readerContext.reader().maxDoc();
             }
 
-            // TODO: this is wrong, i.e. we are comparing apples and oranges at this point.  It would be better if we always rescored all
-            // incoming first pass hits, instead of allowing recoring of just the top subset:
-            Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
+            if(readerContext != null) {
+                // We advanced to another segment:
+                docBase = readerContext.docBase;
+
+                scorer = weight.scorer(readerContext);
+            }
+
+            if(scorer != null) {
+                int targetDoc = docID - docBase;
+                int actualDoc = scorer.docID();
+                if(actualDoc < targetDoc) {
+                    actualDoc = scorer.iterator().advance(targetDoc);
+                }
+
+                if(actualDoc == targetDoc) {
+                    float score = scorer.score();
+
+                    if (firstMatch) {
+                        topScore = score;
+                        bottomScore = score;
+                        firstMatch = false;
+                    }
+
+                    if (topScore < score)
+                        topScore = score;
+                    if (bottomScore > score)
+                        bottomScore = score;
+
+                    // Query did match this doc:
+                    rescoreHits.put(docID, score);
+                } else {
+                    // Query did not match this doc:
+                    assert actualDoc > targetDoc;
+                }
+            }
         }
+
+        // Moved Arrays.sort() from Lucene engine into our local .combine() method to sort
+        // after calculations are defined. This is to prevent sorting unnecessarily
+        return rescoreHits;
+    }
+
+    /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
+    private TopDocs combine(TopDocs in, HashMap<Integer, Float> resorted, QueryRescoreContext ctx) {
+        for(int i=0;i<in.scoreDocs.length;i++) {
+            if (resorted.size() != 0 && resorted.containsKey(in.scoreDocs[i].doc))
+            {
+                float score = (!ctx.normalize) ? resorted.get(in.scoreDocs[i].doc) :
+                    ((resorted.get(in.scoreDocs[i].doc) - bottomScore) / getDenominator());
+                in.scoreDocs[i].score = ctx.scoreMode.combine(in.scoreDocs[i].score * ctx.queryWeight(), score * ctx.rescoreQueryWeight());
+            }
+            else
+            {
+                in.scoreDocs[i].score *= ctx.queryWeight();
+            }
+        }
+
+        Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
+
         return in;
     }
 
     public static class QueryRescoreContext extends RescoreSearchContext {
 
         static final int DEFAULT_WINDOW_SIZE = 10;
+        static final boolean DEFAULT_NORMALIZE = false;
 
         public QueryRescoreContext(QueryRescorer rescorer) {
-            super(NAME, DEFAULT_WINDOW_SIZE, rescorer);
+            super(NAME, DEFAULT_WINDOW_SIZE, rescorer, DEFAULT_NORMALIZE);
             this.scoreMode = QueryRescoreMode.Total;
         }
 
@@ -189,6 +275,7 @@ public final class QueryRescorer implements Rescorer {
         private float queryWeight = 1.0f;
         private float rescoreQueryWeight = 1.0f;
         private QueryRescoreMode scoreMode;
+        private boolean normalize = DEFAULT_NORMALIZE;
 
         public void setQuery(Query query) {
             this.query = query;
@@ -210,6 +297,8 @@ public final class QueryRescorer implements Rescorer {
             return scoreMode;
         }
 
+        public boolean getNormalization() { return normalize; }
+
         public void setRescoreQueryWeight(float rescoreQueryWeight) {
             this.rescoreQueryWeight = rescoreQueryWeight;
         }
@@ -225,6 +314,8 @@ public final class QueryRescorer implements Rescorer {
         public void setScoreMode(String scoreMode) {
             setScoreMode(QueryRescoreMode.fromString(scoreMode));
         }
+
+        public void setNormalization(boolean normalize) { this.normalize = normalize; }
     }
 
     @Override

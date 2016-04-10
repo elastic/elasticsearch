@@ -41,15 +41,18 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;
     public static final float DEFAULT_QUERYWEIGHT = 1.0f;
     public static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
+    static final boolean DEFAULT_NORMALIZE = false;
     private final QueryBuilder<?> queryBuilder;
     private float rescoreQueryWeight = DEFAULT_RESCORE_QUERYWEIGHT;
     private float queryWeight = DEFAULT_QUERYWEIGHT;
     private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
+    private boolean normalize = false;
 
     private static ParseField RESCORE_QUERY_FIELD = new ParseField("rescore_query");
     private static ParseField QUERY_WEIGHT_FIELD = new ParseField("query_weight");
     private static ParseField RESCORE_QUERY_WEIGHT_FIELD = new ParseField("rescore_query_weight");
     private static ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
+    private static ParseField NORMALIZE_FIELD = new ParseField("normalize");
 
     private static final ObjectParser<InnerBuilder, QueryParseContext> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
 
@@ -64,6 +67,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         QUERY_RESCORE_PARSER.declareFloat(InnerBuilder::setQueryWeight, QUERY_WEIGHT_FIELD);
         QUERY_RESCORE_PARSER.declareFloat(InnerBuilder::setRescoreQueryWeight, RESCORE_QUERY_WEIGHT_FIELD);
         QUERY_RESCORE_PARSER.declareString((struct, value) ->  struct.setScoreMode(QueryRescoreMode.fromString(value)), SCORE_MODE_FIELD);
+        QUERY_RESCORE_PARSER.declareBoolean(InnerBuilder::setNormalization, NORMALIZE_FIELD);
     }
 
     /**
@@ -83,6 +87,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         scoreMode = QueryRescoreMode.readFromStream(in);
         rescoreQueryWeight = in.readFloat();
         queryWeight = in.readFloat();
+        normalize = in.readBoolean();
     }
 
     @Override
@@ -91,6 +96,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         scoreMode.writeTo(out);
         out.writeFloat(rescoreQueryWeight);
         out.writeFloat(queryWeight);
+        out.writeBoolean(normalize);
     }
 
     /**
@@ -146,6 +152,23 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         return this.scoreMode;
     }
 
+
+    /**
+     * Sets the flag to determine if results should be normalized before calculating. The default is <tt>false</tt>
+     */
+    public QueryRescorerBuilder setNormalization(boolean normalize) {
+        this.normalize = normalize;
+        return this;
+    }
+
+
+    /**
+     * Gets the normalization setting. The default is <tt>false</tt>
+     */
+    public boolean getNormailzation() {
+        return this.normalize;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -153,6 +176,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         builder.field(QUERY_WEIGHT_FIELD.getPreferredName(), queryWeight);
         builder.field(RESCORE_QUERY_WEIGHT_FIELD.getPreferredName(), rescoreQueryWeight);
         builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        builder.field(NORMALIZE_FIELD.getPreferredName(), normalize);
         builder.endObject();
     }
 
@@ -172,13 +196,15 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         if (this.windowSize != null) {
             queryRescoreContext.setWindowSize(this.windowSize);
         }
+        queryRescoreContext.setNormalization(this.normalize);
+
         return queryRescoreContext;
     }
 
     @Override
     public final int hashCode() {
         int result = super.hashCode();
-        return 31 * result + Objects.hash(scoreMode, queryWeight, rescoreQueryWeight, queryBuilder);
+        return 31 * result + Objects.hash(scoreMode, queryWeight, rescoreQueryWeight, queryBuilder, normalize);
     }
 
     @Override
@@ -194,7 +220,8 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
                Objects.equals(scoreMode, other.scoreMode) &&
                Objects.equals(queryWeight, other.queryWeight) &&
                Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight) &&
-               Objects.equals(queryBuilder, other.queryBuilder);
+               Objects.equals(queryBuilder, other.queryBuilder) &&
+               Objects.equals(normalize, other.normalize);
     }
 
     @Override
@@ -213,6 +240,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         private float rescoreQueryWeight = DEFAULT_RESCORE_QUERYWEIGHT;
         private float queryWeight = DEFAULT_QUERYWEIGHT;
         private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
+        private boolean normalize = DEFAULT_NORMALIZE;
 
         void setQueryBuilder(QueryBuilder<?> builder) {
             this.queryBuilder = builder;
@@ -223,6 +251,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
             queryRescoreBuilder.setQueryWeight(queryWeight);
             queryRescoreBuilder.setRescoreQueryWeight(rescoreQueryWeight);
             queryRescoreBuilder.setScoreMode(scoreMode);
+            queryRescoreBuilder.setNormalization(normalize);
             return queryRescoreBuilder;
         }
 
@@ -237,5 +266,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         void setScoreMode(QueryRescoreMode scoreMode) {
             this.scoreMode = scoreMode;
         }
+
+        void setNormalization(boolean normalize) { this.normalize = normalize; }
     }
 }

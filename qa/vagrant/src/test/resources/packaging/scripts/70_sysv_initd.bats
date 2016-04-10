@@ -57,10 +57,16 @@ setup() {
     install_package
 }
 
-@test "[INIT.D] elasticsearch startup script exists and is executable" {
-    DAEMON="$ES_HOME/bin/elasticsearch"
-    run test -x "$DAEMON"
-    [ "$status" -eq 0 ]
+@test "[INIT.D] elasticsearch fails if startup script is not executable" {
+    local INIT="/etc/init.d/elasticsearch"
+    local DAEMON="$ES_HOME/bin/elasticsearch"
+    
+    sudo chmod -x "$DAEMON"
+    run "$INIT"
+    sudo chmod +x "$DAEMON"
+    
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"* ]]
 }
 
 @test "[INIT.D] daemon isn't enabled on restart" {

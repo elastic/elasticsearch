@@ -101,17 +101,15 @@ public class PercolatorQueryCacheTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        Map<String, Tuple<ParseField, QueryParser<?>>> queryParsers = new HashMap<>();
+        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry();
         QueryParser<TermQueryBuilder> termParser = TermQueryBuilder::fromXContent;
-        queryParsers.put(TermQueryBuilder.NAME, new Tuple<>(TermQueryBuilder.QUERY_NAME_FIELD, termParser));
+        indicesQueriesRegistry.register(termParser, TermQueryBuilder.QUERY_NAME_FIELD);
         QueryParser<WildcardQueryBuilder> wildcardParser = WildcardQueryBuilder::fromXContent; 
-        queryParsers.put(WildcardQueryBuilder.NAME, new Tuple<>(WildcardQueryBuilder.QUERY_NAME_FIELD, wildcardParser));
+        indicesQueriesRegistry.register(wildcardParser, WildcardQueryBuilder.QUERY_NAME_FIELD);
         QueryParser<BoolQueryBuilder> boolQueryParser = BoolQueryBuilder::fromXContent;
-        queryParsers.put(BoolQueryBuilder.NAME, new Tuple<>(BoolQueryBuilder.QUERY_NAME_FIELD, boolQueryParser));
-        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, queryParsers);
+        indicesQueriesRegistry.register(boolQueryParser, BoolQueryBuilder.QUERY_NAME_FIELD);
 
-        Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("_index", ClusterState.UNKNOWN_UUID), indexSettings);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);

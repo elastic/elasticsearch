@@ -277,12 +277,12 @@ public class AggregatorFactories {
             Builder builder = new Builder();
             int factoriesSize = in.readVInt();
             for (int i = 0; i < factoriesSize; i++) {
-                AggregatorBuilder<?> factory = in.readAggregatorFactory();
+                AggregatorBuilder<?> factory = in.readAggregatorBuilder();
                 builder.addAggregator(factory);
             }
             int pipelineFactoriesSize = in.readVInt();
             for (int i = 0; i < pipelineFactoriesSize; i++) {
-                PipelineAggregatorBuilder<?> factory = in.readPipelineAggregatorFactory();
+                PipelineAggregatorBuilder<?> factory = in.readPipelineAggregatorBuilder();
                 builder.addPipelineAggregator(factory);
             }
             return builder;

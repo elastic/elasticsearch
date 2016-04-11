@@ -20,7 +20,6 @@
 package org.elasticsearch.search.searchafter;
 
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -42,7 +41,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -57,11 +55,9 @@ public class SearchAfterBuilderTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
+        indicesQueriesRegistry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        indicesQueriesRegistry = new IndicesQueriesRegistry(
-                Settings.builder().build(),
-                Collections.singletonMap(
-                        MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryBuilder.QUERY_NAME_FIELD, parser)));
+        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
     }
 
     @AfterClass

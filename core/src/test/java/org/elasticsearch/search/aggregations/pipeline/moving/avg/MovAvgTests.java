@@ -116,7 +116,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(expected.type(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        PipelineAggregatorBuilder<?> newAgg = aggParsers.pipelineAggregator(expected.getWriteableName()).parse(expected.name(), parser,
+        PipelineAggregatorBuilder<?> newAgg = aggParsers.pipelineParser(expected.getWriteableName(), parser).parse(expected.name(), parser,
                 parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());

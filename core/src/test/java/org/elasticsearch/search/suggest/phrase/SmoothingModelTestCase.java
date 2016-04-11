@@ -51,7 +51,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -94,8 +93,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
      * Test that creates new smoothing model from a random test smoothing model and checks both for equality
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(
-                new IndicesQueriesRegistry(Settings.builder().build(), Collections.emptyMap()));
+        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry());
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
 
         SmoothingModel testModel = createTestModel();

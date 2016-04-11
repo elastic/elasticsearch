@@ -35,9 +35,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -246,7 +246,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext,
             String faultyHeuristicDefinition, String expectedError) throws IOException {
 
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, Collections.emptyMap());
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         try {
             XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
             QueryParseContext parseContext = new QueryParseContext(registry);
@@ -271,7 +271,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper,
             SearchContext searchContext, XContentParser stParser) throws IOException {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, Collections.emptyMap());
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParseContext parseContext = new QueryParseContext(registry);
         parseContext.reset(stParser);
         parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);

@@ -731,14 +731,14 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a {@link AggregatorBuilder} from the current stream
      */
-    public AggregatorBuilder<?> readAggregatorFactory() throws IOException {
+    public AggregatorBuilder<?> readAggregatorBuilder() throws IOException {
         return readNamedWriteable(AggregatorBuilder.class);
     }
 
     /**
      * Reads a {@link PipelineAggregatorBuilder} from the current stream
      */
-    public PipelineAggregatorBuilder<?> readPipelineAggregatorFactory() throws IOException {
+    public PipelineAggregatorBuilder<?> readPipelineAggregatorBuilder() throws IOException {
         return readNamedWriteable(PipelineAggregatorBuilder.class);
     }
 

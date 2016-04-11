@@ -57,6 +57,9 @@ public class QueryParseContext {
         if (parseFieldMatcher == null) {
             throw new IllegalArgumentException("parseFieldMatcher must not be null");
         }
+        if (parser != null) {
+            parser.setParseFieldMatcher(parseFieldMatcher);
+        }
         this.parseFieldMatcher = parseFieldMatcher;
     }
 
@@ -117,8 +120,7 @@ public class QueryParseContext {
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
-        QueryParser queryParser = indicesQueriesRegistry.getQueryParser(queryName, parseFieldMatcher, parser.getTokenLocation());
-        QueryBuilder result = queryParser.fromXContent(this);
+        QueryBuilder<?> result = indicesQueriesRegistry.lookup(queryName, parser).fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();

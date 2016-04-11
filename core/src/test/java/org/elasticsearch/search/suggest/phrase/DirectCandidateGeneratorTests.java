@@ -36,7 +36,6 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCan
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -111,7 +110,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
      *  creates random candidate generator, renders it to xContent and back to new instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(Settings.EMPTY, Collections.emptyMap()));
+        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry());
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             DirectCandidateGeneratorBuilder generator = randomCandidateGenerator();
@@ -153,7 +152,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
      * test that bad xContent throws exception
      */
     public void testIllegalXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(Settings.EMPTY, Collections.emptyMap()));
+        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry());
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
 
         // test missing fieldname

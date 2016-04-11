@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.FilterFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -428,8 +429,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         return this;
     }
 
-    public static FunctionScoreQueryBuilder fromXContent(ScoreFunctionsRegistry scoreFunctionsRegistry, QueryParseContext parseContext)
-            throws IOException {
+    public static FunctionScoreQueryBuilder fromXContent(ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionsRegistry,
+            QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder<?> query = null;
@@ -475,8 +476,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
                     // we try to parse a score function. If there is no score function for the current field name,
                     // getScoreFunction will throw.
-                    ScoreFunctionBuilder<?> scoreFunction = scoreFunctionsRegistry
-                            .getScoreFunction(currentFieldName, parseContext.parseFieldMatcher(), parseContext.parser().getTokenLocation())
+                    ScoreFunctionBuilder<?> scoreFunction = scoreFunctionsRegistry.lookup(currentFieldName, parseContext.parser())
                             .fromXContent(parseContext, parser);
                     filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));
                 }
@@ -554,8 +554,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                 MISPLACED_FUNCTION_MESSAGE_PREFIX + errorString);
     }
 
-    private static String parseFiltersAndFunctions(ScoreFunctionsRegistry scoreFunctionsRegistry, QueryParseContext parseContext,
-            XContentParser parser, List<FunctionScoreQueryBuilder.FilterFunctionBuilder> filterFunctionBuilders) throws IOException {
+    private static String parseFiltersAndFunctions(ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionsRegistry,
+            QueryParseContext parseContext, XContentParser parser,
+            List<FunctionScoreQueryBuilder.FilterFunctionBuilder> filterFunctionBuilders) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -579,8 +580,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                                         "failed to parse function_score functions. already found [{}], now encountering [{}].",
                                         scoreFunction.getName(), currentFieldName);
                             }
-                            scoreFunction = scoreFunctionsRegistry.getScoreFunction(currentFieldName, parseContext.parseFieldMatcher(),
-                                    parseContext.parser().getTokenLocation()).fromXContent(parseContext, parser);
+                            scoreFunction = scoreFunctionsRegistry.lookup(currentFieldName, parser).fromXContent(parseContext, parser);
                         }
                     } else if (token.isValue()) {
                         if (parseContext.parseFieldMatcher().match(currentFieldName, WEIGHT_FIELD)) {

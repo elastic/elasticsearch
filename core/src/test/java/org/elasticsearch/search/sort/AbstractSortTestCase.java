@@ -100,7 +100,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         };
 
         namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
+        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).getQueryParserRegistry();
     }
 
     @AfterClass

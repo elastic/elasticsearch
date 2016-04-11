@@ -19,8 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -28,13 +27,9 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * A registry for all the aggregator parser, also servers as the main parser for the aggregations module
@@ -42,57 +37,35 @@ import static java.util.Collections.unmodifiableMap;
 public class AggregatorParsers {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
-    private final Map<String, Aggregator.Parser> aggParsers;
-    private final Map<String, PipelineAggregator.Parser> pipelineAggregatorParsers;
+    private final ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry;
+    private final ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry;
 
-
-    /**
-     * Constructs the AggregatorParsers out of all the given parsers
-     *
-     * @param aggParsers
-     *            The available aggregator parsers (dynamically injected by the
-     *            {@link org.elasticsearch.search.SearchModule}
-     *            ).
-     */
-    @Inject
-    public AggregatorParsers(Set<Aggregator.Parser> aggParsers, Set<PipelineAggregator.Parser> pipelineAggregatorParsers,
-            NamedWriteableRegistry namedWriteableRegistry) {
-        Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
-        for (Aggregator.Parser parser : aggParsers) {
-            aggParsersBuilder.put(parser.type(), parser);
-            AggregatorBuilder<?> factoryPrototype = parser.getFactoryPrototypes();
-            namedWriteableRegistry.registerPrototype(AggregatorBuilder.class, factoryPrototype);
-        }
-        this.aggParsers = unmodifiableMap(aggParsersBuilder);
-        Map<String, PipelineAggregator.Parser> pipelineAggregatorParsersBuilder = new HashMap<>(pipelineAggregatorParsers.size());
-        for (PipelineAggregator.Parser parser : pipelineAggregatorParsers) {
-            pipelineAggregatorParsersBuilder.put(parser.type(), parser);
-            PipelineAggregatorBuilder<?> factoryPrototype = parser.getFactoryPrototype();
-            namedWriteableRegistry.registerPrototype(PipelineAggregatorBuilder.class, factoryPrototype);
-        }
-        this.pipelineAggregatorParsers = unmodifiableMap(pipelineAggregatorParsersBuilder);
+    public AggregatorParsers(ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry,
+            ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry) {
+        this.aggregationParserRegistry = aggregationParserRegistry;
+        this.pipelineAggregationParserRegistry = pipelineAggregationParserRegistry;
     }
 
     /**
      * Returns the parser that is registered under the given aggregation type.
      *
-     * @param type  The aggregation type
-     * @return      The parser associated with the given aggregation type.
+     * @param type The aggregation type
+     * @param parser the parser the type was read from. Used to lookup the ParseFieldMatcher and for making error messages.
+     * @return The parser associated with the given aggregation type or null if it wasn't found.
      */
-    public Aggregator.Parser parser(String type) {
-        return aggParsers.get(type);
+    public Aggregator.Parser parser(String type, XContentParser parser) {
+        return aggregationParserRegistry.lookupReturningNullIfNotFound(type, parser);
     }
 
     /**
-     * Returns the parser that is registered under the given pipeline aggregator
-     * type.
+     * Returns the parser that is registered under the given pipeline aggregator type.
      *
-     * @param type
-     *            The pipeline aggregator type
-     * @return The parser associated with the given pipeline aggregator type.
+     * @param type The pipeline aggregator type
+     * @param parser the parser the type was read from. Used to lookup the ParseFieldMatcher and for making error messages.
+     * @return The parser associated with the given pipeline aggregator type or null if it wasn't found.
      */
-    public PipelineAggregator.Parser pipelineAggregator(String type) {
-        return pipelineAggregatorParsers.get(type);
+    public PipelineAggregator.Parser pipelineParser(String type, XContentParser parser) {
+        return pipelineAggregationParserRegistry.lookupReturningNullIfNotFound(type, parser);
     }
 
     /**
@@ -108,7 +81,6 @@ public class AggregatorParsers {
     public AggregatorFactories.Builder parseAggregators(XContentParser parser, QueryParseContext parseContext) throws IOException {
         return parseAggregators(parser, parseContext, 0);
     }
-
 
     private AggregatorFactories.Builder parseAggregators(XContentParser parser, QueryParseContext parseContext, int level)
             throws IOException {
@@ -194,9 +166,9 @@ public class AggregatorParsers {
                                     + aggregationName + "]: [" + pipelineAggregatorFactory + "] and [" + fieldName + "]");
                         }
 
-                        Aggregator.Parser aggregatorParser = parser(fieldName);
+                        Aggregator.Parser aggregatorParser = parser(fieldName, parser);
                         if (aggregatorParser == null) {
-                            PipelineAggregator.Parser pipelineAggregatorParser = pipelineAggregator(fieldName);
+                            PipelineAggregator.Parser pipelineAggregatorParser = pipelineParser(fieldName, parser);
                             if (pipelineAggregatorParser == null) {
                                 throw new ParsingException(parser.getTokenLocation(),
                                         "Could not find aggregator type [" + fieldName + "] in [" + aggregationName + "]");

@@ -21,7 +21,6 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.index.percolator.PercolatorHighlightSubFetchPhase;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -91,7 +91,6 @@ import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionsRegistry;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -100,6 +99,7 @@ import org.elasticsearch.search.aggregations.AggregationBinaryParseElement;
 import org.elasticsearch.search.aggregations.AggregationParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenParser;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
@@ -175,6 +175,7 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCou
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregator;
@@ -231,9 +232,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -241,21 +240,16 @@ import java.util.Set;
  */
 public class SearchModule extends AbstractModule {
 
-    private final Set<Aggregator.Parser> aggParsers = new HashSet<>();
-    private final Set<PipelineAggregator.Parser> pipelineAggParsers = new HashSet<>();
     private final Highlighters highlighters = new Highlighters();
     private final Suggesters suggesters;
-    /**
-     * Map from name to score parser and its ParseField.
-     */
-    private final Map<String, Tuple<ParseField, ScoreFunctionParser<?>>> scoreFunctionParsers = new HashMap<>();
-    private final ScoreFunctionsRegistry scoreFunctionsRegistry = new ScoreFunctionsRegistry(scoreFunctionParsers);
-    /**
-     * Query parsers constructed at configure time. These have to be constructed
-     * at configure time because they depend on things that are registered by
-     * plugins (function score parsers).
-     */
-    private final Map<String, Tuple<ParseField, QueryParser<?>>> queryParsers = new HashMap<>();
+
+    private final ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionParserRegistry = new ParseFieldRegistry<>("score_function");
+    private final IndicesQueriesRegistry queryParserRegistry = new IndicesQueriesRegistry();
+    private final ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry = new ParseFieldRegistry<>("aggregation");
+    private final ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry = new ParseFieldRegistry<>(
+            "pipline_aggregation");
+    private final AggregatorParsers aggregatorParsers = new AggregatorParsers(aggregationParserRegistry, pipelineAggregationParserRegistry);
+
     private final Set<Class<? extends FetchSubPhase>> fetchSubPhases = new HashSet<>();
     private final Set<SignificanceHeuristicParser> heuristicParsers = new HashSet<>();
     private final Set<MovAvgModel.AbstractModelParser> modelParsers = new HashSet<>();
@@ -297,21 +291,15 @@ public class SearchModule extends AbstractModule {
      */
     public <T extends ScoreFunctionBuilder<T>> void registerScoreFunction(Writeable.Reader<T> reader, ScoreFunctionParser<T> parser,
             ParseField functionName) {
-        for (String name: functionName.getAllNamesIncludedDeprecated()) {
-            Tuple<ParseField, ScoreFunctionParser<?>> oldValue = scoreFunctionParsers.putIfAbsent(name, new Tuple<>(functionName, parser));
-            if (oldValue != null) {
-                throw new IllegalArgumentException(
-                        "Function score parser [" + oldValue.v2() + "] already registered for name [" + name + "]");
-            }
-        }
+        scoreFunctionParserRegistry.register(parser, functionName);
         namedWriteableRegistry.register(ScoreFunctionBuilder.class, functionName.getPreferredName(), reader);
     }
 
     /**
      * Fetch the registry of {@linkplain ScoreFunction}s. This is public so extensions can access the score functions.
      */
-    public ScoreFunctionsRegistry getScoreFunctionsRegistry() {
-        return scoreFunctionsRegistry;
+    public ParseFieldRegistry<ScoreFunctionParser<?>> getScoreFunctionParserRegistry() {
+        return scoreFunctionParserRegistry;
     }
 
     /**
@@ -335,20 +323,12 @@ public class SearchModule extends AbstractModule {
      */
     public <QB extends QueryBuilder<QB>> void registerQuery(Writeable.Reader<QB> reader, QueryParser<QB> queryParser,
                                                                          ParseField queryName) {
-        Tuple<ParseField, QueryParser<?>> parseFieldQueryParserTuple = new Tuple<>(queryName, queryParser);
-        for (String name: queryName.getAllNamesIncludedDeprecated()) {
-            Tuple<ParseField, QueryParser<?>> previousValue = queryParsers.putIfAbsent(name, parseFieldQueryParserTuple);
-            if (previousValue != null) {
-                throw new IllegalArgumentException("Query parser [" + previousValue.v2() + "] already registered for name [" +
-                        name + "] while trying to register [" + queryParser + "]");
-            }
-        }
-
+        queryParserRegistry.register(queryParser, queryName);
         namedWriteableRegistry.register(QueryBuilder.class, queryName.getPreferredName(), reader);
     }
 
-    Set<String> getRegisteredQueries() {
-        return queryParsers.keySet();
+    public IndicesQueriesRegistry getQueryParserRegistry() {
+        return queryParserRegistry;
     }
 
     public void registerFetchSubPhase(Class<? extends FetchSubPhase> subPhase) {
@@ -364,25 +344,67 @@ public class SearchModule extends AbstractModule {
     }
 
     /**
-     * Enabling extending the get module by adding a custom aggregation parser.
+     * Register an aggregation.
      *
-     * @param parser The parser for the custom aggregator.
+     * @param reader reads the aggregation builder from a stream
+     * @param aggregationParser reads the aggregation builder from XContent
+     * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
+     *        is registered under.
      */
-    public void registerAggregatorParser(Aggregator.Parser parser) {
-        aggParsers.add(parser);
+    public <AB extends AggregatorBuilder<AB>> void registerAggregation(Writeable.Reader<AB> reader, Aggregator.Parser aggregationParser,
+            ParseField aggregationName) {
+        aggregationParserRegistry.register(aggregationParser, aggregationName);
+        namedWriteableRegistry.register(AggregatorBuilder.class, aggregationName.getPreferredName(), reader);
     }
 
+    /**
+     * Register an aggregation.
+     *
+     * @deprecated prefer {@link #registerPipelineAggregation(Writeable.Reader, PipelineAggregator.Parser, ParseField)}. Will be removed
+     *             before 5.0.0GA.
+     */
+    @Deprecated // NORELEASE remove this before 5.0.0GA
+    public void registerAggregatorParser(Aggregator.Parser parser) {
+        aggregationParserRegistry.register(parser, new ParseField(parser.type()));
+        namedWriteableRegistry.registerPrototype(AggregatorBuilder.class, parser.getFactoryPrototypes());
+    }
+
+    /**
+     * Register a pipeline aggregation.
+     *
+     * @param reader reads the aggregation builder from a stream
+     * @param aggregationParser reads the aggregation builder from XContent
+     * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
+     *        is registered under.
+     */
+    public <AB extends PipelineAggregatorBuilder<AB>> void registerPipelineAggregation(Writeable.Reader<AB> reader,
+            PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
+        pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
+        namedWriteableRegistry.register(PipelineAggregatorBuilder.class, aggregationName.getPreferredName(), reader);
+    }
+
+    /**
+     * Register a pipeline aggregation.
+     *
+     * @deprecated prefer {@link #registerPipelineAggregation(Writeable.Reader, PipelineAggregator.Parser, ParseField)}. Will be removed
+     *             before 5.0.0GA.
+     */
+    @Deprecated // NORELEASE remove this before 5.0.0GA
     public void registerPipelineParser(PipelineAggregator.Parser parser) {
-        pipelineAggParsers.add(parser);
+        pipelineAggregationParserRegistry.register(parser, new ParseField(parser.type()));
+        namedWriteableRegistry.registerPrototype(PipelineAggregatorBuilder.class, parser.getFactoryPrototype());
+    }
+
+    public AggregatorParsers getAggregatorParsers() {
+        return aggregatorParsers;
     }
 
     @Override
     protected void configure() {
-        IndicesQueriesRegistry indicesQueriesRegistry = buildQueryParserRegistry();
-        bind(IndicesQueriesRegistry.class).toInstance(indicesQueriesRegistry);
+        bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
         bind(Suggesters.class).toInstance(suggesters);
         configureSearch();
-        configureAggs(indicesQueriesRegistry);
+        configureAggs();
         configureHighlighters();
         configureFetchSubPhase();
         configureShapes();
@@ -405,15 +427,11 @@ public class SearchModule extends AbstractModule {
         bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
     }
 
-    public IndicesQueriesRegistry buildQueryParserRegistry() {
-        return new IndicesQueriesRegistry(settings, queryParsers);
-    }
-
     protected void configureHighlighters() {
        highlighters.bind(binder());
     }
 
-    protected void configureAggs(IndicesQueriesRegistry indicesQueriesRegistry) {
+    protected void configureAggs() {
 
         MovAvgModelParserMapper movAvgModelParserMapper = new MovAvgModelParserMapper(modelParsers);
 
@@ -432,11 +450,11 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new GlobalParser());
         registerAggregatorParser(new MissingParser());
         registerAggregatorParser(new FilterParser());
-        registerAggregatorParser(new FiltersParser(indicesQueriesRegistry));
+        registerAggregatorParser(new FiltersParser(queryParserRegistry));
         registerAggregatorParser(new SamplerParser());
         registerAggregatorParser(new DiversifiedSamplerParser());
         registerAggregatorParser(new TermsParser());
-        registerAggregatorParser(new SignificantTermsParser(significanceHeuristicParserMapper, indicesQueriesRegistry));
+        registerAggregatorParser(new SignificantTermsParser(significanceHeuristicParserMapper, queryParserRegistry));
         registerAggregatorParser(new RangeParser());
         registerAggregatorParser(new DateRangeParser());
         registerAggregatorParser(new IpRangeParser());
@@ -466,9 +484,8 @@ public class SearchModule extends AbstractModule {
         registerPipelineParser(new BucketSelectorParser());
         registerPipelineParser(new SerialDiffParser());
 
-        AggregatorParsers aggregatorParsers = new AggregatorParsers(aggParsers, pipelineAggParsers, namedWriteableRegistry);
-        AggregationParseElement aggParseElement = new AggregationParseElement(aggregatorParsers, indicesQueriesRegistry);
-        AggregationBinaryParseElement aggBinaryParseElement = new AggregationBinaryParseElement(aggregatorParsers, indicesQueriesRegistry);
+        AggregationParseElement aggParseElement = new AggregationParseElement(aggregatorParsers, queryParserRegistry);
+        AggregationBinaryParseElement aggBinaryParseElement = new AggregationBinaryParseElement(aggregatorParsers, queryParserRegistry);
         AggregationPhase aggPhase = new AggregationPhase(aggParseElement, aggBinaryParseElement);
         bind(AggregatorParsers.class).toInstance(aggregatorParsers);
         bind(AggregationParseElement.class).toInstance(aggParseElement);
@@ -574,7 +591,7 @@ public class SearchModule extends AbstractModule {
         registerQuery(IndicesQueryBuilder::new, IndicesQueryBuilder::fromXContent, IndicesQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(CommonTermsQueryBuilder::new, CommonTermsQueryBuilder::fromXContent, CommonTermsQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(SpanMultiTermQueryBuilder::new, SpanMultiTermQueryBuilder::fromXContent, SpanMultiTermQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(FunctionScoreQueryBuilder::new, c -> FunctionScoreQueryBuilder.fromXContent(scoreFunctionsRegistry, c),
+        registerQuery(FunctionScoreQueryBuilder::new, c -> FunctionScoreQueryBuilder.fromXContent(scoreFunctionParserRegistry, c),
                 FunctionScoreQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent, SimpleQueryStringBuilder.QUERY_NAME_FIELD);
         registerQuery(TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent, TemplateQueryBuilder.QUERY_NAME_FIELD);

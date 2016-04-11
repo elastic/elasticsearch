@@ -19,10 +19,13 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -32,6 +35,7 @@ import org.elasticsearch.search.highlight.PlainHighlighter;
 import org.elasticsearch.search.suggest.CustomSuggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -82,31 +86,32 @@ public class SearchModuleTests extends ModuleTestCase {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> module
                 .registerQuery(TermQueryBuilder::new, TermQueryBuilder::fromXContent, TermQueryBuilder.QUERY_NAME_FIELD));
-        assertThat(e.getMessage(), containsString("already registered for name [term] while trying to register [org.elasticsearch."));
+        assertThat(e.getMessage(), containsString("] already registered for [query][term] while trying to register [org.elasticsearch."));
     }
 
-    public void testRegisteredQueries() {
+    public void testRegisteredQueries() throws IOException {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
         String[] supportedQueries = allSupportedQueries.toArray(new String[allSupportedQueries.size()]);
-        assertThat(module.getRegisteredQueries(), containsInAnyOrder(supportedQueries));
+        assertThat(module.getQueryParserRegistry().getNames(), containsInAnyOrder(supportedQueries));
 
-        IndicesQueriesRegistry indicesQueriesRegistry = module.buildQueryParserRegistry();
+        IndicesQueriesRegistry indicesQueriesRegistry = module.getQueryParserRegistry();
+        XContentParser dummyParser = XContentHelper.createParser(new BytesArray("{}"));
+        dummyParser.setParseFieldMatcher(ParseFieldMatcher.EMPTY);
         for (String queryName : supportedQueries) {
-            QueryParser<?> queryParser = indicesQueriesRegistry.getQueryParser(queryName,
-                    ParseFieldMatcher.EMPTY, new XContentLocation(-1, -1));
-            assertThat(queryParser, notNullValue());
+            indicesQueriesRegistry.lookup(queryName, dummyParser);
         }
+
+        dummyParser.setParseFieldMatcher(ParseFieldMatcher.STRICT);
         for (String queryName : NON_DEPRECATED_QUERIES) {
-            QueryParser<?> queryParser = indicesQueriesRegistry.getQueryParser(queryName,
-                    ParseFieldMatcher.STRICT, new XContentLocation(-1, -1));
+            QueryParser<?> queryParser = indicesQueriesRegistry.lookup(queryName, dummyParser);
             assertThat(queryParser, notNullValue());
         }
         for (String queryName : DEPRECATED_QUERIES) {
             try {
-                indicesQueriesRegistry.getQueryParser(queryName, ParseFieldMatcher.STRICT, new XContentLocation(-1, -1));
+                indicesQueriesRegistry.lookup(queryName, dummyParser);
                 fail("query is deprecated, getQueryParser should have failed in strict mode");
             } catch(IllegalArgumentException e) {
                 assertThat(e.getMessage(), containsString("Deprecated field [" + queryName + "] used"));

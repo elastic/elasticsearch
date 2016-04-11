@@ -165,16 +165,19 @@ assert_file() {
 
     if [ "x$user" != "x" ]; then
         realuser=$(find "$file" -maxdepth 0 -printf "%u")
+        echo "Expected user: $user, found $realuser"
         [ "$realuser" = "$user" ]
     fi
 
     if [ "x$group" != "x" ]; then
         realgroup=$(find "$file" -maxdepth 0 -printf "%g")
+        echo "Expected group: $group, found $realgroup"
         [ "$realgroup" = "$group" ]
     fi
 
     if [ "x$privileges" != "x" ]; then
         realprivileges=$(find "$file" -maxdepth 0 -printf "%m")
+        echo "Expected privileges: $privileges, found $realprivileges"
         [ "$realprivileges" = "$privileges" ]
     fi
 }

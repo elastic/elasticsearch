@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.core;
 
+import org.elasticsearch.action.ingest.WriteableIngestDocumentTests;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -35,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -85,7 +87,8 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
         assertThat(ingestDocument.getFieldValue("_type", String.class), equalTo("type"));
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
-        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", String.class), both(notNullValue()).and(not(equalTo("bogus_timestamp"))));
+        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", String.class),
+                both(notNullValue()).and(not(equalTo("bogus_timestamp"))));
         assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", String.class), equalTo("bogus_timestamp"));
     }
 
@@ -106,14 +109,14 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.getFieldValue("_source.", Object.class);
             fail("get field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_source.] is not valid"));
         }
 
         try {
             ingestDocument.getFieldValue("_ingest.", Object.class);
             fail("get field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_ingest.] is not valid"));
         }
     }
@@ -126,14 +129,14 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.getFieldValue("int", String.class);
             fail("getFieldValue should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
         }
 
         try {
             ingestDocument.getFieldValue("foo", Integer.class);
             fail("getFieldValue should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [foo] of type [java.lang.String] cannot be cast to [java.lang.Integer]"));
         }
     }
@@ -146,8 +149,9 @@ public class IngestDocumentTests extends ESTestCase {
     public void testNestedGetFieldValueTypeMismatch() {
         try {
             ingestDocument.getFieldValue("foo.foo.bar", String.class);
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                    equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]"));
         }
     }
 
@@ -162,7 +166,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListGetFieldValueIndexNotNumeric() {
         try {
             ingestDocument.getFieldValue("list.test.field", String.class);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test.field]"));
         }
     }
@@ -170,7 +174,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListGetFieldValueIndexOutOfBounds() {
         try {
             ingestDocument.getFieldValue("list.10.field", String.class);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10.field]"));
         }
     }
@@ -179,7 +183,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.getFieldValue("not.here", String.class);
             fail("get field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [not] not present as part of path [not.here]"));
         }
     }
@@ -188,7 +192,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.getFieldValue("fizz.foo_null.not_there", String.class);
             fail("get field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot resolve [not_there] from null as part of path [fizz.foo_null.not_there]"));
         }
     }
@@ -197,7 +201,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.getFieldValue(null, String.class);
             fail("get field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
         }
     }
@@ -206,7 +210,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.getFieldValue("", String.class);
             fail("get field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
         }
     }
@@ -261,7 +265,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.hasField(null);
             fail("has field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
         }
     }
@@ -274,7 +278,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.hasField("");
             fail("has field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
         }
     }
@@ -291,14 +295,14 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.hasField("_source.");
             fail("has field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_source.] is not valid"));
         }
 
         try {
             ingestDocument.hasField("_ingest.");
             fail("has field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_ingest.] is not valid"));
         }
     }
@@ -356,8 +360,9 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.setFieldValue("fizz.buzz.new", "bar");
             fail("add field should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot set [new] with parent object of type [java.lang.String] as part of path [fizz.buzz.new]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                    equalTo("cannot set [new] with parent object of type [java.lang.String] as part of path [fizz.buzz.new]"));
         }
     }
 
@@ -365,7 +370,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.setFieldValue("fizz.foo_null.test", "bar");
             fail("add field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot set [test] with null parent as part of path [fizz.foo_null.test]"));
         }
     }
@@ -374,7 +379,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.setFieldValue(null, "bar");
             fail("add field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
         }
     }
@@ -399,14 +404,14 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.setFieldValue("_source.", "value");
             fail("set field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_source.] is not valid"));
         }
 
         try {
             ingestDocument.setFieldValue("_ingest.", "_value");
             fail("set field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_ingest.] is not valid"));
         }
     }
@@ -703,13 +708,13 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListSetFieldValueIndexNotNumeric() {
         try {
             ingestDocument.setFieldValue("list.test", "value");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test]"));
         }
 
         try {
             ingestDocument.setFieldValue("list.test.field", "new_value");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test.field]"));
         }
     }
@@ -717,13 +722,13 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListSetFieldValueIndexOutOfBounds() {
         try {
             ingestDocument.setFieldValue("list.10", "value");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
         }
 
         try {
             ingestDocument.setFieldValue("list.10.field", "value");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10.field]"));
         }
     }
@@ -732,7 +737,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.setFieldValue("", "bar");
             fail("add field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
         }
     }
@@ -782,7 +787,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.removeField("does_not_exist");
             fail("remove field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [does_not_exist] not present as part of path [does_not_exist]"));
         }
     }
@@ -791,8 +796,9 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.removeField("foo.foo.bar");
             fail("remove field should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                    equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]"));
         }
     }
 
@@ -815,14 +821,14 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.removeField("_source.");
             fail("set field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_source.] is not valid"));
         }
 
         try {
             ingestDocument.removeField("_ingest.");
             fail("set field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_ingest.] is not valid"));
         }
     }
@@ -850,7 +856,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.removeField("fizz.foo_null.not_there");
             fail("get field value should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot remove [not_there] from null as part of path [fizz.foo_null.not_there]"));
         }
     }
@@ -858,7 +864,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testNestedRemoveFieldTypeMismatch() {
         try {
             ingestDocument.removeField("fizz.1.bar");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot remove [bar] from object of type [java.lang.String] as part of path [fizz.1.bar]"));
         }
     }
@@ -866,7 +872,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListRemoveFieldIndexNotNumeric() {
         try {
             ingestDocument.removeField("list.test");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test]"));
         }
     }
@@ -874,7 +880,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListRemoveFieldIndexOutOfBounds() {
         try {
             ingestDocument.removeField("list.10");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
         }
     }
@@ -883,7 +889,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.removeField((String) null);
             fail("remove field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
         }
     }
@@ -892,7 +898,7 @@ public class IngestDocumentTests extends ESTestCase {
         try {
             ingestDocument.removeField("");
             fail("remove field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
         }
     }
@@ -946,7 +952,8 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument, equalTo(otherIngestDocument));
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            IngestDocument thirdIngestDocument = new IngestDocument(Collections.unmodifiableMap(sourceAndMetadata), Collections.unmodifiableMap(ingestMetadata));
+            IngestDocument thirdIngestDocument = new IngestDocument(Collections.unmodifiableMap(sourceAndMetadata),
+                    Collections.unmodifiableMap(ingestMetadata));
             assertThat(thirdIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument, equalTo(thirdIngestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
@@ -969,18 +976,34 @@ public class IngestDocumentTests extends ESTestCase {
     public void testCopyConstructor() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         IngestDocument copy = new IngestDocument(ingestDocument);
-        recursiveEqualsButNotSameCheck(ingestDocument.getSourceAndMetadata(), copy.getSourceAndMetadata());
+        assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+        assertIngestDocument(ingestDocument, copy);
     }
 
-    private void recursiveEqualsButNotSameCheck(Object a, Object b) {
-        assertThat(a, not(sameInstance(b)));
-        assertThat(a, equalTo(b));
+    public void testSetInvalidSourceField() throws Exception {
+        Map<String, Object> document = new HashMap<>();
+        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
+        document.put("source_field", randomObject);
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        try {
+            ingestDocument.getFieldValueAsBytes("source_field");
+            fail("Expected an exception due to invalid source field, but did not happen");
+        } catch (IllegalArgumentException e) {
+            String expectedClassName = randomObject.getClass().getName();
+
+            assertThat(e.getMessage(),
+                    containsString("field [source_field] of unknown type [" + expectedClassName + "], must be string or byte array"));
+        }
+    }
+
+    public static void assertIngestDocument(Object a, Object b) {
         if (a instanceof Map) {
             Map<?, ?> mapA = (Map<?, ?>) a;
             Map<?, ?> mapB = (Map<?, ?>) b;
             for (Map.Entry<?, ?> entry : mapA.entrySet()) {
                 if (entry.getValue() instanceof List || entry.getValue() instanceof Map) {
-                    recursiveEqualsButNotSameCheck(entry.getValue(), mapB.get(entry.getKey()));
+                    assertIngestDocument(entry.getValue(), mapB.get(entry.getKey()));
                 }
             }
         } else if (a instanceof List) {
@@ -989,11 +1012,19 @@ public class IngestDocumentTests extends ESTestCase {
             for (int i = 0; i < listA.size(); i++) {
                 Object value = listA.get(i);
                 if (value instanceof List || value instanceof Map) {
-                    recursiveEqualsButNotSameCheck(value, listB.get(i));
+                    assertIngestDocument(value, listB.get(i));
                 }
             }
+        } else if (a instanceof byte[]) {
+            assertArrayEquals((byte[]) a, (byte[])b);
+        } else if (a instanceof IngestDocument) {
+            IngestDocument docA = (IngestDocument) a;
+            IngestDocument docB = (IngestDocument) b;
+            assertIngestDocument(docA.getSourceAndMetadata(), docB.getSourceAndMetadata());
+            assertIngestDocument(docA.getIngestMetadata(), docB.getIngestMetadata());
+        } else {
+            String msg = String.format(Locale.ROOT, "Expected %s class to be equal to %s", a.getClass().getName(), b.getClass().getName());
+            assertThat(msg, a, equalTo(b));
         }
-
     }
-
 }

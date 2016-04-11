@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -51,7 +52,11 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
         if (filter == null) {
             throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
         }
-        this.filter = filter;
+        if (filter instanceof EmptyQueryBuilder) {
+            this.filter = new MatchAllQueryBuilder();
+        } else {
+            this.filter = filter;
+        }
     }
 
     @Override

@@ -44,7 +44,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
         client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
             .addMapping("type", "field", "type=text")
             .get();
         ensureGreen("test");

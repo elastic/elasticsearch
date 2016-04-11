@@ -48,7 +48,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
 
         Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
-        request.settings(Settings.settingsBuilder().put(map).build());
+        request.settings(Settings.builder().put(map).build());
 
         List<Throwable> throwables = putTemplate(request);
         assertEquals(throwables.size(), 1);
@@ -62,7 +62,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
 
         Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
-        request.settings(Settings.settingsBuilder().put(map).build());
+        request.settings(Settings.builder().put(map).build());
 
         List<Throwable> throwables = putTemplate(request);
         assertEquals(throwables.size(), 1);

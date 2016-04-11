@@ -20,7 +20,8 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -28,69 +29,71 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.percolator.PercolatorHighlightSubFetchPhase;
-import org.elasticsearch.index.query.BoolQueryParser;
-import org.elasticsearch.index.query.BoostingQueryParser;
-import org.elasticsearch.index.query.CommonTermsQueryParser;
-import org.elasticsearch.index.query.ConstantScoreQueryParser;
-import org.elasticsearch.index.query.DisMaxQueryParser;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.BoostingQueryBuilder;
+import org.elasticsearch.index.query.CommonTermsQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
-import org.elasticsearch.index.query.ExistsQueryParser;
-import org.elasticsearch.index.query.FieldMaskingSpanQueryParser;
-import org.elasticsearch.index.query.FuzzyQueryParser;
-import org.elasticsearch.index.query.GeoBoundingBoxQueryParser;
-import org.elasticsearch.index.query.GeoDistanceQueryParser;
-import org.elasticsearch.index.query.GeoDistanceRangeQueryParser;
-import org.elasticsearch.index.query.GeoPolygonQueryParser;
-import org.elasticsearch.index.query.GeoShapeQueryParser;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.FieldMaskingSpanQueryBuilder;
+import org.elasticsearch.index.query.FuzzyQueryBuilder;
+import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
+import org.elasticsearch.index.query.GeoDistanceRangeQueryBuilder;
+import org.elasticsearch.index.query.GeoPolygonQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.GeohashCellQuery;
-import org.elasticsearch.index.query.HasChildQueryParser;
-import org.elasticsearch.index.query.HasParentQueryParser;
-import org.elasticsearch.index.query.IdsQueryParser;
-import org.elasticsearch.index.query.IndicesQueryParser;
-import org.elasticsearch.index.query.MatchAllQueryParser;
-import org.elasticsearch.index.query.MatchNoneQueryParser;
+import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.HasParentQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.IndicesQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.MoreLikeThisQueryParser;
-import org.elasticsearch.index.query.MultiMatchQueryParser;
-import org.elasticsearch.index.query.NestedQueryParser;
-import org.elasticsearch.index.query.ParentIdQueryParser;
-import org.elasticsearch.index.query.PercolatorQueryParser;
-import org.elasticsearch.index.query.PrefixQueryParser;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.ParentIdQueryBuilder;
+import org.elasticsearch.index.query.PercolatorQueryBuilder;
+import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.QueryStringQueryParser;
-import org.elasticsearch.index.query.RangeQueryParser;
-import org.elasticsearch.index.query.RegexpQueryParser;
-import org.elasticsearch.index.query.ScriptQueryParser;
-import org.elasticsearch.index.query.SimpleQueryStringParser;
-import org.elasticsearch.index.query.SpanContainingQueryParser;
-import org.elasticsearch.index.query.SpanFirstQueryParser;
-import org.elasticsearch.index.query.SpanMultiTermQueryParser;
-import org.elasticsearch.index.query.SpanNearQueryParser;
-import org.elasticsearch.index.query.SpanNotQueryParser;
-import org.elasticsearch.index.query.SpanOrQueryParser;
-import org.elasticsearch.index.query.SpanTermQueryParser;
-import org.elasticsearch.index.query.SpanWithinQueryParser;
-import org.elasticsearch.index.query.TemplateQueryParser;
-import org.elasticsearch.index.query.TermQueryParser;
-import org.elasticsearch.index.query.TermsQueryParser;
-import org.elasticsearch.index.query.TypeQueryParser;
-import org.elasticsearch.index.query.WildcardQueryParser;
-import org.elasticsearch.index.query.WrapperQueryParser;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
+import org.elasticsearch.index.query.ScriptQueryBuilder;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.index.query.SpanContainingQueryBuilder;
+import org.elasticsearch.index.query.SpanFirstQueryBuilder;
+import org.elasticsearch.index.query.SpanMultiTermQueryBuilder;
+import org.elasticsearch.index.query.SpanNearQueryBuilder;
+import org.elasticsearch.index.query.SpanNotQueryBuilder;
+import org.elasticsearch.index.query.SpanOrQueryBuilder;
+import org.elasticsearch.index.query.SpanTermQueryBuilder;
+import org.elasticsearch.index.query.SpanWithinQueryBuilder;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.TypeQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.index.query.WrapperQueryBuilder;
+import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionsRegistry;
+import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.AggregationBinaryParseElement;
@@ -228,13 +231,10 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  *
@@ -246,17 +246,16 @@ public class SearchModule extends AbstractModule {
     private final Highlighters highlighters = new Highlighters();
     private final Suggesters suggesters;
     /**
-     * Function score parsers constructed on registration. This is ok because
-     * they don't have any dependencies.
+     * Map from name to score parser and its ParseField.
      */
-    private final Map<String, ScoreFunctionParser<?>> functionScoreParsers = new HashMap<>();
+    private final Map<String, Tuple<ParseField, ScoreFunctionParser<?>>> scoreFunctionParsers = new HashMap<>();
+    private final ScoreFunctionsRegistry scoreFunctionsRegistry = new ScoreFunctionsRegistry(scoreFunctionParsers);
     /**
      * Query parsers constructed at configure time. These have to be constructed
      * at configure time because they depend on things that are registered by
      * plugins (function score parsers).
      */
-    private final List<QueryRegistration<?>> queries = new ArrayList<>();
-    private final List<Supplier<QueryParser<?>>> queryParsers = new ArrayList<>();
+    private final Map<String, Tuple<ParseField, QueryParser<?>>> queryParsers = new HashMap<>();
     private final Set<Class<? extends FetchSubPhase>> fetchSubPhases = new HashSet<>();
     private final Set<SignificanceHeuristicParser> heuristicParsers = new HashSet<>();
     private final Set<MovAvgModel.AbstractModelParser> modelParsers = new HashSet<>();
@@ -272,10 +271,11 @@ public class SearchModule extends AbstractModule {
         this.namedWriteableRegistry = namedWriteableRegistry;
         suggesters = new Suggesters(namedWriteableRegistry);
 
-        registerBuiltinFunctionScoreParsers();
+        registerBuiltinScoreFunctionParsers();
         registerBuiltinQueryParsers();
         registerBuiltinRescorers();
         registerBuiltinSorts();
+        registerBuiltinValueFormats();
     }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
@@ -287,17 +287,40 @@ public class SearchModule extends AbstractModule {
     }
 
     /**
-     * Register a new ScoreFunctionParser.
+     * Register a new ScoreFunctionBuilder. Registration does two things:
+     * <ul>
+     * <li>Register the {@link ScoreFunctionParser} which parses XContent into a {@link ScoreFunctionBuilder} using its {@link ParseField}
+     * </li>
+     * <li>Register the {@link Writeable.Reader} which reads a stream representation of the builder under the
+     * {@linkplain ParseField#getPreferredName()}.</li>
+     * </ul>
      */
-    public void registerFunctionScoreParser(ScoreFunctionParser<? extends ScoreFunctionBuilder> parser) {
-        for (String name: parser.getNames()) {
-            Object oldValue = functionScoreParsers.putIfAbsent(name, parser);
+    public <T extends ScoreFunctionBuilder<T>> void registerScoreFunction(ScoreFunctionParser<T> parser,
+            Writeable.Reader<T> reader, ParseField functionName) {
+        for (String name: functionName.getAllNamesIncludedDeprecated()) {
+            Tuple<ParseField, ScoreFunctionParser<?>> oldValue = scoreFunctionParsers.putIfAbsent(name, new Tuple<>(functionName, parser));
             if (oldValue != null) {
-                throw new IllegalArgumentException("Function score parser [" + oldValue + "] already registered for name [" + name + "]");
+                throw new IllegalArgumentException(
+                        "Function score parser [" + oldValue.v2() + "] already registered for name [" + name + "]");
             }
         }
-        @SuppressWarnings("unchecked") NamedWriteable<? extends ScoreFunctionBuilder> sfb = parser.getBuilderPrototype();
-        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, sfb);
+        namedWriteableRegistry.register(ScoreFunctionBuilder.class, functionName.getPreferredName(), reader);
+    }
+
+    /**
+     * Fetch the registry of {@linkplain ScoreFunction}s. This is public so extensions can access the score functions.
+     */
+    public ScoreFunctionsRegistry getScoreFunctionsRegistry() {
+        return scoreFunctionsRegistry;
+    }
+
+    /**
+     * Register a new ValueFormat.
+     */
+    // private for now, we can consider making it public if there are actual use cases for plugins
+    // to register custom value formats
+    private void registerValueFormat(String name, Writeable.Reader<? extends DocValueFormat> reader) {
+        namedWriteableRegistry.register(DocValueFormat.class, name, reader);
     }
 
     /**
@@ -305,20 +328,27 @@ public class SearchModule extends AbstractModule {
      *
      * @param reader the reader registered for this query's builder. Typically a reference to a constructor that takes a
      *        {@link org.elasticsearch.common.io.stream.StreamInput}
-     * @param parser the parser the reads the query builder from xcontent
-     * @param names all names by which this query might be parsed. The first name is special as it is the name by under which the reader is
-     *        registered. So it is the name that the query should use as its {@link NamedWriteable#getWriteableName()}.
+     * @param queryParser the parser the reads the query builder from xcontent
+     * @param queryName holds the names by which this query might be parsed. The {@link ParseField#getPreferredName()} is special as it
+     *        is the name by under which the reader is registered. So it is the name that the query should use as its
+     *        {@link NamedWriteable#getWriteableName()} too.
      */
-    public <QB extends QueryBuilder<QB>> void registerQuery(Writeable.Reader<QB> reader, QueryParser<QB> parser, String... names) {
-        queries.add(new QueryRegistration<QB>(names, reader, parser));
+    public <QB extends QueryBuilder<QB>> void registerQuery(Writeable.Reader<QB> reader, QueryParser<QB> queryParser,
+                                                                         ParseField queryName) {
+        Tuple<ParseField, QueryParser<?>> parseFieldQueryParserTuple = new Tuple<>(queryName, queryParser);
+        for (String name: queryName.getAllNamesIncludedDeprecated()) {
+            Tuple<ParseField, QueryParser<?>> previousValue = queryParsers.putIfAbsent(name, parseFieldQueryParserTuple);
+            if (previousValue != null) {
+                throw new IllegalArgumentException("Query parser [" + previousValue.v2() + "] already registered for name [" +
+                        name + "] while trying to register [" + queryParser + "]");
+            }
+        }
+
+        namedWriteableRegistry.register(QueryBuilder.class, queryName.getPreferredName(), reader);
     }
 
-    /**
-     * Register a query.
-     * TODO remove this in favor of registerQuery
-     */
-    public void registerQueryParser(Supplier<QueryParser<?>> parser) {
-        queryParsers.add(parser);
+    Set<String> getRegisteredQueries() {
+        return queryParsers.keySet();
     }
 
     public void registerFetchSubPhase(Class<? extends FetchSubPhase> subPhase) {
@@ -376,31 +406,7 @@ public class SearchModule extends AbstractModule {
     }
 
     public IndicesQueriesRegistry buildQueryParserRegistry() {
-        Map<String, QueryParser<?>> queryParsersMap = new HashMap<>();
-
-        // TODO remove this when we retire registerQueryParser
-        for (Supplier<QueryParser<?>> parserSupplier : queryParsers) {
-            QueryParser<? extends QueryBuilder<?>> parser = parserSupplier.get();
-            for (String name: parser.names()) {
-                Object oldValue = queryParsersMap.putIfAbsent(name, parser);
-                if (oldValue != null) {
-                    throw new IllegalArgumentException("Query parser [" + oldValue + "] already registered for name [" + name + "] while trying to register [" + parser + "]");
-                }
-            }
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, parser.getBuilderPrototype());
-        }
-
-        for (QueryRegistration<?> query : queries) {
-            QueryParser<? extends QueryBuilder<?>> parser = query.parser;
-            for (String name: query.names) {
-                Object oldValue = queryParsersMap.putIfAbsent(name, parser);
-                if (oldValue != null) {
-                    throw new IllegalArgumentException("Query parser [" + oldValue + "] already registered for name [" + name + "] while trying to register [" + parser + "]");
-                }
-            }
-            namedWriteableRegistry.register(QueryBuilder.class, query.names[0], query.reader);
-        }
-        return new IndicesQueriesRegistry(settings, queryParsersMap);
+        return new IndicesQueriesRegistry(settings, queryParsers);
     }
 
     protected void configureHighlighters() {
@@ -500,73 +506,110 @@ public class SearchModule extends AbstractModule {
         namedWriteableRegistry.register(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new);
     }
 
-    private void registerBuiltinFunctionScoreParsers() {
-        registerFunctionScoreParser(new ScriptScoreFunctionParser());
-        registerFunctionScoreParser(new GaussDecayFunctionParser());
-        registerFunctionScoreParser(new LinearDecayFunctionParser());
-        registerFunctionScoreParser(new ExponentialDecayFunctionParser());
-        registerFunctionScoreParser(new RandomScoreFunctionParser());
-        registerFunctionScoreParser(new FieldValueFactorFunctionParser());
+    private void registerBuiltinScoreFunctionParsers() {
+        registerScoreFunction(ScriptScoreFunctionBuilder::fromXContent, ScriptScoreFunctionBuilder::new,
+                ScriptScoreFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(GaussDecayFunctionBuilder.PARSER, GaussDecayFunctionBuilder::new,
+                GaussDecayFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(LinearDecayFunctionBuilder.PARSER, LinearDecayFunctionBuilder::new,
+                LinearDecayFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(ExponentialDecayFunctionBuilder.PARSER, ExponentialDecayFunctionBuilder::new,
+                ExponentialDecayFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(RandomScoreFunctionBuilder::fromXContent, RandomScoreFunctionBuilder::new,
+                RandomScoreFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(FieldValueFactorFunctionBuilder::fromXContent, FieldValueFactorFunctionBuilder::new,
+                FieldValueFactorFunctionBuilder.FUNCTION_NAME_FIELD);
+
         //weight doesn't have its own parser, so every function supports it out of the box.
         //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
-        namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, new WeightBuilder());
+        namedWriteableRegistry.register(ScoreFunctionBuilder.class, WeightBuilder.NAME, WeightBuilder::new);
+    }
+
+    private void registerBuiltinValueFormats() {
+        registerValueFormat(DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN);
+        registerValueFormat(DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new);
+        registerValueFormat(DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new);
+        registerValueFormat(DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
+        registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
+        registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
     }
 
     private void registerBuiltinQueryParsers() {
-        registerQuery(MatchQueryBuilder.PROTOTYPE::readFrom, MatchQueryBuilder::fromXContent, MatchQueryBuilder.NAME,
-                "match_phrase", "matchPhrase", "match_phrase_prefix", "matchPhrasePrefix", "matchFuzzy", "match_fuzzy", "fuzzy_match");
-        registerQueryParser(MultiMatchQueryParser::new);
-        registerQueryParser(NestedQueryParser::new);
-        registerQueryParser(HasChildQueryParser::new);
-        registerQueryParser(HasParentQueryParser::new);
-        registerQueryParser(DisMaxQueryParser::new);
-        registerQueryParser(IdsQueryParser::new);
-        registerQueryParser(MatchAllQueryParser::new);
-        registerQueryParser(QueryStringQueryParser::new);
-        registerQueryParser(BoostingQueryParser::new);
+        registerQuery(MatchQueryBuilder.PROTOTYPE::readFrom, MatchQueryBuilder::fromXContent, MatchQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MatchPhraseQueryBuilder.PROTOTYPE::readFrom, MatchPhraseQueryBuilder::fromXContent,
+                MatchPhraseQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MatchPhrasePrefixQueryBuilder.PROTOTYPE::readFrom, MatchPhrasePrefixQueryBuilder::fromXContent,
+                MatchPhrasePrefixQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MultiMatchQueryBuilder.PROTOTYPE::readFrom, MultiMatchQueryBuilder::fromXContent,
+                MultiMatchQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(NestedQueryBuilder.PROTOTYPE::readFrom, NestedQueryBuilder::fromXContent, NestedQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(HasChildQueryBuilder.PROTOTYPE::readFrom, HasChildQueryBuilder::fromXContent, HasChildQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(HasParentQueryBuilder.PROTOTYPE::readFrom, HasParentQueryBuilder::fromXContent,
+                HasParentQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(DisMaxQueryBuilder.PROTOTYPE::readFrom, DisMaxQueryBuilder::fromXContent, DisMaxQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(IdsQueryBuilder.PROTOTYPE::readFrom, IdsQueryBuilder::fromXContent, IdsQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MatchAllQueryBuilder.PROTOTYPE::readFrom, MatchAllQueryBuilder::fromXContent, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(QueryStringQueryBuilder.PROTOTYPE::readFrom, QueryStringQueryBuilder::fromXContent,
+                QueryStringQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(BoostingQueryBuilder.PROTOTYPE::readFrom, BoostingQueryBuilder::fromXContent, BoostingQueryBuilder.QUERY_NAME_FIELD);
         BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count",
                 settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
-        registerQueryParser(BoolQueryParser::new);
-        registerQueryParser(TermQueryParser::new);
-        registerQueryParser(TermsQueryParser::new);
-        registerQueryParser(FuzzyQueryParser::new);
-        registerQueryParser(RegexpQueryParser::new);
-        registerQueryParser(RangeQueryParser::new);
-        registerQueryParser(PrefixQueryParser::new);
-        registerQueryParser(WildcardQueryParser::new);
-        registerQueryParser(ConstantScoreQueryParser::new);
-        registerQueryParser(SpanTermQueryParser::new);
-        registerQueryParser(SpanNotQueryParser::new);
-        registerQueryParser(SpanWithinQueryParser::new);
-        registerQueryParser(SpanContainingQueryParser::new);
-        registerQueryParser(FieldMaskingSpanQueryParser::new);
-        registerQueryParser(SpanFirstQueryParser::new);
-        registerQueryParser(SpanNearQueryParser::new);
-        registerQueryParser(SpanOrQueryParser::new);
-        registerQueryParser(MoreLikeThisQueryParser::new);
-        registerQueryParser(WrapperQueryParser::new);
-        registerQueryParser(IndicesQueryParser::new);
-        registerQueryParser(CommonTermsQueryParser::new);
-        registerQueryParser(SpanMultiTermQueryParser::new);
-        QueryParser<FunctionScoreQueryBuilder> functionScoreParser = (QueryParseContext c) -> FunctionScoreQueryBuilder
-                .fromXContent((String name) -> functionScoreParsers.get(name), c);
-        registerQuery(FunctionScoreQueryBuilder.PROTOTYPE::readFrom, functionScoreParser, FunctionScoreQueryBuilder.NAME,
-                Strings.toCamelCase(FunctionScoreQueryBuilder.NAME));
-        registerQueryParser(SimpleQueryStringParser::new);
-        registerQueryParser(TemplateQueryParser::new);
-        registerQueryParser(TypeQueryParser::new);
-        registerQueryParser(ScriptQueryParser::new);
-        registerQueryParser(GeoDistanceQueryParser::new);
-        registerQueryParser(GeoDistanceRangeQueryParser::new);
-        registerQueryParser(GeoBoundingBoxQueryParser::new);
-        registerQueryParser(GeohashCellQuery.Parser::new);
-        registerQueryParser(GeoPolygonQueryParser::new);
-        registerQueryParser(ExistsQueryParser::new);
-        registerQueryParser(MatchNoneQueryParser::new);
-        registerQueryParser(ParentIdQueryParser::new);
-        registerQueryParser(PercolatorQueryParser::new);
+        registerQuery(BoolQueryBuilder.PROTOTYPE::readFrom, BoolQueryBuilder::fromXContent, BoolQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(TermQueryBuilder.PROTOTYPE::readFrom, TermQueryBuilder::fromXContent, TermQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(TermsQueryBuilder.PROTOTYPE::readFrom, TermsQueryBuilder::fromXContent, TermsQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(FuzzyQueryBuilder.PROTOTYPE::readFrom, FuzzyQueryBuilder::fromXContent, FuzzyQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(RegexpQueryBuilder.PROTOTYPE::readFrom, RegexpQueryBuilder::fromXContent, RegexpQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(RangeQueryBuilder.PROTOTYPE::readFrom, RangeQueryBuilder::fromXContent, RangeQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(PrefixQueryBuilder.PROTOTYPE::readFrom, PrefixQueryBuilder::fromXContent, PrefixQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(WildcardQueryBuilder.PROTOTYPE::readFrom, WildcardQueryBuilder::fromXContent, WildcardQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ConstantScoreQueryBuilder.PROTOTYPE::readFrom, ConstantScoreQueryBuilder::fromXContent,
+                ConstantScoreQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanTermQueryBuilder.PROTOTYPE::readFrom, SpanTermQueryBuilder::fromXContent, SpanTermQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanNotQueryBuilder.PROTOTYPE::readFrom, SpanNotQueryBuilder::fromXContent, SpanNotQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanWithinQueryBuilder.PROTOTYPE::readFrom, SpanWithinQueryBuilder::fromXContent,
+                SpanWithinQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanContainingQueryBuilder.PROTOTYPE::readFrom, SpanContainingQueryBuilder::fromXContent,
+                SpanContainingQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(FieldMaskingSpanQueryBuilder.PROTOTYPE::readFrom, FieldMaskingSpanQueryBuilder::fromXContent,
+                FieldMaskingSpanQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanFirstQueryBuilder.PROTOTYPE::readFrom, SpanFirstQueryBuilder::fromXContent,
+                SpanFirstQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanNearQueryBuilder.PROTOTYPE::readFrom, SpanNearQueryBuilder::fromXContent, SpanNearQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanOrQueryBuilder.PROTOTYPE::readFrom, SpanOrQueryBuilder::fromXContent, SpanOrQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MoreLikeThisQueryBuilder.PROTOTYPE::readFrom, MoreLikeThisQueryBuilder::fromXContent,
+                MoreLikeThisQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(WrapperQueryBuilder.PROTOTYPE::readFrom, WrapperQueryBuilder::fromXContent, WrapperQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(IndicesQueryBuilder.PROTOTYPE::readFrom, IndicesQueryBuilder::fromXContent, IndicesQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(CommonTermsQueryBuilder.PROTOTYPE::readFrom, CommonTermsQueryBuilder::fromXContent,
+                CommonTermsQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SpanMultiTermQueryBuilder.PROTOTYPE::readFrom, SpanMultiTermQueryBuilder::fromXContent,
+                SpanMultiTermQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(FunctionScoreQueryBuilder.PROTOTYPE::readFrom, c -> FunctionScoreQueryBuilder.fromXContent(scoreFunctionsRegistry, c),
+                FunctionScoreQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(SimpleQueryStringBuilder.PROTOTYPE::readFrom, SimpleQueryStringBuilder::fromXContent,
+                SimpleQueryStringBuilder.QUERY_NAME_FIELD);
+        registerQuery(TemplateQueryBuilder.PROTOTYPE::readFrom, TemplateQueryBuilder::fromXContent, TemplateQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(TypeQueryBuilder.PROTOTYPE::readFrom, TypeQueryBuilder::fromXContent, TypeQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ScriptQueryBuilder.PROTOTYPE::readFrom, ScriptQueryBuilder::fromXContent, ScriptQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeoDistanceQueryBuilder.PROTOTYPE::readFrom, GeoDistanceQueryBuilder::fromXContent,
+                GeoDistanceQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeoDistanceRangeQueryBuilder.PROTOTYPE::readFrom, GeoDistanceRangeQueryBuilder::fromXContent,
+                GeoDistanceRangeQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeoBoundingBoxQueryBuilder.PROTOTYPE::readFrom, GeoBoundingBoxQueryBuilder::fromXContent,
+                GeoBoundingBoxQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(GeohashCellQuery.Builder.PROTOTYPE::readFrom, GeohashCellQuery.Builder::fromXContent,
+                GeohashCellQuery.QUERY_NAME_FIELD);
+        registerQuery(GeoPolygonQueryBuilder.PROTOTYPE::readFrom, GeoPolygonQueryBuilder::fromXContent,
+                GeoPolygonQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ExistsQueryBuilder.PROTOTYPE::readFrom, ExistsQueryBuilder::fromXContent, ExistsQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(MatchNoneQueryBuilder.PROTOTYPE::readFrom, MatchNoneQueryBuilder::fromXContent,
+                MatchNoneQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(ParentIdQueryBuilder.PROTO::readFrom, ParentIdQueryBuilder::fromXContent, ParentIdQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(PercolatorQueryBuilder.PROTO::readFrom, PercolatorQueryBuilder::fromXContent,
+                PercolatorQueryBuilder.QUERY_NAME_FIELD);
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            registerQueryParser(GeoShapeQueryParser::new);
+            registerQuery(GeoShapeQueryBuilder.PROTOTYPE::readFrom, GeoShapeQueryBuilder::fromXContent,
+                    GeoShapeQueryBuilder.QUERY_NAME_FIELD);
         }
         // EmptyQueryBuilder is not registered as query parser but used internally.
         // We need to register it with the NamedWriteableRegistry in order to serialize it
@@ -637,17 +680,5 @@ public class SearchModule extends AbstractModule {
 
     public Suggesters getSuggesters() {
         return suggesters;
-    }
-
-    private static class QueryRegistration<QB extends QueryBuilder<QB>> {
-        private final String[] names;
-        private final Writeable.Reader<QB> reader;
-        private final QueryParser<QB> parser;
-
-        private QueryRegistration(String[] names, Reader<QB> reader, QueryParser<QB> parser) {
-            this.names = names;
-            this.reader = reader;
-            this.parser = parser;
-        }
     }
 }

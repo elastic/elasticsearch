@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -62,7 +61,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     /** Reset all breaker settings back to their defaults */
     private void reset() {
         logger.info("--> resetting breaker settings");
-        Settings resetSettings = settingsBuilder()
+        Settings resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
                         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getDefaultRaw(null))
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(),
@@ -103,7 +102,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             logger.info("--> noop breakers used, skipping test");
             return;
         }
-        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
+        assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
                 .addMapping("type", "test", "type=text,fielddata=true"));
         final Client client = client();
 
@@ -119,7 +118,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         clearFieldData();
 
         // Update circuit breaker settings
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.05)
                 .build();
@@ -168,7 +167,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         clearFieldData();
 
         // Update circuit breaker settings
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.05)
                 .build();
@@ -198,7 +197,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             logger.info("--> noop breakers used, skipping test");
             return;
         }
-        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
+        assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
                 .addMapping("type", "test", "type=text,fielddata=true"));
         Client client = client();
 
@@ -214,7 +213,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         long beforeReqLimit = client.admin().cluster().prepareNodesStats().setBreaker(true).get()
                 .getNodes()[0].getBreaker().getStats(CircuitBreaker.REQUEST).getLimit();
 
-        Settings resetSettings = settingsBuilder()
+        Settings resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
                 .build();
@@ -235,7 +234,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 containsString("Data too large, data for [test] would be larger than limit of [10/10b]"));
 
         // Adjust settings so the parent breaker will fail, but the fielddata breaker doesn't
-        resetSettings = settingsBuilder()
+        resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "15b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "90%")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
@@ -258,11 +257,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             logger.info("--> noop breakers used, skipping test");
             return;
         }
-        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();
 
         // Make request breaker limited to a small amount
-        Settings resetSettings = settingsBuilder()
+        Settings resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
                 .build();
         assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));

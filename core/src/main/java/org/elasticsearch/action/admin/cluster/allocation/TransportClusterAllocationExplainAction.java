@@ -139,8 +139,14 @@ public class TransportClusterAllocationExplainAction
                 nodeToDecision.put(discoNode, d);
             }
         }
+        long remainingDelayNanos = 0;
+        if (ui != null) {
+            final MetaData metadata = allocation.metaData();
+            final Settings indexSettings = metadata.index(shard.index()).getSettings();
+            remainingDelayNanos = ui.getRemainingDelay(System.nanoTime(), metadata.settings(), indexSettings);
+        }
         return new ClusterAllocationExplanation(shard.shardId(), shard.primary(), shard.currentNodeId(), ui, nodeToDecision,
-                shardAllocator.weighShard(allocation, shard));
+                shardAllocator.weighShard(allocation, shard), remainingDelayNanos);
     }
 
     @Override

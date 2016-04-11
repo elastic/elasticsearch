@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -35,7 +36,6 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ public class HistogramAggregator extends BucketsAggregator {
     public static final ParseField MIN_DOC_COUNT_FIELD = new ParseField("min_doc_count");
 
     private final ValuesSource.Numeric valuesSource;
-    private final ValueFormatter formatter;
+    private final DocValueFormat formatter;
     private final Rounding rounding;
     private final InternalOrder order;
     private final boolean keyed;
@@ -63,7 +63,7 @@ public class HistogramAggregator extends BucketsAggregator {
 
     public HistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, InternalOrder order, boolean keyed,
             long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Numeric valuesSource,
-            ValueFormatter formatter, InternalHistogram.Factory<?> histogramFactory, AggregationContext aggregationContext,
+            DocValueFormat formatter, InternalHistogram.Factory<?> histogramFactory, AggregationContext aggregationContext,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);

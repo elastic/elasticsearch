@@ -49,7 +49,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
@@ -93,7 +92,7 @@ public class CodecTests extends ESTestCase {
     }
 
     private static CodecService createCodecService() throws IOException {
-        Settings nodeSettings = settingsBuilder()
+        Settings nodeSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);

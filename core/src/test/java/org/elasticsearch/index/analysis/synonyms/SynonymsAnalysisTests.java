@@ -43,7 +43,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -62,7 +61,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Files.copy(synonymsWordnet, config.resolve("synonyms_wordnet.txt"));
 
         String json = "/org/elasticsearch/index/analysis/synonyms/synonyms.json";
-        Settings settings = settingsBuilder().
+        Settings settings = Settings.builder().
             loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();

@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fieldstats.FieldStatsProvider;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 
@@ -28,25 +29,21 @@ import org.elasticsearch.script.ScriptService;
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
+    protected final MapperService mapperService;
     protected final ScriptService scriptService;
     protected final IndexSettings indexSettings;
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final QueryParseContext parseContext;
-    protected FieldStatsProvider fieldStatsProvider;
+    protected final IndexReader reader;
 
-    public QueryRewriteContext(IndexSettings indexSettings, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
+            IndicesQueriesRegistry indicesQueriesRegistry, IndexReader reader) {
+        this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.parseContext = new QueryParseContext(indicesQueriesRegistry);
-    }
-
-    public void setFieldStatsProvider(FieldStatsProvider fieldStatsProvider) {
-        this.fieldStatsProvider = fieldStatsProvider;
-    }
-
-    public FieldStatsProvider getFieldStatsProvider() {
-        return fieldStatsProvider;
+        this.reader = reader;
     }
 
     /**
@@ -69,6 +66,18 @@ public class QueryRewriteContext {
      */
     public final ScriptService getScriptService() {
         return scriptService;
+    }
+
+    /**
+     * Return the MapperService.
+     */
+    public final MapperService getMapperService() {
+        return mapperService;
+    }
+
+    /** Return the current {@link IndexReader}, or {@code null} if we are on the coordinating node. */
+    public IndexReader getIndexReader() {
+        return reader;
     }
 
     /**

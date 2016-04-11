@@ -25,16 +25,10 @@ import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 
+/**
+ * Parses XContent into a {@link ScoreFunctionBuilder}.
+ */
+@FunctionalInterface
 public interface ScoreFunctionParser<FB extends ScoreFunctionBuilder<FB>> {
-
     FB fromXContent(QueryParseContext context, XContentParser parser) throws IOException, ParsingException;
-
-    FB getBuilderPrototype();
-
-    /**
-     * Returns the name of the function, for example "linear", "gauss" etc. This
-     * name is used for registering the parser in
-     * {@link FunctionScoreQueryBuilder}.
-     * */
-    String[] getNames();
 }

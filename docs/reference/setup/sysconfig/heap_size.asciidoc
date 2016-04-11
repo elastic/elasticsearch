@@ -1,0 +1,36 @@
+[[heap-size]]
+=== Set JVM heap size with ES_HEAP_SIZE
+
+In development mode, Elasticsearch tells the JVM to use a heap with a minimum
+size of 256MB and a maximum size of 1GB. When moving to production, it is
+important to configure the `ES_HEAP_SIZE environment variable to ensure that
+Elasticsearch has enough heap available.
+
+Elasticsearch will assign the entire heap specified in `ES_HEAP_SIZE on startup.
+
+The value for this setting depends on the amount of RAM available on your server. A good rule of thumb is:
+
+* The more heap available to Elasticsearch, the more memory it can use for
+  caching.
+
+* Set the `ES_HEAP_SIZE` to no more than 50% of your RAM, to ensure that there
+  is enough RAM left for kernel file system caches.
+
+* Don’t set `ES_HEAP_SIZE` to more than about 31GB to ensure that the JVM uses
+  compressed object pointers (compressed-oops). You can verify that you are
+  under the limit by looking for a line in the logs like the following:
+
+    heap size [1.9gb], compressed ordinary object pointers [true]
+
+Here are examples of how to set the ES_HEAP_SIZE:
+
+[source,sh]
+------------------
+ES_HEAP_SIZE=2g    ./bin/elasticsearch <1>
+ES_HEAP_SIZE=4000m ./bin/elasticsearch <2>
+------------------
+<1> Set the min/max heap size to 2GB.
+<2> Set the min/max heap size to 4,000MB.
+
+When using the Debian or RPM package, ES_HEAP_SIZE can be configured in the
+<<sysconfig,system configuration file>>.

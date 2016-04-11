@@ -297,6 +297,6 @@ same data directory. This can lead to unexpected data loss.
 == Other node settings
 
 More node settings can be found in <<modules,Modules>>.  Of particular note are
-the <<cluster-name,`cluster.name`>>, the <<node-name,`node.name`>> and the
+the <<cluster.name,`cluster.name`>>, the <<node.name,`node.name`>> and the
 <<modules-network,network settings>>.
 

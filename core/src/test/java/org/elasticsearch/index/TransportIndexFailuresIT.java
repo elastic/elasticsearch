@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.SuppressLocalMode
 public class TransportIndexFailuresIT extends ESIntegTestCase {
 
-    private static final Settings nodeSettings = Settings.settingsBuilder()
+    private static final Settings nodeSettings = Settings.builder()
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
             .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // <-- for hitting simulated network failures quickly

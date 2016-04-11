@@ -41,12 +41,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -1216,9 +1216,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.fieldNames = fieldNames;
         }
         builder.from = in.readVInt();
-        if (in.readBoolean()) {
-            builder.highlightBuilder = HighlightBuilder.PROTOTYPE.readFrom(in);
-        }
+        builder.highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         boolean hasIndexBoost = in.readBoolean();
         if (hasIndexBoost) {
             int size = in.readVInt();
@@ -1320,11 +1318,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             }
         }
         out.writeVInt(from);
-        boolean hasHighlightBuilder = highlightBuilder != null;
-        out.writeBoolean(hasHighlightBuilder);
-        if (hasHighlightBuilder) {
-            highlightBuilder.writeTo(out);
-        }
+        out.writeOptionalWriteable(highlightBuilder);
         boolean hasIndexBoost = indexBoost != null;
         out.writeBoolean(hasIndexBoost);
         if (hasIndexBoost) {

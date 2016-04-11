@@ -25,26 +25,36 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomAccessWeight;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
 
     public static final String NAME = "script";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder(new Script(""));
+    public static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder(new Script(""));
+
+    private static final ParseField PARAMS_FIELD = new ParseField("params");
 
     private final Script script;
 
@@ -70,6 +80,66 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         builder.field(ScriptField.SCRIPT.getPreferredName(), script);
         printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
+
+        // also, when caching, since its isCacheable is false, will result in loading all bit set...
+        Script script = null;
+        Map<String, Object> params = null;
+
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String queryName = null;
+
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, parseContext.parseFieldMatcher());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
+                    // TODO remove in 3.0 (here to support old script APIs)
+                    params = parser.map();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
+                    throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+
+        if (script == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+            if (scriptValue != null) {
+                if (params == null) {
+                    params = new HashMap<>();
+                }
+                script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
+            }
+        } else if (params != null) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "script params must be specified inside script object in a [script] filter");
+        }
+
+        if (script == null) {
+            throw new ParsingException(parser.getTokenLocation(), "script must be provided with a [script] filter");
+        }
+
+        return new ScriptQueryBuilder(script)
+                .boost(boost)
+                .queryName(queryName);
     }
 
     @Override

@@ -5,6 +5,9 @@
 # Elasticsearch home directory
 #ES_HOME=/usr/share/elasticsearch
 
+# Elasticsearch Java path
+#JAVA_HOME=
+
 # Elasticsearch configuration directory
 #CONF_DIR=${path.conf}
 

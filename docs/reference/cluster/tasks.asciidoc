@@ -40,6 +40,7 @@ The result will look similar to the following:
           "action" : "cluster:monitor/tasks/lists[n]",
           "start_time_in_millis" : 1458585884904,
           "running_time_in_nanos" : 47402,
+          "cancellable" : false,
           "parent_task_id" : "oTUltX4IQMOUUVeiohTt8A:123"
         },
         "oTUltX4IQMOUUVeiohTt8A:123" : {
@@ -48,7 +49,8 @@ The result will look similar to the following:
           "type" : "transport",
           "action" : "cluster:monitor/tasks/lists",
           "start_time_in_millis" : 1458585884904,
-          "running_time_in_nanos" : 236042
+          "running_time_in_nanos" : 236042,
+          "cancellable" : false
         }
       }
     }
@@ -76,6 +78,14 @@ GET /_tasks/oTUltX4IQMOUUVeiohTt8A:12345?wait_for_completion=true&timeout=10s
 --------------------------------------------------
 // AUTOSENSE
 
+Tasks can be also listed using _cat version of the list tasks command, which accepts the same arguments
+as the standard list tasks command.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/tasks
+--------------------------------------------------
+// AUTOSENSE
 
 [float]
 === Task Cancellation

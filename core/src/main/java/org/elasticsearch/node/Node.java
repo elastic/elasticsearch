@@ -121,8 +121,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
@@ -162,7 +160,7 @@ public class Node implements Closeable {
     }
 
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        Settings tmpSettings = settingsBuilder().put(tmpEnv.settings())
+        Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
         tmpSettings = TribeService.processSettings(tmpSettings);
 
@@ -533,7 +531,7 @@ public class Node implements Closeable {
                     // no link local, just causes problems
                     continue;
                 }
-                writer.write(NetworkAddress.formatAddress(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
+                writer.write(NetworkAddress.format(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to write ports file", e);

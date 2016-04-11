@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.locationtech.spatial4j.io.GeohashUtils;
 import org.locationtech.spatial4j.shape.Rectangle;
 import org.apache.lucene.search.BooleanClause;
@@ -253,7 +254,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 for (BooleanClause clause : bboxFilter.clauses()) {
                     LegacyNumericRangeQuery boundary = (LegacyNumericRangeQuery) clause.getQuery();
                     if (boundary.getMax() != null) {
-                        assertTrue("If defined, non of the maximum range values should be larger than 180", boundary.getMax().intValue() <= 180);
+                        assertTrue("If defined, non of the maximum range values should be larger than 180",
+                                boundary.getMax().intValue() <= 180);
                     }
                 }
             } else {
@@ -263,7 +265,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testStrictnessDefault() {
-        assertFalse("Someone changed the default for coordinate validation - were the docs changed as well?", GeoValidationMethod.DEFAULT_LENIENT_PARSING);
+        assertFalse("Someone changed the default for coordinate validation - were the docs changed as well?",
+                GeoValidationMethod.DEFAULT_LENIENT_PARSING);
     }
 
     @Override
@@ -448,7 +451,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     public void testFromJson() throws IOException {
         String json =
                 "{\n" +
-                "  \"geo_bbox\" : {\n" +
+                "  \"geo_bounding_box\" : {\n" +
                 "    \"pin.location\" : {\n" +
                 "      \"top_left\" : [ -74.1, 40.73 ],\n" +
                 "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
@@ -467,6 +470,27 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, 40.01, parsed.bottomRight().getLat(), 0.0001);
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
         assertEquals(json, GeoExecType.MEMORY, parsed.type());
+        json =
+                "{\n" +
+                        "  \"geo_bbox\" : {\n" +
+                        "    \"pin.location\" : {\n" +
+                        "      \"top_left\" : [ -74.1, 40.73 ],\n" +
+                        "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
+                        "    },\n" +
+                        "    \"validation_method\" : \"STRICT\",\n" +
+                        "    \"type\" : \"MEMORY\",\n" +
+                        "    \"boost\" : 1.0\n" +
+                        "  }\n" +
+                        "}";
+        QueryBuilder<?> parsedGeoBboxShortcut = parseQuery(json, ParseFieldMatcher.EMPTY);
+        assertThat(parsedGeoBboxShortcut, equalTo(parsed));
+
+        try {
+            parseQuery(json);
+            fail("parse query should have failed in strict mode");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Deprecated field [geo_bbox] used, expected [geo_bounding_box] instead"));
+        }
     }
 
     @Override

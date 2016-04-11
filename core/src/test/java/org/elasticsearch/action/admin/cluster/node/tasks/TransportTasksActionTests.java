@@ -565,6 +565,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         ListTasksResponse listResponse = testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction.execute
             (listTasksRequest).get();
         assertEquals(1, listResponse.getPerNodeTasks().size());
+        // Verify that tasks are marked as non-cancellable
+        for (TaskInfo taskInfo : listResponse.getTasks()) {
+            assertFalse(taskInfo.isCancellable());
+        }
 
         // Release all tasks and wait for response
         checkLatch.countDown();

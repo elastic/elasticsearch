@@ -65,7 +65,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -506,7 +505,7 @@ public class ClusterServiceTests extends ESTestCase {
      * Note, this test can only work as long as we have a single thread executor executing the state update tasks!
      */
     public void testPrioritizedTasks() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "local")
                 .build();
         BlockingTask block = new BlockingTask(Priority.IMMEDIATE);

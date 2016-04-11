@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.hamcrest.Matchers;
 
@@ -38,7 +39,6 @@ import java.util.List;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -47,7 +47,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(FilterRoutingTests.class);
 
     public void testClusterFilters() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.include.tag1", "value1,value2")
                 .put("cluster.routing.allocation.exclude.tag1", "value3,value4")
                 .build());
@@ -92,7 +92,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
     }
 
     public void testIndexFilters() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .build());
 
         logger.info("Building initial routing table");
@@ -166,7 +166,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
     }
 
     public void testRebalanceAfterShardsCannotRemainOnNode() {
-        AllocationService strategy = createAllocationService(settingsBuilder().build());
+        AllocationService strategy = createAllocationService(Settings.builder().build());
 
         logger.info("Building initial routing table");
         MetaData metaData = MetaData.builder()
@@ -198,7 +198,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
 
         logger.info("--> disable allocation for node1 and reroute");
-        strategy = createAllocationService(settingsBuilder()
+        strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", "1")
                 .put("cluster.routing.allocation.exclude.tag1", "value1")
                 .build());

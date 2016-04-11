@@ -35,7 +35,6 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
@@ -127,7 +126,6 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -338,7 +336,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                                 profileSettings.toDelimitedString(','));
                         continue;
                     } else if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
-                        profileSettings = settingsBuilder()
+                        profileSettings = Settings.builder()
                                 .put(profileSettings)
                                 .put("port", profileSettings.get("port", TransportSettings.PORT.get(this.settings)))
                                 .build();
@@ -349,7 +347,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     }
 
                     // merge fallback settings with default settings with profile settings so we have complete settings with default values
-                    Settings mergedSettings = settingsBuilder()
+                    Settings mergedSettings = Settings.builder()
                             .put(fallbackSettings)
                             .put(defaultSettings)
                             .put(profileSettings)
@@ -415,7 +413,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     private Settings createFallbackSettings() {
-        Settings.Builder fallbackSettingsBuilder = settingsBuilder();
+        Settings.Builder fallbackSettingsBuilder = Settings.builder();
 
         List<String> fallbackBindHost = TransportSettings.BIND_HOST.get(settings);
         if (fallbackBindHost.isEmpty() == false) {
@@ -1311,15 +1309,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         public Channel channel(TransportRequestOptions.Type type) {
             if (type == TransportRequestOptions.Type.REG) {
-                return reg[MathUtils.mod(regCounter.incrementAndGet(), reg.length)];
+                return reg[Math.floorMod(regCounter.incrementAndGet(), reg.length)];
             } else if (type == TransportRequestOptions.Type.STATE) {
-                return state[MathUtils.mod(stateCounter.incrementAndGet(), state.length)];
+                return state[Math.floorMod(stateCounter.incrementAndGet(), state.length)];
             } else if (type == TransportRequestOptions.Type.PING) {
-                return ping[MathUtils.mod(pingCounter.incrementAndGet(), ping.length)];
+                return ping[Math.floorMod(pingCounter.incrementAndGet(), ping.length)];
             } else if (type == TransportRequestOptions.Type.BULK) {
-                return bulk[MathUtils.mod(bulkCounter.incrementAndGet(), bulk.length)];
+                return bulk[Math.floorMod(bulkCounter.incrementAndGet(), bulk.length)];
             } else if (type == TransportRequestOptions.Type.RECOVERY) {
-                return recovery[MathUtils.mod(recoveryCounter.incrementAndGet(), recovery.length)];
+                return recovery[Math.floorMod(recoveryCounter.incrementAndGet(), recovery.length)];
             } else {
                 throw new IllegalArgumentException("no type channel for [" + type + "]");
             }

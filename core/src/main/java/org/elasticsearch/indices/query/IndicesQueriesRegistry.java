@@ -19,24 +19,44 @@
 
 package org.elasticsearch.indices.query;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.query.QueryParser;
 
 import java.util.Map;
 
 public class IndicesQueriesRegistry extends AbstractComponent {
-    private Map<String, QueryParser<?>> queryParsers;
+    private Map<String, Tuple<ParseField, QueryParser<?>>> queryParsers;
 
-    public IndicesQueriesRegistry(Settings settings, Map<String, QueryParser<?>> queryParsers) {
+    public IndicesQueriesRegistry(Settings settings, Map<String, Tuple<ParseField, QueryParser<?>>> queryParsers) {
         super(settings);
         this.queryParsers = queryParsers;
     }
 
     /**
-     * Returns all the registered query parsers
+     * Get the query parser for a specific type of query registered under its name.
+     * Uses {@link ParseField} internally so that deprecation warnings/errors can be logged/thrown.
+     * @param name the name of the parser to retrieve
+     * @param parseFieldMatcher the {@link ParseFieldMatcher} to match the query name against
+     * @param xContentLocation the current location of the {@link org.elasticsearch.common.xcontent.XContentParser}
+     * @return the query parser
+     * @throws IllegalArgumentException of there's no query or parser registered under the provided name
      */
-    public Map<String, QueryParser<?>> queryParsers() {
-        return queryParsers;
+    public QueryParser<?> getQueryParser(String name, ParseFieldMatcher parseFieldMatcher, XContentLocation xContentLocation) {
+        Tuple<ParseField, QueryParser<?>> parseFieldQueryParserTuple = queryParsers.get(name);
+        if (parseFieldQueryParserTuple == null) {
+            throw new ParsingException(xContentLocation, "No query registered for [" + name + "]");
+        }
+        ParseField parseField = parseFieldQueryParserTuple.v1();
+        QueryParser<?> queryParser = parseFieldQueryParserTuple.v2();
+        boolean match = parseFieldMatcher.match(name, parseField);
+        //this is always expected to match, ParseField is useful for deprecation warnings etc. here
+        assert match : "registered ParseField did not match the query name it was registered for: [" + name + "]";
+        return queryParser;
     }
 }

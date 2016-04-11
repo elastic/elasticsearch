@@ -26,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -47,6 +48,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     private final Map<DiscoveryNode, Decision> nodeToDecision;
     private final Map<DiscoveryNode, Float> nodeWeights;
     private final UnassignedInfo unassignedInfo;
+    private final long remainingDelayNanos;
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
         this.shard = ShardId.readShardId(in);
@@ -73,17 +75,19 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             ntw.put(dn, weight);
         }
         this.nodeWeights = ntw;
+        remainingDelayNanos = in.readVLong();
     }
 
     public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId,
                                         UnassignedInfo unassignedInfo, Map<DiscoveryNode, Decision> nodeToDecision,
-                                        Map<DiscoveryNode, Float> nodeWeights) {
+                                        Map<DiscoveryNode, Float> nodeWeights, long remainingDelayNanos) {
         this.shard = shard;
         this.primary = primary;
         this.assignedNodeId = assignedNodeId;
         this.unassignedInfo = unassignedInfo;
         this.nodeToDecision = nodeToDecision == null ? Collections.emptyMap() : nodeToDecision;
         this.nodeWeights = nodeWeights == null ? Collections.emptyMap() : nodeWeights;
+        this.remainingDelayNanos = remainingDelayNanos;
     }
 
     public ShardId getShard() {
@@ -124,6 +128,11 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return this.nodeWeights;
     }
 
+    /** Return the remaining allocation delay for this shard in nanoseconds */
+    public long getRemainingDelayNanos() {
+        return this.remainingDelayNanos;
+    }
+
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(); {
             builder.startObject("shard"); {
@@ -141,6 +150,11 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             // If we have unassigned info, show that
             if (unassignedInfo != null) {
                 unassignedInfo.toXContent(builder, params);
+                long delay = unassignedInfo.getLastComputedLeftDelayNanos();
+                builder.field("allocation_delay", TimeValue.timeValueNanos(delay));
+                builder.field("allocation_delay_ms", TimeValue.timeValueNanos(delay).millis());
+                builder.field("remaining_delay", TimeValue.timeValueNanos(remainingDelayNanos));
+                builder.field("remaining_delay_ms", TimeValue.timeValueNanos(remainingDelayNanos).millis());
             }
             builder.startObject("nodes");
             for (Map.Entry<DiscoveryNode, Float> entry : nodeWeights.entrySet()) {
@@ -194,5 +208,6 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             entry.getKey().writeTo(out);
             out.writeFloat(entry.getValue());
         }
+        out.writeVLong(remainingDelayNanos);
     }
 }

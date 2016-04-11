@@ -701,7 +701,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 .admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1))
                 .execute().
                 actionGet();

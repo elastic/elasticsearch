@@ -33,7 +33,6 @@ import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -49,7 +48,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     private int shardsPerIndex;
     private int totalNumberOfShards;
     private final static Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-    private final AllocationService ALLOCATION_SERVICE = createAllocationService(settingsBuilder()
+    private final AllocationService ALLOCATION_SERVICE = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
             .build());

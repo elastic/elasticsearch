@@ -345,20 +345,21 @@ gradle :qa:vagrant:checkVagrantVersion
 -------------------------------------
 
 . Download and smoke test the VMs with `gradle vagrantSmokeTest` or
-`gradle vagrantSmokeTestAllDistros`. The first time you run this it will
+`gradle -Pvagrant.boxes=all vagrantSmokeTest`. The first time you run this it will
 download the base images and provision the boxes and immediately quit. If you
 you this again it'll skip the download step.
 
-. Run the tests with `gradle checkPackages`. This will cause gradle to build
+. Run the tests with `gradle packagingTest`. This will cause gradle to build
 the tar, zip, and deb packages and all the plugins. It will then run the tests
 on ubuntu-1404 and centos-7. We chose those two distributions as the default
 because they cover deb and rpm packaging and SyvVinit and systemd.
 
-You can run on all the VMs by running `gradle checkPackagesAllDistros`. You can
-run a particular VM with a command like `gradle checkOel7`. See `gradle tasks`
-for a list. Its important to know that if you ctrl-c any of these `gradle`
-commands then the boxes will remain running and you'll have to terminate them
-with `vagrant halt`.
+You can run on all the VMs by running `gradle -Pvagrant.boxes=all packagingTest`.
+You can run a particular VM with a command like
+`gradle -Pvagrant.boxes=oel-7 packagingTest`. See `gradle tasks` for a complete
+list of available vagrant boxes for testing. It's important to know that if you
+ctrl-c any of these `gradle` commands then the boxes will remain running and
+you'll have to terminate them with 'gradle stop'.
 
 All the regular vagrant commands should just work so you can get a shell in a
 VM running trusty by running
@@ -387,7 +388,7 @@ We're missing the follow because our tests are very linux/bash centric:
 
 * Windows Server 2012
 
-Its important to think of VMs like cattle. If they become lame you just shoot
+It's important to think of VMs like cattle. If they become lame you just shoot
 them and let vagrant reprovision them. Say you've hosed your precise VM:
 
 ----------------------------------------------------

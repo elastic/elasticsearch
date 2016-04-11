@@ -55,7 +55,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
@@ -73,7 +72,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        allocationService = createAllocationService(settingsBuilder()
+        allocationService = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 8)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
             .build());

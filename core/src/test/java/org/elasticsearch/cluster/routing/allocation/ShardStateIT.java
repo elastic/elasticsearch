@@ -48,7 +48,8 @@ public class ShardStateIT extends ESIntegTestCase {
         indicesService.indexService(resolveIndex("test")).getShard(shard).failShard("simulated test failure", null);
 
         logger.info("--> waiting for a yellow index");
-        assertBusy(() -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));
+        assertBusy(() -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(),
+            equalTo(ClusterHealthStatus.YELLOW)));
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;

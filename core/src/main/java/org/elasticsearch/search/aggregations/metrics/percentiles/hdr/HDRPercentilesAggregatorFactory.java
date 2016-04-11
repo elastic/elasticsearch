@@ -53,14 +53,14 @@ public class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFacto
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         return new HDRPercentilesAggregator(name, null, context, parent, percents, numberOfSignificantValueDigits, keyed,
-                config.formatter(), pipelineAggregators, metaData);
+                config.format(), pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         return new HDRPercentilesAggregator(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed,
-                config.formatter(), pipelineAggregators, metaData);
+                config.format(), pipelineAggregators, metaData);
     }
 
 }

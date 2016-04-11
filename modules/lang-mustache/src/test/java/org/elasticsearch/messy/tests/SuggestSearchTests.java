@@ -22,7 +22,6 @@ package org.elasticsearch.messy.tests;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
@@ -59,8 +58,8 @@ import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
@@ -180,7 +179,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
     // see #3037
     public void testSuggestModes() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.analysis.analyzer.biword.tokenizer", "standard")
@@ -262,7 +261,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
     }
 
     public void testUnmappedField() throws IOException, InterruptedException, ExecutionException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.biword.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
@@ -437,7 +436,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
     // see #2817
     public void testStopwordsOnlyPhraseSuggest() throws IOException {
         assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=text,analyzer=stopwd").setSettings(
-                settingsBuilder()
+                Settings.builder()
                         .put("index.analysis.analyzer.stopwd.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.stopwd.filter", "stop")
         ));
@@ -453,7 +452,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
     }
 
     public void testPrefixLength() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse")
@@ -496,7 +495,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
     @Nightly
     public void testMarvelHerosPhraseSuggest() throws IOException, URISyntaxException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse")
@@ -627,7 +626,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
     }
 
     public void testSizePararm() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse")
@@ -692,7 +691,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
     @Nightly
     public void testPhraseBoundaryCases() throws IOException, URISyntaxException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.body.filter", "lowercase")
@@ -803,7 +802,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
     // see #3469
     public void testShardFailures() throws IOException, InterruptedException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
@@ -863,7 +862,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                         endObject().
                     endObject().
                 endObject();
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
@@ -898,7 +897,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         // If there isn't enough chaf per shard then shards can become unbalanced, making the cutoff recheck this is testing do more harm then good.
         int chafPerShard = 100;
 
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.body.filter", "lowercase", "my_shingle")
@@ -957,7 +956,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
     @Nightly
     public void testSuggestWithManyCandidates() throws InterruptedException, ExecutionException, IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
                 .put("index.analysis.analyzer.text.tokenizer", "standard")
@@ -1101,7 +1100,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
     }
 
     public void testPhraseSuggesterCollate() throws InterruptedException, ExecutionException, IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
                 .put("index.analysis.analyzer.text.tokenizer", "standard")

@@ -40,13 +40,11 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Match query is a query that analyzes the text and constructs a query as the result of the analysis. It
- * can construct different queries based on the type provided.
+ * Match query is a query that analyzes the text and constructs a query as the
+ * result of the analysis.
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
-    public static final ParseField MATCH_PHRASE_FIELD = new ParseField("match_phrase", "text_phrase");
-    public static final ParseField MATCH_PHRASE_PREFIX_FIELD = new ParseField("match_phrase_prefix", "text_phrase_prefix");
-    public static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
+    public static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop").withAllDeprecated("match_phrase query");
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -57,28 +55,33 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
     public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
     public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
-    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField TYPE_FIELD = new ParseField("type").withAllDeprecated("match_phrase and match_phrase_prefix query");
     public static final ParseField QUERY_FIELD = new ParseField("query");
 
-    /** The default name for the match query */
+    /** The name for the match query */
     public static final String NAME = "match";
+
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "match_fuzzy", "fuzzy_match");
 
     /** The default mode terms are combined in a match query */
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
 
     /** The default mode match query type */
+    @Deprecated
     public static final MatchQuery.Type DEFAULT_TYPE = MatchQuery.Type.BOOLEAN;
 
     private final String fieldName;
 
     private final Object value;
 
+    @Deprecated
     private MatchQuery.Type type = DEFAULT_TYPE;
 
     private Operator operator = DEFAULT_OPERATOR;
 
     private String analyzer;
 
+    @Deprecated
     private int slop = MatchQuery.DEFAULT_PHRASE_SLOP;
 
     private Fuzziness fuzziness = null;
@@ -125,7 +128,14 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.value;
     }
 
-    /** Sets the type of the text query. */
+    /**
+     * Sets the type of the text query.
+     *
+     * @deprecated Use {@link MatchPhraseQueryBuilder} for <code>phrase</code>
+     *             queries and {@link MatchPhrasePrefixQueryBuilder} for
+     *             <code>phrase_prefix</code> queries
+     */
+    @Deprecated
     public MatchQueryBuilder type(MatchQuery.Type type) {
         if (type == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires type to be non-null");
@@ -134,7 +144,14 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this;
     }
 
-    /** Get the type of the query. */
+    /**
+     * Get the type of the query.
+     *
+     * @deprecated Use {@link MatchPhraseQueryBuilder} for <code>phrase</code>
+     *             queries and {@link MatchPhrasePrefixQueryBuilder} for
+     *             <code>phrase_prefix</code> queries
+     */
+    @Deprecated
     public MatchQuery.Type type() {
         return this.type;
     }
@@ -167,7 +184,12 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.analyzer;
     }
 
-    /** Sets a slop factor for phrase queries */
+    /**
+     * Sets a slop factor for phrase queries
+     *
+     * @deprecated for phrase queries use {@link MatchPhraseQueryBuilder}
+     */
+    @Deprecated
     public MatchQueryBuilder slop(int slop) {
         if (slop < 0 ) {
             throw new IllegalArgumentException("No negative slop allowed.");
@@ -176,7 +198,12 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this;
     }
 
-    /** Get the slop factor for phrase queries. */
+    /**
+     * Get the slop factor for phrase queries.
+     *
+     * @deprecated for phrase queries use {@link MatchPhraseQueryBuilder}
+     */
+    @Deprecated
     public int slop() {
         return this.slop;
     }
@@ -337,12 +364,18 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         builder.startObject(fieldName);
 
         builder.field(QUERY_FIELD.getPreferredName(), value);
-        builder.field(TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
+        // this is deprecated so only output the value if its not the default value (for bwc)
+        if (type != MatchQuery.Type.BOOLEAN) {
+            builder.field(TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
+        }
         builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
         if (analyzer != null) {
             builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field(SLOP_FIELD.getPreferredName(), slop);
+        // this is deprecated so only output the value if its not the default value (for bwc)
+        if (slop != MatchQuery.DEFAULT_PHRASE_SLOP) {
+            builder.field(SLOP_FIELD.getPreferredName(), slop);
+        }
         if (fuzziness != null) {
             fuzziness.toXContent(builder, params);
         }
@@ -370,7 +403,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // validate context specific fields
         if (analyzer != null && context.getAnalysisService().analyzer(analyzer) == null) {
-            throw new QueryShardException(context, "[match] analyzer [" + analyzer + "] not found");
+            throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
         MatchQuery matchQuery = new MatchQuery(context);
@@ -490,19 +523,13 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     public static MatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
-        if (parseContext.parseFieldMatcher().match(parser.currentName(), MATCH_PHRASE_FIELD)) {
-            type = MatchQuery.Type.PHRASE;
-        } else if (parseContext.parseFieldMatcher().match(parser.currentName(), MATCH_PHRASE_PREFIX_FIELD)) {
-            type = MatchQuery.Type.PHRASE_PREFIX;
-        }
-
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[" + MatchQueryBuilder.NAME + "] query malformed, no field");
         }
         String fieldName = parser.currentName();
 
+        MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String minimumShouldMatch = null;
@@ -537,8 +564,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                         } else if ("phrase_prefix".equals(tStr) || ("phrasePrefix".equals(tStr))) {
                             type = MatchQuery.Type.PHRASE_PREFIX;
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + MatchQueryBuilder.NAME + "] query does not support type " + tStr);
+                            throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support type " + tStr);
                         }
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
                         analyzer = parser.text();
@@ -578,11 +604,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
-                                "[" + MatchQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]");
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "[" + MatchQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
                 }
             }
             parser.nextToken();

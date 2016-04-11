@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -57,6 +58,7 @@ import java.util.Collections;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
@@ -127,7 +129,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder innerQueryBuilder = queryBuilder.query();
+        QueryBuilder<?> innerQueryBuilder = queryBuilder.query();
         if (innerQueryBuilder instanceof EmptyQueryBuilder) {
             assertNull(query);
         } else {
@@ -155,7 +157,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testIllegalValues() {
-        QueryBuilder query = RandomQueryBuilder.createQuery(random());
+        QueryBuilder<?> query = RandomQueryBuilder.createQuery(random());
         try {
             new HasChildQueryBuilder(null, query);
             fail("must not be null");
@@ -334,5 +336,54 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         HasChildQueryBuilder.LateParsingQuery query = (HasChildQueryBuilder.LateParsingQuery) hasChildQueryBuilder.toQuery(shardContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity).apply(similarity, Settings.EMPTY).get();
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
+    }
+
+    public void testMinFromString() {
+        assertThat("fromString(min) != MIN", ScoreMode.Min, equalTo(HasChildQueryBuilder.parseScoreMode("min")));
+        assertThat("min", equalTo(HasChildQueryBuilder.scoreModeAsString(ScoreMode.Min)));
+    }
+
+    public void testMaxFromString() {
+        assertThat("fromString(max) != MAX", ScoreMode.Max, equalTo(HasChildQueryBuilder.parseScoreMode("max")));
+        assertThat("max", equalTo(HasChildQueryBuilder.scoreModeAsString(ScoreMode.Max)));
+    }
+
+    public void testAvgFromString() {
+        assertThat("fromString(avg) != AVG", ScoreMode.Avg, equalTo(HasChildQueryBuilder.parseScoreMode("avg")));
+        assertThat("avg", equalTo(HasChildQueryBuilder.scoreModeAsString(ScoreMode.Avg)));
+    }
+
+    public void testSumFromString() {
+        assertThat("fromString(total) != SUM", ScoreMode.Total, equalTo(HasChildQueryBuilder.parseScoreMode("sum")));
+        assertThat("sum", equalTo(HasChildQueryBuilder.scoreModeAsString(ScoreMode.Total)));
+    }
+
+    public void testNoneFromString() {
+        assertThat("fromString(none) != NONE", ScoreMode.None, equalTo(HasChildQueryBuilder.parseScoreMode("none")));
+        assertThat("none", equalTo(HasChildQueryBuilder.scoreModeAsString(ScoreMode.None)));
+    }
+
+    /**
+     * Should throw {@link IllegalArgumentException} instead of NPE.
+     */
+    public void testThatNullFromStringThrowsException() {
+        try {
+            HasChildQueryBuilder.parseScoreMode(null);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("No score mode for child query [null] found"));
+        }
+    }
+
+    /**
+     * Failure should not change (and the value should never match anything...).
+     */
+    public void testThatUnrecognizedFromStringThrowsException() {
+        try {
+            HasChildQueryBuilder.parseScoreMode("unrecognized value");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("No score mode for child query [unrecognized value] found"));
+        }
     }
 }

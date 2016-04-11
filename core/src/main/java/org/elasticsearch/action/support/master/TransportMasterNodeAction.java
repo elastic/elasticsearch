@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -115,10 +114,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             this.request = request;
             if (task != null) {
                 request.setParentTask(clusterService.localNode().getId(), task.getId());
-            }
-            // TODO do we really need to wrap it in a listener? the handlers should be cheap
-            if ((listener instanceof ThreadedActionListener) == false) {
-                listener = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener);
             }
             this.listener = listener;
         }

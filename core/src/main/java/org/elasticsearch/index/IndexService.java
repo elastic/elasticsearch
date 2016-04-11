@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -438,12 +439,21 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
      * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
      * {@link QueryShardContext#setTypes(String...)}
      */
-    public QueryShardContext newQueryShardContext() {
+    public QueryShardContext newQueryShardContext(IndexReader indexReader) {
         return new QueryShardContext(
                 indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
                 similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry(),
-                indexCache.getPercolatorQueryCache()
+                indexCache.getPercolatorQueryCache(), indexReader
         );
+    }
+
+    /**
+     * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
+     * {@link QueryShardContext#setTypes(String...)}. This context may be used for query parsing but cannot be
+     * used for rewriting since it does not know about the current {@link IndexReader}.
+     */
+    public QueryShardContext newQueryShardContext() {
+        return newQueryShardContext(null);
     }
 
     public ThreadPool getThreadPool() {

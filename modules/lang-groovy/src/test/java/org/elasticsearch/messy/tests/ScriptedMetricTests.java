@@ -122,7 +122,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/org/elasticsearch/messy/tests/conf"))
                 .build();

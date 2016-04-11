@@ -1062,6 +1062,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             @Override
             public void failShard(String reason, @Nullable Throwable e) {
                 isShardFailed.set(true);
+                if (randomBoolean()) {
+                    throw new ElasticsearchException("simulated");
+                }
             }
 
             @Override
@@ -1173,7 +1176,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
 
         @Override
-        protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId) {
+        protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId, Request request) {
             final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
             return getOrCreateIndexShardOperationsCounter(indexMetaData.primaryTerm(shardId.id()));
         }

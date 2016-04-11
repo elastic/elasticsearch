@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest.completion;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
@@ -36,10 +37,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTestCase<CompletionSuggestionBuilder> {
+
+    private static final Set<String> SHUFFLE_PROTECTED_FIELDS =
+            Collections.singleton(CompletionSuggestionBuilder.CONTEXTS_FIELD.getPreferredName());
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
@@ -101,6 +106,15 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         testBuilder.contexts(contextMap);
         builderAndInfo.builder = testBuilder;
         return builderAndInfo;
+    }
+
+    /**
+     * exclude the "contexts" field from recursive random shuffling in fromXContent tests or else
+     * the equals() test will fail because their {@link BytesReference} representation isn't the same
+     */
+    @Override
+    protected Set<String> shuffleProtectedFields() {
+        return SHUFFLE_PROTECTED_FIELDS;
     }
 
     @Override

@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -184,7 +185,12 @@ public class DoubleFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        public FieldStats stats(IndexReader reader) throws IOException {
+            int maxDoc = reader.maxDoc();
+            Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
+            if (terms == null) {
+                return null;
+            }
             double minValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMinLong(terms));
             double maxValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMaxLong(terms));
             return new FieldStats.Double(

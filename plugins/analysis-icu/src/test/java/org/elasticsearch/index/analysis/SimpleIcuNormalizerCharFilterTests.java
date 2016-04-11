@@ -34,7 +34,7 @@ import java.io.StringReader;
  */
 public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
     public void testDefaultSetting() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .build();
         AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
@@ -56,7 +56,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
     }
 
     public void testNameAndModeSetting() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .put("index.analysis.char_filter.myNormalizerChar.name", "nfkc")
             .put("index.analysis.char_filter.myNormalizerChar.mode", "decompose")

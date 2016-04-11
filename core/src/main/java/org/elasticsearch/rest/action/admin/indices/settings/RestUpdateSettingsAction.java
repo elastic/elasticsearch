@@ -67,10 +67,10 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
 
-        Settings.Builder updateSettings = Settings.settingsBuilder();
+        Settings.Builder updateSettings = Settings.builder();
         String bodySettingsStr = request.content().toUtf8();
         if (Strings.hasText(bodySettingsStr)) {
-            Settings buildSettings = Settings.settingsBuilder().loadFromSource(bodySettingsStr).build();
+            Settings buildSettings = Settings.builder().loadFromSource(bodySettingsStr).build();
             for (Map.Entry<String, String> entry : buildSettings.getAsMap().entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue();

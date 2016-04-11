@@ -54,6 +54,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -133,8 +134,15 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             RescoreBuilder<?> rescoreBuilder = randomRescoreBuilder();
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            if (randomBoolean()) {
+                builder.prettyPrint();
+            }
+            rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
 
-            XContentParser parser = createParser(rescoreBuilder);
+
+            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
             context.reset(parser);
             parser.nextToken();
             RescoreBuilder<?> secondRescoreBuilder = RescoreBuilder.parseFromXContent(context);
@@ -144,26 +152,17 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         }
     }
 
-    private static XContentParser createParser(RescoreBuilder<?> rescoreBuilder) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        return XContentHelper.createParser(builder.bytes());
-    }
-
     /**
      * test that build() outputs a {@link RescoreSearchContext} that has the same properties
      * than the test builder
      */
     public void testBuildRescoreSearchContext() throws ElasticsearchParseException, IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null) {
+                null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);

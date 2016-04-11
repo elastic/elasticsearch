@@ -21,7 +21,9 @@ package org.elasticsearch.common;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Holds a field that can be found in a request while parsing and its different variants, which may be deprecated.
@@ -34,6 +36,7 @@ public class ParseField {
     private final String underscoreName;
     private final String[] deprecatedNames;
     private String allReplacedWith = null;
+    private final String[] allNames;
 
     public ParseField(String value, String... deprecatedNames) {
         camelCaseName = Strings.toCamelCase(value);
@@ -48,6 +51,11 @@ public class ParseField {
             }
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
+        Set<String> allNames = new HashSet<>();
+        allNames.add(camelCaseName);
+        allNames.add(underscoreName);
+        Collections.addAll(allNames, this.deprecatedNames);
+        this.allNames = allNames.toArray(new String[allNames.size()]);
     }
 
     public String getPreferredName(){
@@ -55,12 +63,6 @@ public class ParseField {
     }
 
     public String[] getAllNamesIncludedDeprecated() {
-        String[] allNames = new String[2 + deprecatedNames.length];
-        allNames[0] = camelCaseName;
-        allNames[1] = underscoreName;
-        for (int i = 0; i < deprecatedNames.length; i++) {
-            allNames[i + 2] = deprecatedNames[i];
-        }
         return allNames;
     }
 

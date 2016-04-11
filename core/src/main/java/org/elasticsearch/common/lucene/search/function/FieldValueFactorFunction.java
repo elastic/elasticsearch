@@ -194,12 +194,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
             out.writeVInt(this.ordinal());
         }
 
-        public static Modifier readModifierFrom(StreamInput in) throws IOException {
-            return Modifier.NONE.readFrom(in);
-        }
-
-        @Override
-        public Modifier readFrom(StreamInput in) throws IOException {
+        public static Modifier readFromStream(StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown Modifier ordinal [" + ordinal + "]");

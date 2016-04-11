@@ -29,7 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 public class SearchSlowLogTests extends ESTestCase {
 
     public void testReformatSetting() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_REFORMAT.getKey(), false)
             .build());
@@ -45,7 +45,7 @@ public class SearchSlowLogTests extends ESTestCase {
         settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
         assertTrue(log.isReformat());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings = new IndexSettings(metaData, Settings.EMPTY);
@@ -62,7 +62,7 @@ public class SearchSlowLogTests extends ESTestCase {
 
     public void testLevelSetting() {
         SlowLogLevel level = randomFrom(SlowLogLevel.values());
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level)
             .build());
@@ -83,7 +83,7 @@ public class SearchSlowLogTests extends ESTestCase {
         settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings = new IndexSettings(metaData, Settings.EMPTY);
@@ -99,7 +99,7 @@ public class SearchSlowLogTests extends ESTestCase {
     }
 
     public void testSetQueryLevels() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "100ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "200ms")
@@ -124,7 +124,7 @@ public class SearchSlowLogTests extends ESTestCase {
         assertEquals(TimeValue.timeValueMillis(320).nanos(), log.getQueryInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(420).nanos(), log.getQueryWarnThreshold());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings.updateIndexMetaData(metaData);
@@ -170,7 +170,7 @@ public class SearchSlowLogTests extends ESTestCase {
     }
 
     public void testSetFetchLevels() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "100ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "200ms")
@@ -195,7 +195,7 @@ public class SearchSlowLogTests extends ESTestCase {
         assertEquals(TimeValue.timeValueMillis(320).nanos(), log.getFetchInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(420).nanos(), log.getFetchWarnThreshold());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings.updateIndexMetaData(metaData);
@@ -242,7 +242,7 @@ public class SearchSlowLogTests extends ESTestCase {
 
 
     private IndexMetaData newIndexMeta(String name, Settings indexSettings) {
-        Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(indexSettings)

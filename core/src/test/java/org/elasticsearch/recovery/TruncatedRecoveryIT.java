@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -49,7 +50,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -93,7 +93,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=text", "the_id", "type=text")
-                .setSettings(settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
                         .put("index.routing.allocation.include._name", primariesNode.getNode().getName()))); // only allocate on the lucky node
 
         // index some docs and check if they are coming back
@@ -135,7 +135,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         }
 
         logger.info("--> bumping replicas to 1"); //
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put("index.routing.allocation.include._name",  // now allow allocation on all nodes
                         primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName())).get();

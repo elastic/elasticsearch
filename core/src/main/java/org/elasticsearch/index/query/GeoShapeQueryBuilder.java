@@ -30,6 +30,8 @@ import org.apache.lucene.spatial.query.SpatialOperation;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
@@ -53,11 +55,22 @@ import java.util.Objects;
 public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuilder> {
 
     public static final String NAME = "geo_shape";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
     public static final ShapeRelation DEFAULT_SHAPE_RELATION = ShapeRelation.INTERSECTS;
 
-    static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder("field", new PointBuilder());
+    public static final GeoShapeQueryBuilder PROTOTYPE = new GeoShapeQueryBuilder("field", new PointBuilder());
+
+    private static final ParseField SHAPE_FIELD = new ParseField("shape");
+    private static final ParseField STRATEGY_FIELD = new ParseField("strategy");
+    private static final ParseField RELATION_FIELD = new ParseField("relation");
+    private static final ParseField INDEXED_SHAPE_FIELD = new ParseField("indexed_shape");
+    private static final ParseField SHAPE_ID_FIELD = new ParseField("id");
+    private static final ParseField SHAPE_TYPE_FIELD = new ParseField("type");
+    private static final ParseField SHAPE_INDEX_FIELD = new ParseField("index");
+    private static final ParseField SHAPE_PATH_FIELD = new ParseField("path");
 
     private final String fieldName;
 
@@ -347,27 +360,27 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         builder.startObject(fieldName);
 
         if (strategy != null) {
-            builder.field(GeoShapeQueryParser.STRATEGY_FIELD.getPreferredName(), strategy.getStrategyName());
+            builder.field(STRATEGY_FIELD.getPreferredName(), strategy.getStrategyName());
         }
 
         if (shape != null) {
-            builder.field(GeoShapeQueryParser.SHAPE_FIELD.getPreferredName());
+            builder.field(SHAPE_FIELD.getPreferredName());
             shape.toXContent(builder, params);
         } else {
-            builder.startObject(GeoShapeQueryParser.INDEXED_SHAPE_FIELD.getPreferredName())
-                    .field(GeoShapeQueryParser.SHAPE_ID_FIELD.getPreferredName(), indexedShapeId)
-                    .field(GeoShapeQueryParser.SHAPE_TYPE_FIELD.getPreferredName(), indexedShapeType);
+            builder.startObject(INDEXED_SHAPE_FIELD.getPreferredName())
+                    .field(SHAPE_ID_FIELD.getPreferredName(), indexedShapeId)
+                    .field(SHAPE_TYPE_FIELD.getPreferredName(), indexedShapeType);
             if (indexedShapeIndex != null) {
-                builder.field(GeoShapeQueryParser.SHAPE_INDEX_FIELD.getPreferredName(), indexedShapeIndex);
+                builder.field(SHAPE_INDEX_FIELD.getPreferredName(), indexedShapeIndex);
             }
             if (indexedShapePath != null) {
-                builder.field(GeoShapeQueryParser.SHAPE_PATH_FIELD.getPreferredName(), indexedShapePath);
+                builder.field(SHAPE_PATH_FIELD.getPreferredName(), indexedShapePath);
             }
             builder.endObject();
         }
 
         if(relation != null) {
-            builder.field(GeoShapeQueryParser.RELATION_FIELD.getPreferredName(), relation.getRelationName());
+            builder.field(RELATION_FIELD.getPreferredName(), relation.getRelationName());
         }
 
         builder.endObject();
@@ -375,6 +388,111 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         printBoostAndQueryName(builder);
 
         builder.endObject();
+    }
+
+    public static GeoShapeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        String fieldName = null;
+        ShapeRelation shapeRelation = null;
+        SpatialStrategy strategy = null;
+        ShapeBuilder shape = null;
+
+        String id = null;
+        String type = null;
+        String index = null;
+        String shapePath = null;
+
+        XContentParser.Token token;
+        String currentFieldName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String queryName = null;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[" +
+                            GeoShapeQueryBuilder.NAME + "] point specified twice. [" + currentFieldName + "]");
+                }
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                        token = parser.nextToken();
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_FIELD)) {
+                            shape = ShapeBuilder.parse(parser);
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, STRATEGY_FIELD)) {
+                            String strategyName = parser.text();
+                            strategy = SpatialStrategy.fromString(strategyName);
+                            if (strategy == null) {
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown strategy [" + strategyName + " ]");
+                            }
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, RELATION_FIELD)) {
+                            shapeRelation = ShapeRelation.getRelationByName(parser.text());
+                            if (shapeRelation == null) {
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown shape operation [" + parser.text() + " ]");
+                            }
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_SHAPE_FIELD)) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    currentFieldName = parser.currentName();
+                                } else if (token.isValue()) {
+                                    if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_ID_FIELD)) {
+                                        id = parser.text();
+                                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_TYPE_FIELD)) {
+                                        type = parser.text();
+                                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_INDEX_FIELD)) {
+                                        index = parser.text();
+                                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_PATH_FIELD)) {
+                                        shapePath = parser.text();
+                                    }
+                                } else {
+                                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME +
+                                            "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                                }
+                            }
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME +
+                                    "] query does not support [" + currentFieldName + "]");
+                        }
+                    }
+                }
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        GeoShapeQueryBuilder builder;
+        if (shape != null) {
+            builder = new GeoShapeQueryBuilder(fieldName, shape);
+        } else {
+            builder = new GeoShapeQueryBuilder(fieldName, id, type);
+        }
+        if (index != null) {
+            builder.indexedShapeIndex(index);
+        }
+        if (shapePath != null) {
+            builder.indexedShapePath(shapePath);
+        }
+        if (shapeRelation != null) {
+            builder.relation(shapeRelation);
+        }
+        if (strategy != null) {
+            builder.strategy(strategy);
+        }
+        if (queryName != null) {
+            builder.queryName(queryName);
+        }
+            builder.boost(boost);
+        return builder;
     }
 
     @Override

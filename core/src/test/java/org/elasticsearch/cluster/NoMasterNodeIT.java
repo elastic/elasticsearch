@@ -43,7 +43,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import java.util.HashMap;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -61,7 +60,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         boolean autoCreateIndex = randomBoolean();
         logger.info("auto_create_index set to {}", autoCreateIndex);
 
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", autoCreateIndex)
                 .put("discovery.zen.minimum_master_nodes", 2)
@@ -213,7 +212,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
     }
 
     public void testNoMasterActionsWriteMasterBlock() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", false)
                 .put("discovery.zen.minimum_master_nodes", 2)

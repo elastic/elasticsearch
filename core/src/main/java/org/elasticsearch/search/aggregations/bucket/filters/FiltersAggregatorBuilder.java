@@ -25,14 +25,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -57,7 +58,9 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
 
     private FiltersAggregatorBuilder(String name, List<KeyedFilter> filters) {
         super(name, InternalFilters.TYPE);
-        this.filters = filters;
+        // internally we want to have a fixed order of filters, regardless of the order of the filters in the request
+        this.filters = new ArrayList<>(filters);
+        Collections.sort(this.filters, (KeyedFilter kf1, KeyedFilter kf2) -> kf1.key().compareTo(kf2.key()));
         this.keyed = true;
     }
 
@@ -90,6 +93,13 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
      */
     public boolean otherBucket() {
         return otherBucket;
+    }
+
+    /**
+     * Get the filters. This will be an unmodifiable list
+     */
+    public List<KeyedFilter> filters() {
+        return Collections.unmodifiableList(this.filters);
     }
 
     /**

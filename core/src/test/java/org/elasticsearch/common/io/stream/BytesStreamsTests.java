@@ -22,12 +22,15 @@ package org.elasticsearch.common.io.stream;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -280,6 +283,8 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeStringArray(new String[] {"a", "b", "cat"});
         out.writeBytesReference(new BytesArray("test"));
         out.writeOptionalBytesReference(new BytesArray("test"));
+        out.writeOptionalDouble(null);
+        out.writeOptionalDouble(1.2);
         final byte[] bytes = out.bytes().toBytes();
         StreamInput in = StreamInput.wrap(out.bytes().toBytes());
         assertEquals(in.available(), bytes.length);
@@ -304,6 +309,8 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readStringArray(), equalTo(new String[] {"a", "b", "cat"}));
         assertThat(in.readBytesReference(), equalTo(new BytesArray("test")));
         assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
+        assertNull(in.readOptionalDouble());
+        assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
         assertEquals(0, in.available());
         in.close();
         out.close();
@@ -402,6 +409,25 @@ public class BytesStreamsTests extends ESTestCase {
         StreamInput in = StreamInput.wrap(out.bytes().toBytes());
         IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
         assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+    }
+
+    public void testWriteableReaderReturnsWrongName() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> new TestNamedWriteable(in) {
+            @Override
+            public String getWriteableName() {
+                return "intentionally-broken";
+            }
+        });
+        TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        out.writeNamedWriteable(namedWriteableIn);
+        byte[] bytes = out.bytes().toBytes();
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry);
+        assertEquals(in.available(), bytes.length);
+        AssertionError e = expectThrows(AssertionError.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
+        assertThat(e.getMessage(),
+                endsWith(" claims to have a different name [intentionally-broken] than it was read from [test-named-writeable]."));
     }
 
     private static abstract class BaseNamedWriteable<T> implements NamedWriteable<T> {
@@ -517,4 +543,5 @@ public class BytesStreamsTests extends ESTestCase {
             assertEquals(point, geoPoint);
         }
     }
+
 }

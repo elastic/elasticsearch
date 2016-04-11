@@ -23,7 +23,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -45,6 +47,8 @@ import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
+import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -344,6 +348,18 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         public IndexFieldData.Builder fielddataBuilder() {
             return new AbstractGeoPointDVIndexFieldData.Builder();
         }
+
+        @Override
+        public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+            }
+            if (timeZone != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
+                    + "] does not support custom time zones");
+            }
+            return DocValueFormat.GEOHASH;
+        }
     }
 
     protected DoubleFieldMapper latMapper;
@@ -431,8 +447,14 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 if (token == XContentParser.Token.START_ARRAY) {
                     // its an array of array of lon/lat [ [1.2, 1.3], [1.4, 1.5] ]
                     while (token != XContentParser.Token.END_ARRAY) {
-                        parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
-                        token = context.parser().nextToken();
+                      try {
+                          parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                      } catch (ElasticsearchParseException e) {
+                          if (ignoreMalformed.value() == false) {
+                              throw e;
+                          }
+                      }
+                      token = context.parser().nextToken();
                     }
                 } else {
                     // its an array of other possible values
@@ -447,16 +469,28 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 parsePointFromString(context, sparse, context.parser().text());
                             } else {
-                                parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                                try {
+                                    parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                                } catch (ElasticsearchParseException e) {
+                                    if (ignoreMalformed.value() == false) {
+                                        throw e;
+                                    }
+                                }
                             }
-                            token = context.parser().nextToken();
+                          token = context.parser().nextToken();
                         }
                     }
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 parsePointFromString(context, sparse, context.parser().text());
             } else if (token != XContentParser.Token.VALUE_NULL) {
-                parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                try {
+                    parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                } catch (ElasticsearchParseException e) {
+                    if (ignoreMalformed.value() == false) {
+                        throw e;
+                    }
+                }
             }
         }
 

@@ -20,6 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,8 +51,13 @@ import java.util.Arrays;
 public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilder> {
 
     public static final String NAME = "wrapper";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
+    public static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder((byte[]) new byte[]{0});
+
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+
     private final byte[] source;
-    static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder((byte[]) new byte[]{0});
 
     /**
      * Creates a query builder given a query provided as a bytes array
@@ -94,8 +101,31 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(WrapperQueryParser.QUERY_FIELD.getPreferredName(), source);
+        builder.field(QUERY_FIELD.getPreferredName(), source);
         builder.endObject();
+    }
+
+    public static WrapperQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        XContentParser.Token token = parser.nextToken();
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
+        }
+        String fieldName = parser.currentName();
+        if (! parseContext.parseFieldMatcher().match(fieldName, QUERY_FIELD)) {
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was" + fieldName);
+        }
+        parser.nextToken();
+
+        byte[] source = parser.binaryValue();
+
+        parser.nextToken();
+
+        if (source == null) {
+            throw new ParsingException(parser.getTokenLocation(), "wrapper query has no [query] specified");
+        }
+        return new WrapperQueryBuilder(source);
     }
 
     @Override

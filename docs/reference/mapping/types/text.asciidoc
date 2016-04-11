@@ -7,7 +7,7 @@ description of a product. These fields are `analyzed`, that is they are passed t
 before being indexed. The analysis process allows Elasticsearch to search for
 individual words _within_  each full text field.  Text fields are not
 used for sorting and seldom used for aggregations (although the
-<<search-aggregations-bucket-significantterms-aggregation,significant terms aggregation>> 
+<<search-aggregations-bucket-significantterms-aggregation,significant terms aggregation>>
 is a notable exception).
 
 If you need to index structured content such as email addresses, hostnames, status
@@ -104,11 +104,9 @@ The following parameters are accepted by `text` fields:
 
 <<position-increment-gap,`position_increment_gap`>>::
 
-    The number of fake term positions which should be inserted between
-    each element of an array of strings. Defaults to 0.
     The number of fake term position which should be inserted between each
-    element of an array of strings. Defaults to the position_increment_gap
-    configured on the analyzer which defaults to 100. 100 was chosen because it
+    element of an array of strings. Defaults to the `position_increment_gap`
+    configured on the analyzer which defaults to `100`. `100` was chosen because it
     prevents phrase queries with reasonably large slops (less than 100) from
     matching terms across field values.
 

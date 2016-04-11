@@ -38,7 +38,7 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
 
@@ -56,7 +56,7 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", "transport_client_" + getTestName())
                 .put("client.transport.ignore_cluster_name", true).build();
 

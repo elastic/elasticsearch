@@ -19,22 +19,17 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.search.Queries;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.core.LongFieldMapper.LongFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -48,9 +43,10 @@ import java.util.function.Function;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.equalTo;
+
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
+
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
     @Rule
@@ -188,4 +184,13 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 () -> indexService1.mapperService().merge("type2", objectMapping, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
     }
+
+    public void testUnmappedFieldType() {
+        MapperService mapperService = createIndex("index").mapperService();
+        assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));
+        assertThat(mapperService.unmappedFieldType("long"), instanceOf(LongFieldType.class));
+        // back compat
+        assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
+    }
+
 }

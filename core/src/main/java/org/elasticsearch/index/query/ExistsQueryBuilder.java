@@ -23,11 +23,14 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
@@ -41,10 +44,12 @@ import java.util.Objects;
 public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> {
 
     public static final String NAME = "exists";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+    public static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder("field");
+
+    public static final ParseField FIELD_FIELD = new ParseField("field");
 
     private final String fieldName;
-
-    static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder("field");
 
     public ExistsQueryBuilder(String fieldName) {
         if (Strings.isEmpty(fieldName)) {
@@ -63,9 +68,48 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(ExistsQueryParser.FIELD_FIELD.getPreferredName(), fieldName);
+        builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static ExistsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        String fieldPattern = null;
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
+                    fieldPattern = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+            }
+        }
+
+        if (fieldPattern == null) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME + "] must be provided with a [field]");
+        }
+
+        ExistsQueryBuilder builder = new ExistsQueryBuilder(fieldPattern);
+        builder.queryName(queryName);
+        builder.boost(boost);
+        return builder;
     }
 
     @Override
@@ -74,7 +118,8 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType)context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+                (FieldNamesFieldMapper.FieldNamesFieldType)context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
             return Queries.newMatchNoDocsQuery();

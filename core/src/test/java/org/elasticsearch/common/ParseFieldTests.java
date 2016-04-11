@@ -24,6 +24,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
 
 public class ParseFieldTests extends ESTestCase {
     public void testParse() {
@@ -86,5 +87,13 @@ public class ParseFieldTests extends ESTestCase {
         // now with strict mode
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> field.match(randomFrom(allValues), true));
         assertThat(e.getMessage(), containsString(" used, replaced by [like]"));
+    }
+
+    public void testGetAllNamesIncludedDeprecated() {
+        ParseField parseField = new ParseField("terms", "in");
+        assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("terms", "in"));
+
+        parseField = new ParseField("more_like_this", "mlt");
+        assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("more_like_this", "moreLikeThis", "mlt"));
     }
 }

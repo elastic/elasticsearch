@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.queries.TermsQuery;
@@ -37,6 +39,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -44,6 +47,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.List;
@@ -394,12 +399,41 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     /**
-     * @return a {@link FieldStats} instance that maps to the type of this field based on the provided {@link Terms} instance.
+     * @return a {@link FieldStats} instance that maps to the type of this
+     * field or {@code null} if the provided index has no stats about the
+     * current field
      */
-    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+    public FieldStats stats(IndexReader reader) throws IOException {
+        int maxDoc = reader.maxDoc();
+        Terms terms = MultiFields.getTerms(reader, name());
+        if (terms == null) {
+            return null;
+        }
         return new FieldStats.Text(
             maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), terms.getMin(), terms.getMax()
         );
+    }
+
+    /**
+     * An enum used to describe the relation between the range of terms in a
+     * shard when compared with a query range
+     */
+    public static enum Relation {
+        WITHIN,
+        INTERSECTS,
+        DISJOINT;
+    }
+
+    /** Return whether all values of the given {@link IndexReader} are within the range,
+     *  outside the range or cross the range. The default implementation returns
+     *  {@link Relation#INTERSECTS}, which is always fine to return when there is
+     *  no way to check whether values are actually within bounds. */
+    public Relation isFieldWithinQuery(
+            IndexReader reader,
+            Object from, Object to,
+            boolean includeLower, boolean includeUpper,
+            DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
+        return Relation.INTERSECTS;
     }
 
     /** A term query to use when parsing a query string. Can return <tt>null</tt>. */
@@ -424,4 +458,18 @@ public abstract class MappedFieldType extends FieldType {
         checkIfFrozen();
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
     }
+
+    /** Return a {@link DocValueFormat} that can be used to display and parse
+     *  values as returned by the fielddata API.
+     *  The default implementation returns a {@link DocValueFormat#RAW}. */
+    public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+        }
+        if (timeZone != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
+        }
+        return DocValueFormat.RAW;
+    }
+
 }

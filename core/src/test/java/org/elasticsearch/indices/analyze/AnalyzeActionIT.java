@@ -21,12 +21,12 @@ package org.elasticsearch.indices.analyze;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.core.IsNull;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -118,7 +118,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
 
     public void testAnalyzeWithCharFilters() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(settingsBuilder().put(indexSettings())
+                .setSettings(Settings.builder().put(indexSettings())
                         .put("index.analysis.char_filter.custom_mapping.type", "mapping")
                         .putArray("index.analysis.char_filter.custom_mapping.mappings", "ph=>f", "qu=>q")
                         .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
@@ -221,7 +221,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     public void testDetailAnalyze() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
             .setSettings(
-                settingsBuilder()
+                    Settings.builder()
                     .put("index.analysis.char_filter.my_mapping.type", "mapping")
                     .putArray("index.analysis.char_filter.my_mapping.mappings", "PH=>F")
                     .put("index.analysis.analyzer.test_analyzer.type", "custom")
@@ -372,7 +372,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     public void testDetailAnalyzeWithMultiValuesWithCustomAnalyzer() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
             .setSettings(
-                settingsBuilder()
+                    Settings.builder()
                     .put("index.analysis.char_filter.my_mapping.type", "mapping")
                     .putArray("index.analysis.char_filter.my_mapping.mappings", "PH=>F")
                     .put("index.analysis.analyzer.test_analyzer.type", "custom")

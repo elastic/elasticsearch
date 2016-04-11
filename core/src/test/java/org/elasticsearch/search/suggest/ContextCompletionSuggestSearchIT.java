@@ -683,7 +683,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
 
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-                .setSettings(Settings.settingsBuilder().put(indexSettings()).put(settings))
+                .setSettings(Settings.builder().put(indexSettings()).put(settings))
                 .addMapping(TYPE, mapping)
                 .get());
         ensureYellow();

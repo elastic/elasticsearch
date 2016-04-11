@@ -79,6 +79,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -679,7 +680,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 return;
             }
             // closed in finishAsFailed(e) in the case of error
-            indexShardReference = getIndexShardReferenceOnPrimary(shardId);
+            indexShardReference = getIndexShardReferenceOnPrimary(shardId, request);
             if (indexShardReference.isRelocated() == false) {
                 executeLocally();
             } else {
@@ -797,7 +798,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
      * returns a new reference to {@link IndexShard} to perform a primary operation. Released after performing primary operation locally
      * and replication of the operation to all replica shards is completed / failed (see {@link ReplicationPhase}).
      */
-    protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId) {
+    protected IndexShardReference getIndexShardReferenceOnPrimary(ShardId shardId, Request request) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         // we may end up here if the cluster state used to route the primary is so stale that the underlying
@@ -816,7 +817,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected IndexShardReference getIndexShardReferenceOnReplica(ShardId shardId, long primaryTerm) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        return IndexShardReferenceImpl.createOnReplica(indexShard, primaryTerm);
+        IndexShardReference ref = IndexShardReferenceImpl.createOnReplica(indexShard, primaryTerm);
+        return ref;
     }
 
     /**
@@ -997,30 +999,38 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 String message = String.format(Locale.ROOT, "failed to perform %s on replica on node %s", transportReplicaAction, node);
                                 logger.warn("[{}] {}", exp, shardId, message);
                                 shardStateAction.shardFailed(
-                                    shard,
-                                    indexShardReference.routingEntry(),
-                                    message,
-                                    exp,
-                                    new ShardStateAction.Listener() {
-                                        @Override
-                                        public void onSuccess() {
-                                            onReplicaFailure(nodeId, exp);
-                                        }
-
-                                        @Override
-                                        public void onFailure(Throwable shardFailedError) {
-                                            if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
-                                                ShardRouting primaryShard = indexShardReference.routingEntry();
-                                                String message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard [%s] for [%s]", primaryShard, shard, exp);
-                                                // we are no longer the primary, fail ourselves and start over
-                                                indexShardReference.failShard(message, shardFailedError);
-                                                forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
-                                            } else {
-                                                assert false : shardFailedError;
+                                        shard,
+                                        indexShardReference.routingEntry(),
+                                        message,
+                                        exp,
+                                        new ShardStateAction.Listener() {
+                                            @Override
+                                            public void onSuccess() {
                                                 onReplicaFailure(nodeId, exp);
                                             }
+
+                                            @Override
+                                            public void onFailure(Throwable shardFailedError) {
+                                                if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
+                                                    String message = "unknown";
+                                                    try {
+                                                        ShardRouting primaryShard = indexShardReference.routingEntry();
+                                                        message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard [%s] for [%s]", primaryShard, shard, exp);
+                                                        // we are no longer the primary, fail ourselves and start over
+                                                        indexShardReference.failShard(message, shardFailedError);
+                                                    } catch (Throwable t) {
+                                                        shardFailedError.addSuppressed(t);
+                                                    }
+                                                    forceFinishAsFailed(new RetryOnPrimaryException(shardId, message, shardFailedError));
+                                                } else {
+                                                    // these can occur if the node is shutting down and are okay
+                                                    // any other exception here is not expected and merits investigation
+                                                    assert shardFailedError instanceof TransportException ||
+                                                            shardFailedError instanceof NodeClosedException : shardFailedError;
+                                                    onReplicaFailure(nodeId, exp);
+                                                }
+                                            }
                                         }
-                                    }
                                 );
                             }
                         }
@@ -1108,7 +1118,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     interface IndexShardReference extends Releasable {
         boolean isRelocated();
+
         void failShard(String reason, @Nullable Throwable e);
+
         ShardRouting routingEntry();
 
         /** returns the primary term of the current operation */

@@ -79,7 +79,7 @@ public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
         int currentNumNodes = randomIntBetween(3, 5);
         final int min_master_nodes = currentNumNodes / 2 + 1;
         int currentNumOfUnicastHosts = randomIntBetween(min_master_nodes, currentNumNodes);
-        final Settings settings = Settings.settingsBuilder()
+        final Settings settings = Settings.builder()
                 .put("discovery.zen.join_timeout", TimeValue.timeValueSeconds(10))
                 .put("discovery.zen.minimum_master_nodes", min_master_nodes)
                 .build();

@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.http.netty.NettyHttpClient.returnHttpResponseBodies;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -92,7 +91,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
     }
 
     public void testThatHttpPipeliningWorksWhenEnabled() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                                .put("http.pipelining", true)
                                .put("http.port", "0")
                                .build();
@@ -109,7 +108,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
     }
 
     public void testThatHttpPipeliningCanBeDisabled() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                                 .put("http.pipelining", false)
                                 .put("http.port", "0")
                                 .build();

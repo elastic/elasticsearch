@@ -66,7 +66,6 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -88,7 +87,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("script.indexed", "true")
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
@@ -109,7 +108,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
             .build();

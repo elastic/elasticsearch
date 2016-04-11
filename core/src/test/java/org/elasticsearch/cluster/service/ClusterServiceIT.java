@@ -51,7 +51,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -71,7 +70,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTask() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "local")
                 .build();
         internalCluster().startNode(settings);
@@ -147,7 +146,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTaskSameClusterState() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "local")
                 .build();
         internalCluster().startNode(settings);
@@ -218,7 +217,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTaskNoAckExpected() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "local")
                 .build();
         internalCluster().startNode(settings);
@@ -290,7 +289,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTaskTimeoutZero() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "local")
                 .build();
         internalCluster().startNode(settings);
@@ -367,7 +366,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
     @TestLogging("_root:debug,action.admin.cluster.tasks:trace")
     public void testPendingUpdateTask() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "local")
                 .build();
         String node_0 = internalCluster().startNode(settings);
@@ -502,7 +501,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testLocalNodeMasterListenerCallbacks() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
@@ -545,7 +544,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(settings));
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
-        Settings transientSettings = settingsBuilder()
+        Settings transientSettings = Settings.builder()
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(transientSettings).get();

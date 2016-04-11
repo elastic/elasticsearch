@@ -20,7 +20,11 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.mapper.core.FloatFieldMapper.FloatFieldType;
 import org.junit.Before;
+
+import java.io.IOException;
 
 public class FloatFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -31,5 +35,12 @@ public class FloatFieldTypeTests extends FieldTypeTestCase {
     @Before
     public void setupProperties() {
         setDummyNullValue(10.0);
+    }
+
+    public void testIsFieldWithinQuery() throws IOException {
+        FloatFieldType ft = new FloatFieldType();
+        // current impl ignores args and shourd always return INTERSECTS
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomFloat(), randomFloat(),
+                randomBoolean(), randomBoolean(), null, null));
     }
 }

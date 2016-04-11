@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -267,6 +268,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // We should have the information about the cancelled task in the cancel operation response
             assertEquals(1, response.getTasks().size());
             assertEquals(mainTask.getId(), response.getTasks().get(0).getId());
+            // Verify that all cancelled tasks reported that they support cancellation
+            for(TaskInfo taskInfo : response.getTasks()) {
+                assertTrue(taskInfo.isCancellable());
+            }
         }
 
         // Make sure that tasks are no longer running

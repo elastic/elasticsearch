@@ -138,8 +138,8 @@ public class SearchShardTarget implements Writeable<SearchShardTarget>, Comparab
     @Override
     public String toString() {
         if (nodeId == null) {
-            return "[_na_][" + index + "][" + shardId + "]";
+            return "[_na_]" + shardId;
         }
-        return "[" + nodeId + "][" + index + "][" + shardId + "]";
+        return "[" + nodeId + "]" + shardId;
     }
 }

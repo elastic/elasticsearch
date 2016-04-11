@@ -251,7 +251,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (httpInfo != null) {
                 TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
                 if (transportAddress instanceof InetSocketTransportAddress) {
-                    table.addCell(NetworkAddress.formatAddress(((InetSocketTransportAddress)transportAddress).address()));
+                    table.addCell(NetworkAddress.format(((InetSocketTransportAddress)transportAddress).address()));
                 } else {
                     table.addCell(transportAddress.toString());
                 }

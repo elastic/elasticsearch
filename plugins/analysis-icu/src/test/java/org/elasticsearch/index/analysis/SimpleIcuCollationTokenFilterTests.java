@@ -45,7 +45,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Then things will sort and match correctly.
     */
     public void testBasicUsage() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -60,7 +60,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Test usage of the decomposition option for unicode normalization.
     */
     public void testNormalization() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -76,7 +76,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Test secondary strength, for english case is not significant.
     */
     public void testSecondaryStrength() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "secondary")
@@ -93,7 +93,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * to quaternary level
     */
     public void testIgnorePunctuation() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -110,7 +110,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * punctuation or symbols, to quaternary level
     */
     public void testIgnoreWhitespace() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -130,7 +130,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * foobar-9 sorts before foobar-10
     */
     public void testNumerics() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.numeric", "true")
@@ -146,7 +146,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * secondary and tertiary
     */
     public void testIgnoreAccentsButNotCase() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
@@ -166,7 +166,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * before lowercase ones.
     */
     public void testUpperCaseFirst() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "tertiary")
@@ -195,7 +195,7 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
         RuleBasedCollator tailoredCollator = new RuleBasedCollator(baseCollator.getRules() + DIN5007_2_tailorings);
         String tailoredRules = tailoredCollator.getRules();
 
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.rules", tailoredRules)
                 .put("index.analysis.filter.myCollator.strength", "primary")

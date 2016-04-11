@@ -150,9 +150,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 "          \"match\" : {\n" +
                 "            \"obj1.name\" : {\n" +
                 "              \"query\" : \"blue\",\n" +
-                "              \"type\" : \"boolean\",\n" +
                 "              \"operator\" : \"OR\",\n" +
-                "              \"slop\" : 0,\n" +
                 "              \"prefix_length\" : 0,\n" +
                 "              \"max_expansions\" : 50,\n" +
                 "              \"fuzzy_transpositions\" : true,\n" +

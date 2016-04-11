@@ -46,7 +46,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
 
     private void testToken(String source, String expected) throws IOException {
         Index index = new Index("test", "_na_");
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings, new AnalysisStempelPlugin()::onModule);

@@ -30,12 +30,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -98,7 +96,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
     public void testFastCloseAfterCreateContinuesCreateAfterOpen() {
         logger.info("--> creating test index that cannot be allocated");
-        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder()
+        client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
                 .put("index.routing.allocation.include.tag", "no_such_node").build()).get();
 
         ClusterHealthResponse health = client().admin().cluster().prepareHealth("test").setWaitForNodes(">=2").get();
@@ -108,7 +106,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         client().admin().indices().prepareClose("test").get();
 
         logger.info("--> updating test index settings to allow allocation");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.settingsBuilder()
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                 .put("index.routing.allocation.include.tag", "").build()).get();
 
         client().admin().indices().prepareOpen("test").get();
@@ -137,7 +135,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> creating test index with invalid settings ");
         try {
-            client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", "bad")).get();
+            client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", "bad")).get();
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("Failed to parse value [bad] for setting [index.number_of_shards]", ex.getMessage());
@@ -145,7 +143,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         }
 
         logger.info("--> creating test index with valid settings ");
-        CreateIndexResponse response = client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 1)).get();
+        CreateIndexResponse response = client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1)).get();
         assertThat(response.isAcknowledged(), equalTo(true));
     }
 }

@@ -176,7 +176,7 @@ public class DefaultSearchContext extends SearchContext {
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeoutInMillis = timeout.millis();
-        queryShardContext = indexService.newQueryShardContext();
+        queryShardContext = indexService.newQueryShardContext(searcher.getIndexReader());
         queryShardContext.setTypes(request.types());
     }
 

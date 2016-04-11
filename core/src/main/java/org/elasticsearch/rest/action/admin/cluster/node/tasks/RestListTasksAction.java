@@ -44,11 +44,10 @@ public class RestListTasksAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_tasks/{taskId}", this);
     }
 
-    @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public static ListTasksRequest generateListTasksRequest(RestRequest request) {
         boolean detailed = request.paramAsBoolean("detailed", false);
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("node_id"));
-        TaskId taskId = new TaskId(request.param("taskId"));
+        TaskId taskId = new TaskId(request.param("taskId", request.param("task_id")));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
@@ -62,6 +61,11 @@ public class RestListTasksAction extends BaseRestHandler {
         listTasksRequest.setParentTaskId(parentTaskId);
         listTasksRequest.setWaitForCompletion(waitForCompletion);
         listTasksRequest.setTimeout(timeout);
-        client.admin().cluster().listTasks(listTasksRequest, new RestToXContentListener<>(channel));
+        return listTasksRequest;
+    }
+
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+        client.admin().cluster().listTasks(generateListTasksRequest(request), new RestToXContentListener<>(channel));
     }
 }

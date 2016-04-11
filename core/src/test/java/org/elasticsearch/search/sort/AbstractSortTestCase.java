@@ -130,7 +130,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 builder.prettyPrint();
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser itemParser = XContentHelper.createParser(builder.bytes());
+            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+            XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
             itemParser.nextToken();
 
             /*
@@ -225,7 +226,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null) {
+                indicesQueriesRegistry, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

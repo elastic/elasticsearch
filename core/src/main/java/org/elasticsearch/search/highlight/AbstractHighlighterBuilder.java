@@ -26,6 +26,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,8 +46,8 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes {
-
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes
+        implements Writeable<HB> {
     public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -99,6 +100,75 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     protected Map<String, Object> options;
 
     protected Boolean requireFieldMatch;
+
+    public AbstractHighlighterBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected AbstractHighlighterBuilder(StreamInput in) throws IOException {
+        preTags(in.readOptionalStringArray());
+        postTags(in.readOptionalStringArray());
+        fragmentSize(in.readOptionalVInt());
+        numOfFragments(in.readOptionalVInt());
+        highlighterType(in.readOptionalString());
+        fragmenter(in.readOptionalString());
+        if (in.readBoolean()) {
+            highlightQuery(in.readQuery());
+        }
+        order(in.readOptionalWriteable(Order::readFromStream));
+        highlightFilter(in.readOptionalBoolean());
+        forceSource(in.readOptionalBoolean());
+        boundaryMaxScan(in.readOptionalVInt());
+        if (in.readBoolean()) {
+            boundaryChars(in.readString().toCharArray());
+        }
+        noMatchSize(in.readOptionalVInt());
+        phraseLimit(in.readOptionalVInt());
+        if (in.readBoolean()) {
+            options(in.readMap());
+        }
+        requireFieldMatch(in.readOptionalBoolean());
+    }
+
+    /**
+     * write common parameters to {@link StreamOutput}
+     */
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalStringArray(preTags);
+        out.writeOptionalStringArray(postTags);
+        out.writeOptionalVInt(fragmentSize);
+        out.writeOptionalVInt(numOfFragments);
+        out.writeOptionalString(highlighterType);
+        out.writeOptionalString(fragmenter);
+        boolean hasQuery = highlightQuery != null;
+        out.writeBoolean(hasQuery);
+        if (hasQuery) {
+            out.writeQuery(highlightQuery);
+        }
+        out.writeOptionalWriteable(order);
+        out.writeOptionalBoolean(highlightFilter);
+        out.writeOptionalBoolean(forceSource);
+        out.writeOptionalVInt(boundaryMaxScan);
+        boolean hasBounaryChars = boundaryChars != null;
+        out.writeBoolean(hasBounaryChars);
+        if (hasBounaryChars) {
+            out.writeString(String.valueOf(boundaryChars));
+        }
+        out.writeOptionalVInt(noMatchSize);
+        out.writeOptionalVInt(phraseLimit);
+        boolean hasOptions = options != null;
+        out.writeBoolean(hasOptions);
+        if (hasOptions) {
+            out.writeMap(options);
+        }
+        out.writeOptionalBoolean(requireFieldMatch);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     /**
      * Set the pre tags that will be used for highlighting.
@@ -535,74 +605,4 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      * fields only present in subclass should be checked for equality in the implementation
      */
     protected abstract boolean doEquals(HB other);
-
-    /**
-     * read common parameters from {@link StreamInput}
-     */
-    @SuppressWarnings("unchecked")
-    protected HB readOptionsFrom(StreamInput in) throws IOException {
-        preTags(in.readOptionalStringArray());
-        postTags(in.readOptionalStringArray());
-        fragmentSize(in.readOptionalVInt());
-        numOfFragments(in.readOptionalVInt());
-        highlighterType(in.readOptionalString());
-        fragmenter(in.readOptionalString());
-        if (in.readBoolean()) {
-            highlightQuery(in.readQuery());
-        }
-        if (in.readBoolean()) {
-            order(Order.PROTOTYPE.readFrom(in));
-        }
-        highlightFilter(in.readOptionalBoolean());
-        forceSource(in.readOptionalBoolean());
-        boundaryMaxScan(in.readOptionalVInt());
-        if (in.readBoolean()) {
-            boundaryChars(in.readString().toCharArray());
-        }
-        noMatchSize(in.readOptionalVInt());
-        phraseLimit(in.readOptionalVInt());
-        if (in.readBoolean()) {
-            options(in.readMap());
-        }
-        requireFieldMatch(in.readOptionalBoolean());
-        return (HB) this;
-    }
-
-    /**
-     * write common parameters to {@link StreamOutput}
-     */
-    protected void writeOptionsTo(StreamOutput out) throws IOException {
-        out.writeOptionalStringArray(preTags);
-        out.writeOptionalStringArray(postTags);
-        out.writeOptionalVInt(fragmentSize);
-        out.writeOptionalVInt(numOfFragments);
-        out.writeOptionalString(highlighterType);
-        out.writeOptionalString(fragmenter);
-        boolean hasQuery = highlightQuery != null;
-        out.writeBoolean(hasQuery);
-        if (hasQuery) {
-            out.writeQuery(highlightQuery);
-        }
-        boolean hasSetOrder = order != null;
-        out.writeBoolean(hasSetOrder);
-        if (hasSetOrder) {
-            order.writeTo(out);
-        }
-        out.writeOptionalBoolean(highlightFilter);
-        out.writeOptionalBoolean(forceSource);
-        out.writeOptionalVInt(boundaryMaxScan);
-        boolean hasBounaryChars = boundaryChars != null;
-        out.writeBoolean(hasBounaryChars);
-        if (hasBounaryChars) {
-            out.writeString(String.valueOf(boundaryChars));
-        }
-        out.writeOptionalVInt(noMatchSize);
-        out.writeOptionalVInt(phraseLimit);
-        boolean hasOptions = options != null;
-        out.writeBoolean(hasOptions);
-        if (hasOptions) {
-            out.writeMap(options);
-        }
-        out.writeOptionalBoolean(requireFieldMatch);
-    }
 }

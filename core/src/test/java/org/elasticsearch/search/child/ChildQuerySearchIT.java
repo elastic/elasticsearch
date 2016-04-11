@@ -58,7 +58,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -96,7 +95,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     @Override
     public Settings indexSettings() {
-        return Settings.settingsBuilder().put(super.indexSettings())
+        return Settings.builder().put(super.indexSettings())
             // aggressive filter caching so that we can assert on the filter cache size
             .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), IndexModule.INDEX_QUERY_CACHE)
             .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
@@ -957,7 +956,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testParentFieldQuery() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder().put(indexSettings())
+                .setSettings(Settings.builder().put(indexSettings())
                         .put("index.refresh_interval", -1))
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
@@ -991,7 +990,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testParentIdQuery() throws Exception {
         assertAcked(prepareCreate("test")
-            .setSettings(settingsBuilder().put(indexSettings())
+            .setSettings(Settings.builder().put(indexSettings())
                 .put("index.refresh_interval", -1))
             .addMapping("parent")
             .addMapping("child", "_parent", "type=parent"));
@@ -1254,7 +1253,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testParentChildQueriesNoParentType() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.refresh_interval", -1)));
         ensureGreen();
@@ -1311,7 +1310,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testAddParentFieldAfterIndexingParentDocButBeforeIndexingChildDoc() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.refresh_interval", -1)));
         ensureGreen();
@@ -1335,7 +1334,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     public void testParentChildCaching() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put(indexSettings())
                                 .put("index.refresh_interval", -1)
                 )

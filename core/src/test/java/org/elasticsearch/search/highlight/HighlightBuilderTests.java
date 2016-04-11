@@ -59,6 +59,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -151,8 +152,9 @@ public class HighlightBuilderTests extends ESTestCase {
                 builder.prettyPrint();
             }
             highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
 
-            XContentParser parser = XContentHelper.createParser(builder.bytes());
+            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
             context.reset(parser);
             parser.nextToken();
             HighlightBuilder secondHighlightBuilder;
@@ -242,7 +244,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     "        \"bad_fieldname\" : { \"field\" : \"value\" }\n" +
                     "     }\n" +
                     "   }\n" +
-                    "}\n"); 
+                    "}\n");
             assertEquals("[highlight] failed to parse field [fields]", e.getMessage());
             assertEquals("[fields] failed to parse field [body]", e.getCause().getMessage());
             assertEquals("[highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
@@ -285,13 +287,13 @@ public class HighlightBuilderTests extends ESTestCase {
      * than what we have in the random {@link HighlightBuilder}
      */
     public void testBuildSearchContextHighlight() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null) {
+                null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -744,7 +746,7 @@ public class HighlightBuilderTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return HighlightBuilder.PROTOTYPE.readFrom(in);
+                return new HighlightBuilder(in);
             }
         }
     }

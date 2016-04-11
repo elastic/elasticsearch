@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.derivative;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -30,8 +31,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -60,14 +59,14 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private ValueFormatter formatter;
+    private DocValueFormat formatter;
     private GapPolicy gapPolicy;
     private Double xAxisUnits;
 
     public DerivativePipelineAggregator() {
     }
 
-    public DerivativePipelineAggregator(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy, Long xAxisUnits,
+    public DerivativePipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter, GapPolicy gapPolicy, Long xAxisUnits,
             Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
@@ -128,7 +127,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        formatter = ValueFormatterStreams.readOptional(in);
+        formatter = in.readValueFormat();
         gapPolicy = GapPolicy.readFrom(in);
         if (in.readBoolean()) {
             xAxisUnits = in.readDouble();
@@ -140,7 +139,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(formatter, out);
+        out.writeValueFormat(formatter);
         gapPolicy.writeTo(out);
         boolean hasXAxisUnitsValue = xAxisUnits != null;
         out.writeBoolean(hasXAxisUnitsValue);

@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -190,7 +190,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 try (XContentParser parser = XContentFactory.xContent(slice).createParser(slice)) {
                     queryParseContext.reset(parser);
                     queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                    Template template = TemplateQueryParser.parse(parser, queryParseContext.parseFieldMatcher(), "params", "template");
+                    Template template = TemplateQueryBuilder.parse(parser, queryParseContext.parseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
                 }
             } else {

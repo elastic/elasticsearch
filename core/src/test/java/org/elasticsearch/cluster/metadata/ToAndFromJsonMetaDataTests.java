@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -118,7 +118,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                 .put(IndexTemplateMetaData.builder("foo")
                         .template("bar")
                         .order(1)
-                        .settings(settingsBuilder()
+                        .settings(Settings.builder()
                                 .put("setting1", "value1")
                                 .put("setting2", "value2"))
                         .putAlias(newAliasMetaDataBuilder("alias-bar1"))
@@ -139,7 +139,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                 .put(IndexTemplateMetaData.builder("foo")
                         .template("bar")
                         .order(1)
-                        .settings(settingsBuilder()
+                        .settings(Settings.builder()
                                 .put("setting1", "value1")
                                 .put("setting2", "value2"))
                         .putAlias(newAliasMetaDataBuilder("alias-bar1"))

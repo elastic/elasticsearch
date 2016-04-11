@@ -118,7 +118,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     // Issue #3629
     public void testExplainDateRangeInQueryString() {
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
 
@@ -178,7 +178,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainMatchPhrasePrefix() {
         assertAcked(prepareCreate("test").setSettings(
-                Settings.settingsBuilder().put(indexSettings())
+                Settings.builder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
                         .putArray("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")

@@ -141,18 +141,6 @@ The Elasticsearch service can be configured prior to installation by setting the
 
   The installation directory of the desired JVM to run the service under.
 
-`ES_HEAP_SIZE`::
-
-  The heap size to start with.
-
-`ES_MIN_MEM`::
-
-  The initial memory allocation pool for the JVM (`Xms`).  Defaults to `256m`, overriden by `%ES_HEAP_SIZE%`.
-
-`ES_MAX_MEM`::
-
-  The maxmimum memory allocation pool for the JVM (`Xmx`).  Defaults to `1g`, overriden by `%ES_HEAP_SIZE%`.
-
 `LOG_DIR`::
 
     Log directory, defaults to `%ES_HOME%\logs`.

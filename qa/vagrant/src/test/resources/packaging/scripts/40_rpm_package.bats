@@ -116,6 +116,7 @@ setup() {
 
     assert_file_not_exist "/etc/elasticsearch"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
+    assert_file_not_exist  "/etc/elasticsearch/jvm.options"
     assert_file_not_exist "/etc/elasticsearch/logging.yml"
 
     assert_file_not_exist "/etc/init.d/elasticsearch"

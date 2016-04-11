@@ -104,14 +104,23 @@ LimitMEMLOCK=infinity
 [[es-java-opts]]
 ==== Setting JVM system properties
 
-Any Java system properties or arguments which should be passed to the JVM
-should be specified in the `ES_JAVA_OPTS` environment variable, for instance:
+The preferred method of setting Java Virtual Machine options (including
+system properties and JVM flags) is via the jvm.options configuration
+file. The default location of this file is config/jvm.options (when
+installing from the tar or zip distributions) and
+/etc/elasticsearch/jvm.options (when installing from the Debian or RPM
+packages). This file contains a line-delimited list of JVM arguments,
+which must begin with `-`. You can add custom JVM flags to this file and
+check this configuration into your version control system.
+
+An alternative mechanism for setting Java Virtual Machine options is
+via the `ES_JAVA_OPTS` environment variable. For instance:
 
 [source,sh]
 ---------------------------------
-EXPORT ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
+export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 ./bin/elasticsearch
 ---------------------------------
 
-When using the RPM or Debian packages, ES_JAVA_OPTS can be specified in the
+When using the RPM or Debian packages, `ES_JAVA_OPTS` can be specified in the
 <<sysconfig,system configuration file>>.

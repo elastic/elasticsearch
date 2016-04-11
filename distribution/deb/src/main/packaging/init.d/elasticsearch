@@ -46,16 +46,6 @@ ES_GROUP=elasticsearch
 # Directory where the Elasticsearch binary distribution resides
 ES_HOME=/usr/share/$NAME
 
-# Heap size defaults to 256m min, 1g max
-# Set ES_HEAP_SIZE to 50% of available RAM, but no more than 31g
-#ES_HEAP_SIZE=2g
-
-# Heap new generation
-#ES_HEAP_NEWSIZE=
-
-# max direct memory
-#ES_DIRECT_SIZE=
-
 # Additional Java OPTS
 #ES_JAVA_OPTS=
 
@@ -101,11 +91,7 @@ PID_FILE="$PID_DIR/$NAME.pid"
 DAEMON=$ES_HOME/bin/elasticsearch
 DAEMON_OPTS="-d -p $PID_FILE -Ees.default.path.logs=$LOG_DIR -Ees.default.path.data=$DATA_DIR -Ees.default.path.conf=$CONF_DIR"
 
-export ES_HEAP_SIZE
-export ES_HEAP_NEWSIZE
-export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
-export ES_GC_LOG_FILE
 export JAVA_HOME
 export ES_INCLUDE
 
@@ -128,11 +114,6 @@ checkJava() {
 case "$1" in
   start)
 	checkJava
-
-	if [ -n "$MAX_LOCKED_MEMORY" -a -z "$ES_HEAP_SIZE" ]; then
-		log_failure_msg "MAX_LOCKED_MEMORY is set - ES_HEAP_SIZE must also be set"
-		exit 1
-	fi
 
 	log_daemon_msg "Starting $DESC"
 

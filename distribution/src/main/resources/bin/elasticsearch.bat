@@ -35,6 +35,14 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 
 SET HOSTNAME=%COMPUTERNAME%
 
+if "%ES_JVM_OPTIONS%" == "" (
+set ES_JVM_OPTIONS="%~dp0\..\config\jvm.options"
+)
+
+@setlocal
+for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS! %%a
+@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS% %ES_JAVA_OPTS%
+
 CALL "%~dp0elasticsearch.in.bat"
 IF ERRORLEVEL 1 (
 	IF NOT DEFINED nopauseonerror (
@@ -43,6 +51,6 @@ IF ERRORLEVEL 1 (
 	EXIT /B %ERRORLEVEL%
 )
 
-"%JAVA_HOME%\bin\java" %JAVA_OPTS% %ES_JAVA_OPTS% %ES_PARAMS% -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+"%JAVA_HOME%\bin\java" %ES_JAVA_OPTS% %ES_PARAMS% -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
 ENDLOCAL

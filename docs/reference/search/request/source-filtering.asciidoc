@@ -49,6 +49,11 @@ Or
 
 Finally, for complete control, you can specify both include and exclude patterns:
 
+NOTE: When Source filtering is performed, since Elasticsearch needs to actually
+parse the data inside the `_source` field to remove certain fields, the order and
+formatting of the original passed in JSON may not match. No worries however, the 
+persisted data in `_source` is not modified.
+
 [source,js]
 --------------------------------------------------
 {

@@ -77,6 +77,11 @@ By default, the get operation returns the contents of the `_source` field unless
 you have used the `fields` parameter or if the `_source` field is disabled. 
 You can turn off `_source` retrieval by using the `_source` parameter:
 
+NOTE: When Source filtering is performed, since Elasticsearch needs to actually
+parse the data inside the `_source` field to remove certain fields, the order and
+formatting of the original passed in JSON may not match. No worries however, the
+persisted data in `_source` is not modified.
+
 [source,js]
 --------------------------------------------------
 curl -XGET 'http://localhost:9200/twitter/tweet/1?_source=false'

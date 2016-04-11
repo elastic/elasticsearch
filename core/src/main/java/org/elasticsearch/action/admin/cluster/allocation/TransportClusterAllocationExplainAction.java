@@ -22,6 +22,9 @@ package org.elasticsearch.action.admin.cluster.allocation;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -47,6 +50,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,19 +72,22 @@ public class TransportClusterAllocationExplainAction
     private final ClusterInfoService clusterInfoService;
     private final AllocationDeciders allocationDeciders;
     private final ShardsAllocator shardAllocator;
+    private final TransportIndicesShardStoresAction shardStoresAction;
 
     @Inject
     public TransportClusterAllocationExplainAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                                    ThreadPool threadPool, ActionFilters actionFilters,
                                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                                    AllocationService allocationService, ClusterInfoService clusterInfoService,
-                                                   AllocationDeciders allocationDeciders, ShardsAllocator shardAllocator) {
+                                                   AllocationDeciders allocationDeciders, ShardsAllocator shardAllocator,
+                                                   TransportIndicesShardStoresAction shardStoresAction) {
         super(settings, ClusterAllocationExplainAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, ClusterAllocationExplainRequest::new);
         this.allocationService = allocationService;
         this.clusterInfoService = clusterInfoService;
         this.allocationDeciders = allocationDeciders;
         this.shardAllocator = shardAllocator;
+        this.shardStoresAction = shardStoresAction;
     }
 
     @Override
@@ -123,7 +130,8 @@ public class TransportClusterAllocationExplainAction
      * includeYesDecisions} is true, returns all decisions, otherwise returns only 'NO' and 'THROTTLE' decisions.
      */
     public static ClusterAllocationExplanation explainShard(ShardRouting shard, RoutingAllocation allocation, RoutingNodes routingNodes,
-                                                            boolean includeYesDecisions, ShardsAllocator shardAllocator) {
+                                                            boolean includeYesDecisions, ShardsAllocator shardAllocator,
+                                                            List<IndicesShardStoresResponse.StoreStatus> shardStores) {
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
         // get the existing unassigned info if available
@@ -140,13 +148,15 @@ public class TransportClusterAllocationExplainAction
             }
         }
         long remainingDelayNanos = 0;
+        final MetaData metadata = allocation.metaData();
+        final IndexMetaData indexMetaData = metadata.index(shard.index());
         if (ui != null) {
-            final MetaData metadata = allocation.metaData();
-            final Settings indexSettings = metadata.index(shard.index()).getSettings();
+            final Settings indexSettings = indexMetaData.getSettings();
             remainingDelayNanos = ui.getRemainingDelay(System.nanoTime(), metadata.settings(), indexSettings);
         }
         return new ClusterAllocationExplanation(shard.shardId(), shard.primary(), shard.currentNodeId(), ui, nodeToDecision,
-                shardAllocator.weighShard(allocation, shard), remainingDelayNanos);
+                shardAllocator.weighShard(allocation, shard), remainingDelayNanos, shardStores,
+                indexMetaData.activeAllocationIds(shard.getId()));
     }
 
     @Override
@@ -156,30 +166,30 @@ public class TransportClusterAllocationExplainAction
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state.nodes(),
                 clusterInfoService.getClusterInfo(), System.nanoTime());
 
-        ShardRouting shardRouting = null;
+        ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
             // If we can use any shard, just pick the first unassigned one (if there are any)
             RoutingNodes.UnassignedShards.UnassignedIterator ui = routingNodes.unassigned().iterator();
             if (ui.hasNext()) {
-                shardRouting = ui.next();
+                foundShard = ui.next();
             }
         } else {
             String index = request.getIndex();
             int shard = request.getShard();
             if (request.isPrimary()) {
                 // If we're looking for the primary shard, there's only one copy, so pick it directly
-                shardRouting = allocation.routingTable().shardRoutingTable(index, shard).primaryShard();
+                foundShard = allocation.routingTable().shardRoutingTable(index, shard).primaryShard();
             } else {
                 // If looking for a replica, go through all the replica shards
                 List<ShardRouting> replicaShardRoutings = allocation.routingTable().shardRoutingTable(index, shard).replicaShards();
                 if (replicaShardRoutings.size() > 0) {
                     // Pick the first replica at the very least
-                    shardRouting = replicaShardRoutings.get(0);
+                    foundShard = replicaShardRoutings.get(0);
                     // In case there are multiple replicas where some are assigned and some aren't,
                     // try to find one that is unassigned at least
                     for (ShardRouting replica : replicaShardRoutings) {
                         if (replica.unassigned()) {
-                            shardRouting = replica;
+                            foundShard = replica;
                             break;
                         }
                     }
@@ -187,14 +197,34 @@ public class TransportClusterAllocationExplainAction
             }
         }
 
-        if (shardRouting == null) {
+        if (foundShard == null) {
             listener.onFailure(new ElasticsearchException("unable to find any shards to explain [{}] in the routing table", request));
             return;
         }
+        final ShardRouting shardRouting = foundShard;
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
 
-        ClusterAllocationExplanation cae = explainShard(shardRouting, allocation, routingNodes,
-                request.includeYesDecisions(), shardAllocator);
-        listener.onResponse(new ClusterAllocationExplainResponse(cae));
+        getShardStores(shardRouting, new ActionListener<IndicesShardStoresResponse>() {
+            @Override
+            public void onResponse(IndicesShardStoresResponse shardStoreResponse) {
+                ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStatuses =
+                        shardStoreResponse.getStoreStatuses().get(shardRouting.getIndexName());
+                List<IndicesShardStoresResponse.StoreStatus> shardStoreStatus = shardStatuses.get(shardRouting.id());
+                ClusterAllocationExplanation cae = explainShard(shardRouting, allocation, routingNodes,
+                        request.includeYesDecisions(), shardAllocator, shardStoreStatus);
+                listener.onResponse(new ClusterAllocationExplainResponse(cae));
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void getShardStores(ShardRouting shard, final ActionListener<IndicesShardStoresResponse> listener) {
+        IndicesShardStoresRequest request = new IndicesShardStoresRequest(shard.getIndexName());
+        request.shardStatuses("all");
+        shardStoresAction.execute(request, listener);
     }
 }

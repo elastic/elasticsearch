@@ -20,14 +20,21 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -69,5 +76,90 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(cae.isPrimary());
         assertFalse(cae.isAssigned());
         assertThat("expecting a remaining delay, got: " + cae.getRemainingDelayNanos(), cae.getRemainingDelayNanos(), greaterThan(0L));
+    }
+
+    public void testUnassignedShards() throws Exception {
+        logger.info("--> starting 3 nodes");
+        String noAttrNode = internalCluster().startNode();
+        String barAttrNode = internalCluster().startNode(Settings.builder().put("node.attr.bar", "baz"));
+        String fooBarAttrNode = internalCluster().startNode(Settings.builder()
+                .put("node.attr.foo", "bar")
+                .put("node.attr.bar", "baz"));
+
+        // Wait for all 3 nodes to be up
+        logger.info("--> waiting for 3 nodes to be up");
+        client().admin().cluster().health(Requests.clusterHealthRequest().waitForNodes("3")).actionGet();
+
+        client().admin().indices().prepareCreate("anywhere")
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 1))
+                .get();
+
+        client().admin().indices().prepareCreate("only-baz")
+                .setSettings(Settings.builder()
+                        .put("index.routing.allocation.include.bar", "baz")
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 1))
+                .get();
+
+        client().admin().indices().prepareCreate("only-foo")
+                .setSettings(Settings.builder()
+                        .put("index.routing.allocation.include.foo", "bar")
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 1))
+                .get();
+
+        ensureGreen("anywhere", "only-baz");
+        ensureYellow("only-foo");
+
+        ClusterAllocationExplainResponse resp = client().admin().cluster().prepareAllocationExplain()
+                .setIndex("only-foo")
+                .setShard(0)
+                .setPrimary(false)
+                .get();
+        ClusterAllocationExplanation cae = resp.getExplanation();
+        assertThat(cae.getShard().getIndexName(), equalTo("only-foo"));
+        assertFalse(cae.isPrimary());
+        assertFalse(cae.isAssigned());
+        assertThat(UnassignedInfo.Reason.INDEX_CREATED, equalTo(cae.getUnassignedInfo().getReason()));
+        assertThat("expecting no remaining delay: " + cae.getRemainingDelayNanos(), cae.getRemainingDelayNanos(), equalTo(0L));
+
+        Map<DiscoveryNode, Decision> nodeToDecisions = cae.getNodeDecisions();
+        Map<DiscoveryNode, Float> nodeToWeight = cae.getNodeWeights();
+        Map<DiscoveryNode, IndicesShardStoresResponse.StoreStatus> nodeToStatus = cae.getNodeStoreStatus();
+
+        Float noAttrWeight = -1f;
+        Float barAttrWeight = -1f;
+        Float fooBarAttrWeight = -1f;
+        for (Map.Entry<DiscoveryNode, Decision> entry : nodeToDecisions.entrySet()) {
+            DiscoveryNode node = entry.getKey();
+            String nodeName = node.getName();
+            Decision d = entry.getValue();
+            float weight = nodeToWeight.get(node);
+            IndicesShardStoresResponse.StoreStatus storeStatus = nodeToStatus.get(node);
+
+            assertEquals(d.type(), Decision.Type.NO);
+            if (noAttrNode.equals(nodeName)) {
+                assertThat(d.toString(), containsString("node does not match index include filters [foo:\"bar\"]"));
+                noAttrWeight = weight;
+                assertNull(storeStatus);
+            } else if (barAttrNode.equals(nodeName)) {
+                assertThat(d.toString(), containsString("node does not match index include filters [foo:\"bar\"]"));
+                barAttrWeight = weight;
+                assertNull(storeStatus);
+            } else if (fooBarAttrNode.equals(nodeName)) {
+                assertThat(d.toString(), containsString("the shard cannot be allocated on the same node id"));
+                fooBarAttrWeight = weight;
+                assertEquals(storeStatus.getAllocationStatus(),
+                        IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY);
+            } else {
+                fail("unexpected node with name: " + nodeName +
+                     ", I have: " + noAttrNode + ", " + barAttrNode + ", " + fooBarAttrNode);
+            }
+        }
+        assertThat(noAttrWeight, greaterThan(barAttrWeight));
+        assertThat(noAttrWeight, greaterThan(fooBarAttrWeight));
+        assertFalse(barAttrWeight == fooBarAttrWeight);
     }
 }

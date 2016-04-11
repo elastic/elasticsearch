@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -30,11 +32,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardStateMetaData;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A {@code ClusterAllocationExplanation} is an explanation of why a shard may or may not be allocated to nodes. It also includes weights
@@ -49,10 +56,15 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     private final Map<DiscoveryNode, Float> nodeWeights;
     private final UnassignedInfo unassignedInfo;
     private final long remainingDelayNanos;
+    private final List<IndicesShardStoresResponse.StoreStatus> shardStores;
+    private final Set<String> activeAllocationIds;
+
+    private Map<DiscoveryNode, IndicesShardStoresResponse.StoreStatus> nodeStoreStatus = null;
 
     public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId,
-            UnassignedInfo unassignedInfo, Map<DiscoveryNode, Decision> nodeToDecision,
-            Map<DiscoveryNode, Float> nodeWeights, long remainingDelayNanos) {
+                                        UnassignedInfo unassignedInfo, Map<DiscoveryNode, Decision> nodeToDecision,
+                                        Map<DiscoveryNode, Float> nodeWeights, long remainingDelayNanos,
+                                        List<IndicesShardStoresResponse.StoreStatus> shardStores, Set<String> activeAllocationIds) {
         this.shard = shard;
         this.primary = primary;
         this.assignedNodeId = assignedNodeId;
@@ -60,6 +72,8 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         this.nodeToDecision = nodeToDecision == null ? Collections.emptyMap() : nodeToDecision;
         this.nodeWeights = nodeWeights == null ? Collections.emptyMap() : nodeWeights;
         this.remainingDelayNanos = remainingDelayNanos;
+        this.shardStores = shardStores;
+        this.activeAllocationIds = activeAllocationIds;
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
@@ -88,30 +102,19 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         }
         this.nodeWeights = ntw;
         remainingDelayNanos = in.readVLong();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        this.getShard().writeTo(out);
-        out.writeBoolean(this.isPrimary());
-        out.writeOptionalString(this.getAssignedNodeId());
-        out.writeOptionalWriteable(this.getUnassignedInfo());
-
-        Map<DiscoveryNode, Decision> ntd = this.getNodeDecisions();
-        out.writeVInt(ntd.size());
-        for (Map.Entry<DiscoveryNode, Decision> entry : ntd.entrySet()) {
-            entry.getKey().writeTo(out);
-            Decision.writeTo(entry.getValue(), out);
+        size = in.readVInt();
+        List<IndicesShardStoresResponse.StoreStatus> stores = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            stores.add(IndicesShardStoresResponse.StoreStatus.readStoreStatus(in));
         }
-        Map<DiscoveryNode, Float> ntw = this.getNodeWeights();
-        out.writeVInt(ntw.size());
-        for (Map.Entry<DiscoveryNode, Float> entry : ntw.entrySet()) {
-            entry.getKey().writeTo(out);
-            out.writeFloat(entry.getValue());
+        this.shardStores = stores;
+        size = in.readVInt();
+        Set<String> activeIds = new HashSet<>(size);
+        for (int i = 0; i < size; i++) {
+            activeIds.add(in.readString());
         }
-        out.writeVLong(remainingDelayNanos);
+        this.activeAllocationIds = activeIds;
     }
-
 
     public ShardId getShard() {
         return this.shard;
@@ -156,6 +159,23 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return this.remainingDelayNanos;
     }
 
+    /** Return a map of {@code DiscoveryNode} to store status for the explained shard */
+    public Map<DiscoveryNode, IndicesShardStoresResponse.StoreStatus> getNodeStoreStatus() {
+        if (nodeStoreStatus == null) {
+            Map<DiscoveryNode, IndicesShardStoresResponse.StoreStatus> nodeToStatus = new HashMap<>(shardStores.size());
+            for (IndicesShardStoresResponse.StoreStatus status : shardStores) {
+                nodeToStatus.put(status.getNode(), status);
+            }
+            nodeStoreStatus = nodeToStatus;
+        }
+        return nodeStoreStatus;
+    }
+
+    /** Return a set of the active allocation ids for this shard */
+    public Set<String> getActiveAllocationIds() {
+        return this.activeAllocationIds;
+    }
+
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(); {
             builder.startObject("shard"); {
@@ -191,11 +211,30 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
                     }
                     builder.endObject(); // end attributes
                     Decision d = nodeToDecision.get(node);
-                    if (node.getId().equals(assignedNodeId)) {
-                        builder.field("final_decision", "CURRENTLY_ASSIGNED");
-                    } else {
-                        builder.field("final_decision", d.type().toString());
+                    String finalDecision = node.getId().equals(assignedNodeId) ? "CURRENTLY_ASSIGNED" : d.type().toString();
+                    IndicesShardStoresResponse.StoreStatus storeStatus = getNodeStoreStatus().get(node);
+                    builder.startObject("store"); {
+                        if (storeStatus != null) {
+                            final Throwable storeErr = storeStatus.getStoreException();
+                            if (storeErr != null) {
+                                builder.field("store_exception", ExceptionsHelper.detailedMessage(storeErr));
+                                // Cannot allocate, final decision is "STORE_ERROR"
+                                finalDecision = "STORE_ERROR";
+                            }
+                            if (activeAllocationIds.isEmpty() || activeAllocationIds.contains(storeStatus.getAllocationId())) {
+                                // If either we don't have allocation IDs, or they contain the store allocation id, show the allocation
+                                // status
+                                builder.field("shard_copy", storeStatus.getAllocationStatus());
+                            } else{
+                                // Otherwise, this is a stale copy of the data (allocation ids don't match)
+                                builder.field("shard_copy", "STALE_COPY");
+                                // Cannot allocate, final decision is "STORE_STALE"
+                                finalDecision = "STORE_STALE";
+                            }
+                        }
                     }
+                    builder.endObject(); // end store
+                    builder.field("final_decision", finalDecision);
                     builder.field("weight", entry.getValue());
                     d.toXContent(builder, params);
                 }
@@ -205,5 +244,35 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         }
         builder.endObject(); // end wrapping object
         return builder;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        this.getShard().writeTo(out);
+        out.writeBoolean(this.isPrimary());
+        out.writeOptionalString(this.getAssignedNodeId());
+        out.writeOptionalWriteable(this.getUnassignedInfo());
+
+        Map<DiscoveryNode, Decision> ntd = this.getNodeDecisions();
+        out.writeVInt(ntd.size());
+        for (Map.Entry<DiscoveryNode, Decision> entry : ntd.entrySet()) {
+            entry.getKey().writeTo(out);
+            Decision.writeTo(entry.getValue(), out);
+        }
+        Map<DiscoveryNode, Float> ntw = this.getNodeWeights();
+        out.writeVInt(ntw.size());
+        for (Map.Entry<DiscoveryNode, Float> entry : ntw.entrySet()) {
+            entry.getKey().writeTo(out);
+            out.writeFloat(entry.getValue());
+        }
+        out.writeVLong(remainingDelayNanos);
+        out.writeVInt(shardStores.size());
+        for (IndicesShardStoresResponse.StoreStatus status : shardStores) {
+            status.writeTo(out);
+        }
+        out.writeVInt(activeAllocationIds.size());
+        for (String id : activeAllocationIds) {
+            out.writeString(id);
+        }
     }
 }

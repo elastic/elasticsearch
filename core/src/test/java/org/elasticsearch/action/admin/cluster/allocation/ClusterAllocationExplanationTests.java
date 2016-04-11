@@ -19,17 +19,27 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -66,8 +76,15 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         }
 
         long remainingDelay = randomIntBetween(0, 500);
+        DiscoveryNode nodeWithStore = new DiscoveryNode("node-1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        IndicesShardStoresResponse.StoreStatus storeStatus = new IndicesShardStoresResponse.StoreStatus(nodeWithStore, 42, "eggplant",
+                IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, new ElasticsearchException("stuff's broke, yo"));
+        List<IndicesShardStoresResponse.StoreStatus> storeStatusList = Collections.singletonList(storeStatus);
+        Set<String> allocationIds = new HashSet<>();
+        allocationIds.add("eggplant");
+        allocationIds.add("potato");
         ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shard, true, "assignedNode", null,
-                nodeToDecisions, nodeToWeight, remainingDelay);
+                nodeToDecisions, nodeToWeight, remainingDelay, storeStatusList, allocationIds);
         BytesStreamOutput out = new BytesStreamOutput();
         cae.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes());
@@ -80,7 +97,50 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         for (Map.Entry<DiscoveryNode, Decision> entry : cae2.getNodeDecisions().entrySet()) {
             assertEquals(nodeToDecisions.get(entry.getKey()), entry.getValue());
         }
+        for (Map.Entry<DiscoveryNode, IndicesShardStoresResponse.StoreStatus> entry : cae2.getNodeStoreStatus().entrySet()) {
+            assertEquals(nodeWithStore, entry.getKey());
+            IndicesShardStoresResponse.StoreStatus status = entry.getValue();
+            assertEquals(storeStatus.getLegacyVersion(), status.getLegacyVersion());
+            assertEquals(storeStatus.getAllocationId(), status.getAllocationId());
+            assertEquals(storeStatus.getAllocationStatus(), status.getAllocationStatus());
+            assertEquals(ExceptionsHelper.detailedMessage(storeStatus.getStoreException()),
+                    ExceptionsHelper.detailedMessage(status.getStoreException()));
+        }
         assertEquals(nodeToWeight, cae2.getNodeWeights());
         assertEquals(remainingDelay, cae2.getRemainingDelayNanos());
+        assertEquals(allocationIds, cae2.getActiveAllocationIds());
+    }
+
+    public void testStaleShardExplanation() throws Exception {
+        ShardId shard = new ShardId("test", "uuid", 0);
+        Map<DiscoveryNode, Decision> nodeToDecisions = new HashMap<>();
+        Map<DiscoveryNode, Float> nodeToWeight = new HashMap<>();
+        DiscoveryNode dn = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        Decision.Multi d = new Decision.Multi();
+        d.add(Decision.single(Decision.Type.NO, "no label", "because I said no"));
+        d.add(Decision.single(Decision.Type.YES, "yes label", "yes please"));
+        d.add(Decision.single(Decision.Type.THROTTLE, "throttle label", "wait a sec"));
+        nodeToDecisions.put(dn, d);
+        nodeToWeight.put(dn, 1.5f);
+
+        long remainingDelay = 42;
+        DiscoveryNode nodeWithStore = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        IndicesShardStoresResponse.StoreStatus storeStatus = new IndicesShardStoresResponse.StoreStatus(nodeWithStore, 42, "eggplant",
+                IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, null);
+        List<IndicesShardStoresResponse.StoreStatus> storeStatusList = Collections.singletonList(storeStatus);
+        Set<String> allocationIds = new HashSet<>();
+        allocationIds.add("potato");
+        ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shard, true, "assignedNode", null,
+                nodeToDecisions, nodeToWeight, remainingDelay, storeStatusList, allocationIds);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("{\"shard\":{\"index\":\"test\",\"index_uuid\":\"uuid\",\"id\":0,\"primary\":true}," +
+                     "\"assigned\":true,\"assigned_node_id\":\"assignedNode\"," +
+                     "\"nodes\":{\"node1\":{\"node_name\":\"\",\"node_attributes\":{},\"store\":{\"shard_copy\":\"STALE_COPY\"}," +
+                     "\"final_decision\":\"STORE_STALE\",\"weight\":1.5,\"decisions\":[{\"decider\":\"no label\",\"decision\":\"NO\"," +
+                     "\"explanation\":\"because I said no\"},{\"decider\":\"yes label\",\"decision\":\"YES\"," +
+                     "\"explanation\":\"yes please\"},{\"decider\":\"throttle label\",\"decision\":\"THROTTLE\"," +
+                     "\"explanation\":\"wait a sec\"}]}}}",
+                builder.string());
     }
 }

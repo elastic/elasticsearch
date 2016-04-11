@@ -50,7 +50,7 @@ import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
@@ -640,7 +640,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         getRepoRequest.params().put("repository", "test-repo");
         final CountDownLatch getRepoLatch = new CountDownLatch(1);
         final AtomicReference<AssertionError> getRepoError = new AtomicReference<>();
-        getRepoAction.handleRequest(getRepoRequest, new RestChannel(getRepoRequest, true) {
+        getRepoAction.handleRequest(getRepoRequest, new AbstractRestChannel(getRepoRequest, true) {
             @Override
             public void sendResponse(RestResponse response) {
                 try {
@@ -661,7 +661,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         RestRequest clusterStateRequest = new FakeRestRequest();
         final CountDownLatch clusterStateLatch = new CountDownLatch(1);
         final AtomicReference<AssertionError> clusterStateError = new AtomicReference<>();
-        clusterStateAction.handleRequest(clusterStateRequest, new RestChannel(clusterStateRequest, true) {
+        clusterStateAction.handleRequest(clusterStateRequest, new AbstractRestChannel(clusterStateRequest, true) {
             @Override
             public void sendResponse(RestResponse response) {
                 try {

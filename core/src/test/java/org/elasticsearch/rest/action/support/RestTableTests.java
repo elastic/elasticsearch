@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -139,7 +139,7 @@ public class RestTableTests extends ESTestCase {
         table.addCell("foo");
         table.addCell("foo");
         table.endRow();
-        RestResponse response = buildResponse(table, new RestChannel(requestWithAcceptHeader, true) {
+        RestResponse response = buildResponse(table, new AbstractRestChannel(requestWithAcceptHeader, true) {
             @Override
             public void sendResponse(RestResponse response) {
             }

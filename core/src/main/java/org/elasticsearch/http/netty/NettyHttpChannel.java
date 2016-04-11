@@ -24,10 +24,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
 import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
+import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -53,7 +53,7 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Values.CLOSE;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Values.KEEP_ALIVE;
 
-public final class NettyHttpChannel extends HttpChannel {
+public final class NettyHttpChannel extends AbstractRestChannel {
 
     private final NettyHttpServerTransport transport;
     private final Channel channel;

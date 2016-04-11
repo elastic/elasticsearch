@@ -31,13 +31,18 @@ dependencies {
   compile "commons-codec:commons-codec:1.9"
   compile "commons-logging:commons-logging:1.2"
 
-  // we use lucene-test-framework here without pulling in ES core or its own test-framework
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile 'org.hamcrest:hamcrest-all:1.3'
   testCompile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
   testCompile "org.apache.lucene:lucene-core:${versions.lucene}"
   testCompile "org.apache.lucene:lucene-codecs:${versions.lucene}"
+  //mock web server
+  testCompile "com.squareup.okhttp3:mockwebserver:3.2.0"
+  testCompile "com.squareup.okhttp3:okhttp:3.2.0"
+  testCompile "com.squareup.okhttp3:okhttp-ws:3.2.0"
+  testCompile "com.squareup.okio:okio:1.6.0"
+  testCompile "org.bouncycastle:bcprov-jdk15on:1.54"
 }
 
 compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-try,-unchecked'
@@ -48,13 +53,15 @@ forbiddenApisMain {
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
 
-forbiddenApisMain.enabled=true
-//TODO remove use of sun http server and enable forbidden-apis for tests
-forbiddenApisTest.enabled=false
-//TODO add licenses for deps and check out distribution task
+forbiddenApisTest {
+  //client does not depend on core, so only jdk signatures should be checked
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+//TODO add licenses for dependencies and take care of distribution
 //dependency license are currently checked in distribution
 dependencyLicenses.enabled=false
-//TODO enable jarhell checks
+//JarHell is part of es core, which we don't want to pull in
 jarHell.enabled=false
 //NamingConventionCheck is part of test-framework, which we don't want to pull in as it depends on es core
 namingConventions.enabled=false
@@ -64,6 +71,7 @@ thirdPartyAudit.excludes = [
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
+  'org.apache.log4j.Category',
   'org.apache.log4j.Level',
   'org.apache.log4j.Logger',
   'org.apache.log4j.Priority',

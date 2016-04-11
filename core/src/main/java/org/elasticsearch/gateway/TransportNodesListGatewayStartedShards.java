@@ -57,23 +57,33 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
  * shards after node or cluster restarts.
  */
-public class TransportNodesListGatewayStartedShards extends TransportNodesAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
-        implements AsyncShardFetch.List<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
+public class TransportNodesListGatewayStartedShards extends
+    TransportNodesAction<TransportNodesListGatewayStartedShards.Request,
+        TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
+        TransportNodesListGatewayStartedShards.NodeRequest,
+        TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
+    implements
+    AsyncShardFetch.List<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
+        TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     private final NodeEnvironment nodeEnv;
 
+
     @Inject
     public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                                   ClusterService clusterService, TransportService transportService,
-                                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, NodeEnvironment env) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED);
+                                                  ActionFilters actionFilters,
+                                                  IndexNameExpressionResolver indexNameExpressionResolver,
+                                                  NodeEnvironment env) {
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+            indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED);
         this.nodeEnv = env;
     }
 
     @Override
-    public void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesGatewayStartedShards> listener) {
+    public void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds,
+                     ActionListener<NodesGatewayStartedShards> listener) {
         execute(new Request(shardId, indexMetaData.getIndexUUID(), nodesIds), listener);
     }
 
@@ -110,47 +120,58 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else if (resp instanceof FailedNodeException) {
                 failures.add((FailedNodeException) resp);
             } else {
-                logger.warn("unknown response type [{}], expected NodeLocalGatewayStartedShards or FailedNodeException", resp);
+                logger.warn("unknown response type [{}], expected NodeLocalGatewayStartedShards or FailedNodeException",
+                    resp);
             }
         }
-        return new NodesGatewayStartedShards(clusterName, nodesList.toArray(new NodeGatewayStartedShards[nodesList.size()]),
-                failures.toArray(new FailedNodeException[failures.size()]));
+        return new NodesGatewayStartedShards(clusterName,
+            nodesList.toArray(new NodeGatewayStartedShards[nodesList.size()]),
+            failures.toArray(new FailedNodeException[failures.size()]));
     }
 
     @Override
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
             final ShardId shardId = request.getShardId();
-            final String indexUUID = request.getIndexUUID();
             logger.trace("{} loading local shard state info", shardId);
-            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.availableShardPaths(request.shardId));
+            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger,
+                nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
-                final IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex()); // it's a mystery why this is sometimes null
-                if (metaData != null) {
-                    ShardPath shardPath = null;
-                    try {
-                        IndexSettings indexSettings = new IndexSettings(metaData, settings);
-                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
-                        if (shardPath == null) {
-                            throw new IllegalStateException(shardId + " no shard path found");
-                        }
-                        Store.tryOpenIndex(shardPath.resolveIndex(), shardId);
-                    } catch (Exception exception) {
-                        logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId, shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
-                        String allocationId = shardStateMetaData.allocationId != null ? shardStateMetaData.allocationId.getId() : null;
-                        return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion, allocationId, shardStateMetaData.primary, exception);
+                IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
+                if (metaData == null) {
+                    // we may send this requests while processing the cluster state that recovered the index
+                    // sometimes the request comes in before the local node processed that cluster state
+                    // in such cases we can load it from disk
+                    metaData = IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(shardId.getIndex()));
+                }
+                if (metaData == null) {
+                    ElasticsearchException e = new ElasticsearchException("failed to find local IndexMetaData");
+                    e.setShard(request.shardId);
+                    throw e;
+                }
+
+                ShardPath shardPath = null;
+                try {
+                    IndexSettings indexSettings = new IndexSettings(metaData, settings);
+                    shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                    if (shardPath == null) {
+                        throw new IllegalStateException(shardId + " no shard path found");
                     }
+                    Store.tryOpenIndex(shardPath.resolveIndex(), shardId, logger);
+                } catch (Exception exception) {
+                    logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId,
+                        shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
+                    String allocationId = shardStateMetaData.allocationId != null ?
+                        shardStateMetaData.allocationId.getId() : null;
+                    return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion,
+                        allocationId, shardStateMetaData.primary, exception);
                 }
-                // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata
-                // is equal to IndexMetaData.INDEX_UUID_NA_VALUE otherwise this shard doesn't belong to the requested index.
-                if (indexUUID.equals(shardStateMetaData.indexUUID) == false
-                        && IndexMetaData.INDEX_UUID_NA_VALUE.equals(shardStateMetaData.indexUUID) == false) {
-                    logger.warn("{} shard state info found but indexUUID didn't match expected [{}] actual [{}]", shardId, indexUUID, shardStateMetaData.indexUUID);
-                } else {
-                    logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
-                    String allocationId = shardStateMetaData.allocationId != null ? shardStateMetaData.allocationId.getId() : null;
-                    return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion, allocationId, shardStateMetaData.primary);
-                }
+
+                logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
+                String allocationId = shardStateMetaData.allocationId != null ?
+                    shardStateMetaData.allocationId.getId() : null;
+                return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion,
+                    allocationId, shardStateMetaData.primary);
             }
             logger.trace("{} no local shard info found", shardId);
             return new NodeGatewayStartedShards(clusterService.localNode(), ShardStateMetaData.NO_VERSION, null, false);
@@ -206,7 +227,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
         private FailedNodeException[] failures;
 
-        public NodesGatewayStartedShards(ClusterName clusterName, NodeGatewayStartedShards[] nodes, FailedNodeException[] failures) {
+        public NodesGatewayStartedShards(ClusterName clusterName, NodeGatewayStartedShards[] nodes,
+                                         FailedNodeException[] failures) {
             super(clusterName, nodes);
             this.failures = failures;
         }
@@ -245,7 +267,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, TransportNodesListGatewayStartedShards.Request request) {
+        NodeRequest(String nodeId, Request request) {
             super(nodeId);
             this.shardId = request.shardId();
             this.indexUUID = request.getIndexUUID();
@@ -283,11 +305,13 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
         public NodeGatewayStartedShards() {
         }
+
         public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary) {
             this(node, legacyVersion, allocationId, primary, null);
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary, Throwable storeException) {
+        public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary,
+                                        Throwable storeException) {
             super(node);
             this.legacyVersion = legacyVersion;
             this.allocationId = allocationId;
@@ -338,14 +362,24 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
-            if (legacyVersion != that.legacyVersion) return false;
-            if (primary != that.primary) return false;
-            if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) return false;
+            if (legacyVersion != that.legacyVersion) {
+                return false;
+            }
+            if (primary != that.primary) {
+                return false;
+            }
+            if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) {
+                return false;
+            }
             return storeException != null ? storeException.equals(that.storeException) : that.storeException == null;
 
         }

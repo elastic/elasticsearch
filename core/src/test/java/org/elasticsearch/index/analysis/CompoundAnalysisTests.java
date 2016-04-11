@@ -75,9 +75,8 @@ public class CompoundAnalysisTests extends ESTestCase {
 
         AllEntries allEntries = new AllEntries();
         allEntries.addText("field1", text, 1.0f);
-        allEntries.reset();
 
-        TokenStream stream = AllTokenStream.allTokenStream("_all", allEntries, analyzer);
+        TokenStream stream = AllTokenStream.allTokenStream("_all", text, 1.0f, analyzer);
         stream.reset();
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 

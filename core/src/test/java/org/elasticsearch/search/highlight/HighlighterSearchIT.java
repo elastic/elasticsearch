@@ -975,7 +975,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .get();
         for (int i = 0; i < COUNT; i++) {
             SearchHit hit = searchResponse.getHits().getHits()[i];
-            assertHighlight(searchResponse, i, "_all", 0, 1, equalTo("<em>test</em> " + hit.id() + " "));
+            assertHighlight(searchResponse, i, "_all", 0, 1, equalTo("<em>test</em> " + hit.id()));
         }
     }
 

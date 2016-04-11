@@ -51,7 +51,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     public void testSimpleTimeout() throws Exception {

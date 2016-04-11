@@ -28,7 +28,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -61,9 +60,12 @@ import java.util.Objects;
 public class GeohashCellQuery {
 
     public static final String NAME = "geohash_cell";
-    public static final ParseField NEIGHBORS_FIELD = new ParseField("neighbors");
-    public static final ParseField PRECISION_FIELD = new ParseField("precision");
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
     public static final boolean DEFAULT_NEIGHBORS = false;
+
+    private static final ParseField NEIGHBORS_FIELD = new ParseField("neighbors");
+    private static final ParseField PRECISION_FIELD = new ParseField("precision");
 
     /**
      * Create a new geohash filter for a given set of geohashes. In general this method
@@ -75,7 +77,8 @@ public class GeohashCellQuery {
      * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Query create(QueryShardContext context, BaseGeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
+    public static Query create(QueryShardContext context, BaseGeoPointFieldMapper.GeoPointFieldType fieldType,
+                               String geohash, @Nullable List<CharSequence> geohashes) {
         MappedFieldType geoHashMapper = fieldType.geoHashFieldType();
         if (geoHashMapper == null) {
             throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
@@ -95,6 +98,7 @@ public class GeohashCellQuery {
      * <code>false</code>.
      */
     public static class Builder extends AbstractQueryBuilder<Builder> {
+        public static final Builder PROTOTYPE = new Builder("field", new GeoPoint());
         // we need to store the geohash rather than the corresponding point,
         // because a transformation from a geohash to a point an back to the
         // geohash will extend the accuracy of the hash to max precision
@@ -103,8 +107,6 @@ public class GeohashCellQuery {
         private String geohash;
         private Integer levels = null;
         private boolean neighbors = DEFAULT_NEIGHBORS;
-        private static final Builder PROTOTYPE = new Builder("field", new GeoPoint());
-
 
         public Builder(String field, GeoPoint point) {
             this(field, point == null ? null : point.geohash(), false);
@@ -225,62 +227,7 @@ public class GeohashCellQuery {
             builder.endObject();
         }
 
-        @Override
-        protected Builder doReadFrom(StreamInput in) throws IOException {
-            String field = in.readString();
-            String geohash = in.readString();
-            Builder builder = new Builder(field, geohash);
-            if (in.readBoolean()) {
-                builder.precision(in.readVInt());
-            }
-            builder.neighbors(in.readBoolean());
-            return builder;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            out.writeString(fieldName);
-            out.writeString(geohash);
-            boolean hasLevels = levels != null;
-            out.writeBoolean(hasLevels);
-            if (hasLevels) {
-                out.writeVInt(levels);
-            }
-            out.writeBoolean(neighbors);
-        }
-
-        @Override
-        protected boolean doEquals(Builder other) {
-            return Objects.equals(fieldName, other.fieldName)
-                    && Objects.equals(geohash, other.geohash)
-                    && Objects.equals(levels, other.levels)
-                    && Objects.equals(neighbors, other.neighbors);
-        }
-
-        @Override
-        protected int doHashCode() {
-            return Objects.hash(fieldName, geohash, levels, neighbors);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-    }
-
-    public static class Parser implements QueryParser<Builder> {
-
-        @Inject
-        public Parser() {
-        }
-
-        @Override
-        public String[] names() {
-            return new String[]{NAME, Strings.toCamelCase(NAME)};
-        }
-
-        @Override
-        public Builder fromXContent(QueryParseContext parseContext) throws IOException {
+        public static Builder fromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
 
             String fieldName = null;
@@ -361,8 +308,45 @@ public class GeohashCellQuery {
         }
 
         @Override
-        public GeohashCellQuery.Builder getBuilderPrototype() {
-            return Builder.PROTOTYPE;
+        protected Builder doReadFrom(StreamInput in) throws IOException {
+            String field = in.readString();
+            String geohash = in.readString();
+            Builder builder = new Builder(field, geohash);
+            if (in.readBoolean()) {
+                builder.precision(in.readVInt());
+            }
+            builder.neighbors(in.readBoolean());
+            return builder;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            out.writeString(fieldName);
+            out.writeString(geohash);
+            boolean hasLevels = levels != null;
+            out.writeBoolean(hasLevels);
+            if (hasLevels) {
+                out.writeVInt(levels);
+            }
+            out.writeBoolean(neighbors);
+        }
+
+        @Override
+        protected boolean doEquals(Builder other) {
+            return Objects.equals(fieldName, other.fieldName)
+                    && Objects.equals(geohash, other.geohash)
+                    && Objects.equals(levels, other.levels)
+                    && Objects.equals(neighbors, other.neighbors);
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(fieldName, geohash, levels, neighbors);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
     }
 }

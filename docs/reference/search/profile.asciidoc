@@ -343,7 +343,7 @@ For reference, the various collector reason's are:
 `search_count`::
 
     A collector that only counts the number of documents that match the query, but does not fetch the source.
-    This is seen when `size: 0` or `search_type=count` is specified
+    This is seen when `size: 0` is specified
 
 `search_terminate_after_count`::
 

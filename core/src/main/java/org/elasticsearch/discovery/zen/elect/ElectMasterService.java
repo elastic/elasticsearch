@@ -73,7 +73,7 @@ public class ElectMasterService extends AbstractComponent {
         }
         int count = 0;
         for (DiscoveryNode node : nodes) {
-            if (node.masterNode()) {
+            if (node.isMasterNode()) {
                 count++;
             }
         }
@@ -136,7 +136,7 @@ public class ElectMasterService extends AbstractComponent {
         // clean non master nodes
         for (Iterator<DiscoveryNode> it = possibleNodes.iterator(); it.hasNext(); ) {
             DiscoveryNode node = it.next();
-            if (!node.masterNode()) {
+            if (!node.isMasterNode()) {
                 it.remove();
             }
         }
@@ -148,13 +148,13 @@ public class ElectMasterService extends AbstractComponent {
 
         @Override
         public int compare(DiscoveryNode o1, DiscoveryNode o2) {
-            if (o1.masterNode() && !o2.masterNode()) {
+            if (o1.isMasterNode() && !o2.isMasterNode()) {
                 return -1;
             }
-            if (!o1.masterNode() && o2.masterNode()) {
+            if (!o1.isMasterNode() && o2.isMasterNode()) {
                 return 1;
             }
-            return o1.id().compareTo(o2.id());
+            return o1.getId().compareTo(o2.getId());
         }
     }
 }

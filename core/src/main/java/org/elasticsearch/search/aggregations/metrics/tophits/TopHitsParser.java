@@ -121,7 +121,7 @@ public class TopHitsParser implements Aggregator.Parser {
                     }
                     factory.scriptFields(scriptFields);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SearchSourceBuilder.HIGHLIGHT_FIELD)) {
-                    factory.highlighter(HighlightBuilder.PROTOTYPE.fromXContent(context));
+                    factory.highlighter(HighlightBuilder.fromXContent(context));
                 } else if (context.parseFieldMatcher().match(currentFieldName, SearchSourceBuilder.SORT_FIELD)) {
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(context);
                     factory.sorts(sorts);

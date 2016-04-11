@@ -27,13 +27,13 @@ import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -171,16 +171,16 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
         }
 
         @Override
-        public Range process(ValueParser parser, SearchContext context) {
+        public Range process(DocValueFormat parser, SearchContext context) {
             assert parser != null;
             Double from = this.from;
             Double to = this.to;
             String key = this.key;
             if (fromAsStr != null) {
-                from = parser.parseDouble(fromAsStr, context);
+                from = parser.parseDouble(fromAsStr, false, context.nowCallable());
             }
             if (toAsStr != null) {
-                to = parser.parseDouble(toAsStr, context);
+                to = parser.parseDouble(toAsStr, false, context.nowCallable());
             }
             if (cidr != null) {
                 long[] fromTo = Cidrs.cidrMaskToMinMax(cidr);

@@ -21,8 +21,12 @@ package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.lang.management.ManagementFactory;
@@ -41,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 public class HotThreads {
 
     private static final Object mutex = new Object();
+    private static final ESLogger logger = Loggers.getLogger(HotThreads.class);
 
     private static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
@@ -130,13 +135,12 @@ public class HotThreads {
     }
 
     private String innerDetect() throws Exception {
-        StringBuilder sb = new StringBuilder();
-
-        if (Constants.FREE_BSD) {
-            sb.append("hot_threads is not supported on FreeBSD");
-            return sb.toString();
+        ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+        if (threadBean.isThreadCpuTimeSupported() == false) {
+            throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
 
+        StringBuilder sb = new StringBuilder();
         sb.append("Hot threads at ");
         sb.append(DATE_TIME_FORMATTER.printer().print(System.currentTimeMillis()));
         sb.append(", interval=");
@@ -147,158 +151,142 @@ public class HotThreads {
         sb.append(ignoreIdleThreads);
         sb.append(":\n");
 
-        ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
-        boolean enabledCpu = false;
-        try {
-            if (threadBean.isThreadCpuTimeSupported()) {
-                if (!threadBean.isThreadCpuTimeEnabled()) {
-                    enabledCpu = true;
-                    threadBean.setThreadCpuTimeEnabled(true);
-                }
+        Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
+        for (long threadId : threadBean.getAllThreadIds()) {
+            // ignore our own thread...
+            if (Thread.currentThread().getId() == threadId) {
+                continue;
+            }
+            long cpu = threadBean.getThreadCpuTime(threadId);
+            if (cpu == -1) {
+                continue;
+            }
+            ThreadInfo info = threadBean.getThreadInfo(threadId, 0);
+            if (info == null) {
+                continue;
+            }
+            threadInfos.put(threadId, new MyThreadInfo(cpu, info));
+        }
+        Thread.sleep(interval.millis());
+        for (long threadId : threadBean.getAllThreadIds()) {
+            // ignore our own thread...
+            if (Thread.currentThread().getId() == threadId) {
+                continue;
+            }
+            long cpu = threadBean.getThreadCpuTime(threadId);
+            if (cpu == -1) {
+                threadInfos.remove(threadId);
+                continue;
+            }
+            ThreadInfo info = threadBean.getThreadInfo(threadId, 0);
+            if (info == null) {
+                threadInfos.remove(threadId);
+                continue;
+            }
+            MyThreadInfo data = threadInfos.get(threadId);
+            if (data != null) {
+                data.setDelta(cpu, info);
             } else {
-                throw new IllegalStateException("MBean doesn't support thread CPU Time");
-            }
-            Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
-            for (long threadId : threadBean.getAllThreadIds()) {
-                // ignore our own thread...
-                if (Thread.currentThread().getId() == threadId) {
-                    continue;
-                }
-                long cpu = threadBean.getThreadCpuTime(threadId);
-                if (cpu == -1) {
-                    continue;
-                }
-                ThreadInfo info = threadBean.getThreadInfo(threadId, 0);
-                if (info == null) {
-                    continue;
-                }
-                threadInfos.put(threadId, new MyThreadInfo(cpu, info));
-            }
-            Thread.sleep(interval.millis());
-            for (long threadId : threadBean.getAllThreadIds()) {
-                // ignore our own thread...
-                if (Thread.currentThread().getId() == threadId) {
-                    continue;
-                }
-                long cpu = threadBean.getThreadCpuTime(threadId);
-                if (cpu == -1) {
-                    threadInfos.remove(threadId);
-                    continue;
-                }
-                ThreadInfo info = threadBean.getThreadInfo(threadId, 0);
-                if (info == null) {
-                    threadInfos.remove(threadId);
-                    continue;
-                }
-                MyThreadInfo data = threadInfos.get(threadId);
-                if (data != null) {
-                    data.setDelta(cpu, info);
-                } else {
-                    threadInfos.remove(threadId);
-                }
-            }
-            // sort by delta CPU time on thread.
-            List<MyThreadInfo> hotties = new ArrayList<>(threadInfos.values());
-            final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
-            // skip that for now
-            CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {
-                @Override
-                public int compare(MyThreadInfo o1, MyThreadInfo o2) {
-                    if ("cpu".equals(type)) {
-                        return (int) (o2.cpuTime - o1.cpuTime);
-                    } else if ("wait".equals(type)) {
-                        return (int) (o2.waitedTime - o1.waitedTime);
-                    } else if ("block".equals(type)) {
-                        return (int) (o2.blockedTime - o1.blockedTime);
-                    }
-                    throw new IllegalArgumentException();
-                }
-            });
-            // analyse N stack traces for M busiest threads
-            long[] ids = new long[busiestThreads];
-            for (int i = 0; i < busiestThreads; i++) {
-                MyThreadInfo info = hotties.get(i);
-                ids[i] = info.info.getThreadId();
-            }
-            ThreadInfo[][] allInfos = new ThreadInfo[threadElementsSnapshotCount][];
-            for (int j = 0; j < threadElementsSnapshotCount; j++) {
-                // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
-                // null will be set in the corresponding element in the returned array. A thread is alive if it has
-                // been started and has not yet died.
-                allInfos[j] = threadBean.getThreadInfo(ids, Integer.MAX_VALUE);
-                Thread.sleep(threadElementsSnapshotDelay.millis());
-            }
-            for (int t = 0; t < busiestThreads; t++) {
-                long time = 0;
-                if ("cpu".equals(type)) {
-                    time = hotties.get(t).cpuTime;
-                } else if ("wait".equals(type)) {
-                    time = hotties.get(t).waitedTime;
-                } else if ("block".equals(type)) {
-                    time = hotties.get(t).blockedTime;
-                }
-                String threadName = null;
-                for (ThreadInfo[] info : allInfos) {
-                    if (info != null && info[t] != null) {
-                        if (ignoreIdleThreads && isIdleThread(info[t])) {
-                            info[t] = null;
-                            continue;
-                        }
-                        threadName = info[t].getThreadName();
-                        break;
-                    }
-                }
-                if (threadName == null) {
-                    continue; // thread is not alive yet or died before the first snapshot - ignore it!
-                }
-                double percent = (((double) time) / interval.nanos()) * 100;
-                sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n", percent, TimeValue.timeValueNanos(time), interval, type, threadName));
-                // for each snapshot (2nd array index) find later snapshot for same thread with max number of
-                // identical StackTraceElements (starting from end of each)
-                boolean[] done = new boolean[threadElementsSnapshotCount];
-                for (int i = 0; i < threadElementsSnapshotCount; i++) {
-                    if (done[i]) continue;
-                    int maxSim = 1;
-                    boolean[] similars = new boolean[threadElementsSnapshotCount];
-                    for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
-                        if (done[j]) continue;
-                        int similarity = similarity(allInfos[i][t], allInfos[j][t]);
-                        if (similarity > maxSim) {
-                            maxSim = similarity;
-                            similars = new boolean[threadElementsSnapshotCount];
-                        }
-                        if (similarity == maxSim) similars[j] = true;
-                    }
-                    // print out trace maxSim levels of i, and mark similar ones as done
-                    int count = 1;
-                    for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
-                        if (similars[j]) {
-                            done[j] = true;
-                            count++;
-                        }
-                    }
-                    if (allInfos[i][t] != null) {
-                        final StackTraceElement[] show = allInfos[i][t].getStackTrace();
-                        if (count == 1) {
-                            sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
-                            for (int l = 0; l < show.length; l++) {
-                                sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
-                            }
-                        } else {
-                            sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n", count, threadElementsSnapshotCount, maxSim));
-                            for (int l = show.length - maxSim; l < show.length; l++) {
-                                sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
-                            }
-                        }
-                    }
-                }
-            }
-            return sb.toString();
-        } finally {
-            if (enabledCpu) {
-                threadBean.setThreadCpuTimeEnabled(false);
+                threadInfos.remove(threadId);
             }
         }
+        // sort by delta CPU time on thread.
+        List<MyThreadInfo> hotties = new ArrayList<>(threadInfos.values());
+        final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
+        // skip that for now
+        CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {
+            @Override
+            public int compare(MyThreadInfo o1, MyThreadInfo o2) {
+                if ("cpu".equals(type)) {
+                    return (int) (o2.cpuTime - o1.cpuTime);
+                } else if ("wait".equals(type)) {
+                    return (int) (o2.waitedTime - o1.waitedTime);
+                } else if ("block".equals(type)) {
+                    return (int) (o2.blockedTime - o1.blockedTime);
+                }
+                throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
+            }
+        });
+        // analyse N stack traces for M busiest threads
+        long[] ids = new long[busiestThreads];
+        for (int i = 0; i < busiestThreads; i++) {
+            MyThreadInfo info = hotties.get(i);
+            ids[i] = info.info.getThreadId();
+        }
+        ThreadInfo[][] allInfos = new ThreadInfo[threadElementsSnapshotCount][];
+        for (int j = 0; j < threadElementsSnapshotCount; j++) {
+            // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
+            // null will be set in the corresponding element in the returned array. A thread is alive if it has
+            // been started and has not yet died.
+            allInfos[j] = threadBean.getThreadInfo(ids, Integer.MAX_VALUE);
+            Thread.sleep(threadElementsSnapshotDelay.millis());
+        }
+        for (int t = 0; t < busiestThreads; t++) {
+            long time = 0;
+            if ("cpu".equals(type)) {
+                time = hotties.get(t).cpuTime;
+            } else if ("wait".equals(type)) {
+                time = hotties.get(t).waitedTime;
+            } else if ("block".equals(type)) {
+                time = hotties.get(t).blockedTime;
+            }
+            String threadName = null;
+            for (ThreadInfo[] info : allInfos) {
+                if (info != null && info[t] != null) {
+                    if (ignoreIdleThreads && isIdleThread(info[t])) {
+                        info[t] = null;
+                        continue;
+                    }
+                    threadName = info[t].getThreadName();
+                    break;
+                }
+            }
+            if (threadName == null) {
+                continue; // thread is not alive yet or died before the first snapshot - ignore it!
+            }
+            double percent = (((double) time) / interval.nanos()) * 100;
+            sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n", percent, TimeValue.timeValueNanos(time), interval, type, threadName));
+            // for each snapshot (2nd array index) find later snapshot for same thread with max number of
+            // identical StackTraceElements (starting from end of each)
+            boolean[] done = new boolean[threadElementsSnapshotCount];
+            for (int i = 0; i < threadElementsSnapshotCount; i++) {
+                if (done[i]) continue;
+                int maxSim = 1;
+                boolean[] similars = new boolean[threadElementsSnapshotCount];
+                for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
+                    if (done[j]) continue;
+                    int similarity = similarity(allInfos[i][t], allInfos[j][t]);
+                    if (similarity > maxSim) {
+                        maxSim = similarity;
+                        similars = new boolean[threadElementsSnapshotCount];
+                    }
+                    if (similarity == maxSim) similars[j] = true;
+                }
+                // print out trace maxSim levels of i, and mark similar ones as done
+                int count = 1;
+                for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
+                    if (similars[j]) {
+                        done[j] = true;
+                        count++;
+                    }
+                }
+                if (allInfos[i][t] != null) {
+                    final StackTraceElement[] show = allInfos[i][t].getStackTrace();
+                    if (count == 1) {
+                        sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
+                        for (int l = 0; l < show.length; l++) {
+                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                        }
+                    } else {
+                        sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n", count, threadElementsSnapshotCount, maxSim));
+                        for (int l = show.length - maxSim; l < show.length; l++) {
+                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                        }
+                    }
+                }
+            }
+        }
+        return sb.toString();
     }
 
     private static final StackTraceElement[] EMPTY = new StackTraceElement[0];

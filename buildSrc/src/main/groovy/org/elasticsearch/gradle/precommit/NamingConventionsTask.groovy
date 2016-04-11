@@ -68,6 +68,7 @@ public class NamingConventionsTask extends LoggedExec {
          */
         project.afterEvaluate {
             doFirst {
+                args('-Djna.nosys=true')
                 args('-cp', classpath.asPath, 'org.elasticsearch.test.NamingConventionsCheck')
                 if (skipIntegTestInDisguise) {
                     args('--skip-integ-tests-in-disguise')

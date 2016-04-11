@@ -46,7 +46,8 @@ public interface Writeable<T> extends StreamableReader<T> { // TODO remove exten
     @Override
     default T readFrom(StreamInput in) throws IOException {
         // See class javadoc for reasoning
-        throw new UnsupportedOperationException("Prefer calling a constructor that takes a StreamInput to calling readFrom.");
+        throw new UnsupportedOperationException(
+                "Prefer calling a constructor or static method that takes a StreamInput to calling readFrom.");
     }
 
     /**
@@ -56,6 +57,9 @@ public interface Writeable<T> extends StreamableReader<T> { // TODO remove exten
      */
     @FunctionalInterface
     interface Reader<R> {
-        R read(StreamInput t) throws IOException;
+        /**
+         * Read R from a stream.
+         */
+        R read(StreamInput in) throws IOException;
     }
 }

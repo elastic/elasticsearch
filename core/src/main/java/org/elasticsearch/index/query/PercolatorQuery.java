@@ -28,6 +28,8 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
@@ -36,12 +38,10 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.percolator.ExtractQueryTermsService;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
-import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 
 public final class PercolatorQuery extends Query implements Accountable {
 
@@ -135,9 +135,19 @@ public final class PercolatorQuery extends Query implements Accountable {
             public Explanation explain(LeafReaderContext leafReaderContext, int docId) throws IOException {
                 Scorer scorer = scorer(leafReaderContext);
                 if (scorer != null) {
-                    int result = scorer.iterator().advance(docId);
+                    TwoPhaseIterator twoPhaseIterator = scorer.twoPhaseIterator();
+                    int result = twoPhaseIterator.approximation().advance(docId);
                     if (result == docId) {
-                        return Explanation.match(scorer.score(), "PercolatorQuery");
+                        if (twoPhaseIterator.matches()) {
+                            if (needsScores) {
+                                QueryRegistry.Leaf percolatorQueries = queryRegistry.getQueries(leafReaderContext);
+                                Query query = percolatorQueries.getQuery(docId);
+                                Explanation detail = percolatorIndexSearcher.explain(query, 0);
+                                return Explanation.match(scorer.score(), "PercolatorQuery", detail);
+                            } else {
+                                return Explanation.match(scorer.score(), "PercolatorQuery");
+                            }
+                        }
                     }
                 }
                 return Explanation.noMatch("PercolatorQuery");
@@ -161,52 +171,46 @@ public final class PercolatorQuery extends Query implements Accountable {
                 }
 
                 final QueryRegistry.Leaf percolatorQueries = queryRegistry.getQueries(leafReaderContext);
-                return new Scorer(this) {
+                if (needsScores) {
+                    return new BaseScorer(this, approximation, percolatorQueries, percolatorIndexSearcher) {
 
-                    @Override
-                    public DocIdSetIterator iterator() {
-                        return TwoPhaseIterator.asDocIdSetIterator(twoPhaseIterator());
-                    }
+                        float score;
 
-                    @Override
-                    public TwoPhaseIterator twoPhaseIterator() {
-                        return new TwoPhaseIterator(approximation.iterator()) {
-                            @Override
-                            public boolean matches() throws IOException {
-                                return matchDocId(approximation.docID());
+                        @Override
+                        boolean matchDocId(int docId) throws IOException {
+                            Query query = percolatorQueries.getQuery(docId);
+                            if (query != null) {
+                                TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
+                                if (topDocs.totalHits > 0) {
+                                    score = topDocs.scoreDocs[0].score;
+                                    return true;
+                                } else {
+                                    return false;
+                                }
+                            } else {
+                                return false;
                             }
-
-                            @Override
-                            public float matchCost() {
-                                return MATCH_COST;
-                            }
-                        };
-                    }
-
-                    @Override
-                    public float score() throws IOException {
-                        return approximation.score();
-                    }
-
-                    @Override
-                    public int freq() throws IOException {
-                        return approximation.freq();
-                    }
-
-                    @Override
-                    public int docID() {
-                        return approximation.docID();
-                    }
-
-                    boolean matchDocId(int docId) throws IOException {
-                        Query query = percolatorQueries.getQuery(docId);
-                        if (query != null) {
-                            return Lucene.exists(percolatorIndexSearcher, query);
-                        } else {
-                            return false;
                         }
-                    }
-                };
+
+                        @Override
+                        public float score() throws IOException {
+                            return score;
+                        }
+                    };
+                } else {
+                    return new BaseScorer(this, approximation, percolatorQueries, percolatorIndexSearcher) {
+
+                        @Override
+                        public float score() throws IOException {
+                            return 0f;
+                        }
+
+                        boolean matchDocId(int docId) throws IOException {
+                            Query query = percolatorQueries.getQuery(docId);
+                            return query != null && Lucene.exists(percolatorIndexSearcher, query);
+                        }
+                    };
+                }
             }
         };
     }
@@ -270,6 +274,53 @@ public final class PercolatorQuery extends Query implements Accountable {
             Query getQuery(int docId);
 
         }
+
+    }
+
+    static abstract class BaseScorer extends Scorer {
+
+        final Scorer approximation;
+        final QueryRegistry.Leaf percolatorQueries;
+        final IndexSearcher percolatorIndexSearcher;
+
+        BaseScorer(Weight weight, Scorer approximation, QueryRegistry.Leaf percolatorQueries, IndexSearcher percolatorIndexSearcher) {
+            super(weight);
+            this.approximation = approximation;
+            this.percolatorQueries = percolatorQueries;
+            this.percolatorIndexSearcher = percolatorIndexSearcher;
+        }
+
+        @Override
+        public final DocIdSetIterator iterator() {
+            return TwoPhaseIterator.asDocIdSetIterator(twoPhaseIterator());
+        }
+
+        @Override
+        public final TwoPhaseIterator twoPhaseIterator() {
+            return new TwoPhaseIterator(approximation.iterator()) {
+                @Override
+                public boolean matches() throws IOException {
+                    return matchDocId(approximation.docID());
+                }
+
+                @Override
+                public float matchCost() {
+                    return MATCH_COST;
+                }
+            };
+        }
+
+        @Override
+        public final int freq() throws IOException {
+            return approximation.freq();
+        }
+
+        @Override
+        public final int docID() {
+            return approximation.docID();
+        }
+
+        abstract boolean matchDocId(int docId) throws IOException;
 
     }
 

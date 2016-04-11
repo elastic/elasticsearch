@@ -36,8 +36,12 @@ public class FakeRestRequest extends RestRequest {
     }
 
     public FakeRestRequest(Map<String, String> headers) {
+        this(headers, new HashMap<>());
+    }
+
+    public FakeRestRequest(Map<String, String> headers, Map<String, String> params) {
         this.headers = headers;
-        this.params = new HashMap<>();
+        this.params = params;
     }
 
     @Override

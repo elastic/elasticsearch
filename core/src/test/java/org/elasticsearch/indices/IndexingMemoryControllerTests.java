@@ -19,26 +19,43 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTests;
+import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -377,4 +394,51 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             }
         });
     }
+
+    public void testTranslogRecoveryWorksWithIMC() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexService(resolveIndex("test"));
+        IndexShard shard = indexService.getShardOrNull(0);
+        for (int i = 0; i < 100; i++) {
+            client().prepareIndex("test", "test", Integer.toString(i)).setSource("{\"foo\" : \"bar\"}").get();
+        }
+
+        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
+        shard.close("simon says", false);
+        AtomicReference<IndexShard> shardRef = new AtomicReference<>();
+        Settings settings = Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "50kb").build();
+        Iterable<IndexShard> iterable = () -> (shardRef.get() == null) ? Collections.<IndexShard>emptyList().iterator()
+            : Collections.singleton(shardRef.get()).iterator();
+        AtomicInteger flushes = new AtomicInteger();
+        IndexingMemoryController imc = new IndexingMemoryController(settings, client().threadPool(), iterable) {
+            @Override
+            protected void writeIndexingBufferAsync(IndexShard shard) {
+                assertEquals(shard, shardRef.get());
+                flushes.incrementAndGet();
+                shard.writeIndexingBuffer();
+            }
+        };
+        final IndexShard newShard = IndexShardTests.newIndexShard(indexService, shard, wrapper, imc);
+        shardRef.set(newShard);
+        try {
+            assertEquals(0, imc.availableShards().size());
+            ShardRouting routing = new ShardRouting(shard.routingEntry());
+            ShardRoutingHelper.reinit(routing);
+            newShard.updateRoutingEntry(routing, false);
+            DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
+
+            assertEquals(1, imc.availableShards().size());
+            assertTrue(newShard.recoverFromStore(localNode));
+            assertTrue("we should have flushed in IMC at least once but did: " + flushes.get(), flushes.get() >= 1);
+            routing = new ShardRouting(routing);
+            ShardRoutingHelper.moveToStarted(routing);
+            newShard.updateRoutingEntry(routing, true);
+        } finally {
+            newShard.close("simon says", false);
+        }
+    }
+
 }

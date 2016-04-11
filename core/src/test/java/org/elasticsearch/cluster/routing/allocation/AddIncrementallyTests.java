@@ -43,13 +43,12 @@ import java.util.Collections;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class AddIncrementallyTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(AddIncrementallyTests.class);
 
     public void testAddNodesAndIndices() {
-        Settings.Builder settings = settingsBuilder();
+        Settings.Builder settings = Settings.builder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         AllocationService service = createAllocationService(settings.build());
 
@@ -92,7 +91,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
     }
 
     public void testMinimalRelocations() {
-        Settings.Builder settings = settingsBuilder();
+        Settings.Builder settings = Settings.builder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString())
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 2);
         AllocationService service = createAllocationService(settings.build());
@@ -160,7 +159,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
     }
 
     public void testMinimalRelocationsNoLimit() {
-        Settings.Builder settings = settingsBuilder();
+        Settings.Builder settings = Settings.builder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString())
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100);
@@ -389,7 +388,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         ArrayList<DiscoveryNode> discoveryNodes = CollectionUtils.iterableAsArrayList(clusterState.nodes());
         Collections.shuffle(discoveryNodes, random());
         for (DiscoveryNode node : discoveryNodes) {
-            nodes.remove(node.id());
+            nodes.remove(node.getId());
             numNodes--;
             if (numNodes <= 0) {
                 break;

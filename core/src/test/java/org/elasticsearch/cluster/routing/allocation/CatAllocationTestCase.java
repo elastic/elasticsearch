@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import java.io.BufferedReader;
@@ -48,7 +48,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * A base testcase that allows to run tests based on the output of the CAT API
@@ -135,7 +134,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
     }
 
     private ClusterState rebalance(ClusterState clusterState) {
-        RoutingTable routingTable;AllocationService strategy = createAllocationService(settingsBuilder()
+        RoutingTable routingTable;AllocationService strategy = createAllocationService(Settings.builder()
                 .build());
         RoutingAllocation.Result reroute = strategy.reroute(clusterState, "reroute");
         routingTable = reroute.routingTable();

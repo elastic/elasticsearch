@@ -84,6 +84,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final String DEFAULT_MAPPING = "_default_";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.total_fields.limit", 1000L, 0, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING =
+            Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.IndexScope);
@@ -283,7 +287,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
 
         if (reason == MergeReason.MAPPING_UPDATE) {
+            // this check will only be performed on the master node when there is
+            // a call to the update mapping API. For all other cases like
+            // the master node restoring mappings from disk or data nodes
+            // deserializing cluster state that was sent by the master node,
+            // this check will be skipped.
             checkNestedFieldsLimit(fullPathObjectMappers);
+            checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size());
+            checkDepthLimit(fullPathObjectMappers.keySet());
         }
 
         Set<String> parentTypes = this.parentTypes;
@@ -350,6 +361,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private void checkFieldUniqueness(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+        assert Thread.holdsLock(this);
+
+        // first check within mapping
         final Set<String> objectFullNames = new HashSet<>();
         for (ObjectMapper objectMapper : objectMappers) {
             final String fullPath = objectMapper.fullPath();
@@ -367,12 +381,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new IllegalArgumentException("Field [" + name + "] is defined twice in [" + type + "]");
             }
         }
+
+        // then check other types
+        for (String fieldName : fieldNames) {
+            if (fullPathObjectMappers.containsKey(fieldName)) {
+                throw new IllegalArgumentException("[" + fieldName + "] is defined as a field in mapping [" + type
+                        + "] but this name is already used for an object in other types");
+            }
+        }
+
+        for (String objectPath : objectFullNames) {
+            if (fieldTypes.get(objectPath) != null) {
+                throw new IllegalArgumentException("[" + objectPath + "] is defined as an object in mapping [" + type
+                        + "] but this name is already used for a field in other types");
+            }
+        }
     }
 
     private void checkObjectsCompatibility(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert Thread.holdsLock(this);
-
-        checkFieldUniqueness(type, objectMappers, fieldMappers);
 
         for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
@@ -380,12 +407,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // simulate a merge and ignore the result, we are just interested
                 // in exceptions here
                 existingObjectMapper.merge(newObjectMapper, updateAllTypes);
-            }
-        }
-
-        for (FieldMapper fieldMapper : fieldMappers) {
-            if (fullPathObjectMappers.containsKey(fieldMapper.name())) {
-                throw new IllegalArgumentException("Field [" + fieldMapper.name() + "] is defined as a field in mapping [" + type + "] but this name is already used for an object in other types");
             }
         }
     }
@@ -398,8 +419,36 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 actualNestedFields++;
             }
         }
-        if (allowedNestedFields >= 0 && actualNestedFields > allowedNestedFields) {
+        if (actualNestedFields > allowedNestedFields) {
             throw new IllegalArgumentException("Limit of nested fields [" + allowedNestedFields + "] in index [" + index().getName() + "] has been exceeded");
+        }
+    }
+
+    private void checkTotalFieldsLimit(long totalMappers) {
+        long allowedTotalFields = indexSettings.getValue(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        if (allowedTotalFields < totalMappers) {
+            throw new IllegalArgumentException("Limit of total fields [" + allowedTotalFields + "] in index [" + index().getName() + "] has been exceeded");
+        }
+    }
+
+    private void checkDepthLimit(Collection<String> objectPaths) {
+        final long maxDepth = indexSettings.getValue(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
+        for (String objectPath : objectPaths) {
+            checkDepthLimit(objectPath, maxDepth);
+        }
+    }
+
+    private void checkDepthLimit(String objectPath, long maxDepth) {
+        int numDots = 0;
+        for (int i = 0; i < objectPath.length(); ++i) {
+            if (objectPath.charAt(i) == '.') {
+                numDots += 1;
+            }
+        }
+        final int depth = numDots + 2;
+        if (depth > maxDepth) {
+            throw new IllegalArgumentException("Limit of mapping depth [" + maxDepth + "] in index [" + index().getName()
+                    + "] has been exceeded due to object field [" + objectPath + "]");
         }
     }
 
@@ -481,6 +530,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given a type (eg. long, string, ...), return an anonymous field mapper that can be used for search operations.
      */
     public MappedFieldType unmappedFieldType(String type) {
+        if (type.equals("string")) {
+            deprecationLogger.deprecated("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
+            type = "keyword";
+        }
         MappedFieldType fieldType = unmappedFieldTypes.get(type);
         if (fieldType == null) {
             final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext(type);

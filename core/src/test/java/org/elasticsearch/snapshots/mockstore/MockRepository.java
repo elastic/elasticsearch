@@ -54,8 +54,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 public class MockRepository extends FsRepository {
 
     public static class Plugin extends org.elasticsearch.plugins.Plugin {
@@ -146,7 +144,7 @@ public class MockRepository extends FsRepository {
     private static Settings localizeLocation(Settings settings, ClusterService clusterService) {
         Path location = PathUtils.get(settings.get("location"));
         location = location.resolve(clusterService.localNode().getId());
-        return settingsBuilder().put(settings).put("location", location.toAbsolutePath()).build();
+        return Settings.builder().put(settings).put("location", location.toAbsolutePath()).build();
     }
 
     private long incrementAndGetFailureCount() {

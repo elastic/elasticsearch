@@ -22,13 +22,13 @@ package org.elasticsearch.search.preference;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.not;
 public class SearchPreferenceIT extends ESIntegTestCase {
     // see #2896
     public void testStopOneNodePreferenceWithRedState() throws InterruptedException, IOException {
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", cluster().numDataNodes()+2).put("index.number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", cluster().numDataNodes()+2).put("index.number_of_replicas", 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").execute().actionGet();
@@ -71,7 +71,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     public void testNoPreferenceRandom() throws Exception {
         assertAcked(prepareCreate("test").setSettings(
                 //this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
-                settingsBuilder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
+                Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
         ));
         ensureGreen();
 

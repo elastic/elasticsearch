@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -32,8 +33,6 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,18 +45,18 @@ import java.util.Map;
  */
 public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAggregator {
 
-    protected ValueFormatter formatter;
+    protected DocValueFormat format;
     protected GapPolicy gapPolicy;
 
     public BucketMetricsPipelineAggregator() {
         super();
     }
 
-    protected BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter,
+    protected BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat format,
             Map<String, Object> metaData) {
         super(name, bucketsPaths, metaData);
         this.gapPolicy = gapPolicy;
-        this.formatter = formatter;
+        this.format = format;
     }
 
     @Override
@@ -113,13 +112,13 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        formatter = ValueFormatterStreams.readOptional(in);
+        format = in.readValueFormat();
         gapPolicy = GapPolicy.readFrom(in);
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(formatter, out);
+        out.writeValueFormat(format);
         gapPolicy.writeTo(out);
     }
 

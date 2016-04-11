@@ -24,7 +24,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.action.support.ToXContentToBytes;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -55,32 +54,16 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
     protected SortOrder order = SortOrder.ASC;
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
-    private static final Map<String, SortBuilder<?>> PARSERS;
-
+    private static final Map<String, Parser<?>> PARSERS;
     static {
-        Map<String, SortBuilder<?>> parsers = new HashMap<>();
-        parsers.put(ScriptSortBuilder.NAME, ScriptSortBuilder.PROTOTYPE);
-        parsers.put(GeoDistanceSortBuilder.NAME, new GeoDistanceSortBuilder("_na_", -1, -1));
-        parsers.put(GeoDistanceSortBuilder.ALTERNATIVE_NAME, new GeoDistanceSortBuilder("_na_", -1, -1));
-        parsers.put(ScoreSortBuilder.NAME, ScoreSortBuilder.PROTOTYPE);
+        Map<String, Parser<?>> parsers = new HashMap<>();
+        parsers.put(ScriptSortBuilder.NAME, ScriptSortBuilder::fromXContent);
+        parsers.put(GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::fromXContent);
+        parsers.put(GeoDistanceSortBuilder.ALTERNATIVE_NAME, GeoDistanceSortBuilder::fromXContent);
+        parsers.put(ScoreSortBuilder.NAME, ScoreSortBuilder::fromXContent);
+        // FieldSortBuilder gets involved if the user specifies a name that isn't one of these.
         PARSERS = unmodifiableMap(parsers);
     }
-
-    /**
-     * Creates a new {@link SortBuilder} from the query held by the {@link QueryParseContext}
-     * in {@link org.elasticsearch.common.xcontent.XContent} format
-     *
-     * @param parseContext
-     *            the input parse context. The state on the parser contained in
-     *            this context will be changed as a side effect of this method call
-     * @param fieldName
-     *            in some sort syntax variations the field name precedes the xContent object that
-     *            specifies further parameters, e.g. in '{ "foo": { "order" : "asc"} }'. When
-     *            parsing the inner object, the field name can be passed in via this argument
-     *
-     * @return the new sort builder instance
-     */
-    protected abstract T fromXContent(QueryParseContext parseContext, @Nullable String fieldName) throws IOException;
 
     /**
      * Create a @link {@link SortField} from this builder.
@@ -153,7 +136,7 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
                     if (PARSERS.containsKey(fieldName)) {
                         sortFields.add(PARSERS.get(fieldName).fromXContent(context, fieldName));
                     } else {
-                        sortFields.add(FieldSortBuilder.PROTOTYPE.fromXContent(context, fieldName));
+                        sortFields.add(FieldSortBuilder.fromXContent(context, fieldName));
                     }
                 }
             }
@@ -217,5 +200,10 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
             nested = new Nested(rootDocumentsFilter,  innerDocumentsQuery);
         }
         return nested;
+    }
+
+    @FunctionalInterface
+    private interface Parser<T extends SortBuilder<?>> {
+        T fromXContent(QueryParseContext context, String elementName) throws IOException;
     }
 }

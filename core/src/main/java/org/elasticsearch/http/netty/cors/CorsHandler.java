@@ -31,7 +31,6 @@ import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 
-import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_CREDENTIALS;
@@ -214,10 +213,9 @@ public class CorsHandler extends SimpleChannelUpstreamHandler {
     }
 
     private void setAllowMethods(final HttpResponse response) {
-        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS,
-            String.join(", ", config.allowedRequestMethods().stream()
-                                          .map(HttpMethod::getName)
-                                          .collect(Collectors.toList())).trim());
+        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, config.allowedRequestMethods().stream()
+                                          .map(m -> m.getName().trim())
+                                          .collect(Collectors.toList()));
     }
 
     private void setAllowHeaders(final HttpResponse response) {

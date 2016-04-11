@@ -78,9 +78,9 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
     public void nodeIndexDeleted(final ClusterState clusterState, final Index index, final IndexSettings indexSettings, final String nodeId) {
         final DiscoveryNodes nodes = clusterState.nodes();
-        transportService.sendRequest(clusterState.nodes().masterNode(),
+        transportService.sendRequest(clusterState.nodes().getMasterNode(),
                 INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
-        if (nodes.localNode().isDataNode() == false) {
+        if (nodes.getLocalNode().isDataNode() == false) {
             logger.trace("[{}] not acking store deletion (not a data node)", index);
             return;
         }
@@ -104,7 +104,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             // due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the lock is released so it's guaranteed to be
             // deleted by the time we get the lock
             indicesService.processPendingDeletes(indexSettings.getIndex(), indexSettings, new TimeValue(30, TimeUnit.MINUTES));
-            transportService.sendRequest(clusterState.nodes().masterNode(),
+            transportService.sendRequest(clusterState.nodes().getMasterNode(),
                     INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         } catch (LockObtainFailedException exc) {
             logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);

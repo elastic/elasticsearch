@@ -223,8 +223,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    protected GeoQueryContext prototype() {
-        return GeoQueryContext.PROTOTYPE;
+    protected GeoQueryContext fromXContent(XContentParser parser) throws IOException {
+        return GeoQueryContext.fromXContent(parser);
     }
 
     /**

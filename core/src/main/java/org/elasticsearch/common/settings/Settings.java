@@ -734,14 +734,10 @@ public final class Settings implements ToXContent {
         }
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
     /**
      * Returns a builder to be used in order to build settings.
      */
-    public static Builder settingsBuilder() {
+    public static Builder builder() {
         return new Builder();
     }
 
@@ -770,7 +766,7 @@ public final class Settings implements ToXContent {
 
     /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
-     * settings implementation. Use {@link Settings#settingsBuilder()} in order to
+     * settings implementation. Use {@link Settings#builder()} in order to
      * construct it.
      */
     public static class Builder {

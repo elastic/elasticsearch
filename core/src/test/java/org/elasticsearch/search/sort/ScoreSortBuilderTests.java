@@ -22,6 +22,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -77,13 +78,38 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
 
         context.reset(parser);
-        ScoreSortBuilder scoreSort = ScoreSortBuilder.PROTOTYPE.fromXContent(context, "_score");
+        ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(context, "_score");
         assertEquals(order, scoreSort.order());
+    }
+
+    public void testReverseOptionFails() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String json = "{ \"_score\": { \"reverse\": true }}";
+        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        // need to skip until parser is located on second START_OBJECT
+        parser.nextToken();
+        parser.nextToken();
+        parser.nextToken();
+
+        context.reset(parser);
+
+        try {
+          ScoreSortBuilder.fromXContent(context, "_score");
+          fail("adding reverse sorting option should fail with an exception");
+        } catch (ParsingException e) {
+            // all good
+        }
     }
 
     @Override
     protected void sortFieldAssertions(ScoreSortBuilder builder, SortField sortField) {
         assertEquals(SortField.Type.SCORE, sortField.getType());
         assertEquals(builder.order() == SortOrder.DESC ? false : true, sortField.getReverse());
+    }
+
+    @Override
+    protected ScoreSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
+        return ScoreSortBuilder.fromXContent(context, fieldName);
     }
 }

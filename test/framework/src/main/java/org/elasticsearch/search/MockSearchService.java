@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MockSearchService extends SearchService {
-
     public static class TestPlugin extends Plugin {
         @Override
         public String name() {
@@ -59,11 +58,28 @@ public class MockSearchService extends SearchService {
     private static final Map<SearchContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
-    public static void assertNoInFLightContext() {
+    public static void assertNoInFlightContext() {
         final Map<SearchContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {
-            throw new AssertionError("There are still " + copy.size() + " in-flight contexts", copy.values().iterator().next());
+            throw new AssertionError(
+                    "There are still [" + copy.size()
+                            + "] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
+                    copy.values().iterator().next());
         }
+    }
+
+    /**
+     * Add an active search context to the list of tracked contexts. Package private for testing.
+     */
+    static void addActiveContext(SearchContext context) {
+        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(context.toString()));
+    }
+
+    /**
+     * Clear an active search context from the list of tracked contexts. Package private for testing.
+     */
+    static void removeActiveContext(SearchContext context) {
+        ACTIVE_SEARCH_CONTEXTS.remove(context);
     }
 
     @Inject
@@ -78,14 +94,14 @@ public class MockSearchService extends SearchService {
     @Override
     protected void putContext(SearchContext context) {
         super.putContext(context);
-        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException());
+        addActiveContext(context);
     }
 
     @Override
     protected SearchContext removeContext(long id) {
         final SearchContext removed = super.removeContext(id);
         if (removed != null) {
-            ACTIVE_SEARCH_CONTEXTS.remove(removed);
+            removeActiveContext(removed);
         }
         return removed;
     }

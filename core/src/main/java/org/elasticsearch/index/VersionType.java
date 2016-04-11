@@ -266,8 +266,6 @@ public enum VersionType implements Writeable<VersionType> {
 
     private final byte value;
 
-    private static final VersionType PROTOTYPE = INTERNAL;
-
     VersionType(byte value) {
         this.value = value;
     }
@@ -383,15 +381,10 @@ public enum VersionType implements Writeable<VersionType> {
         throw new IllegalArgumentException("No version type match [" + value + "]");
     }
 
-    @Override
-    public VersionType readFrom(StreamInput in) throws IOException {
+    public static VersionType readVersionTypeFrom(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         assert (ordinal == 0 || ordinal == 1 || ordinal == 2 || ordinal == 3);
         return VersionType.values()[ordinal];
-    }
-
-    public static VersionType readVersionTypeFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
     }
 
     @Override

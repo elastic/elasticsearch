@@ -52,8 +52,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 /**
  * Service responsible for submitting update index settings requests
  */
@@ -79,11 +77,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // update an index with number of replicas based on data nodes if possible
-        if (!event.state().nodes().localNodeMaster()) {
+        if (!event.state().nodes().isLocalNodeElectedMaster()) {
             return;
         }
         // we will want to know this for translating "all" to a number
-        final int dataNodeCount = event.state().nodes().dataNodes().size();
+        final int dataNodeCount = event.state().nodes().getDataNodes().size();
 
         Map<Integer, List<Index>> nrReplicasChanged = new HashMap<>();
         // we need to do this each time in case it was changed by update settings
@@ -124,7 +122,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         if (nrReplicasChanged.size() > 0) {
             // update settings and kick of a reroute (implicit) for them to take effect
             for (final Integer fNumberOfReplicas : nrReplicasChanged.keySet()) {
-                Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
+                Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                 final List<Index> indices = nrReplicasChanged.get(fNumberOfReplicas);
 
                 UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest()
@@ -152,7 +150,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        final Settings normalizedSettings = Settings.settingsBuilder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+        final Settings normalizedSettings = Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
         Settings.Builder skipppedSettings = Settings.builder();
@@ -316,7 +314,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         if (Version.CURRENT.equals(indexMetaData.getCreationVersion()) == false) {
                             // No reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
-                                            .settings(settingsBuilder().put(indexMetaData.getSettings())
+                                            .settings(Settings.builder().put(indexMetaData.getSettings())
                                                             .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue().v2())
                                                             .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
                                             )

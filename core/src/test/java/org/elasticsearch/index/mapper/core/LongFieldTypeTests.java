@@ -20,7 +20,11 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.mapper.core.LongFieldMapper.LongFieldType;
 import org.junit.Before;
+
+import java.io.IOException;
 
 public class LongFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -31,5 +35,12 @@ public class LongFieldTypeTests extends FieldTypeTestCase {
     @Before
     public void setupProperties() {
         setDummyNullValue((long)10);
+    }
+
+    public void testIsFieldWithinQuery() throws IOException {
+        LongFieldType ft = new LongFieldType();
+        // current impl ignores args and shourd always return INTERSECTS
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomLong(), randomLong(),
+                randomBoolean(), randomBoolean(), null, null));
     }
 }

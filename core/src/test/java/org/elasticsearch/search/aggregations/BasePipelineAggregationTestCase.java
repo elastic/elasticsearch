@@ -36,8 +36,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
@@ -99,9 +102,9 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
 
     private static NamedWriteableRegistry namedWriteableRegistry;
 
-    private static AggregatorParsers aggParsers;
-    private static ParseFieldMatcher parseFieldMatcher;
-    private static IndicesQueriesRegistry queriesRegistry;
+    protected static AggregatorParsers aggParsers;
+    protected static ParseFieldMatcher parseFieldMatcher;
+    protected static IndicesQueriesRegistry queriesRegistry;
 
     protected abstract AF createTestAggregatorFactory();
 
@@ -113,7 +116,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version version = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
@@ -121,7 +124,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
 
         namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        Settings indexSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         final ThreadPool threadPool = new ThreadPool(settings);
         final ClusterService clusterService = createClusterService(threadPool);
         setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
@@ -174,11 +177,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
                     protected void configureSearch() {
                         // Skip me
                     }
-
-                    @Override
-                    protected void configureSuggesters() {
-                        // Skip me
-                    }
                 },
                 new IndexSettingsModule(index, settings),
                 new AbstractModule() {
@@ -221,9 +219,14 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
     public void testFromXContent() throws IOException {
         AF testAgg = createTestAggregatorFactory();
         AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().skipResolveOrder().addPipelineAggregator(testAgg);
-        String contentString = factoriesBuilder.toString();
-        logger.info("Content string: {}", contentString);
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
+        logger.info("Content string: {}", factoriesBuilder);
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+        XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
         parseContext.reset(parser);
         parseContext.parseFieldMatcher(parseFieldMatcher);

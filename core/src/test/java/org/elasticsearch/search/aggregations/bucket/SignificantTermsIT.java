@@ -77,7 +77,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 5, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("fact",
                 "_routing", "required=true", "routing_id", "type=keyword", "fact_category",
-                "type=integer,index=true", "description", "type=text,index=true"));
+                "type=integer,index=true", "description", "type=text,fielddata=true"));
         createIndex("idx_unmapped");
 
         ensureGreen();

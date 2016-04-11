@@ -127,7 +127,7 @@ GET /hockey-stats/_search
   },
   "sort": {
     "_script": {
-      "type": "string",
+      "type": "keyword",
       "order": "asc",
       "script": {
         "lang": "painless",

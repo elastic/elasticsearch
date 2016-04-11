@@ -30,12 +30,14 @@ import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
@@ -52,7 +54,9 @@ import java.util.Set;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
-    public static final CompletionSuggester PROTOTYPE = new CompletionSuggester();
+    public static final CompletionSuggester INSTANCE = new CompletionSuggester();
+
+    private CompletionSuggester() {}
 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
@@ -267,7 +271,12 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     }
 
     @Override
-    public SuggestionBuilder<?> getBuilderPrototype() {
-        return CompletionSuggestionBuilder.PROTOTYPE;
+    public SuggestionBuilder<?> innerFromXContent(QueryParseContext context) throws IOException {
+        return CompletionSuggestionBuilder.innerFromXContent(context);
+    }
+
+    @Override
+    public SuggestionBuilder<?> read(StreamInput in) throws IOException {
+        return new CompletionSuggestionBuilder(in);
     }
 }

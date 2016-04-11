@@ -26,6 +26,19 @@ should be used instead.
 The `name` setting has been removed and is replaced by `node.name`. Usage of
 `-Dname=some_node_name` is not supported anymore.
 
+==== Node attribute settings
+
+Node level attributes used for allocation filtering, forced awareness or other node identification / grouping
+must be prefixed with `node.attr`. In previous versions it was possible to specify node attributes with the `node.`
+prefix. All node attributes except of `node.master`, `node.data` and `node.ingest` must be moved to the new `node.attr.`
+namespace.
+
+==== Node types settings
+
+The `node.client` setting has been removed. A node with such a setting set will not
+start up. Instead, each node role needs to be set separately using the existing
+`node.master`, `node.data` and `node.ingest` supported static settings.
+
 ==== Gateway settings
 
 The `gateway.format` setting for configuring global and index state serialization
@@ -210,3 +223,11 @@ setting settings via `--name.of.setting value.of.setting`. This feature
 has been removed. Instead, use
 `-Ees.name.of.setting=value.of.setting`. Note that in all cases the
 name of the setting must be prefixed with `es.`.
+
+==== Discovery Settings
+
+The `discovery.zen.minimum_master_node` must bet set for nodes that have
+`network.host`, `network.bind_host`, `network.publish_host`,
+`transport.host`, `transport.bind_host`, or `transport.publish_host`
+configuration options set. We see those nodes as in "production" mode
+and thus require the setting.

@@ -53,7 +53,6 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -67,7 +66,7 @@ public class NettyTransportIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(Node.NODE_MODE_SETTING.getKey(), "network")
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "exception-throwing").build();
     }

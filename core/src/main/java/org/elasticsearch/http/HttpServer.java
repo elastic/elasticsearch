@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -93,7 +94,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
         return transport.stats();
     }
 
-    public void dispatchRequest(HttpRequest request, HttpChannel channel, ThreadContext threadContext) {
+    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         if (request.rawPath().equals("/favicon.ico")) {
             handleFavicon(request, channel);
             return;
@@ -101,7 +102,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
         restController.dispatchRequest(request, channel, threadContext);
     }
 
-    void handleFavicon(HttpRequest request, HttpChannel channel) {
+    void handleFavicon(RestRequest request, RestChannel channel) {
         if (request.method() == RestRequest.Method.GET) {
             try {
                 try (InputStream stream = getClass().getResourceAsStream("/config/favicon.ico")) {

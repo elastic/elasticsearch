@@ -128,4 +128,33 @@ public class Build {
     public String toString() {
         return "[" + shortHash + "][" + date + "]";
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        Build build = (Build) o;
+
+        if (isSnapshot != build.isSnapshot) {
+            return false;
+        }
+        if (!shortHash.equals(build.shortHash)) {
+            return false;
+        }
+        return date.equals(build.date);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (isSnapshot ? 1 : 0);
+        result = 31 * result + shortHash.hashCode();
+        result = 31 * result + date.hashCode();
+        return result;
+    }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.action.admin.cluster.allocation.RestClusterAllocationExplainAction;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
@@ -63,7 +64,6 @@ import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasks
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetAliasesAction;
-import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.head.RestAliasesExistAction;
 import org.elasticsearch.rest.action.admin.indices.alias.put.RestIndexPutAliasAction;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
@@ -111,6 +111,7 @@ import org.elasticsearch.rest.action.cat.RestRepositoriesAction;
 import org.elasticsearch.rest.action.cat.RestSegmentsAction;
 import org.elasticsearch.rest.action.cat.RestShardsAction;
 import org.elasticsearch.rest.action.cat.RestSnapshotAction;
+import org.elasticsearch.rest.action.cat.RestTasksAction;
 import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
@@ -171,6 +172,7 @@ public class NetworkModule extends AbstractModule {
         RestNodesInfoAction.class,
         RestNodesStatsAction.class,
         RestNodesHotThreadsAction.class,
+        RestClusterAllocationExplainAction.class,
         RestClusterStatsAction.class,
         RestClusterStateAction.class,
         RestClusterHealthAction.class,
@@ -200,7 +202,6 @@ public class NetworkModule extends AbstractModule {
         RestIndexDeleteAliasesAction.class,
         RestIndexPutAliasAction.class,
         RestIndicesAliasesAction.class,
-        RestGetIndicesAliasesAction.class,
         RestCreateIndexAction.class,
         RestDeleteIndexAction.class,
         RestCloseIndexAction.class,
@@ -284,6 +285,7 @@ public class NetworkModule extends AbstractModule {
         RestShardsAction.class,
         RestMasterAction.class,
         RestNodesAction.class,
+        RestTasksAction.class,
         RestIndicesAction.class,
         RestSegmentsAction.class,
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
@@ -385,7 +387,7 @@ public class NetworkModule extends AbstractModule {
         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
 
         transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, NETTY_TRANSPORT);
-        String defaultTransport = DiscoveryNode.localNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
+        String defaultTransport = DiscoveryNode.isLocalNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
 
         if (transportClient) {

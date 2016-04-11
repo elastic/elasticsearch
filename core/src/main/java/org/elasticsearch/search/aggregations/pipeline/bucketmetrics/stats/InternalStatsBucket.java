@@ -20,11 +20,11 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +47,7 @@ public class InternalStatsBucket extends InternalStats implements StatsBucket {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    public InternalStatsBucket(String name, long count, double sum, double min, double max, ValueFormatter formatter,
+    public InternalStatsBucket(String name, long count, double sum, double min, double max, DocValueFormat formatter,
                                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }

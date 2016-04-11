@@ -58,10 +58,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Random;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.PROTO;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -79,16 +76,16 @@ public class IndexStatsIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
                 .build();
     }
 
     @Override
     public Settings indexSettings() {
-        return Settings.settingsBuilder().put(super.indexSettings())
+        return Settings.builder().put(super.indexSettings())
             .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
-            .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), IndexModule.INDEX_QUERY_CACHE)
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
             .build();
     }
 
@@ -97,7 +94,10 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testFieldDataStats() {
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
+                .addMapping("type", "field", "type=text,fielddata=true",
+                        "field2", "type=text,fielddata=true").get());
         ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
@@ -141,9 +141,9 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testClearAllCaches() throws Exception {
-        client().admin().indices().prepareCreate("test")
+        assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
-                .execute().actionGet();
+                .addMapping("type", "field", "type=text,fielddata=true").get());
         ensureGreen();
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test", "type", "1").setSource("field", "value1").execute().actionGet();
@@ -592,7 +592,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(true));
             assertThat(isSet(flag, stats.getTotal()), equalTo(true));
         }
-        Random random = getRandom();
+        Random random = random();
         EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
         for (Flag flag : values) {
             if (random.nextBoolean()) {
@@ -638,7 +638,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             flags.set(flag, true);
         }
         assertThat(flags.anySet(), equalTo(true));
-        Random random = getRandom();
+        Random random = random();
         flags.set(values[random.nextInt(values.length)], false);
         assertThat(flags.anySet(), equalTo(true));
 
@@ -719,7 +719,9 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testFieldDataFieldsParam() throws Exception {
-        createIndex("test1");
+        assertAcked(client().admin().indices().prepareCreate("test1")
+                .addMapping("type", "bar", "type=text,fielddata=true",
+                        "baz", "type=text,fielddata=true").get());
 
         ensureGreen();
 

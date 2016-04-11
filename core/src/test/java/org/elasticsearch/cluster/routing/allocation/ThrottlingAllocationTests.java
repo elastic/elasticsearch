@@ -37,7 +37,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -47,7 +46,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
 
     public void testPrimaryRecoveryThrottling() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .build());
@@ -107,7 +106,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
     }
 
     public void testReplicaAndPrimaryRecoveryThrottling() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
                 .put("cluster.routing.allocation.concurrent_source_recoveries", 3)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
@@ -177,7 +176,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
     }
 
     public void testThrottleIncomingAndOutgoing() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 5)
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", 5)
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 5)
@@ -244,7 +243,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
     }
 
     public void testOutgoingThrottlesAllocaiton() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 1)
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", 1)
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 1)

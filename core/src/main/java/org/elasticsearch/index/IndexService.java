@@ -19,18 +19,7 @@
 
 package org.elasticsearch.index;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -68,6 +57,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShadowIndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -81,6 +71,20 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -109,11 +113,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
-    private final IndexingSlowLog slowLog;
-    private final IndexingOperationListener[] listeners;
+    private final List<IndexingOperationListener> indexingOperationListeners;
+    private final List<SearchOperationListener> searchOperationListeners;
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
-    private final SearchSlowLog searchSlowLog;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
 
@@ -129,7 +132,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                         IndexModule.IndexSearcherWrapperFactory wrapperFactory,
                         MapperRegistry mapperRegistry,
                         IndicesFieldDataCache indicesFieldDataCache,
-                        IndexingOperationListener... listenersIn) throws IOException {
+                        List<SearchOperationListener> searchOperationListeners,
+                        List<IndexingOperationListener> indexingOperationListeners) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.analysisService = registry.build(indexSettings);
@@ -155,15 +159,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.engineFactory = engineFactory;
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
-        this.slowLog = new IndexingSlowLog(indexSettings);
-
-        // Add our slowLog to the incoming IndexingOperationListeners:
-        this.listeners = new IndexingOperationListener[1+listenersIn.length];
-        this.listeners[0] = slowLog;
-        System.arraycopy(listenersIn, 0, this.listeners, 1, listenersIn.length);
+        this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
+        this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         // kick off async ops for the first shard in this index
         this.refreshTask = new AsyncRefreshTask(this);
-        searchSlowLog = new SearchSlowLog(indexSettings);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -338,12 +337,13 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                 new StoreCloseListener(shardId, canDeleteShardContent, () -> eventListener.onStoreClosed(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
                 indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService,
-                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, searchSlowLog, engineWarmer);
+                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
+                    searchOperationListeners);
                 // no indexing listeners - shadow  engines don't index
             } else {
                 indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService,
-                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, searchSlowLog, engineWarmer,
-                    listeners);
+                    indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
+                    searchOperationListeners, indexingOperationListeners);
             }
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -439,12 +439,21 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
      * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
      * {@link QueryShardContext#setTypes(String...)}
      */
-    public QueryShardContext newQueryShardContext() {
+    public QueryShardContext newQueryShardContext(IndexReader indexReader) {
         return new QueryShardContext(
                 indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
                 similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry(),
-                indexCache.getPercolatorQueryCache()
+                indexCache.getPercolatorQueryCache(), indexReader
         );
+    }
+
+    /**
+     * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
+     * {@link QueryShardContext#setTypes(String...)}. This context may be used for query parsing but cannot be
+     * used for rewriting since it does not know about the current {@link IndexReader}.
+     */
+    public QueryShardContext newQueryShardContext() {
+        return newQueryShardContext(null);
     }
 
     public ThreadPool getThreadPool() {
@@ -455,8 +464,12 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return bigArrays;
     }
 
-    public SearchSlowLog getSearchSlowLog() {
-        return searchSlowLog;
+    List<IndexingOperationListener> getIndexOperationListeners() { // pkg private for testing
+        return indexingOperationListeners;
+    }
+
+    List<SearchOperationListener> getSearchOperationListener() { // pkg private for testing
+        return searchOperationListeners;
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -620,6 +633,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             if (durability != oldTranslogDurability) {
                 rescheduleFsyncTask(durability);
             }
+        }
+
+        // update primary terms
+        for (final IndexShard shard : this.shards.values()) {
+            shard.updatePrimaryTerm(metadata.primaryTerm(shard.shardId().id()));
         }
     }
 

@@ -39,15 +39,9 @@ public enum GeoValidationMethod implements Writeable<GeoValidationMethod>{
 
     public static final GeoValidationMethod DEFAULT = STRICT;
     public static final boolean DEFAULT_LENIENT_PARSING = (DEFAULT != STRICT);
-    private static final GeoValidationMethod PROTOTYPE = DEFAULT;
-
-    @Override
-    public GeoValidationMethod readFrom(StreamInput in) throws IOException {
-        return GeoValidationMethod.values()[in.readVInt()];
-    }
 
     public static GeoValidationMethod readGeoValidationMethodFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
+        return GeoValidationMethod.values()[in.readVInt()];
     }
 
     @Override

@@ -52,7 +52,6 @@ import java.util.Locale;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +65,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         if (randomBoolean()) {
             // Configure using path.repo
-            return settingsBuilder()
+            return Settings.builder()
                     .put(super.nodeSettings(nodeOrdinal))
                     .put(Environment.PATH_REPO_SETTING.getKey(), getBwcIndicesPath())
                     .build();
@@ -74,7 +73,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             // Configure using url white list
             try {
                 URI repoJarPatternUri = new URI("jar:" + getBwcIndicesPath().toUri().toString() + "*.zip!/repo/");
-                return settingsBuilder()
+                return Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
                         .putArray(URLRepository.ALLOWED_URLS_SETTING.getKey(), repoJarPatternUri.toString())
                         .build();
@@ -159,7 +158,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
         logger.info("-->  creating repository [{}] for version [{}]", repo, version);
         assertAcked(client().admin().cluster().preparePutRepository(repo)
-                .setType("url").setSettings(settingsBuilder()
+                .setType("url").setSettings(Settings.builder()
                         .put("url", repoJarUri.toString())));
     }
 

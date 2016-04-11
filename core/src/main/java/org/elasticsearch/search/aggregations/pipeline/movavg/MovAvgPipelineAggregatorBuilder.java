@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.movavg;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -31,8 +32,6 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelStreams;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -94,11 +93,11 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
         return gapPolicy;
     }
 
-    protected ValueFormatter formatter() {
+    protected DocValueFormat formatter() {
         if (format != null) {
-            return ValueFormat.Patternable.Number.format(format).formatter();
+            return new DocValueFormat.Decimal(format);
         } else {
-            return ValueFormatter.RAW;
+            return DocValueFormat.RAW;
         }
     }
 

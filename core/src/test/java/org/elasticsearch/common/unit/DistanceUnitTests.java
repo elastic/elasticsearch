@@ -83,7 +83,7 @@ public class DistanceUnitTests extends ESTestCase {
           try (BytesStreamOutput out = new BytesStreamOutput()) {
               unit.writeTo(out);
               try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                  assertThat("Roundtrip serialisation failed.", DistanceUnit.readDistanceUnit(in), equalTo(unit));
+                  assertThat("Roundtrip serialisation failed.", DistanceUnit.readFromStream(in), equalTo(unit));
               }
           }
         }

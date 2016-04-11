@@ -40,7 +40,6 @@ import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
-import org.elasticsearch.search.suggest.completion.context.QueryContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,8 +56,6 @@ import java.util.Objects;
  * indexing.
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
-
-    public static final CompletionSuggestionBuilder PROTOTYPE = new CompletionSuggestionBuilder("_na_");
     static final String SUGGESTION_NAME = "completion";
     static final ParseField PAYLOAD_FIELD = new ParseField("payload");
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
@@ -125,6 +122,26 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     /**
+     * Read from a stream.
+     */
+    public CompletionSuggestionBuilder(StreamInput in) throws IOException {
+        super(in);
+        payloadFields = new ArrayList<>();
+        Collections.addAll(payloadFields, in.readStringArray());
+        fuzzyOptions = in.readOptionalWriteable(FuzzyOptions::new);
+        regexOptions = in.readOptionalWriteable(RegexOptions::new);
+        contextBytes = in.readOptionalBytesReference();
+    }
+
+    @Override
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeStringArray(payloadFields.toArray(new String[payloadFields.size()]));
+        out.writeOptionalWriteable(fuzzyOptions);
+        out.writeOptionalWriteable(regexOptions);
+        out.writeOptionalBytesReference(contextBytes);
+    }
+
+    /**
      * Sets the prefix to provide completions for.
      * The prefix gets analyzed by the suggest analyzer.
      */
@@ -188,12 +205,12 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
      *                      see {@link org.elasticsearch.search.suggest.completion.context.CategoryQueryContext}
      *                      and {@link org.elasticsearch.search.suggest.completion.context.GeoQueryContext}
      */
-    public CompletionSuggestionBuilder contexts(Map<String, List<? extends QueryContext>> queryContexts) {
+    public CompletionSuggestionBuilder contexts(Map<String, List<? extends ToXContent>> queryContexts) {
         Objects.requireNonNull(queryContexts, "contexts must not be null");
         try {
             XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
             contentBuilder.startObject();
-            for (Map.Entry<String, List<? extends QueryContext>> contextEntry : queryContexts.entrySet()) {
+            for (Map.Entry<String, List<? extends ToXContent>> contextEntry : queryContexts.entrySet()) {
                 contentBuilder.startArray(contextEntry.getKey());
                 for (ToXContent queryContext : contextEntry.getValue()) {
                     queryContext.toXContent(contentBuilder, EMPTY_PARAMS);
@@ -244,8 +261,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         return builder;
     }
 
-    @Override
-    protected CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+    static CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         CompletionSuggestionBuilder.InnerBuilder builder = new CompletionSuggestionBuilder.InnerBuilder();
         TLP_PARSER.parse(parseContext.parser(), builder);
         String field = builder.field;
@@ -301,52 +317,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     @Override
     public String getWriteableName() {
         return SUGGESTION_NAME;
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeBoolean(payloadFields.isEmpty() == false);
-        if (payloadFields.isEmpty() == false) {
-            out.writeVInt(payloadFields.size());
-            for (String payloadField : payloadFields) {
-                out.writeString(payloadField);
-            }
-        }
-        out.writeBoolean(fuzzyOptions != null);
-        if (fuzzyOptions != null) {
-            fuzzyOptions.writeTo(out);
-        }
-        out.writeBoolean(regexOptions != null);
-        if (regexOptions != null) {
-            regexOptions.writeTo(out);
-        }
-        out.writeBoolean(contextBytes != null);
-        if (contextBytes != null) {
-            out.writeBytesReference(contextBytes);
-        }
-    }
-
-    @Override
-    public CompletionSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
-        CompletionSuggestionBuilder completionSuggestionBuilder = new CompletionSuggestionBuilder(field);
-        if (in.readBoolean()) {
-            int numPayloadField = in.readVInt();
-            List<String> payloadFields = new ArrayList<>(numPayloadField);
-            for (int i = 0; i < numPayloadField; i++) {
-                payloadFields.add(in.readString());
-            }
-            completionSuggestionBuilder.payloadFields = payloadFields;
-        }
-        if (in.readBoolean()) {
-            completionSuggestionBuilder.fuzzyOptions = FuzzyOptions.readFuzzyOptions(in);
-        }
-        if (in.readBoolean()) {
-            completionSuggestionBuilder.regexOptions = RegexOptions.readRegexOptions(in);
-        }
-        if (in.readBoolean()) {
-            completionSuggestionBuilder.contextBytes = in.readBytesReference();
-        }
-        return completionSuggestionBuilder;
     }
 
     @Override

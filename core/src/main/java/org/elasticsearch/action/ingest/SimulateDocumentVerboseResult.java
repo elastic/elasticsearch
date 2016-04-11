@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -32,31 +31,21 @@ import java.util.List;
  * this result class holds the intermediate result each processor did to the sample document.
  */
 public final class SimulateDocumentVerboseResult implements SimulateDocumentResult<SimulateDocumentVerboseResult> {
-
-    private static final SimulateDocumentVerboseResult PROTOTYPE = new SimulateDocumentVerboseResult(Collections.emptyList());
-
     private final List<SimulateProcessorResult> processorResults;
 
     public SimulateDocumentVerboseResult(List<SimulateProcessorResult> processorResults) {
         this.processorResults = processorResults;
     }
 
-    public List<SimulateProcessorResult> getProcessorResults() {
-        return processorResults;
-    }
-
-    public static SimulateDocumentVerboseResult readSimulateDocumentVerboseResultFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
-
-    @Override
-    public SimulateDocumentVerboseResult readFrom(StreamInput in) throws IOException {
+    /**
+     * Read from a stream.
+     */
+    public SimulateDocumentVerboseResult(StreamInput in) throws IOException {
         int size = in.readVInt();
-        List<SimulateProcessorResult> processorResults = new ArrayList<>();
+        processorResults = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             processorResults.add(new SimulateProcessorResult(in));
         }
-        return new SimulateDocumentVerboseResult(processorResults);
     }
 
     @Override
@@ -65,6 +54,10 @@ public final class SimulateDocumentVerboseResult implements SimulateDocumentResu
         for (SimulateProcessorResult result : processorResults) {
             result.writeTo(out);
         }
+    }
+
+    public List<SimulateProcessorResult> getProcessorResults() {
+        return processorResults;
     }
 
     @Override

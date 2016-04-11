@@ -21,22 +21,23 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.test.XContentTestUtils.convertToMap;
-import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.ingest.core.IngestDocumentTests.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class WriteableIngestDocumentTests extends ESTestCase {
 
@@ -107,14 +108,13 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
         }
-        Map<String, Object> document = RandomDocumentPicks.randomSource(random());
         WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
 
         BytesStreamOutput out = new BytesStreamOutput();
         writeableIngestDocument.writeTo(out);
         StreamInput streamInput = StreamInput.wrap(out.bytes());
         WriteableIngestDocument otherWriteableIngestDocument = new WriteableIngestDocument(streamInput);
-        assertThat(otherWriteableIngestDocument, equalTo(writeableIngestDocument));
+        assertIngestDocument(otherWriteableIngestDocument.getIngestDocument(), writeableIngestDocument.getIngestDocument());
     }
 
     @SuppressWarnings("unchecked")
@@ -122,7 +122,13 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(new IngestDocument(ingestDocument));
 
-        Map<String, Object> toXContentMap = convertToMap(writeableIngestDocument);
+        // using a cbor builder here, so that byte arrays do not get converted, so equalTo() below works
+        XContentBuilder builder = XContentFactory.cborBuilder();
+        builder.startObject();
+        writeableIngestDocument.toXContent(builder, EMPTY_PARAMS);
+        builder.endObject();
+        Map<String, Object> toXContentMap = XContentHelper.convertToMap(builder.bytes(), false).v2();
+
         Map<String, Object> toXContentDoc = (Map<String, Object>) toXContentMap.get("doc");
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
         Map<String, String> toXContentIngestMetadata = (Map<String, String>) toXContentDoc.get("_ingest");
@@ -137,9 +143,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
             }
         }
 
-        String sourceDiff = differenceBetweenMapsIgnoringArrayOrder(toXContentSource, ingestDocument.getSourceAndMetadata());
-        assertThat(sourceDiff, is(nullValue()));
-
-        assertThat(toXContentIngestMetadata, equalTo(ingestDocument.getIngestMetadata()));
+        IngestDocument serializedIngestDocument = new IngestDocument(toXContentSource, toXContentIngestMetadata);
+        assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
     }
 }

@@ -135,7 +135,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertNoFailures(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())));
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("foo").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
@@ -703,8 +703,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
-        Settings fooSettings = Settings.builder().put(nodeSettings).put("node.affinity", "foo").build();
-        Settings barSettings = Settings.builder().put(nodeSettings).put("node.affinity", "bar").build();
+        Settings fooSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "foo").build();
+        Settings barSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "bar").build();
 
         final InternalTestCluster.Async<List<String>> fooNodes = internalCluster().startNodesAsync(2, fooSettings);
         final InternalTestCluster.Async<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);

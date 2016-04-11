@@ -274,3 +274,55 @@
         id: 1
   - length: { _source: 2 }
   - match: { _source.values_flat: ["foo_bar", "foo_baz"] }
+
+---
+"Test verbose simulate with error context":
+  - do:
+      cluster.health:
+          wait_for_status: green
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline" : {
+              "description": "_description",
+              "processors": [
+                {
+                  "rename" : {
+                    "tag" : "rename-status",
+                    "field" : "status",
+                    "to" : "bar",
+                    "on_failure" : [
+                      {
+                        "set" : {
+                          "tag" : "set_on_rename_failure",
+                          "field" : "error",
+                          "value" : "processor {{ _ingest.on_failure_processor_tag }} [{{ _ingest.on_failure_processor_type }}]: {{ _ingest.on_failure_message }}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.tag: "rename-status" }
+  - match: { docs.0.processor_results.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.0.error.reason: "field [status] doesn't exist" }
+  - match: { docs.0.processor_results.1.tag: "set_on_rename_failure" }
+  - length: { docs.0.processor_results.1.doc._source: 2 }
+  - match: { docs.0.processor_results.1.doc._source.foo: "bar"  }
+  - match: { docs.0.processor_results.1.doc._source.error: "processor rename-status [rename]: field [status] doesn't exist" }

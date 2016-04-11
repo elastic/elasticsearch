@@ -18,12 +18,27 @@
  */
 package org.elasticsearch.index.mapper.core;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
+
+import java.io.IOException;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new KeywordFieldMapper.KeywordFieldType();
+    }
+
+    public void testIsFieldWithinQuery() throws IOException {
+        KeywordFieldType ft = new KeywordFieldType();
+        // current impl ignores args and shourd always return INTERSECTS
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
+                RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
+                RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
+                randomBoolean(), randomBoolean(), null, null));
     }
 }

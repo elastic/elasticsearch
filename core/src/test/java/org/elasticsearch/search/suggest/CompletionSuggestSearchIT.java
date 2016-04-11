@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -64,7 +63,6 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -83,9 +81,9 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
-    private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
-    private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
+    private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
     public void testPrefix() throws Exception {
@@ -308,7 +306,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int numRequestedPayloadFields = randomIntBetween(2, numPayloadFields);
         List<String> payloadFields = new ArrayList<>(numRequestedPayloadFields);
         for (int i = 0; i < numRequestedPayloadFields; i++) {
-            payloadFields.add("test_field" + i);
+            payloadFields.add("test_field" + i + ".keyword");
         }
 
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
@@ -324,7 +322,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertThat(option.getPayload().size(), equalTo(numRequestedPayloadFields));
             for (int i = 0; i < numRequestedPayloadFields; i++) {
-                List<Object> fieldValue = option.getPayload().get("test_field" + i);
+                List<Object> fieldValue = option.getPayload().get("test_field" + i + ".keyword");
                 assertNotNull(fieldValue);
                 assertThat(fieldValue.size(), equalTo(1));
                 assertThat((String)fieldValue.get(0), equalTo(i + "value" + id));
@@ -564,7 +562,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testThatSynonymsWork() throws Exception {
-        Settings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = Settings.builder()
                 .put("analysis.analyzer.suggest_analyzer_synonyms.type", "custom")
                 .put("analysis.analyzer.suggest_analyzer_synonyms.tokenizer", "standard")
                 .putArray("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
@@ -776,7 +774,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
         client().admin().indices().prepareCreate(INDEX)
-                .setSettings(Settings.settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
+                .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .execute().actionGet();
         ensureGreen();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
@@ -841,7 +839,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testThatSuggestStopFilterWorks() throws Exception {
-        Settings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = Settings.builder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
@@ -961,6 +959,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
+                .startObject("test_field")
+                    .field("type", "keyword")
+                .endObject()
+                .startObject("title")
+                    .field("type", "keyword")
+                .endObject()
                 .startObject(FIELD)
                 .field("type", "completion")
                 .field("analyzer", completionMappingBuilder.indexAnalyzer)
@@ -995,7 +999,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
 
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-                .setSettings(Settings.settingsBuilder().put(indexSettings()).put(settings))
+                .setSettings(Settings.builder().put(indexSettings()).put(settings))
                 .addMapping(TYPE, mapping)
                 .get());
         ensureYellow();
@@ -1007,7 +1011,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see #3555
     public void testPrunedSegments() throws IOException {
-        createIndexAndMappingAndSettings(settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build(), completionMappingBuilder);
+        createIndexAndMappingAndSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build(), completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
@@ -1169,8 +1173,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     static class CompletionMappingBuilder {
         String searchAnalyzer = "simple";
         String indexAnalyzer = "simple";
-        Boolean preserveSeparators = getRandom().nextBoolean();
-        Boolean preservePositionIncrements = getRandom().nextBoolean();
+        Boolean preserveSeparators = random().nextBoolean();
+        Boolean preservePositionIncrements = random().nextBoolean();
         LinkedHashMap<String, ContextMapping> contextMappings = null;
 
         public CompletionMappingBuilder searchAnalyzer(String searchAnalyzer) {

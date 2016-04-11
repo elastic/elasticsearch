@@ -191,9 +191,18 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 if (holderToNotify != null) {
                     // callback that an exception happened, but on a different thread since we don't
                     // want handlers to worry about stack overflows
-                    threadPool.generic().execute(new Runnable() {
+                    threadPool.generic().execute(new AbstractRunnable() {
                         @Override
-                        public void run() {
+                        public void onRejection(Throwable t) {
+                            // if we get rejected during node shutdown we don't wanna bubble it up
+                            logger.debug("failed to notify response handler on rejection, action: {}", t, holderToNotify.action());
+                        }
+                        @Override
+                        public void onFailure(Throwable t) {
+                            logger.warn("failed to notify response handler on exception, action: {}", t, holderToNotify.action());
+                        }
+                        @Override
+                        public void doRun() {
                             holderToNotify.handler().handleException(new TransportException("transport stopped, action: " + holderToNotify.action()));
                         }
                     });
@@ -333,11 +342,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     @Override
                     public void onRejection(Throwable t) {
                         // if we get rejected during node shutdown we don't wanna bubble it up
-                        logger.debug("failed to notify response handler on rejection", t);
+                        logger.debug("failed to notify response handler on rejection, action: {}", t, holderToNotify.action());
                     }
                     @Override
                     public void onFailure(Throwable t) {
-                        logger.warn("failed to notify response handler on exception", t);
+                        logger.warn("failed to notify response handler on exception, action: {}", t, holderToNotify.action());
                     }
                     @Override
                     protected void doRun() throws Exception {
@@ -864,7 +873,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             if (t instanceof RemoteTransportException) {
                 return (RemoteTransportException) t;
             }
-            return new RemoteTransportException(localNode.name(), localNode.getAddress(), action, t);
+            return new RemoteTransportException(localNode.getName(), localNode.getAddress(), action, t);
         }
 
         protected void processException(final TransportResponseHandler handler, final RemoteTransportException rtx) {

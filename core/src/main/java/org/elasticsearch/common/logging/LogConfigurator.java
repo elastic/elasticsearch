@@ -43,7 +43,6 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.cleanPath;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * Configures log4j with a special set of replacements.
@@ -106,7 +105,7 @@ public class LogConfigurator {
         // TODO: this is partly a copy of InternalSettingsPreparer...we should pass in Environment and not do all this...
         Environment environment = new Environment(settings);
 
-        Settings.Builder settingsBuilder = settingsBuilder();
+        Settings.Builder settingsBuilder = Settings.builder();
         if (resolveConfig) {
             resolveConfig(environment, settingsBuilder);
         }

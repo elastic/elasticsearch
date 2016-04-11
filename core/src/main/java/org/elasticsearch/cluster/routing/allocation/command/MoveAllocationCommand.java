@@ -155,7 +155,7 @@ public class MoveAllocationCommand implements AllocationCommand {
         Decision decision = null;
 
         boolean found = false;
-        for (ShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.id())) {
+        for (ShardRouting shardRouting : allocation.routingNodes().node(fromDiscoNode.getId())) {
             if (!shardRouting.shardId().getIndexName().equals(index)) {
                 continue;
             }
@@ -174,7 +174,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                         ", shard is not started (state = " + shardRouting.state() + "]");
             }
 
-            RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.id());
+            RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
             decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
             if (decision.type() == Decision.Type.NO) {
                 if (explain) {

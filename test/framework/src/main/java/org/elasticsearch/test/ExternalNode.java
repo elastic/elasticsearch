@@ -45,8 +45,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 /**
  * Simple helper class to start external nodes to be used within a test cluster
  */
@@ -192,9 +190,9 @@ final class ExternalNode implements Closeable {
             TransportAddress addr = nodeInfo.getTransport().getAddress().publishAddress();
             // verify that the end node setting will have network enabled.
 
-            Settings clientSettings = settingsBuilder().put(externalNodeSettings)
+            Settings clientSettings = Settings.builder().put(externalNodeSettings)
                     .put("client.transport.nodes_sampler_interval", "1s")
-                    .put("node.name", "transport_client_" + nodeInfo.getNode().name())
+                    .put("node.name", "transport_client_" + nodeInfo.getNode().getName())
                     .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", false).build();
             TransportClient client = TransportClient.builder().settings(clientSettings).build();
             client.addTransportAddress(addr);

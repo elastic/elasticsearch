@@ -91,7 +91,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
         final RoutingNodes routingNodes = allocation.routingNodes();
-        RoutingNode routingNode = routingNodes.node(discoNode.id());
+        RoutingNode routingNode = routingNodes.node(discoNode.getId());
         if (routingNode == null) {
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }

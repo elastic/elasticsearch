@@ -45,6 +45,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -68,9 +69,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     public static void init() {
         if (namedWriteableRegistry == null) {
             namedWriteableRegistry = new NamedWriteableRegistry();
-            namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
+            new Suggesters(namedWriteableRegistry);
         }
     }
 
@@ -89,12 +88,14 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
      */
     protected abstract SmoothingModel createMutation(SmoothingModel original) throws IOException;
 
+    protected abstract SmoothingModel fromXContent(QueryParseContext context) throws IOException;
+
     /**
      * Test that creates new smoothing model from a random test smoothing model and checks both for equality
      */
     public void testFromXContent() throws IOException {
         QueryParseContext context = new QueryParseContext(
-                new IndicesQueriesRegistry(Settings.settingsBuilder().build(), Collections.emptyMap()));
+                new IndicesQueriesRegistry(Settings.builder().build(), Collections.emptyMap()));
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
 
         SmoothingModel testModel = createTestModel();
@@ -108,7 +109,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         XContentParser parser = XContentHelper.createParser(contentBuilder.bytes());
         context.reset(parser);
         parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
-        SmoothingModel parsedModel = testModel.innerFromXContent(context);
+        SmoothingModel parsedModel = fromXContent(context);
         assertNotSame(testModel, parsedModel);
         assertEquals(testModel, parsedModel);
         assertEquals(testModel.hashCode(), parsedModel.hashCode());

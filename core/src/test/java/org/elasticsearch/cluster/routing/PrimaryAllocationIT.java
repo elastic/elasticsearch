@@ -29,7 +29,6 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
@@ -78,11 +77,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String primaryNode;
         final String replicaNode;
         if (shards.get(0).primary()) {
-            primaryNode = state.getRoutingNodes().node(shards.get(0).currentNodeId()).node().name();
-            replicaNode = state.getRoutingNodes().node(shards.get(1).currentNodeId()).node().name();
+            primaryNode = state.getRoutingNodes().node(shards.get(0).currentNodeId()).node().getName();
+            replicaNode = state.getRoutingNodes().node(shards.get(1).currentNodeId()).node().getName();
         } else {
-            primaryNode = state.getRoutingNodes().node(shards.get(1).currentNodeId()).node().name();
-            replicaNode = state.getRoutingNodes().node(shards.get(0).currentNodeId()).node().name();
+            primaryNode = state.getRoutingNodes().node(shards.get(1).currentNodeId()).node().getName();
+            replicaNode = state.getRoutingNodes().node(shards.get(0).currentNodeId()).node().getName();
         }
 
         NetworkDisconnectPartition partition = new NetworkDisconnectPartition(

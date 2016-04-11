@@ -35,13 +35,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 
 import java.io.BufferedWriter;
@@ -54,7 +52,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,9 +75,9 @@ public class AnalysisModuleTests extends ModuleTestCase {
        return new AnalysisRegistry(null, new Environment(settings),
                 Collections.emptyMap(), Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new), Collections.emptyMap(), Collections.emptyMap());
     }
-
+    
     private Settings loadFromClasspath(String path) throws IOException {
-        return settingsBuilder().loadFromStream(path, getClass().getResourceAsStream(path))
+        return Settings.builder().loadFromStream(path, getClass().getResourceAsStream(path))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
@@ -105,7 +102,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
 
     public void testVersionedAnalyzers() throws Exception {
         String yaml = "/org/elasticsearch/index/analysis/test1.yml";
-        Settings settings2 = settingsBuilder()
+        Settings settings2 = Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
@@ -129,7 +126,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
     }
 
     private void assertTokenFilter(String name, Class clazz) throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -222,7 +219,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
         String[] words = new String[]{"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
 
         Path wordListFile = generateWordList(words);
-        settings = settingsBuilder().loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath()).build();
+        settings = Settings.builder().loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath()).build();
 
         Set<?> wordList = Analysis.getWordSet(env, settings, "index.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
@@ -271,7 +268,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
     }
 
     public void testDeprecatedPositionOffsetGap() throws IOException {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.analyzer.custom.tokenizer", "standard")
                 .put("index.analysis.analyzer.custom.position_offset_gap", "128")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -287,7 +284,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterHunspellDictionary() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();

@@ -111,7 +111,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         }
 
         ClusterHealthStatus clusterStatus = null;
-        if (clusterService.state().nodes().localNodeMaster()) {
+        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 

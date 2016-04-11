@@ -104,13 +104,13 @@ public class AggregatorParsingTests extends ESTestCase {
         // it's rather unlikely to get the current actually.
         Version version = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put("node.name", AbstractQueryTestCase.class.toString())
+        Settings settings = Settings.builder().put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false).build();
 
         namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        Settings indexSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         final ThreadPool threadPool = new ThreadPool(settings);
         final ClusterService clusterService = createClusterService(threadPool);
         setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
@@ -157,11 +157,6 @@ public class AggregatorParsingTests extends ESTestCase {
                 }, new SearchModule(settings, namedWriteableRegistry) {
                     @Override
                     protected void configureSearch() {
-                        // Skip me
-                    }
-
-                    @Override
-                    protected void configureSuggesters() {
                         // Skip me
                     }
                 }, new IndexSettingsModule(index, settings),
@@ -265,7 +260,7 @@ public class AggregatorParsingTests extends ESTestCase {
     public void testInvalidAggregationName() throws Exception {
         Matcher matcher = Pattern.compile("[^\\[\\]>]+").matcher("");
         String name;
-        Random rand = getRandom();
+        Random rand = random();
         int len = randomIntBetween(1, 5);
         char[] word = new char[len];
         while (true) {

@@ -100,16 +100,13 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         };
 
         namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScriptSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, FieldSortBuilder.PROTOTYPE);
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
+        indicesQueriesRegistry = null;
     }
 
     /** Returns random sort that is put under test */
@@ -117,6 +114,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     /** Returns mutated version of original so the returned sort is different in terms of equals/hashcode */
     protected abstract T mutate(T original) throws IOException;
+
+    /** Parse the sort from xContent. Just delegate to the SortBuilder's static fromXContent method. */
+    protected abstract T fromXContent(QueryParseContext context, String fieldName) throws IOException;
 
     /**
      * Test that creates new sort from a random test sort and checks both for equality
@@ -130,7 +130,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 builder.prettyPrint();
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser itemParser = XContentHelper.createParser(builder.bytes());
+            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+            XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
             itemParser.nextToken();
 
             /*
@@ -142,7 +143,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             context.reset(itemParser);
-            T parsedItem = testItem.fromXContent(context, elementName);
+            T parsedItem = fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -208,7 +209,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
-    private QueryShardContext createMockShardContext() {
+    protected QueryShardContext createMockShardContext() {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
@@ -225,7 +226,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null) {
+                indicesQueriesRegistry, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

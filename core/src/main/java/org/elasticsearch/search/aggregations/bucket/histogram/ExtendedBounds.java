@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -64,13 +64,14 @@ public class ExtendedBounds implements ToXContent {
         this.maxAsStr = maxAsStr;
     }
 
-    void processAndValidate(String aggName, SearchContext context, ValueParser parser) {
-        assert parser != null;
+    void processAndValidate(String aggName, SearchContext context, DocValueFormat format) {
+        assert format != null;
         if (minAsStr != null) {
-            min = parser.parseLong(minAsStr, context);
+            min = format.parseLong(minAsStr, false, context.nowCallable());
         }
         if (maxAsStr != null) {
-            max = parser.parseLong(maxAsStr, context);
+            // TODO: Should we rather pass roundUp=true?
+            max = format.parseLong(maxAsStr, false, context.nowCallable());
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
             throw new SearchParseException(context, "[extended_bounds.min][" + min + "] cannot be greater than " +

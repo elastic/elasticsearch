@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -53,6 +54,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -132,8 +134,15 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             RescoreBuilder<?> rescoreBuilder = randomRescoreBuilder();
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            if (randomBoolean()) {
+                builder.prettyPrint();
+            }
+            rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
 
-            XContentParser parser = createParser(rescoreBuilder);
+
+            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
             context.reset(parser);
             parser.nextToken();
             RescoreBuilder<?> secondRescoreBuilder = RescoreBuilder.parseFromXContent(context);
@@ -143,26 +152,17 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         }
     }
 
-    private static XContentParser createParser(RescoreBuilder<?> rescoreBuilder) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        return XContentHelper.createParser(builder.bytes());
-    }
-
     /**
-     * test that build() outputs a {@link RescoreSearchContext} that is similar to the one
-     * we would get when parsing the xContent the test rescore builder is rendering out
+     * test that build() outputs a {@link RescoreSearchContext} that has the same properties
+     * than the test builder
      */
     public void testBuildRescoreSearchContext() throws ElasticsearchParseException, IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null) {
+                null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -171,18 +171,16 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         };
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            RescoreBuilder<?> rescoreBuilder = randomRescoreBuilder();
+            QueryRescorerBuilder rescoreBuilder = randomRescoreBuilder();
             QueryRescoreContext rescoreContext = rescoreBuilder.build(mockShardContext);
-            XContentParser parser = createParser(rescoreBuilder);
-
-            QueryRescoreContext parsedRescoreContext = (QueryRescoreContext) new RescoreParseElement().parseSingleRescoreContext(parser,
-                    mockShardContext);
-            assertNotSame(rescoreContext, parsedRescoreContext);
-            assertEquals(rescoreContext.window(), parsedRescoreContext.window());
-            assertEquals(rescoreContext.query(), parsedRescoreContext.query());
-            assertEquals(rescoreContext.queryWeight(), parsedRescoreContext.queryWeight(), Float.MIN_VALUE);
-            assertEquals(rescoreContext.rescoreQueryWeight(), parsedRescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
-            assertEquals(rescoreContext.scoreMode(), parsedRescoreContext.scoreMode());
+            int expectedWindowSize = rescoreBuilder.windowSize() == null ? QueryRescoreContext.DEFAULT_WINDOW_SIZE :
+                rescoreBuilder.windowSize().intValue();
+            assertEquals(expectedWindowSize, rescoreContext.window());
+            Query expectedQuery = QueryBuilder.rewriteQuery(rescoreBuilder.getRescoreQuery(), mockShardContext).toQuery(mockShardContext);
+            assertEquals(expectedQuery, rescoreContext.query());
+            assertEquals(rescoreBuilder.getQueryWeight(), rescoreContext.queryWeight(), Float.MIN_VALUE);
+            assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
+            assertEquals(rescoreBuilder.getScoreMode(), rescoreContext.scoreMode());
         }
     }
 
@@ -318,7 +316,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     /**
      * create random shape that is put under test
      */
-    public static org.elasticsearch.search.rescore.QueryRescorerBuilder randomRescoreBuilder() {
+    public static QueryRescorerBuilder randomRescoreBuilder() {
         QueryBuilder<MatchAllQueryBuilder> queryBuilder = new MatchAllQueryBuilder().boost(randomFloat())
                 .queryName(randomAsciiOfLength(20));
         org.elasticsearch.search.rescore.QueryRescorerBuilder rescorer = new

@@ -145,7 +145,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         for (Field field : fields) {
             switch (field) {
                 case IP:
-                    geoData.put("ip", NetworkAddress.formatAddress(ipAddress));
+                    geoData.put("ip", NetworkAddress.format(ipAddress));
                     break;
                 case COUNTRY_ISO_CODE:
                     geoData.put("country_iso_code", country.getIsoCode());
@@ -198,7 +198,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         for (Field field : fields) {
             switch (field) {
                 case IP:
-                    geoData.put("ip", NetworkAddress.formatAddress(ipAddress));
+                    geoData.put("ip", NetworkAddress.format(ipAddress));
                     break;
                 case COUNTRY_ISO_CODE:
                     geoData.put("country_iso_code", country.getIsoCode());

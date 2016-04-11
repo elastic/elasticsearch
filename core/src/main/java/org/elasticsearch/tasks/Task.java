@@ -80,7 +80,7 @@ public class Task {
             status = getStatus();
         }
         return new TaskInfo(node, getId(), getType(), getAction(), description, status, startTime, System.nanoTime() - startTimeNanos,
-            parentTask);
+            this instanceof CancellableTask, parentTask);
     }
 
     /**

@@ -21,6 +21,8 @@ package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+
 import java.util.List;
 
 /**
@@ -136,5 +138,17 @@ public class ShapeBuilders {
      */
     public static EnvelopeBuilder newEnvelope(Coordinate topLeft, Coordinate bottomRight) {
         return new EnvelopeBuilder(topLeft, bottomRight);
+    }
+
+    public static void register(NamedWriteableRegistry namedWriteableRegistry) {
+        namedWriteableRegistry.register(ShapeBuilder.class, PointBuilder.TYPE.shapeName(), PointBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, CircleBuilder.TYPE.shapeName(), CircleBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, EnvelopeBuilder.TYPE.shapeName(), EnvelopeBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, MultiPointBuilder.TYPE.shapeName(), MultiPointBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, LineStringBuilder.TYPE.shapeName(), LineStringBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, MultiLineStringBuilder.TYPE.shapeName(), MultiLineStringBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, PolygonBuilder.TYPE.shapeName(), PolygonBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, MultiPolygonBuilder.TYPE.shapeName(), MultiPolygonBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, GeometryCollectionBuilder.TYPE.shapeName(), GeometryCollectionBuilder::new);
     }
 }

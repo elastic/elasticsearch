@@ -21,6 +21,8 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -52,13 +54,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 int count = randomIntBetween(1, 10);
                 String[] geohashes = new String[count];
                 for (int i = 0; i < count; i++) {
-                    geohashes[i] = RandomGeoGenerator.randomPoint(getRandom()).geohash();
+                    geohashes[i] = RandomGeoGenerator.randomPoint(random()).geohash();
                 }
 
                 result = new GeoDistanceSortBuilder(fieldName, geohashes);
                 break;
             case 1:
-                GeoPoint pt = RandomGeoGenerator.randomPoint(getRandom());
+                GeoPoint pt = RandomGeoGenerator.randomPoint(random());
                 result = new GeoDistanceSortBuilder(fieldName, pt.getLat(), pt.getLon());
                 break;
             case 2:
@@ -125,7 +127,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             int count = randomIntBetween(1, 10);
             result = new GeoPoint[count];
             for (int i = 0; i < count; i++) {
-                result[i] = RandomGeoGenerator.randomPoint(getRandom());
+                result[i] = RandomGeoGenerator.randomPoint(random());
             }
         }
         return result;
@@ -146,7 +148,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         switch (parameter) {
         case 0:
             while (Arrays.deepEquals(original.points(), result.points())) {
-                GeoPoint pt = RandomGeoGenerator.randomPoint(getRandom());
+                GeoPoint pt = RandomGeoGenerator.randomPoint(random());
                 result.point(pt.getLat(), pt.getLon());
             }
             break;
@@ -192,7 +194,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     public void testSortModeSumIsRejectedInSetter() {
         GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder("testname", -1, -1);
-        GeoPoint point = RandomGeoGenerator.randomPoint(getRandom());
+        GeoPoint point = RandomGeoGenerator.randomPoint(random());
         builder.point(point.getLat(), point.getLon());
         try {
             builder.sortMode(SortMode.SUM);
@@ -200,6 +202,71 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
           } catch (IllegalArgumentException e) {
               // all good
           }
+    }
+
+    public void testReverseOptionFailsWhenNonStringField() throws IOException {
+        String json = "{\n" +
+                "  \"testname\" : [ {\n" +
+                "    \"lat\" : -6.046997540714173,\n" +
+                "    \"lon\" : -51.94128329747579\n" +
+                "  } ],\n" +
+                "  \"reverse\" : true\n" +
+                "}";
+        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        itemParser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.reset(itemParser);
+
+        try {
+          GeoDistanceSortBuilder.fromXContent(context, "");
+          fail("adding reverse sorting option should fail with an exception");
+        } catch (ParsingException e) {
+            assertEquals("Only geohashes of type string supported for field [reverse]", e.getMessage());
+        }
+    }
+
+    public void testReverseOptionFailsWhenStringFieldButResetting() throws IOException {
+        String json = "{\n" +
+                "  \"testname\" : [ {\n" +
+                "    \"lat\" : -6.046997540714173,\n" +
+                "    \"lon\" : -51.94128329747579\n" +
+                "  } ],\n" +
+                "  \"reverse\" : \"true\"\n" +
+                "}";
+        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        itemParser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.reset(itemParser);
+
+        try {
+          GeoDistanceSortBuilder.fromXContent(context, "");
+          fail("adding reverse sorting option should fail with an exception");
+        } catch (ParsingException e) {
+            assertEquals("Trying to reset fieldName to [reverse], already set to [testname].", e.getMessage());
+        }
+    }
+
+    public void testReverseOptionFailsBuildWhenInvalidGeoHashString() throws IOException {
+        String json = "{\n" +
+                "  \"reverse\" : \"false\"\n" +
+                "}";
+        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        itemParser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.reset(itemParser);
+
+        try {
+          GeoDistanceSortBuilder item = GeoDistanceSortBuilder.fromXContent(context, "");
+          item.ignoreMalformed(false);
+          item.build(createMockShardContext());
+          
+          fail("adding reverse sorting option should fail with an exception");
+        } catch (ElasticsearchParseException e) {
+            assertEquals("illegal latitude value [269.384765625] for [GeoDistanceSort] for field [reverse].", e.getMessage());
+        }
     }
 
     public void testSortModeSumIsRejectedInJSON() throws IOException {
@@ -210,7 +277,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
                 "  \"distance_type\" : \"sloppy_arc\",\n" +
-                "  \"reverse\" : true,\n" +
                 "  \"mode\" : \"SUM\",\n" +
                 "  \"coerce\" : false,\n" +
                 "  \"ignore_malformed\" : false\n" +
@@ -221,12 +287,8 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         context.reset(itemParser);
 
-        try {
-          GeoDistanceSortBuilder.PROTOTYPE.fromXContent(context, "");
-          fail("sort mode sum should not be supported");
-        } catch (IllegalArgumentException e) {
-            // all good
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
+        assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
     }
 
     public void testGeoDistanceSortCanBeParsedFromGeoHash() throws IOException {
@@ -235,7 +297,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n" +
                 "    \"unit\" : \"m\",\n" +
                 "    \"distance_type\" : \"sloppy_arc\",\n" +
-                "    \"reverse\" : true,\n" +
                 "    \"mode\" : \"MAX\",\n" +
                 "    \"nested_filter\" : {\n" +
                 "      \"ids\" : {\n" +
@@ -253,12 +314,17 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         context.reset(itemParser);
 
-        GeoDistanceSortBuilder result = GeoDistanceSortBuilder.PROTOTYPE.fromXContent(context, json);
+        GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(context, json);
         assertEquals("[-19.700583312660456, -2.8225036337971687, "
                 + "31.537466906011105, -74.63590376079082, "
                 + "43.71844606474042, -5.548660643398762, "
                 + "-37.20467280596495, 38.71751043945551, "
                 + "-69.44606635719538, 84.25200328230858, "
                 + "-39.03717711567879, 44.74099852144718]", Arrays.toString(result.points()));
+    }
+
+    @Override
+    protected GeoDistanceSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
+        return GeoDistanceSortBuilder.fromXContent(context, fieldName);
     }
 }

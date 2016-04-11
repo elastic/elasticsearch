@@ -2,7 +2,7 @@
 === Match Query
 
 
-A family of `match` queries that accepts text/numerics/dates, analyzes
+`match` queries accept text/numerics/dates, analyzes
 them, and constructs a query. For example:
 
 [source,js]
@@ -17,12 +17,10 @@ them, and constructs a query. For example:
 Note, `message` is the name of a field, you can substitute the name of
 any field (including `_all`) instead.
 
-There are three types of `match` query: `boolean`, `phrase`, and `phrase_prefix`:
-
 [[query-dsl-match-query-boolean]]
-==== boolean
+==== match
 
-The default `match` query is of type `boolean`. It means that the text
+The `match` query is of type `boolean`. It means that the text
 provided is analyzed and the analysis process constructs a boolean query
 from the provided text. The `operator` flag can be set to `or` or `and`
 to control the boolean clauses (defaults to `or`). The minimum number of
@@ -126,102 +124,6 @@ Here is an example showing a query composed of stopwords exclusively:
 IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This means
 that when trying it out on test indexes with low document numbers you
 should follow the advice in {defguide}/relevance-is-broken.html[Relevance is broken].
-
-[[query-dsl-match-query-phrase]]
-==== phrase
-
-The `match_phrase` query analyzes the text and creates a `phrase` query
-out of the analyzed text. For example:
-
-[source,js]
---------------------------------------------------
-{
-    "match_phrase" : {
-        "message" : "this is a test"
-    }
-}
---------------------------------------------------
-
-Since `match_phrase` is only a `type` of a `match` query, it can also be
-used in the following manner:
-
-[source,js]
---------------------------------------------------
-{
-    "match" : {
-        "message" : {
-            "query" : "this is a test",
-            "type" : "phrase"
-        }
-    }
-}
---------------------------------------------------
-
-A phrase query matches terms up to a configurable `slop`
-(which defaults to 0) in any order. Transposed terms have a slop of 2.
-
-The `analyzer` can be set to control which analyzer will perform the
-analysis process on the text. It defaults to the field explicit mapping
-definition, or the default search analyzer, for example:
-
-[source,js]
---------------------------------------------------
-{
-    "match_phrase" : {
-        "message" : {
-            "query" : "this is a test",
-            "analyzer" : "my_analyzer"
-        }
-    }
-}
---------------------------------------------------
-
-[[query-dsl-match-query-phrase-prefix]]
-==== match_phrase_prefix
-
-The `match_phrase_prefix` is the same as `match_phrase`, except that it
-allows for prefix matches on the last term in the text. For example:
-
-[source,js]
---------------------------------------------------
-{
-    "match_phrase_prefix" : {
-        "message" : "this is a test"
-    }
-}
---------------------------------------------------
-
-Or:
-
-[source,js]
---------------------------------------------------
-{
-    "match" : {
-        "message" : {
-            "query" : "this is a test",
-            "type" : "phrase_prefix"
-        }
-    }
-}
---------------------------------------------------
-
-It accepts the same parameters as the phrase type. In addition, it also
-accepts a `max_expansions` parameter that can control to how many
-prefixes the last term will be expanded. It is highly recommended to set
-it to an acceptable value to control the execution time of the query.
-For example:
-
-[source,js]
---------------------------------------------------
-{
-    "match_phrase_prefix" : {
-        "message" : {
-            "query" : "this is a test",
-            "max_expansions" : 10
-        }
-    }
-}
---------------------------------------------------
 
 .Comparison to query_string / field
 **************************************************

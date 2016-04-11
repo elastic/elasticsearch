@@ -127,7 +127,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             ClusterState clusterState = clusterService.state();
             String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().nodes();
+            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < nodesIds.length; i++) {
                 this.nodes[i] = nodes.get(nodesIds[i]);
@@ -161,7 +161,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                     } else {
                         ChildTaskRequest nodeRequest = newNodeRequest(nodeId, request);
                         if (task != null) {
-                            nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                            nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                             taskManager.registerChildTask(task, node.getId());
                         }
 
@@ -178,7 +178,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
                             @Override
                             public void handleException(TransportException exp) {
-                                onFailure(idx, node.id(), exp);
+                                onFailure(idx, node.getId(), exp);
                             }
 
                             @Override

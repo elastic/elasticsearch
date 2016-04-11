@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -76,13 +77,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 version0, new NamedWriteableRegistry()
         );
         serviceA.acceptIncomingRequests();
-        nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), version0);
+        nodeA = new DiscoveryNode("TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         serviceB = build(
                 Settings.builder().put("name", "TS_B", TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING").build(),
                 version1, new NamedWriteableRegistry()
         );
         serviceB.acceptIncomingRequests();
-        nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), version1);
+        nodeB = new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
@@ -1257,8 +1258,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             fail("message round trip did not complete within a sensible time frame");
         }
 
-        assertTrue(nodeA.address().sameHost(addressA.get()));
-        assertTrue(nodeB.address().sameHost(addressB.get()));
+        assertTrue(nodeA.getAddress().sameHost(addressA.get()));
+        assertTrue(nodeB.getAddress().sameHost(addressB.get()));
     }
 
     public void testBlockingIncomingRequests() throws Exception {
@@ -1273,7 +1274,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 });
 
-        DiscoveryNode node = new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), emptyMap(), version0);
+        DiscoveryNode node = new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         serviceA.connectToNode(node);
 
         CountDownLatch latch = new CountDownLatch(1);

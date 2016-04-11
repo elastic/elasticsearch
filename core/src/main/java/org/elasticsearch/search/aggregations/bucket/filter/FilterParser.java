@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -45,9 +44,7 @@ public class FilterParser implements Aggregator.Parser {
             throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
         }
 
-        FilterAggregatorBuilder factory = new FilterAggregatorBuilder(aggregationName,
-                filter == null ? new MatchAllQueryBuilder() : filter);
-        return factory;
+        return new FilterAggregatorBuilder(aggregationName, filter);
     }
 
     @Override

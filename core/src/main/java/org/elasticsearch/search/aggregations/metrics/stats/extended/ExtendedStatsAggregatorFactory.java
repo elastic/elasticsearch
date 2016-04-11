@@ -48,12 +48,12 @@ public class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactor
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new ExtendedStatsAggregator(name, null, config.formatter(), context, parent, sigma, pipelineAggregators, metaData);
+        return new ExtendedStatsAggregator(name, null, config.format(), context, parent, sigma, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), context, parent, sigma, pipelineAggregators, metaData);
+        return new ExtendedStatsAggregator(name, valuesSource, config.format(), context, parent, sigma, pipelineAggregators, metaData);
     }
 }

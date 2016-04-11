@@ -45,7 +45,7 @@ public class MultiOrdinalsTests extends ESTestCase {
     }
 
     public void testRandomValues() throws IOException {
-        Random random = getRandom();
+        Random random = random();
         int numDocs = 100 + random.nextInt(1000);
         int numOrdinals = 1 + random.nextInt(200);
         int numValues = 100 + random.nextInt(100000);

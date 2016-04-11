@@ -113,7 +113,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
 
-        if (DiscoveryNode.masterNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings)) {
             // addLast to make sure that Repository will be created before snapshot
             clusterService.addLast(this);
         }
@@ -540,7 +540,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     private void processSnapshotsOnRemovedNodes(ClusterChangedEvent event) {
         if (removedNodesCleanupNeeded(event)) {
             // Check if we just became the master
-            final boolean newMaster = !event.previousState().nodes().localNodeMaster();
+            final boolean newMaster = !event.previousState().nodes().isLocalNodeElectedMaster();
             clusterService.submitStateUpdateTask("update snapshot state after node removal", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -719,7 +719,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     private boolean removedNodesCleanupNeeded(ClusterChangedEvent event) {
         // Check if we just became the master
-        boolean newMaster = !event.previousState().nodes().localNodeMaster();
+        boolean newMaster = !event.previousState().nodes().isLocalNodeElectedMaster();
         SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
         if (snapshotsInProgress == null) {
             return false;

@@ -42,7 +42,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
@@ -57,13 +59,13 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.query.BoolQueryParser;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.PercolatorQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.TermQueryParser;
-import org.elasticsearch.index.query.WildcardQueryParser;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -94,18 +96,21 @@ public class PercolatorQueryCacheTests extends ESTestCase {
     private PercolatorQueryCache cache;
 
     void initialize(Object... fields) throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", PercolatorQueryCacheTests.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        Map<String, QueryParser<?>> queryParsers = new HashMap<>();
-        queryParsers.put("term", new TermQueryParser());
-        queryParsers.put("wildcard", new WildcardQueryParser());
-        queryParsers.put("bool", new BoolQueryParser());
+        Map<String, Tuple<ParseField, QueryParser<?>>> queryParsers = new HashMap<>();
+        QueryParser<TermQueryBuilder> termParser = TermQueryBuilder::fromXContent;
+        queryParsers.put(TermQueryBuilder.NAME, new Tuple<>(TermQueryBuilder.QUERY_NAME_FIELD, termParser));
+        QueryParser<WildcardQueryBuilder> wildcardParser = WildcardQueryBuilder::fromXContent; 
+        queryParsers.put(WildcardQueryBuilder.NAME, new Tuple<>(WildcardQueryBuilder.QUERY_NAME_FIELD, wildcardParser));
+        QueryParser<BoolQueryBuilder> boolQueryParser = BoolQueryBuilder::fromXContent;
+        queryParsers.put(BoolQueryBuilder.NAME, new Tuple<>(BoolQueryBuilder.QUERY_NAME_FIELD, boolQueryParser));
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, queryParsers);
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("_index", ClusterState.UNKNOWN_UUID), indexSettings);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
@@ -117,7 +122,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
                 MapperService.MergeReason.MAPPING_UPDATE, false);
         cache = new PercolatorQueryCache(idxSettings, () -> queryShardContext);
         queryShardContext = new QueryShardContext(idxSettings, null, null, mapperService, similarityService, null,
-                    indicesQueriesRegistry, cache);
+                    indicesQueriesRegistry, cache, null);
     }
 
     public void testLoadQueries() throws Exception {
@@ -125,6 +130,8 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         IndexWriter indexWriter = new IndexWriter(
                 directory,
                 newIndexWriterConfig(new MockAnalyzer(random()))
+                        .setMergePolicy(NoMergePolicy.INSTANCE)
+                        .setMaxBufferedDocs(16)
         );
 
         boolean legacyFormat = randomBoolean();

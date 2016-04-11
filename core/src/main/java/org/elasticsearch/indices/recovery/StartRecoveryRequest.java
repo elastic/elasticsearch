@@ -92,8 +92,8 @@ public class StartRecoveryRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        sourceNode = DiscoveryNode.readNode(in);
-        targetNode = DiscoveryNode.readNode(in);
+        sourceNode = new DiscoveryNode(in);
+        targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
         recoveryType = RecoveryState.Type.fromId(in.readByte());
 

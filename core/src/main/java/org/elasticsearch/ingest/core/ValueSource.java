@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.core;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,8 @@ public interface ValueSource {
             return new ListValue(valueSourceList);
         } else if (value == null || value instanceof Number || value instanceof Boolean) {
             return new ObjectValue(value);
+        } else if (value instanceof byte[]) {
+            return new ByteValue((byte[]) value);
         } else if (value instanceof String) {
             return new TemplatedValue(templateService.compile((String) value));
         } else {
@@ -158,6 +161,35 @@ public interface ValueSource {
         public int hashCode() {
             return Objects.hashCode(value);
         }
+    }
+
+    final class ByteValue implements ValueSource {
+
+        private final byte[] value;
+
+        ByteValue(byte[] value) {
+            this.value = value;
+        }
+
+        @Override
+        public Object copyAndResolve(Map<String, Object> model) {
+            return value;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            ByteValue objectValue = (ByteValue) o;
+            return Arrays.equals(value, objectValue.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(value);
+        }
+
     }
 
     final class TemplatedValue implements ValueSource {

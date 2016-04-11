@@ -139,7 +139,7 @@ public class IndexLookupTests extends ESIntegTestCase {
                 .startObject("int_payload_field").field("type", "text").field("index_options", "offsets")
                 .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                Settings.settingsBuilder()
+                Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
@@ -405,7 +405,7 @@ public class IndexLookupTests extends ESIntegTestCase {
                 .startObject("int_payload_field").field("type", "text").field("index_options", "offsets")
             .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                Settings.settingsBuilder()
+                Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.payload_float.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_float.filter", "delimited_float")

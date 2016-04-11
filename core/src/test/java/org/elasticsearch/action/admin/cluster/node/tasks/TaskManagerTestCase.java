@@ -50,13 +50,14 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 
@@ -180,7 +181,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
     }
 
-
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             transportService = new TransportService(settings,
@@ -198,9 +198,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             transportService.start();
             clusterService = createClusterService(threadPool);
             clusterService.add(transportService.getTaskManager());
-            discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(), Version.CURRENT);
+            discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(),
+                    emptyMap(), emptySet(), Version.CURRENT);
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
-            ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
+            ActionFilters actionFilters = new ActionFilters(emptySet());
             transportListTasksAction = new TransportListTasksAction(settings, clusterName, threadPool, clusterService, transportService,
                     actionFilters, indexNameExpressionResolver);
             transportCancelTasksAction = new TransportCancelTasksAction(settings, clusterName, threadPool, clusterService, transportService,
@@ -218,6 +219,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         public void close() {
             clusterService.close();
             transportService.close();
+        }
+
+        public String getNodeId() {
+            return discoveryNode.getId();
         }
     }
 

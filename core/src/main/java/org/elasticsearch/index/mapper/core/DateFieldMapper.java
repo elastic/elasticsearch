@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
@@ -398,7 +400,12 @@ public class DateFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        public FieldStats stats(IndexReader reader) throws IOException {
+            int maxDoc = reader.maxDoc();
+            Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
+            if (terms == null) {
+                return null;
+            }
             long minValue = LegacyNumericUtils.getMinLong(terms);
             long maxValue = LegacyNumericUtils.getMaxLong(terms);
             return new FieldStats.Date(
@@ -415,6 +422,55 @@ public class DateFieldMapper extends NumberFieldMapper {
                 lowerTerm == null ? null : parseToMilliseconds(lowerTerm, !includeLower, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 upperTerm == null ? null : parseToMilliseconds(upperTerm, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 includeLower, includeUpper);
+        }
+
+        @Override
+        public Relation isFieldWithinQuery(IndexReader reader,
+                Object from, Object to,
+                boolean includeLower, boolean includeUpper,
+                DateTimeZone timeZone, DateMathParser dateParser) throws IOException {
+            if (dateParser == null) {
+                dateParser = this.dateMathParser;
+            }
+
+            Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
+            if (terms == null) {
+                // no terms, so nothing matches
+                return Relation.DISJOINT;
+            }
+
+            long minValue = LegacyNumericUtils.getMinLong(terms);
+            long maxValue = LegacyNumericUtils.getMaxLong(terms);
+
+            long fromInclusive = Long.MIN_VALUE;
+            if (from != null) {
+                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser);
+                if (includeLower == false) {
+                    if (fromInclusive == Long.MAX_VALUE) {
+                        return Relation.DISJOINT;
+                    }
+                    ++fromInclusive;
+                }
+            }
+
+            long toInclusive = Long.MAX_VALUE;
+            if (to != null) {
+                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser);
+                if (includeUpper == false) {
+                    if (toInclusive == Long.MIN_VALUE) {
+                        return Relation.DISJOINT;
+                    }
+                    --toInclusive;
+                }
+            }
+
+            if (minValue >= fromInclusive && maxValue <= toInclusive) {
+                return Relation.WITHIN;
+            } else if (maxValue < fromInclusive || minValue > toInclusive) {
+                return Relation.DISJOINT;
+            } else {
+                return Relation.INTERSECTS;
+            }
         }
 
         public long parseToMilliseconds(Object value, boolean inclusive, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
@@ -440,6 +496,18 @@ public class DateFieldMapper extends NumberFieldMapper {
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+            FormatDateTimeFormatter dateTimeFormatter = this.dateTimeFormatter;
+            if (format != null) {
+                dateTimeFormatter = Joda.forPattern(format);
+            }
+            if (timeZone == null) {
+                timeZone = DateTimeZone.UTC;
+            }
+            return new DocValueFormat.DateTime(dateTimeFormatter, timeZone);
         }
     }
 

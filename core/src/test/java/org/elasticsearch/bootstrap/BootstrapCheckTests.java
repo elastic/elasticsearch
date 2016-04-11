@@ -32,6 +32,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class BootstrapCheckTests extends ESTestCase {
 
@@ -80,9 +82,9 @@ public class BootstrapCheckTests extends ESTestCase {
 
     public void testFileDescriptorLimitsThrowsOnInvalidLimit() {
         final IllegalArgumentException e =
-                expectThrows(
-                        IllegalArgumentException.class,
-                        () -> new BootstrapCheck.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE)));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new BootstrapCheck.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE)));
         assertThat(e.getMessage(), containsString("limit must be positive but was"));
     }
 
@@ -121,8 +123,8 @@ public class BootstrapCheckTests extends ESTestCase {
                     fail("should have failed due to memory not being locked");
                 } catch (final RuntimeException e) {
                     assertThat(
-                            e.getMessage(),
-                            containsString("memory locking requested for elasticsearch process but memory is not locked"));
+                        e.getMessage(),
+                        containsString("memory locking requested for elasticsearch process but memory is not locked"));
                 }
             } else {
                 // nothing should happen
@@ -197,4 +199,12 @@ public class BootstrapCheckTests extends ESTestCase {
         assertTrue(BootstrapCheck.enforceLimits(settings));
     }
 
+    public void testMinMasterNodes() {
+        boolean isSet = randomBoolean();
+        BootstrapCheck.Check check = new BootstrapCheck.MinMasterNodesCheck(isSet);
+        assertThat(check.check(), not(equalTo(isSet)));
+        List<BootstrapCheck.Check> defaultChecks = BootstrapCheck.checks(Settings.EMPTY);
+
+        expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, defaultChecks));
+    }
 }

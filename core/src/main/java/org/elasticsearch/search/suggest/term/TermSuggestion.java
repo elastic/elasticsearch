@@ -111,7 +111,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     protected void innerReadFrom(StreamInput in) throws IOException {
         super.innerReadFrom(in);
-        sort = SortBy.PROTOTYPE.readFrom(in);
+        sort = SortBy.readFromStream(in);
     }
 
     @Override

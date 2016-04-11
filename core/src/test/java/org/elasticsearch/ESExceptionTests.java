@@ -339,9 +339,9 @@ public class ESExceptionTests extends ESTestCase {
             }
             assertArrayEquals(e.getStackTrace(), ex.getStackTrace());
             assertTrue(e.getStackTrace().length > 1);
-            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), t);
-            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), ex);
-            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), e);
+            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), t);
+            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), ex);
+            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), e);
         }
     }
 }

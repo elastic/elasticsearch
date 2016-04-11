@@ -62,8 +62,9 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -102,7 +103,8 @@ public class ClusterServiceTests extends ESTestCase {
         TimedClusterService timedClusterService = new TimedClusterService(Settings.EMPTY, null,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool, new ClusterName("ClusterServiceTests"));
-        timedClusterService.setLocalNode(new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        timedClusterService.setLocalNode(new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(),
+                emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
             public void connectToAddedNodes(ClusterChangedEvent event) {
@@ -120,7 +122,7 @@ public class ClusterServiceTests extends ESTestCase {
         ClusterState state = timedClusterService.state();
         final DiscoveryNodes nodes = state.nodes();
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes)
-                .masterNodeId(makeMaster ? nodes.localNodeId() : null);
+                .masterNodeId(makeMaster ? nodes.getLocalNodeId() : null);
         state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                 .nodes(nodesBuilder).build();
         setState(timedClusterService, state);
@@ -503,7 +505,7 @@ public class ClusterServiceTests extends ESTestCase {
      * Note, this test can only work as long as we have a single thread executor executing the state update tasks!
      */
     public void testPrioritizedTasks() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "local")
                 .build();
         BlockingTask block = new BlockingTask(Priority.IMMEDIATE);

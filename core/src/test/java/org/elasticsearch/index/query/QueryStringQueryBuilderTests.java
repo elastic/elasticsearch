@@ -136,7 +136,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.useDisMax(randomBoolean());
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.locale(randomLocale(getRandom()));
+            queryStringQueryBuilder.locale(randomLocale(random()));
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.timeZone(randomTimeZone());

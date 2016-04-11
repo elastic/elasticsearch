@@ -39,7 +39,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
     }
 
     public void testFilterByFrequency() throws Exception {
-        Random random = getRandom();
+        Random random = random();
         for (int i = 0; i < 1000; i++) {
             Document d = new Document();
             d.add(new StringField("id", "" + i, Field.Store.NO));
@@ -64,6 +64,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         {
             ifdService.clear();
             MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
+                    .fielddata(true)
                     .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
@@ -76,6 +77,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         {
             ifdService.clear();
             MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
+                    .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, 201, 100)
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
@@ -88,6 +90,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         {
             ifdService.clear(); // test # docs with value
             MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
+                    .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
@@ -101,6 +104,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         {
             ifdService.clear();
             MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
+                    .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);

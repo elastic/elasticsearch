@@ -36,6 +36,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -143,6 +144,19 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         writeVInt(bytes.length());
+        bytes.writeTo(this);
+    }
+
+    /**
+     * Writes an optional bytes reference including a length header. Use this if you need to differentiate between null and empty bytes
+     * references. Use {@link #writeBytesReference(BytesReference)} and {@link StreamInput#readBytesReference()} if you do not.
+     */
+    public void writeOptionalBytesReference(@Nullable BytesReference bytes) throws IOException {
+        if (bytes == null) {
+            writeVInt(0);
+            return;
+        }
+        writeVInt(bytes.length() + 1);
         bytes.writeTo(this);
     }
 
@@ -300,6 +314,14 @@ public abstract class StreamOutput extends OutputStream {
         writeLong(Double.doubleToLongBits(v));
     }
 
+    public void writeOptionalDouble(Double v) throws IOException {
+        if (v == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeDouble(v);
+        }
+    }
 
     private static byte ZERO = 0;
     private static byte ONE = 1;
@@ -690,6 +712,18 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write an optional {@link QueryBuilder} to the stream.
+     */
+    public void writeOptionalQuery(@Nullable QueryBuilder<?> queryBuilder) throws IOException {
+        if (queryBuilder == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeQuery(queryBuilder);
+        }
+    }
+
+    /**
      * Writes a {@link ShapeBuilder} to the current stream
      */
     public void writeShape(ShapeBuilder shapeBuilder) throws IOException {
@@ -756,4 +790,8 @@ public abstract class StreamOutput extends OutputStream {
         writeNamedWriteable(sort);
     }
 
+    /** Writes a {@link DocValueFormat}. */
+    public void writeValueFormat(DocValueFormat format) throws IOException {
+        writeNamedWriteable(format);
+    }
 }

@@ -294,7 +294,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             fail(msg.toString());
         }
     }
-
+    
     public void testOldIndexes() throws Exception {
         setupCluster();
 

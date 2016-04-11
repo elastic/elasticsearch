@@ -32,4 +32,10 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
     public void setupProperties() {
         setDummyNullValue(true);
     }
+
+    public void testValueFormat() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals("false", ft.docValueFormat(null, null).format(0));
+        assertEquals("true", ft.docValueFormat(null, null).format(1));
+    }
 }

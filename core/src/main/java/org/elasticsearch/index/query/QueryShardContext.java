@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
@@ -47,13 +48,13 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorQueryCache;
-import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
+import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -95,8 +96,8 @@ public class QueryShardContext extends QueryRewriteContext {
     boolean isFilter; // pkg private for testing
 
     public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
-                             final IndicesQueriesRegistry indicesQueriesRegistry, PercolatorQueryCache percolatorQueryCache) {
-        super(indexSettings, scriptService, indicesQueriesRegistry);
+                             final IndicesQueriesRegistry indicesQueriesRegistry, PercolatorQueryCache percolatorQueryCache, IndexReader reader) {
+        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, reader);
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
@@ -109,14 +110,8 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.percolatorQueryCache);
+        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.percolatorQueryCache, source.reader);
         this.types = source.getTypes();
-    }
-
-
-    @Override
-    public QueryShardContext clone() {
-        return new QueryShardContext(indexSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, percolatorQueryCache);
     }
 
     public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
@@ -141,16 +136,8 @@ public class QueryShardContext extends QueryRewriteContext {
         this.parseContext.reset(jp);
     }
 
-    public InnerHitsSubSearchContext getInnerHitsContext(XContentParser parser) throws IOException {
-        return InnerHitsQueryParserHelper.parse(parser);
-    }
-
     public AnalysisService getAnalysisService() {
         return mapperService.analysisService();
-    }
-
-    public MapperService getMapperService() {
-        return mapperService;
     }
 
     public PercolatorQueryCache getPercolatorQueryCache() {
@@ -208,14 +195,14 @@ public class QueryShardContext extends QueryRewriteContext {
         return isFilter;
     }
 
-    public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
+    public void addInnerHit(InnerHitBuilder innerHitBuilder) throws IOException {
         SearchContext sc = SearchContext.current();
         if (sc == null) {
             throw new QueryShardException(this, "inner_hits unsupported");
         }
 
         InnerHitsContext innerHitsContext = sc.innerHits();
-        innerHitsContext.addInnerHitDefinition(name, context);
+        innerHitsContext.addInnerHitDefinition(innerHitBuilder.buildInline(sc, this));
     }
 
     public Collection<String> simpleMatchToIndexNames(String pattern) {

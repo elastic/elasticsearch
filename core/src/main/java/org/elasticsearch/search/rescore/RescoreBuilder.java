@@ -19,15 +19,13 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -40,7 +38,7 @@ import java.util.Objects;
 /**
  * The abstract base builder for instances of {@link RescoreBuilder}.
  */
-public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements ToXContent, NamedWriteable<RB> {
+public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXContentToBytes implements NamedWriteable<RB> {
 
     protected Integer windowSize;
 
@@ -147,17 +145,5 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements T
         @SuppressWarnings("rawtypes")
         RescoreBuilder other = (RescoreBuilder) obj;
         return Objects.equals(windowSize, other.windowSize);
-    }
-
-    @Override
-    public final String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return builder.string();
-        } catch (Exception e) {
-            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
-        }
     }
 }

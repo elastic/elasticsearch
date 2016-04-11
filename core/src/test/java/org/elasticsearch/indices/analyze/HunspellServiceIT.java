@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @ClusterScope(scope= Scope.TEST, numDataNodes=0)
 public class HunspellServiceIT extends ESIntegTestCase {
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
                 .put(HUNSPELL_IGNORE_CASE.getKey(), true)
@@ -52,7 +52,7 @@ public class HunspellServiceIT extends ESIntegTestCase {
     }
 
     public void testLocaleDirectoryWithLocaleSpecificConfig() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
                 .put(HUNSPELL_IGNORE_CASE.getKey(), true)
@@ -74,7 +74,7 @@ public class HunspellServiceIT extends ESIntegTestCase {
     }
 
     public void testDicWithNoAff() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/no_aff_conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
                 .build();
@@ -92,7 +92,7 @@ public class HunspellServiceIT extends ESIntegTestCase {
     }
 
     public void testDicWithTwoAffs() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/two_aff_conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
                 .build();

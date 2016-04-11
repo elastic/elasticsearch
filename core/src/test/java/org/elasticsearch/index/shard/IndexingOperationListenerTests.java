@@ -46,7 +46,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postIndex(Engine.Index index) {
+            public void postIndex(Engine.Index index, boolean created) {
                 postIndex.incrementAndGet();
             }
 
@@ -79,7 +79,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postIndex(Engine.Index index) {
+            public void postIndex(Engine.Index index, boolean created) {
                 throw new RuntimeException();            }
 
             @Override
@@ -135,7 +135,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(index);
+        compositeListener.postIndex(index, false);
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());

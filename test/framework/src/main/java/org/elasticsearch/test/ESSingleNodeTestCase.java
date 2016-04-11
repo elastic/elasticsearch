@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -78,7 +77,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         startNode();
     }
 
-    private void startNode() {
+    protected void startNode() {
         assert NODE == null;
         NODE = newNode();
         // we must wait for the node to actually be up and running. otherwise the node might have started, elected itself master but might not yet have removed the
@@ -93,7 +92,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
     }
 
-    private static void stopNode() throws IOException {
+    protected static void stopNode() throws IOException {
         Node node = NODE;
         NODE = null;
         IOUtils.close(node);
@@ -191,7 +190,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .build();
         Node build = new MockNode(settings, getVersion(), getPlugins());
         build.start();
-        assertThat(DiscoveryNode.localNode(build.settings()), is(true));
+        assertThat(DiscoveryNode.isLocalNode(build.settings()), is(true));
         return build;
     }
 

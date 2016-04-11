@@ -27,6 +27,8 @@ import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -35,6 +37,16 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.spans.SpanContainingQuery;
+import org.apache.lucene.search.spans.SpanFirstQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanNotQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -93,7 +105,6 @@ public final class ExtractQueryTermsService {
      * an UnsupportedQueryException is thrown.
      */
     static Set<Term> extractQueryTerms(Query query) {
-        // TODO: add support for span queries
         if (query instanceof TermQuery) {
             return Collections.singleton(((TermQuery) query).getTerm());
         } else if (query instanceof TermsQuery) {
@@ -162,6 +173,33 @@ public final class ExtractQueryTermsService {
         } else if (query instanceof BoostQuery) {
             Query wrappedQuery = ((BoostQuery) query).getQuery();
             return extractQueryTerms(wrappedQuery);
+        } else if (query instanceof CommonTermsQuery) {
+            List<Term> terms = ((CommonTermsQuery) query).getTerms();
+            return new HashSet<>(terms);
+        } else if (query instanceof BlendedTermQuery) {
+            List<Term> terms = ((BlendedTermQuery) query).getTerms();
+            return new HashSet<>(terms);
+        } else if (query instanceof SpanTermQuery) {
+            return Collections.singleton(((SpanTermQuery) query).getTerm());
+        } else if (query instanceof SpanNearQuery) {
+            Set<Term> bestClause = null;
+            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+            for (SpanQuery clause : spanNearQuery.getClauses()) {
+                Set<Term> temp = extractQueryTerms(clause);
+                bestClause = selectTermListWithTheLongestShortestTerm(temp, bestClause);
+            }
+            return bestClause;
+        } else if (query instanceof SpanOrQuery) {
+            Set<Term> terms = new HashSet<>();
+            SpanOrQuery spanOrQuery = (SpanOrQuery) query;
+            for (SpanQuery clause : spanOrQuery.getClauses()) {
+                terms.addAll(extractQueryTerms(clause));
+            }
+            return terms;
+        } else if (query instanceof SpanFirstQuery) {
+            return extractQueryTerms(((SpanFirstQuery)query).getMatch());
+        } else if (query instanceof SpanNotQuery) {
+            return extractQueryTerms(((SpanNotQuery) query).getInclude());
         } else {
             throw new UnsupportedQueryException(query);
         }

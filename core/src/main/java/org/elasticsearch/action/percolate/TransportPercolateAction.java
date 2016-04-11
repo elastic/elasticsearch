@@ -38,14 +38,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.PercolatorQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
@@ -207,7 +205,10 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             boolQueryBuilder.filter(percolatorQueryBuilder);
             searchSource.field("query", boolQueryBuilder);
         } else {
-            searchSource.field("query", percolatorQueryBuilder);
+            // wrapping in a constant score query with boost 0 for bwc reason.
+            // percolator api didn't emit scores before and never included scores
+            // for how well percolator queries matched with the document being percolated
+            searchSource.field("query", new ConstantScoreQueryBuilder(percolatorQueryBuilder).boost(0f));
         }
 
         searchSource.endObject();

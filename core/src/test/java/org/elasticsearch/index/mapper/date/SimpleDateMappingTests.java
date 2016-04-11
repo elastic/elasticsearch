@@ -62,7 +62,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.mapper.string.SimpleStringMappingTests.docValuesType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -177,7 +176,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         if (version.equals(Version.CURRENT)) {
             index = createIndex(indexName);
         } else {
-            index = createIndex(indexName, settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build());
+            index = createIndex(indexName, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build());
         }
         client().admin().indices().preparePutMapping(indexName).setType(type).setSource(mapping).get();
         return index.mapperService().documentMapper(type);
@@ -337,7 +336,7 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         }
 
         // Unless the global ignore_malformed option is set to true
-        Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
+        Settings indexSettings = Settings.builder().put("index.mapping.ignore_malformed", true).build();
         defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()

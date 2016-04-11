@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -37,12 +38,15 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Set;
 
+import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<PercolatorQueryBuilder> {
 
+    private static final Set<String> SHUFFLE_PROTECTED_FIELDS = singleton(PercolatorQueryBuilder.DOCUMENT_FIELD.getPreferredName());
     private String indexedDocumentIndex;
     private String indexedDocumentType;
     private String indexedDocumentId;
@@ -73,6 +77,16 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
         } else {
             return new PercolatorQueryBuilder(docType, documentSource);
         }
+    }
+
+    /**
+     * we don't want to shuffle the "document" field internally in {@link #testFromXContent()} because even though the
+     * documents would be functionally the same, their {@link BytesReference} representation isn't and thats what we
+     * compare when check for equality of the original and the shuffled builder
+     */
+    @Override
+    protected Set<String> shuffleProtectedFields() {
+        return SHUFFLE_PROTECTED_FIELDS;
     }
 
     @Override
@@ -132,6 +146,7 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
 
     // overwrite this test, because adding bogus field to the document part is valid and that would make the test fail
     // (the document part represents the document being percolated and any key value pair is allowed there)
+    @Override
     public void testUnknownObjectException() throws IOException {
         String validQuery = createTestQueryBuilder().toString();
         int endPos = validQuery.indexOf("document");

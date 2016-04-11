@@ -70,7 +70,7 @@ public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHist
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         Rounding rounding = createRounding();
-        return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, null, config.formatter(),
+        return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, null, config.format(),
                 histogramFactory, context, parent, pipelineAggregators, metaData);
     }
 
@@ -101,11 +101,11 @@ public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHist
         ExtendedBounds roundedBounds = null;
         if (extendedBounds != null) {
             // we need to process & validate here using the parser
-            extendedBounds.processAndValidate(name, context.searchContext(), config.parser());
+            extendedBounds.processAndValidate(name, context.searchContext(), config.format());
             roundedBounds = extendedBounds.round(rounding);
         }
         return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource,
-                config.formatter(), histogramFactory, context, parent, pipelineAggregators, metaData);
+                config.format(), histogramFactory, context, parent, pipelineAggregators, metaData);
     }
 
 }

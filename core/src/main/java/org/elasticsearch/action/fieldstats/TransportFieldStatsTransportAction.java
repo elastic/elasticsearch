@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.fieldstats;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Terms;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -102,9 +99,9 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
                     indicesMergedFieldStats.put(indexName, indexMergedFieldStats = new HashMap<>());
                 }
 
-                Map<String, FieldStats> fieldStats = shardResponse.getFieldStats();
-                for (Map.Entry<String, FieldStats> entry : fieldStats.entrySet()) {
-                    FieldStats existing = indexMergedFieldStats.get(entry.getKey());
+                Map<String, FieldStats<?>> fieldStats = shardResponse.getFieldStats();
+                for (Map.Entry<String, FieldStats<?>> entry : fieldStats.entrySet()) {
+                    FieldStats<?> existing = indexMergedFieldStats.get(entry.getKey());
                     if (existing != null) {
                         if (existing.getType() != entry.getValue().getType()) {
                             throw new IllegalStateException(
@@ -156,21 +153,19 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
     @Override
     protected FieldStatsShardResponse shardOperation(FieldStatsShardRequest request) {
         ShardId shardId = request.shardId();
-        Map<String, FieldStats> fieldStats = new HashMap<>();
+        Map<String, FieldStats<?>> fieldStats = new HashMap<>();
         IndexService indexServices = indicesService.indexServiceSafe(shardId.getIndex());
         MapperService mapperService = indexServices.mapperService();
         IndexShard shard = indexServices.getShard(shardId.id());
         try (Engine.Searcher searcher = shard.acquireSearcher("fieldstats")) {
             for (String field : request.getFields()) {
                 MappedFieldType fieldType = mapperService.fullName(field);
-                if (fieldType != null) {
-                    IndexReader reader = searcher.reader();
-                    Terms terms = MultiFields.getTerms(reader, field);
-                    if (terms != null) {
-                        fieldStats.put(field, fieldType.stats(terms, reader.maxDoc()));
-                    }
-                } else {
+                if (fieldType == null) {
                     throw new IllegalArgumentException("field [" + field + "] doesn't exist");
+                }
+                FieldStats<?> stats = fieldType.stats(searcher.reader());
+                if (stats != null) {
+                    fieldStats.put(field, stats);
                 }
             }
         } catch (IOException e) {

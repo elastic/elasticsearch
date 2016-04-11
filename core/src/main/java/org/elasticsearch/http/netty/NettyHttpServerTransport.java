@@ -42,9 +42,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.BindHttpException;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
@@ -53,6 +51,8 @@ import org.elasticsearch.http.netty.cors.CorsConfigBuilder;
 import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.http.netty.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
@@ -392,14 +392,14 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
             builder.allowCredentials();
         }
-        String[] strMethods = settings.getAsArray(SETTING_CORS_ALLOW_METHODS.get(settings), new String[0]);
+        String[] strMethods = settings.getAsArray(SETTING_CORS_ALLOW_METHODS.getKey());
         HttpMethod[] methods = Arrays.asList(strMethods)
                                      .stream()
                                      .map(HttpMethod::valueOf)
                                      .toArray(size -> new HttpMethod[size]);
         return builder.allowedRequestMethods(methods)
                       .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-                      .allowedRequestHeaders(settings.getAsArray(SETTING_CORS_ALLOW_HEADERS.get(settings), new String[0]))
+                      .allowedRequestHeaders(settings.getAsArray(SETTING_CORS_ALLOW_HEADERS.getKey()))
                       .shortCircuit()
                       .build();
     }
@@ -483,7 +483,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         return corsConfig;
     }
 
-    protected void dispatchRequest(HttpRequest request, HttpChannel channel) {
+    protected void dispatchRequest(RestRequest request, RestChannel channel) {
         httpServerAdapter.dispatchRequest(request, channel, threadPool.getThreadContext());
     }
 

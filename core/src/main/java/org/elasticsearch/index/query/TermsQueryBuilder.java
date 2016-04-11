@@ -29,12 +29,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
@@ -53,8 +56,8 @@ import java.util.stream.IntStream;
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     public static final String NAME = "terms";
-
-    static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder("field", "value");
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "in");
+    public static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder("field", "value");
 
     private final String fieldName;
     private final List<Object> values;
@@ -217,6 +220,74 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static TermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        String fieldName = null;
+        List<Object> values = null;
+        TermsLookup termsLookup = null;
+
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if  (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[" + TermsQueryBuilder.NAME + "] query does not support multiple fields");
+                }
+                fieldName = currentFieldName;
+                values = parseValues(parser);
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if  (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[" + TermsQueryBuilder.NAME + "] query does not support more than one field. "
+                            + "Already got: [" + fieldName + "] but also found [" + currentFieldName +"]");
+                }
+                fieldName = currentFieldName;
+                termsLookup = TermsLookup.parseTermsLookup(parser);
+            } else if (token.isValue()) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+            }
+        }
+
+        if (fieldName == null) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query requires a field name, " +
+                    "followed by array of terms or a document lookup specification");
+        }
+        return new TermsQueryBuilder(fieldName, values, termsLookup)
+                .boost(boost)
+                .queryName(queryName);
+    }
+
+    private static List<Object> parseValues(XContentParser parser) throws IOException {
+        List<Object> values = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            Object value = parser.objectBytes();
+            if (value == null) {
+                throw new ParsingException(parser.getTokenLocation(), "No value specified for terms query");
+            }
+            values.add(value);
+        }
+        return values;
     }
 
     @Override

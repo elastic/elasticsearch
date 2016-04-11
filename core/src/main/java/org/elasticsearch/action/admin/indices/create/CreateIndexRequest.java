@@ -169,7 +169,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 

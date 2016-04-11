@@ -173,7 +173,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            node = DiscoveryNode.readNode(in);
+            node = new DiscoveryNode(in);
             legacyVersion = in.readLong();
             allocationId = in.readOptionalString();
             allocationStatus = AllocationStatus.readFrom(in);

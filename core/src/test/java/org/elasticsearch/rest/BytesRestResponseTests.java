@@ -156,7 +156,7 @@ public class BytesRestResponseTests extends ESTestCase {
         }
     }
 
-    private static class SimpleExceptionRestChannel extends RestChannel {
+    private static class SimpleExceptionRestChannel extends AbstractRestChannel {
 
         SimpleExceptionRestChannel(RestRequest request) {
             super(request, false);
@@ -167,7 +167,7 @@ public class BytesRestResponseTests extends ESTestCase {
         }
     }
 
-    private static class DetailedExceptionRestChannel extends RestChannel {
+    private static class DetailedExceptionRestChannel extends AbstractRestChannel {
 
         DetailedExceptionRestChannel(RestRequest request) {
             super(request, true);

@@ -68,6 +68,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -90,7 +91,10 @@ public class StringTermsTests extends AbstractTermsTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                        MULTI_VALUED_FIELD_NAME, "type=keyword",
+                        "tag", "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex("idx", "type").setSource(
@@ -163,7 +167,10 @@ public class StringTermsTests extends AbstractTermsTestCase {
         bucketProps.put("sum_d", 1d);
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
 
-        createIndex("sort_idx");
+        assertAcked(client().admin().indices().prepareCreate("sort_idx")
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                        MULTI_VALUED_FIELD_NAME, "type=keyword",
+                        "tag", "type=keyword").get());
         for (int i = 1; i <= 3; i++) {
             builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val1").field("l", 1).field("d", i).endObject()));

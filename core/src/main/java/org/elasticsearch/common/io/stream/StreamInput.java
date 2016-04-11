@@ -37,6 +37,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -112,6 +113,19 @@ public abstract class StreamInput extends InputStream {
      */
     public BytesReference readBytesReference() throws IOException {
         int length = readVInt();
+        return readBytesReference(length);
+    }
+
+    /**
+     * Reads an optional bytes reference from this stream. It might hold an actual reference to the underlying bytes of the stream. Use this
+     * only if you must differentiate null from empty. Use {@link StreamInput#readBytesReference()} and
+     * {@link StreamOutput#writeBytesReference(BytesReference)} if you do not.
+     */
+    public BytesReference readOptionalBytesReference() throws IOException {
+        int length = readVInt() - 1;
+        if (length < 0) {
+            return null;
+        }
         return readBytesReference(length);
     }
 
@@ -340,6 +354,13 @@ public abstract class StreamInput extends InputStream {
 
     public final double readDouble() throws IOException {
         return Double.longBitsToDouble(readLong());
+    }
+
+    public final Double readOptionalDouble() throws IOException {
+        if (readBoolean()) {
+            return readDouble();
+        }
+        return null;
     }
 
     /**
@@ -686,7 +707,7 @@ public abstract class StreamInput extends InputStream {
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
      */
-    <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+    <C extends NamedWriteable<?>> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
@@ -709,6 +730,16 @@ public abstract class StreamInput extends InputStream {
      */
     public QueryBuilder<?> readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
+    }
+
+    /**
+     * Reads an optional {@link QueryBuilder}.
+     */
+    public QueryBuilder<?> readOptionalQuery() throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteable(QueryBuilder.class);
+        }
+        return null;
     }
 
     /**
@@ -758,6 +789,13 @@ public abstract class StreamInput extends InputStream {
      */
     public Task.Status readTaskStatus() throws IOException {
         return readNamedWriteable(Task.Status.class);
+    }
+
+    /**
+     * Reads a {@link DocValueFormat} from the current stream.
+     */
+    public DocValueFormat readValueFormat() throws IOException {
+        return readNamedWriteable(DocValueFormat.class);
     }
 
     /**

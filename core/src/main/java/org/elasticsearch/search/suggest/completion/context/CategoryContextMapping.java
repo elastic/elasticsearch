@@ -139,8 +139,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     }
 
     @Override
-    protected CategoryQueryContext prototype() {
-        return CategoryQueryContext.PROTOTYPE;
+    protected CategoryQueryContext fromXContent(XContentParser parser) throws IOException {
+        return CategoryQueryContext.fromXContent(parser);
     }
 
     /**

@@ -30,6 +30,9 @@ import static org.hamcrest.Matchers.equalTo;
  * Test the {@link SuggestMode} enum.
  */
 public class SuggestModeTests extends AbstractWriteableEnumTestCase {
+    public SuggestModeTests() {
+        super(SuggestMode::readFromStream);
+    }
 
     @Override
     public void testValidOrdinals() {

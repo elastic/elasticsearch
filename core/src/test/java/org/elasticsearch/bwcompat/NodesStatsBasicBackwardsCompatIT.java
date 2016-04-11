@@ -38,13 +38,13 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
 
         // We explicitly connect to each node with a custom TransportClient
         for (NodeInfo n : nodesInfo.getNodes()) {
-            TransportClient tc = TransportClient.builder().settings(settings).build().addTransportAddress(n.getNode().address());
+            TransportClient tc = TransportClient.builder().settings(settings).build().addTransportAddress(n.getNode().getAddress());
             // Just verify that the NS can be sent and serialized/deserialized between nodes with basic indices
             NodesStatsResponse ns = tc.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
             tc.close();
@@ -56,13 +56,13 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", "transport_client_" + getTestName())
                 .put("client.transport.ignore_cluster_name", true).build();
 
         // We explicitly connect to each node with a custom TransportClient
         for (NodeInfo n : nodesInfo.getNodes()) {
-            TransportClient tc = TransportClient.builder().settings(settings).build().addTransportAddress(n.getNode().address());
+            TransportClient tc = TransportClient.builder().settings(settings).build().addTransportAddress(n.getNode().getAddress());
 
             // randomize the combination of flags set
             // Uses reflection to find methods in an attempt to future-proof this test against newly added flags

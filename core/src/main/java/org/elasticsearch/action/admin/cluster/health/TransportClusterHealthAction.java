@@ -143,7 +143,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         assert waitFor >= 0;
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
         final ClusterState state = observer.observedState();
-        if (waitFor == 0 || request.timeout().millis() == 0) {
+        if (request.timeout().millis() == 0) {
             listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
         }

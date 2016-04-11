@@ -44,8 +44,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,15 +63,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private List<DiscoveryNode> generateNodes() {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
-            final HashMap<String, String> attributes = new HashMap<>();
-            if (rarely()) {
-                attributes.put("client", "true");
-            } else {
-                attributes.put("master", "" + randomBoolean());
-                attributes.put("data", "" + randomBoolean());
-                attributes.put("ingest", "" + randomBoolean());
-            }
-            nodes.add(new DiscoveryNode("node_" + i, "" + i, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT));
+            Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
+            nodes.add(new DiscoveryNode("node_" + i, "" + i, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+                    roles, Version.CURRENT));
         }
         return nodes;
     }
@@ -134,7 +129,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
     private void assertConnectedExactlyToNodes(ClusterState state) {
         assertConnected(state.nodes());
-        assertThat(transport.connectedNodes.size(), equalTo(state.nodes().size()));
+        assertThat(transport.connectedNodes.size(), equalTo(state.nodes().getSize()));
     }
 
     private void assertConnected(Iterable<DiscoveryNode> nodes) {

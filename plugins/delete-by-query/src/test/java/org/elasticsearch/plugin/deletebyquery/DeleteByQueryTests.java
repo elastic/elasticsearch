@@ -335,7 +335,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
     }
 
     public void testConcurrentDeleteByQueriesOnSameDocs() throws Throwable {
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         final long docs = randomIntBetween(50, 100);

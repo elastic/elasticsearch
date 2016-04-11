@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
-import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -245,7 +244,17 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         // original mapping not modified
         assertEquals(mapping, serialize(mapper));
         // but we have an update
-        assertEquals("{\"type\":{\"properties\":{\"foo\":{\"type\":\"text\"}}}}", serialize(update));
+        assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("foo")
+                    .field("type", "text")
+                    .startObject("fields")
+                        .startObject("keyword")
+                        .field("type", "keyword")
+                            .field("ignore_above", 256)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().endObject().string(), serialize(update));
     }
 
     public void testIncremental() throws Exception {
@@ -267,7 +276,14 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 // foo is NOT in the update
-                .startObject("bar").field("type", "text").endObject()
+                .startObject("bar").field("type", "text")
+                    .startObject("fields")
+                        .startObject("keyword")
+                            .field("type", "keyword")
+                            .field("ignore_above", 256)
+                        .endObject()
+                    .endObject()
+                .endObject()
                 .endObject().endObject().string(), serialize(update));
     }
 
@@ -287,8 +303,22 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("bar").field("type", "text").endObject()
-                .startObject("foo").field("type", "text").endObject()
+                .startObject("bar").field("type", "text")
+                    .startObject("fields")
+                        .startObject("keyword")
+                            .field("type", "keyword")
+                            .field("ignore_above", 256)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject("foo").field("type", "text")
+                    .startObject("fields")
+                        .startObject("keyword")
+                            .field("type", "keyword")
+                            .field("ignore_above", 256)
+                        .endObject()
+                    .endObject()
+                .endObject()
                 .endObject().endObject().string(), serialize(update));
     }
 
@@ -308,7 +338,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "text").endObject().endObject().endObject().endObject().endObject()
+                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "text")
+                .startObject("fields").startObject("keyword").field("type", "keyword").field("ignore_above", 256).endObject()
+                .endObject().endObject().endObject().endObject().endObject().endObject()
                 .endObject().endObject().endObject().string(), serialize(update));
     }
 
@@ -328,7 +360,15 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("foo").field("type", "text").endObject()
+                .startObject("foo")
+                    .field("type", "text")
+                    .startObject("fields")
+                        .startObject("keyword")
+                        .field("type", "keyword")
+                            .field("ignore_above", 256)
+                        .endObject()
+                    .endObject()
+                .endObject()
                 .endObject().endObject().endObject().string(), serialize(update));
     }
 
@@ -348,7 +388,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         // but we have an update
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "text").endObject().endObject().endObject().endObject().endObject()
+                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "text").startObject("fields")
+                .startObject("keyword").field("type", "keyword").field("ignore_above", 256).endObject()
+                .endObject().endObject().endObject().endObject().endObject().endObject()
                 .endObject().endObject().endObject().string(), serialize(update));
     }
 
@@ -369,7 +411,14 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertEquals(mapping, serialize(mapper));
         assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("foo").startObject("properties")
-                .startObject("bar").field("type", "text").endObject()
+                .startObject("bar").field("type", "text")
+                    .startObject("fields")
+                        .startObject("keyword")
+                            .field("type", "keyword")
+                            .field("ignore_above", 256)
+                        .endObject()
+                    .endObject()
+                .endObject()
                 .startObject("baz").field("type", "long").endObject()
                 .endObject().endObject()
                 .endObject().endObject().endObject().string(), serialize(update));

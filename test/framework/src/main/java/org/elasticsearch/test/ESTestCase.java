@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
@@ -29,6 +28,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -40,6 +40,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.ESLogger;
@@ -47,6 +48,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -73,7 +77,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -82,7 +88,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -180,12 +185,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
     @After
     public final void ensureAllSearchContextsReleased() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                MockSearchService.assertNoInFLightContext();
-            }
-        });
+        assertBusy(() -> MockSearchService.assertNoInFlightContext());
     }
 
     // mockdirectorywrappers currently set this boolean if checkindex fails
@@ -208,15 +208,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     // Test facilities and facades for subclasses.
     // -----------------------------------------------------------------
 
-    // TODO: replaces uses of getRandom() with random()
     // TODO: decide on one set of naming for between/scaledBetween and remove others
     // TODO: replace frequently() with usually()
-
-    /** Shortcut for {@link RandomizedContext#getRandom()}. Use {@link #random()} instead. */
-    public static Random getRandom() {
-        // TODO: replace uses of this function with random()
-        return random();
-    }
 
     /**
      * Returns a "scaled" random number between min and max (inclusive).
@@ -606,6 +599,38 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Randomly shuffles the fields inside objects in the {@link XContentBuilder} passed in.
+     * Recursively goes through inner objects and also shuffles them. Exceptions for this
+     * recursive shuffling behavior can be made by passing in the names of fields which
+     * internally should stay untouched.
+     */
+    public static XContentBuilder shuffleXContent(XContentBuilder builder, Set<String> exceptFieldNames) throws IOException {
+        BytesReference bytes = builder.bytes();
+        XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes);
+        // use ordered maps for reproducibility
+        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), exceptFieldNames);
+        XContentBuilder jsonBuilder = XContentFactory.contentBuilder(builder.contentType());
+        return jsonBuilder.map(shuffledMap);
+    }
+
+    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFieldNames) {
+        List<String> keys = new ArrayList<>(map.keySet());
+        // even though we shuffle later, we need this to make tests reproduce on different jvms
+        Collections.sort(keys);
+        Map<String, Object> targetMap = new TreeMap<>();
+        Collections.shuffle(keys, random());
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value instanceof Map && exceptFieldNames.contains(key) == false) {
+                targetMap.put(key, shuffleMap((Map) value, exceptFieldNames));
+            } else {
+                targetMap.put(key, value);
+            }
+        }
+        return targetMap;
+    }
+
+    /**
      * Returns true iff assertions for elasticsearch packages are enabled
      */
     public static boolean assertionsEnabled() {
@@ -699,7 +724,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     @SafeVarargs
     public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
-        Settings indexSettings = settingsBuilder().put(settings)
+        Settings indexSettings = Settings.builder().put(settings)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         Environment env = new Environment(nodeSettings);

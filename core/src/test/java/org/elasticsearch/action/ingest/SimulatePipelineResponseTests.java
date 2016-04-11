@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.elasticsearch.ingest.core.IngestDocumentTests.assertIngestDocument;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -90,7 +91,9 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 for (SimulateProcessorResult simulateProcessorResult : simulateDocumentVerboseResult.getProcessorResults()) {
                     SimulateProcessorResult expectedProcessorResult = expectedProcessorResultIterator.next();
                     assertThat(simulateProcessorResult.getProcessorTag(), equalTo(expectedProcessorResult.getProcessorTag()));
-                    assertThat(simulateProcessorResult.getIngestDocument(), equalTo(expectedProcessorResult.getIngestDocument()));
+                    if (simulateProcessorResult.getIngestDocument() != null) {
+                        assertIngestDocument(simulateProcessorResult.getIngestDocument(), expectedProcessorResult.getIngestDocument());
+                    }
                     if (expectedProcessorResult.getFailure() == null) {
                         assertThat(simulateProcessorResult.getFailure(), nullValue());
                     } else {
@@ -103,7 +106,9 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 SimulateDocumentBaseResult expectedSimulateDocumentBaseResult = (SimulateDocumentBaseResult) expectedResultIterator.next();
                 assertThat(result, instanceOf(SimulateDocumentBaseResult.class));
                 SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) result;
-                assertThat(simulateDocumentBaseResult.getIngestDocument(), equalTo(expectedSimulateDocumentBaseResult.getIngestDocument()));
+                if (simulateDocumentBaseResult.getIngestDocument() != null) {
+                    assertIngestDocument(simulateDocumentBaseResult.getIngestDocument(), expectedSimulateDocumentBaseResult.getIngestDocument());
+                }
                 if (expectedSimulateDocumentBaseResult.getFailure() == null) {
                     assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
                 } else {

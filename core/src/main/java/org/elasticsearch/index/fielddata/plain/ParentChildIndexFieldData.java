@@ -209,7 +209,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(ramBytesUsed);
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Global-ordinals[_parent] took {}",
+                    "global-ordinals [_parent] took [{}]",
                     new TimeValue(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
             );
         }

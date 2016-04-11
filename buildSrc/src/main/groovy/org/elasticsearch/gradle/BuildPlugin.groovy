@@ -100,9 +100,12 @@ class BuildPlugin implements Plugin<Project> {
             println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
             if (gradleJavaVersionDetails != javaVersionDetails) {
                 println "  JDK Version (gradle)  : ${gradleJavaVersionDetails}"
+                println "  JAVA_HOME (gradle)    : ${gradleJavaHome}"
                 println "  JDK Version (compile) : ${javaVersionDetails}"
+                println "  JAVA_HOME (compile)   : ${javaHome}"
             } else {
                 println "  JDK Version           : ${gradleJavaVersionDetails}"
+                println "  JAVA_HOME             : ${gradleJavaHome}"
             }
 
             // enforce gradle version

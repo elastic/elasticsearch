@@ -38,7 +38,6 @@ import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -236,7 +235,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
     // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
     public void testDeleteNestedDocsWithAlias() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder().put(indexSettings()).put("index.refresh_interval", -1).build())
+                .setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build())
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1")
                         .field("type", "text")
@@ -329,7 +328,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testSimpleNestedSorting() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.refresh_interval", -1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -411,7 +410,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testSimpleNestedSortingWithNestedFilterMissing() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.refresh_interval", -1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -872,8 +871,8 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .startObject("users")
                     .field("type", "nested")
                     .startObject("properties")
-                        .startObject("first").field("type", "text").endObject()
-                        .startObject("last").field("type", "text").endObject()
+                        .startObject("first").field("type", "keyword").endObject()
+                        .startObject("last").field("type", "keyword").endObject()
                         .startObject("workstations")
                             .field("type", "nested")
                             .startObject("properties")

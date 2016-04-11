@@ -20,3 +20,23 @@ The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 The `mem` section contained only one value, the total memory available
 throughout all nodes in the cluster. The section was removed as it didn't
 prove useful.
+
+==== Revised node roles aggregate returned by `/_cluster/stats`
+
+The `client`, `master_only`, `data_only` and `master_data` fields have been
+removed in favor of `master`, `data`, `ingest` and `coordinating_only`. A
+node can contribute to multiple counts as it can have multiple roles. Every
+node is implicitly a coordinating node, so whenever a node has no explicit
+roles, it will be counted as coordinating only.
+
+==== Node roles are not part of node attributes anymore
+
+Node roles are now returned in a specific section, called `roles`, as part of
+nodes stats and nodes info response. The new section is an array that holds all
+the different roles that each node fulfills. In case the array is returned
+empty, that means that the node is a coordinating only node.
+
+==== Forbid unquoted JSON
+
+Previously, JSON documents were allowed with unquoted field names, which
+isn't strictly JSON and broke some Elasticsearch clients.

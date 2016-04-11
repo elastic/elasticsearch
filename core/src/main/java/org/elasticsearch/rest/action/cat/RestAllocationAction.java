@@ -120,7 +120,7 @@ public class RestAllocationAction extends AbstractCatAction {
         for (NodeStats nodeStats : stats.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();
 
-            int shardCount = allocs.getOrDefault(node.id(), 0);
+            int shardCount = allocs.getOrDefault(node.getId(), 0);
 
             ByteSizeValue total = nodeStats.getFs().getTotal().getTotal();
             ByteSizeValue avail = nodeStats.getFs().getTotal().getAvailable();
@@ -143,7 +143,7 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(diskPercent < 0 ? null : diskPercent);
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
-            table.addCell(node.name());
+            table.addCell(node.getName());
             table.endRow();
         }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -205,7 +205,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
             }
             assert execution != null;
-            return execution.create(name, factories, valuesSource, bucketCountThresholds, includeExclude, context, parent,
+            return execution.create(name, factories, valuesSource, config.format(), bucketCountThresholds, includeExclude, context, parent,
                     significanceHeuristic, this, pipelineAggregators, metaData);
         }
 
@@ -237,13 +237,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         MAP(new ParseField("map")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
                     TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                     AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
                     SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter();
-                return new SignificantStringTermsAggregator(name, factories, valuesSource, bucketCountThresholds, filter,
+                return new SignificantStringTermsAggregator(name, factories, valuesSource, format, bucketCountThresholds, filter,
                         aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
             }
 
@@ -251,32 +251,31 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
                     TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                     AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
                     SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
                 ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-                IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
-                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, bucketCountThresholds, filter, aggregationContext, parent,
-                        significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
+                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
             }
 
         },
         GLOBAL_ORDINALS_HASH(new ParseField("global_ordinals_hash")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
                     TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                     AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
                     SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
                 return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories,
-                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, bucketCountThresholds, filter, aggregationContext, parent,
-                        significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
+                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
             }
         };
 
@@ -295,7 +294,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             this.parseField = parseField;
         }
 
-        abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
+        abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,  DocValueFormat format,
                 TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                 AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
                 SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,

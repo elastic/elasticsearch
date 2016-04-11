@@ -23,6 +23,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -98,6 +99,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
     private void setThreshold(float threshold) {
         this.threshold = threshold;
+    }
+
+    @Override
+    public Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard) {
+        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
+        return balancer.weighShard(shard);
     }
 
     @Override
@@ -296,6 +303,29 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 return false;
             }
             return balanceByWeights();
+        }
+
+        public Map<DiscoveryNode, Float> weighShard(ShardRouting shard) {
+            final NodeSorter sorter = newNodeSorter();
+            final ModelNode[] modelNodes = sorter.modelNodes;
+            final float[] weights = sorter.weights;
+
+            buildWeightOrderedIndices(sorter);
+            Map<DiscoveryNode, Float> nodes = new HashMap<>(modelNodes.length);
+            float currentNodeWeight = 0.0f;
+            for (int i = 0; i < modelNodes.length; i++) {
+                if (modelNodes[i].getNodeId().equals(shard.currentNodeId())) {
+                    // If a node was found with the shard, use that weight instead of 0.0
+                    currentNodeWeight = weights[i];
+                    break;
+                }
+            }
+
+            for (int i = 0; i < modelNodes.length; i++) {
+                final float delta = currentNodeWeight - weights[i];
+                nodes.put(modelNodes[i].getRoutingNode().node(), delta);
+            }
+            return nodes;
         }
 
         /**

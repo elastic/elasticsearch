@@ -148,7 +148,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      * @return this request
      */
     public PutRepositoryRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 

@@ -7,8 +7,8 @@ The following pages have moved or been deleted.
 === Nodes shutdown
 
 The `_shutdown` API has been removed.  Instead, setup Elasticsearch to run as
-a service (see <<setup-service>> or <<setup-service-win>>) or use the `-p`
-command line option to <<setup-installation-pid,write the PID to a file>>.
+a service (see <<rpm>>, <<deb>>,  or <<windows>>) or use the `-p`
+command line option to <<setup-installation-daemon,write the PID to a file>>.
 
 [role="exclude",id="docs-bulk-udp"]
 === Bulk UDP API

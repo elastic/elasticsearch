@@ -87,6 +87,34 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     }
 
     /**
+     * Read from a stream.
+     */
+    protected SuggestionBuilder(StreamInput in) throws IOException {
+        field = in.readString();
+        text = in.readOptionalString();
+        prefix = in.readOptionalString();
+        regex = in.readOptionalString();
+        analyzer = in.readOptionalString();
+        size = in.readOptionalVInt();
+        shardSize = in.readOptionalVInt();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(field);
+        out.writeOptionalString(text);
+        out.writeOptionalString(prefix);
+        out.writeOptionalString(regex);
+        out.writeOptionalString(analyzer);
+        out.writeOptionalVInt(size);
+        out.writeOptionalVInt(shardSize);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+
+    /**
      * Same as in {@link SuggestBuilder#setGlobalText(String)}, but in the suggestion scope.
      */
     @SuppressWarnings("unchecked")
@@ -251,11 +279,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
                     throw new ParsingException(parser.getTokenLocation(), "suggestion does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                SuggestionBuilder<?> suggestParser = suggesters.getSuggestionPrototype(currentFieldName);
-                if (suggestParser == null) {
-                    throw new ParsingException(parser.getTokenLocation(), "suggestion [" + currentFieldName + "] not supported");
-                }
-                suggestionBuilder = suggestParser.innerFromXContent(parseContext);
+                suggestionBuilder = suggesters.getSuggester(currentFieldName).innerFromXContent(parseContext);
             }
         }
         if (suggestionBuilder == null) {
@@ -272,8 +296,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         }
         return suggestionBuilder;
     }
-
-    protected abstract SuggestionBuilder<T> innerFromXContent(QueryParseContext parseContext) throws IOException;
 
     protected abstract SuggestionContext build(QueryShardContext context) throws IOException;
 
@@ -339,40 +361,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
         //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
         return getWriteableName();
     }
-
-    @Override
-    public final T readFrom(StreamInput in) throws IOException {
-        String field = in.readString();
-        T suggestionBuilder = doReadFrom(in, field);
-        suggestionBuilder.text = in.readOptionalString();
-        suggestionBuilder.prefix = in.readOptionalString();
-        suggestionBuilder.regex = in.readOptionalString();
-        suggestionBuilder.analyzer = in.readOptionalString();
-        suggestionBuilder.size = in.readOptionalVInt();
-        suggestionBuilder.shardSize = in.readOptionalVInt();
-        return suggestionBuilder;
-    }
-
-    /**
-     * Subclass should return a new instance, reading itself from the input string
-     * @param in the input string to read from
-     * @param field the field needed for ctor or concrete suggestion
-     */
-    protected abstract T doReadFrom(StreamInput in, String field) throws IOException;
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(field);
-        doWriteTo(out);
-        out.writeOptionalString(text);
-        out.writeOptionalString(prefix);
-        out.writeOptionalString(regex);
-        out.writeOptionalString(analyzer);
-        out.writeOptionalVInt(size);
-        out.writeOptionalVInt(shardSize);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
     public final boolean equals(Object obj) {

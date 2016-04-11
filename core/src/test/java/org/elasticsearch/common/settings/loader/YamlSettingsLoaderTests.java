@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -37,7 +36,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
 
     public void testSimpleYamlSettings() throws Exception {
         final String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
-        final Settings settings = settingsBuilder()
+        final Settings settings = Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .build();
 
@@ -56,7 +55,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
     public void testIndentation() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
-            settingsBuilder().loadFromStream(yaml, getClass().getResourceAsStream(yaml));
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml));
         });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
@@ -64,7 +63,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
-            settingsBuilder().loadFromStream(yaml, getClass().getResourceAsStream(yaml));
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml));
         });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
@@ -72,7 +71,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
     public void testDuplicateKeysThrowsException() {
         String yaml = "foo: bar\nfoo: baz";
         SettingsException e = expectThrows(SettingsException.class, () -> {
-                settingsBuilder().loadFromSource(yaml);
+            Settings.builder().loadFromSource(yaml);
         });
         assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
         String msg = e.getCause().getMessage();
@@ -84,7 +83,7 @@ public class YamlSettingsLoaderTests extends ESTestCase {
         Path tmp = createTempFile("test", ".yaml");
         Files.write(tmp, Collections.singletonList("foo: # missing value\n"), StandardCharsets.UTF_8);
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
-            settingsBuilder().loadFromPath(tmp);
+            Settings.builder().loadFromPath(tmp);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("null-valued setting found for key [foo]"));
     }

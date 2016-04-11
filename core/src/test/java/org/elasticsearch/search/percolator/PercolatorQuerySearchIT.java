@@ -21,16 +21,21 @@ package org.elasticsearch.search.percolator;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.percolatorQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -85,6 +90,77 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
     }
 
+    public void testPercolatorSpecificQueries()  throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test")
+                .addMapping("type", "field1", "type=text", "field2", "type=text")
+        );
+
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", commonTermsQuery("field1", "quick brown fox")).endObject())
+                .get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
+                .setSource(jsonBuilder().startObject().field("query", multiMatchQuery("quick brown fox", "field1", "field2")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).endObject())
+                .get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
+                .setSource(jsonBuilder().startObject().field("query",
+                        spanNearQuery(spanTermQuery("field1", "quick"), 0)
+                                .clause(spanTermQuery("field1", "brown"))
+                                .clause(spanTermQuery("field1", "fox"))
+                                .inOrder(true)
+                ).endObject())
+                .get();
+        client().admin().indices().prepareRefresh().get();
+
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
+                .setSource(jsonBuilder().startObject().field("query",
+                        spanNotQuery(
+                                spanNearQuery(spanTermQuery("field1", "quick"), 0)
+                                        .clause(spanTermQuery("field1", "brown"))
+                                        .clause(spanTermQuery("field1", "fox"))
+                                        .inOrder(true),
+                                spanNearQuery(spanTermQuery("field1", "the"), 0)
+                                        .clause(spanTermQuery("field1", "lazy"))
+                                        .clause(spanTermQuery("field1", "dog"))
+                                        .inOrder(true)).dist(2)
+                ).endObject())
+                .get();
+
+        // doesn't match
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "5")
+                .setSource(jsonBuilder().startObject().field("query",
+                        spanNotQuery(
+                                spanNearQuery(spanTermQuery("field1", "quick"), 0)
+                                        .clause(spanTermQuery("field1", "brown"))
+                                        .clause(spanTermQuery("field1", "fox"))
+                                        .inOrder(true),
+                                spanNearQuery(spanTermQuery("field1", "the"), 0)
+                                        .clause(spanTermQuery("field1", "lazy"))
+                                        .clause(spanTermQuery("field1", "dog"))
+                                        .inOrder(true)).dist(3)
+                ).endObject())
+                .get();
+        client().admin().indices().prepareRefresh().get();
+
+        BytesReference source = jsonBuilder().startObject()
+                .field("field1", "the quick brown fox jumps over the lazy dog")
+                .field("field2", "the quick brown fox falls down into the well")
+                .endObject().bytes();
+        SearchResponse response = client().prepareSearch()
+                .setQuery(percolatorQuery("type", source))
+                .addSort("_uid", SortOrder.ASC)
+                .get();
+        assertHitCount(response, 4);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).score(), equalTo(Float.NaN));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).score(), equalTo(Float.NaN));
+        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(2).score(), equalTo(Float.NaN));
+        assertThat(response.getHits().getAt(3).getId(), equalTo("4"));
+        assertThat(response.getHits().getAt(3).score(), equalTo(Float.NaN));
+    }
+
     public void testPercolatorQueryWithHighlighting() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
                 .addMapping("type", "field1", "type=text")
@@ -125,7 +201,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(3).getHighlightFields().get("field1").fragments()[0].string(),
                 equalTo("The quick brown fox jumps over the lazy <em>dog</em>"));
         assertThat(searchResponse.getHits().getAt(4).getHighlightFields().get("field1").fragments()[0].string(),
-                equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));;
+                equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
     }
 
 }

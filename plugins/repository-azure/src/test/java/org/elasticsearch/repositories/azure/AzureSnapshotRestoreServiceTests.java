@@ -48,7 +48,7 @@ public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositorySer
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                         .put("base_path", basePath)
                         .put("chunk_size", randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();

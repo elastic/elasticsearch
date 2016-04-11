@@ -427,7 +427,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private boolean updateSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type, boolean onlyDynamic) {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
-        Settings.Builder settingsBuilder = Settings.settingsBuilder();
+        Settings.Builder settingsBuilder = Settings.builder();
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
             if (entry.getValue() == null) {
                 toRemove.add(entry.getKey());

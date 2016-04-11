@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
@@ -31,8 +32,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -101,11 +100,11 @@ public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuild
 
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-        ValueFormatter formatter;
+        DocValueFormat formatter;
         if (format != null) {
-            formatter = ValueFormat.Patternable.Number.format(format).formatter();
+            formatter = new DocValueFormat.Decimal(format);
         } else {
-            formatter = ValueFormatter.RAW;
+            formatter = DocValueFormat.RAW;
         }
         Long xAxisUnits = null;
         if (units != null) {

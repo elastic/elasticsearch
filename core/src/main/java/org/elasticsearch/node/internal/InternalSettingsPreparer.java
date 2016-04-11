@@ -45,7 +45,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.Strings.cleanPath;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  *
@@ -65,7 +64,7 @@ public class InternalSettingsPreparer {
      * Prepares the settings by gathering all elasticsearch system properties and setting defaults.
      */
     public static Settings prepareSettings(Settings input) {
-        Settings.Builder output = settingsBuilder();
+        Settings.Builder output = Settings.builder();
         initializeSettings(output, input, true);
         finalizeSettings(output, null, null);
         return output.build();
@@ -82,7 +81,7 @@ public class InternalSettingsPreparer {
      */
     public static Environment prepareEnvironment(Settings input, Terminal terminal) {
         // just create enough settings to build the environment, to get the config dir
-        Settings.Builder output = settingsBuilder();
+        Settings.Builder output = Settings.builder();
         initializeSettings(output, input, true);
         Environment environment = new Environment(output.build());
 

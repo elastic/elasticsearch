@@ -16,7 +16,7 @@ contribute to the score.
 `must` the score of the query will be ignored.
 
 |`should` |The clause (query) should appear in the matching document. In
-a boolean query with no `must` clauses, one or more `should` clauses
+a boolean query with no `must` or `filter` clauses, one or more `should` clauses
 must match a document. The minimum number of should clauses to match can
 be set using the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>

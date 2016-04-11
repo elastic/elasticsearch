@@ -78,8 +78,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
     @BeforeClass
     public static void registerTestRandomScoreFunction() {
-        getSearchModule().registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::fromXContent,
-                RandomScoreFunctionBuilderWithFixedSeed::new, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);
+        getSearchModule().registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::new,
+                RandomScoreFunctionBuilderWithFixedSeed::fromXContent, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);
     }
 
     @Override

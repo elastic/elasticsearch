@@ -107,8 +107,8 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         }
 
         public void onModule(SearchModule scoreModule) {
-            scoreModule.registerScoreFunction(CustomDistanceScoreBuilder.PARSER,
-                    CustomDistanceScoreBuilder::new, CustomDistanceScoreBuilder.FUNCTION_NAME_FIELD);
+            scoreModule.registerScoreFunction(CustomDistanceScoreBuilder::new, CustomDistanceScoreBuilder.PARSER,
+                    CustomDistanceScoreBuilder.FUNCTION_NAME_FIELD);
         }
     }
 

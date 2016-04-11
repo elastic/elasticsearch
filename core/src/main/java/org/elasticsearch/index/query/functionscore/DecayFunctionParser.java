@@ -65,7 +65,7 @@ import java.util.function.BiFunction;
  * To write a new decay scoring function, create a new class that extends
  * {@link DecayFunctionBuilder}, setup a PARSER field with this class, and
  * register them both using
- * {@link org.elasticsearch.search.SearchModule#registerScoreFunction(ScoreFunctionParser, Writeable.Reader, ParseField)}.
+ * {@link org.elasticsearch.search.SearchModule#registerScoreFunction(Writeable.Reader, ScoreFunctionParser, ParseField)}.
  * See {@link GaussDecayFunctionBuilder#PARSER} for an example.
  */
 public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> implements ScoreFunctionParser<DFB> {

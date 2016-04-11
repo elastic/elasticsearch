@@ -73,10 +73,7 @@ public class IngestCloseIT extends ESSingleNodeTestCase {
         @Override
         protected TestProcessor doCreate(String tag, Map<String, Object> config) throws Exception {
             return new TestProcessor("id", "test", ingestDocument -> {
-                ingestDocument.setFieldValue("processed", true);
-                if (ingestDocument.getFieldValue("fail", Boolean.class)) {
-                    throw new IllegalArgumentException("test processor failed");
-                }
+                throw new UnsupportedOperationException("this code is actually never called from the test");
             });
         }
 

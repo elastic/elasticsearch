@@ -258,12 +258,11 @@ public class Security {
                     shieldLicenseState));
         }
         if (transportClientMode == false) {
-            module.registerQueryCache(Security.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
             /*  We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.
              *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
              *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
              *  unauthorized users. */
-            module.forceQueryCacheType(Security.OPT_OUT_QUERY_CACHE);
+            module.forceQueryCacheProvider(OptOutQueryCache::new);
         }
     }
 

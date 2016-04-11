@@ -291,8 +291,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             // if index created V_2_3 > use prefix encoded postings format
             final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
                 GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
-            return new GeoPointInBBoxQuery(fieldType.name(), encoding, luceneTopLeft.lon(), luceneBottomRight.lat(),
-                    luceneBottomRight.lon(), luceneTopLeft.lat());
+            return new GeoPointInBBoxQuery(fieldType.name(), encoding, luceneBottomRight.lat(), luceneTopLeft.lat(),
+                luceneTopLeft.lon(), luceneBottomRight.lon());
         }
 
         Query query;

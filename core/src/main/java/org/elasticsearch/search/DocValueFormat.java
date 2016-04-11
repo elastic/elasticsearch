@@ -20,8 +20,8 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

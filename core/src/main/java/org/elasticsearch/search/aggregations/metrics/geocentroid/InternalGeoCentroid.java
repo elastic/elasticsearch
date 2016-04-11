@@ -140,7 +140,7 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
         out.writeVLong(count);
         if (centroid != null) {
             out.writeBoolean(true);
-            out.writeLong(GeoEncodingUtils.mortonHash(centroid.lon(), centroid.lat()));
+            out.writeLong(GeoEncodingUtils.mortonHash(centroid.lat(), centroid.lon()));
         } else {
             out.writeBoolean(false);
         }

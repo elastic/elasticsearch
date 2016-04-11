@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.spatial.util.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.ElasticsearchParseException;
@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
  * GeoPointFieldMapper base class to maintain backward compatibility

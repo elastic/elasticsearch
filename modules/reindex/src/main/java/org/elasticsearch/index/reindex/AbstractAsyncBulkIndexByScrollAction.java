@@ -86,6 +86,9 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
         Map<String, Object> scriptCtx = null;
 
         for (SearchHit doc : docs) {
+            if (doc.isSourceEmpty()) {
+                throw new IllegalArgumentException("[" + doc.index() + "][" + doc.type() + "][" + doc.id() + "] didn't store _source");
+            }
             IndexRequest index = buildIndexRequest(doc);
             copyMetadata(index, doc);
             if (script != null) {

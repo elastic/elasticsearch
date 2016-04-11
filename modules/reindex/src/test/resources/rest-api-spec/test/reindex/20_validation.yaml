@@ -157,6 +157,34 @@
         requests_per_second: ""
         body:
           source:
-            from: 1
+            index: test
+          dest:
+            index: dest
+
+---
+"reindex without source gives useful error message":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            test:
+              _source:
+                enabled: false
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     1
+        body:   { age: 23 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /\[test\]\[test\]\[1\] didn't store _source/
+      reindex:
+        body:
+          source:
+            index: test
           dest:
             index: dest

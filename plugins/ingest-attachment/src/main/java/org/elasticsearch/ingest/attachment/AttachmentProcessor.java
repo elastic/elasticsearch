@@ -23,7 +23,6 @@ import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
@@ -38,7 +37,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.core.ConfigurationUtils.readIntProperty;
 import static org.elasticsearch.ingest.core.ConfigurationUtils.readOptionalList;
@@ -66,13 +64,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        String base64Input = ingestDocument.getFieldValue(sourceField, String.class);
         Map<String, Object> additionalFields = new HashMap<>();
 
         try {
-            byte[] decodedContent = Base64.decode(base64Input.getBytes(UTF_8));
             Metadata metadata = new Metadata();
-            String parsedContent = TikaImpl.parse(decodedContent, metadata, indexedChars);
+            byte[] input = ingestDocument.getFieldValueAsBytes(sourceField);
+            String parsedContent = TikaImpl.parse(input, metadata, indexedChars);
 
             if (fields.contains(Field.CONTENT) && Strings.hasLength(parsedContent)) {
                 // somehow tika seems to append a newline at the end automatically, lets remove that again

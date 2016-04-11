@@ -82,7 +82,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         }
 
         @Override
-        public void dispatchRequest(HttpRequest request, HttpChannel channel) {
+        public void dispatchRequest(RestRequest request, RestChannel channel) {
             server.internalDispatchRequest(request, channel);
         }
     }
@@ -115,7 +115,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         return transport.stats();
     }
 
-    public void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
+    public void internalDispatchRequest(final RestRequest request, final RestChannel channel) {
         String rawPath = request.rawPath();
         if (rawPath.startsWith("/_plugin/")) {
             RestFilterChain filterChain = restController.filterChain(pluginSiteFilter);
@@ -133,11 +133,11 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
         @Override
         public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws IOException {
-            handlePluginSite((HttpRequest) request, (HttpChannel) channel);
+            handlePluginSite(request, channel);
         }
     }
 
-    void handleFavicon(HttpRequest request, HttpChannel channel) {
+    void handleFavicon(RestRequest request, RestChannel channel) {
         if (request.method() == RestRequest.Method.GET) {
             try {
                 try (InputStream stream = getClass().getResourceAsStream("/config/favicon.ico")) {
@@ -153,7 +153,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         }
     }
 
-    void handlePluginSite(HttpRequest request, HttpChannel channel) throws IOException {
+    void handlePluginSite(RestRequest request, RestChannel channel) throws IOException {
         if (disableSites) {
             channel.sendResponse(new BytesRestResponse(FORBIDDEN));
             return;
@@ -202,7 +202,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         final String separator = siteFile.getFileSystem().getSeparator();
         // Convert file separators.
         sitePath = sitePath.replace("/", separator);
-        
+
         Path file = siteFile.resolve(sitePath);
 
         // return not found instead of forbidden to prevent malicious requests to find out if files exist or dont exist

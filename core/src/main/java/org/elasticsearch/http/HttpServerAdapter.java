@@ -19,10 +19,13 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
+
 /**
  *
  */
 public interface HttpServerAdapter {
 
-    void dispatchRequest(HttpRequest request, HttpChannel channel);
+    void dispatchRequest(RestRequest request, RestChannel channel);
 }

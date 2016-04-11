@@ -155,7 +155,7 @@ public class RestFilterChainTests extends ESTestCase {
         assertThat(fakeRestChannel.errors.get(), equalTo(additionalContinueCount));
     }
 
-    private static class FakeRestChannel extends RestChannel {
+    private static class FakeRestChannel extends AbstractRestChannel {
 
         private final CountDownLatch latch;
         AtomicInteger responses = new AtomicInteger();

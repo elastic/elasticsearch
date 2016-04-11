@@ -39,15 +39,17 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.http.netty.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.http.BindHttpException;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty.cors.CorsConfig;
 import org.elasticsearch.http.netty.cors.CorsConfigBuilder;
 import org.elasticsearch.http.netty.cors.CorsHandler;
+import org.elasticsearch.http.netty.pipelining.HttpPipeliningHandler;
+import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.transport.BindTransportException;
 import org.jboss.netty.bootstrap.ServerBootstrap;
@@ -445,7 +447,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         return corsConfig;
     }
 
-    protected void dispatchRequest(HttpRequest request, HttpChannel channel) {
+    protected void dispatchRequest(RestRequest request, RestChannel channel) {
         httpServerAdapter.dispatchRequest(request, channel);
     }
 

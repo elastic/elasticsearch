@@ -85,6 +85,6 @@ public class YamlSettingsLoaderTests extends ESTestCase {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
             Settings.builder().loadFromPath(tmp);
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("null-valued setting found for key [foo]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("null-valued setting found for key [foo] found at line"));
     }
 }

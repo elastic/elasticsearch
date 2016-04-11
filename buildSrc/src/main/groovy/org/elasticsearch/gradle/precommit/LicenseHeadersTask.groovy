@@ -38,24 +38,19 @@ public class LicenseHeadersTask extends AntTask {
     @OutputFile
     File reportFile = new File(project.buildDir, 'reports/licenseHeaders/rat.log')
 
-    private List<FileCollection> javaFiles
+    /**
+     * The list of java files to check. protected so the afterEvaluate closure in the
+     * constructor can write to it.
+     */
+    protected List<FileCollection> javaFiles
 
     LicenseHeadersTask() {
         description = "Checks sources for missing, incorrect, or unacceptable license headers"
         // Delay resolving the dependencies until after evaluation so we pick up generated sources
         project.afterEvaluate {
-            List<FileCollection> javaFiles = project.sourceSets.collect({it.allJava})
-            setJavaFiles(javaFiles)
+            javaFiles = project.sourceSets.collect({it.allJava})
             inputs.files(javaFiles)
         }
-    }
-
-    /**
-     * Set the source sets this task processes. Should only be used by the afterEvaluate closure
-     * in the constructor.
-     */
-    protected void setJavaFiles(List<FileCollection> javaFiles) {
-        this.javaFiles = javaFiles
     }
 
     @Override

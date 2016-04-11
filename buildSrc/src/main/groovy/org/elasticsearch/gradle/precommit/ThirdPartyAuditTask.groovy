@@ -48,14 +48,16 @@ public class ThirdPartyAuditTask extends AntTask {
     private List<String> excludes = [];
 
     /**
-     * Input for the task. Set javadoc for {#link getJars} for more.
+     * Input for the task. Set javadoc for {#link getJars} for more. Protected
+     * so the afterEvaluate closure in the constructor can write it.
      */
-    private FileCollection jars;
+    protected FileCollection jars;
 
     /**
-     * Classpath against which to run the third patty audit.
+     * Classpath against which to run the third patty audit. Protected so the
+     * afterEvaluate closure in the constructor can write it.
      */
-    private FileCollection classpath;
+    protected FileCollection classpath;
 
     /**
      * We use a simple "marker" file that we touch when the task succeeds
@@ -71,7 +73,6 @@ public class ThirdPartyAuditTask extends AntTask {
         dependsOn(project.configurations.testCompile);
         description = "Checks third party JAR bytecode for missing classes, use of internal APIs, and other horrors'";
 
-
         project.afterEvaluate {
             Configuration configuration = project.configurations.findByName('runtime');
             if (configuration == null) {
@@ -80,10 +81,10 @@ public class ThirdPartyAuditTask extends AntTask {
                 configuration = project.configurations.findByName('testCompile');
             }
             assert configuration != null;
-            setClasspath(configuration)
+            classpath = configuration
 
             // we only want third party dependencies.
-            FileCollection jars = configuration.fileCollection({ dependency ->
+            jars = configuration.fileCollection({ dependency ->
                 dependency.group.startsWith("org.elasticsearch") == false
             });
 
@@ -93,26 +94,9 @@ public class ThirdPartyAuditTask extends AntTask {
             if (provided != null) {
                 jars -= provided
             }
-            setJars(jars)
             inputs.files(jars)
             onlyIf { jars.isEmpty() == false }
         }
-    }
-
-    /**
-     * Set the jars to process. This should only be called by the afterEvaluate
-     * closure in the constructor.
-     */
-    protected void setJars(FileCollection jars) {
-        this.jars = jars
-    }
-
-    /**
-     * Set the classpath against which to run the third party audit. This
-     * should only be called by the afterEvaluate closure in the constructor.
-     */
-    protected void setClasspath(FileCollection classpath) {
-        this.classpath = classpath
     }
 
     /**

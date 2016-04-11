@@ -37,13 +37,12 @@ import java.io.IOException;
  * {@link StreamInput}. The reasoning behind this is that most "good" readFrom implementations just delegated to such a constructor anyway
  * and they required an unsightly PROTOTYPE object.
  */
-public interface Writeable<T> extends StreamableReader<T> { // TODO remove extends StreamableReader<T> from this interface, and remove <T>
+public interface Writeable<T> { // TODO remove <T>
     /**
      * Write this into the {@linkplain StreamOutput}.
      */
     void writeTo(StreamOutput out) throws IOException;
 
-    @Override
     default T readFrom(StreamInput in) throws IOException {
         // See class javadoc for reasoning
         throw new UnsupportedOperationException(

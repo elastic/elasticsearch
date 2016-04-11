@@ -399,12 +399,7 @@ public class DiffableTests extends ESTestCase {
 
             @Override
             public Diff<TestDiffable> readDiff(StreamInput in, K key) throws IOException {
-                return AbstractDiffable.readDiffFrom(new StreamableReader<TestDiffable>() {
-                    @Override
-                    public TestDiffable readFrom(StreamInput in) throws IOException {
-                        return new TestDiffable(in.readString());
-                    }
-                }, in);
+                return AbstractDiffable.readDiffFrom(TestDiffable.PROTO, in);
             }
         };
     }

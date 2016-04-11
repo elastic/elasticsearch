@@ -77,7 +77,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         startNode();
     }
 
-    private void startNode() {
+    protected void startNode() {
         assert NODE == null;
         NODE = newNode();
         // we must wait for the node to actually be up and running. otherwise the node might have started, elected itself master but might not yet have removed the
@@ -92,7 +92,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
     }
 
-    private static void stopNode() throws IOException {
+    protected static void stopNode() throws IOException {
         Node node = NODE;
         NODE = null;
         IOUtils.close(node);

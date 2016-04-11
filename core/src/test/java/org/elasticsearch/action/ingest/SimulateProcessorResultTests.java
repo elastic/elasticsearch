@@ -21,14 +21,17 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.ingest.core.IngestDocumentTests.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SimulateProcessorResultTests extends ESTestCase {
 
@@ -48,11 +51,13 @@ public class SimulateProcessorResultTests extends ESTestCase {
         StreamInput streamInput = StreamInput.wrap(out.bytes());
         SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(streamInput);
         assertThat(otherSimulateProcessorResult.getProcessorTag(), equalTo(simulateProcessorResult.getProcessorTag()));
-        assertThat(otherSimulateProcessorResult.getIngestDocument(), equalTo(simulateProcessorResult.getIngestDocument()));
         if (isFailure) {
+            assertThat(simulateProcessorResult.getIngestDocument(), is(nullValue()));
             assertThat(otherSimulateProcessorResult.getFailure(), instanceOf(IllegalArgumentException.class));
             IllegalArgumentException e = (IllegalArgumentException) otherSimulateProcessorResult.getFailure();
             assertThat(e.getMessage(), equalTo("test"));
+        } else {
+            assertIngestDocument(otherSimulateProcessorResult.getIngestDocument(), simulateProcessorResult.getIngestDocument());
         }
     }
 }

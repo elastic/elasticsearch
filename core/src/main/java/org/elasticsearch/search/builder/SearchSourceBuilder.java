@@ -22,7 +22,6 @@ package org.elasticsearch.search.builder;
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -102,16 +101,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField PROFILE_FIELD = new ParseField("profile");
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
 
-    private static final SearchSourceBuilder PROTOTYPE = new SearchSourceBuilder();
-
-    public static SearchSourceBuilder readSearchSourceFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
-
-    public static SearchSourceBuilder parseSearchSource(XContentParser parser, QueryParseContext context,
-                                                        AggregatorParsers aggParsers, Suggesters suggesters)
-            throws IOException {
-        return PROTOTYPE.fromXContent(parser, context, aggParsers, suggesters);
+    public static SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers,
+            Suggesters suggesters) throws IOException {
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        builder.parseXContent(parser, context, aggParsers, suggesters);
+        return builder;
     }
 
     /**
@@ -179,6 +173,209 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * Constructs a new search source builder.
      */
     public SearchSourceBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SearchSourceBuilder(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            aggregations = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
+        }
+        explain = in.readOptionalBoolean();
+        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
+        boolean hasFieldDataFields = in.readBoolean();
+        if (hasFieldDataFields) {
+            int size = in.readVInt();
+            fieldDataFields = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                fieldDataFields.add(in.readString());
+            }
+        }
+        boolean hasFieldNames = in.readBoolean();
+        if (hasFieldNames) {
+            int size = in.readVInt();
+            fieldNames = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                fieldNames.add(in.readString());
+            }
+        }
+        from = in.readVInt();
+        highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
+        boolean hasIndexBoost = in.readBoolean();
+        if (hasIndexBoost) {
+            int size = in.readVInt();
+            indexBoost = new ObjectFloatHashMap<String>(size);
+            for (int i = 0; i < size; i++) {
+                indexBoost.put(in.readString(), in.readFloat());
+            }
+        }
+        if (in.readBoolean()) {
+            innerHitsBuilder = InnerHitsBuilder.PROTO.readFrom(in);
+        }
+        if (in.readBoolean()) {
+            minScore = in.readFloat();
+        }
+        if (in.readBoolean()) {
+            postQueryBuilder = in.readQuery();
+        }
+        if (in.readBoolean()) {
+            queryBuilder = in.readQuery();
+        }
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            rescoreBuilders = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                rescoreBuilders.add(in.readRescorer());
+            }
+        }
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            scriptFields = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                scriptFields.add(ScriptField.PROTOTYPE.readFrom(in));
+            }
+        }
+        size = in.readVInt();
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            sorts = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                sorts.add(in.readSortBuilder());
+            }
+        }
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            stats = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                stats.add(in.readString());
+            }
+        }
+        if (in.readBoolean()) {
+            suggestBuilder = SuggestBuilder.PROTOTYPE.readFrom(in);
+        }
+        terminateAfter = in.readVInt();
+        timeoutInMillis = in.readLong();
+        trackScores = in.readBoolean();
+        version = in.readOptionalBoolean();
+        if (in.readBoolean()) {
+            ext = in.readBytesReference();
+        }
+        profile = in.readBoolean();
+        if (in.readBoolean()) {
+            searchAfterBuilder = SearchAfterBuilder.PROTOTYPE.readFrom(in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        boolean hasAggregations = aggregations != null;
+        out.writeBoolean(hasAggregations);
+        if (hasAggregations) {
+            aggregations.writeTo(out);
+        }
+        out.writeOptionalBoolean(explain);
+        out.writeOptionalStreamable(fetchSourceContext);
+        boolean hasFieldDataFields = fieldDataFields != null;
+        out.writeBoolean(hasFieldDataFields);
+        if (hasFieldDataFields) {
+            out.writeVInt(fieldDataFields.size());
+            for (String field : fieldDataFields) {
+                out.writeString(field);
+            }
+        }
+        boolean hasFieldNames = fieldNames != null;
+        out.writeBoolean(hasFieldNames);
+        if (hasFieldNames) {
+            out.writeVInt(fieldNames.size());
+            for (String field : fieldNames) {
+                out.writeString(field);
+            }
+        }
+        out.writeVInt(from);
+        out.writeOptionalWriteable(highlightBuilder);
+        boolean hasIndexBoost = indexBoost != null;
+        out.writeBoolean(hasIndexBoost);
+        if (hasIndexBoost) {
+            out.writeVInt(indexBoost.size());
+            for (ObjectCursor<String> key : indexBoost.keys()) {
+                out.writeString(key.value);
+                out.writeFloat(indexBoost.get(key.value));
+            }
+        }
+        boolean hasInnerHitsBuilder = innerHitsBuilder != null;
+        out.writeBoolean(hasInnerHitsBuilder);
+        if (hasInnerHitsBuilder) {
+            innerHitsBuilder.writeTo(out);
+        }
+        boolean hasMinScore = minScore != null;
+        out.writeBoolean(hasMinScore);
+        if (hasMinScore) {
+            out.writeFloat(minScore);
+        }
+        boolean hasPostQuery = postQueryBuilder != null;
+        out.writeBoolean(hasPostQuery);
+        if (hasPostQuery) {
+            out.writeQuery(postQueryBuilder);
+        }
+        boolean hasQuery = queryBuilder != null;
+        out.writeBoolean(hasQuery);
+        if (hasQuery) {
+            out.writeQuery(queryBuilder);
+        }
+        boolean hasRescoreBuilders = rescoreBuilders != null;
+        out.writeBoolean(hasRescoreBuilders);
+        if (hasRescoreBuilders) {
+            out.writeVInt(rescoreBuilders.size());
+            for (RescoreBuilder<?> rescoreBuilder : rescoreBuilders) {
+                out.writeRescorer(rescoreBuilder);
+            }
+        }
+        boolean hasScriptFields = scriptFields != null;
+        out.writeBoolean(hasScriptFields);
+        if (hasScriptFields) {
+            out.writeVInt(scriptFields.size());
+            for (ScriptField scriptField : scriptFields) {
+                scriptField.writeTo(out);
+            }
+        }
+        out.writeVInt(size);
+        boolean hasSorts = sorts != null;
+        out.writeBoolean(hasSorts);
+        if (hasSorts) {
+            out.writeVInt(sorts.size());
+            for (SortBuilder<?> sort : sorts) {
+                out.writeSortBuilder(sort);
+            }
+        }
+        boolean hasStats = stats != null;
+        out.writeBoolean(hasStats);
+        if (hasStats) {
+            out.writeVInt(stats.size());
+            for (String stat : stats) {
+                out.writeString(stat);
+            }
+        }
+        boolean hasSuggestBuilder = suggestBuilder != null;
+        out.writeBoolean(hasSuggestBuilder);
+        if (hasSuggestBuilder) {
+            suggestBuilder.writeTo(out);
+        }
+        out.writeVInt(terminateAfter);
+        out.writeLong(timeoutInMillis);
+        out.writeBoolean(trackScores);
+        out.writeOptionalBoolean(version);
+        boolean hasExt = ext != null;
+        out.writeBoolean(hasExt);
+        if (hasExt) {
+            out.writeBytesReference(ext);
+        }
+        out.writeBoolean(profile);
+        boolean hasSearchAfter = searchAfterBuilder != null;
+        out.writeBoolean(hasSearchAfter);
+        if (hasSearchAfter) {
+            searchAfterBuilder.writeTo(out);
+        }
     }
 
     /**
@@ -780,17 +977,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
     /**
-     * Create a new SearchSourceBuilder with attributes set by an xContent.
-     */
-    public SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context,
-                                            AggregatorParsers aggParsers, Suggesters suggesters)
-            throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(parser, context, aggParsers, suggesters);
-        return builder;
-    }
-
-    /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
      * different defaults than a regular SearchSourceBuilder would have and use
      * {@link #fromXContent(XContentParser, QueryParseContext, AggregatorParsers, Suggesters)} if you have normal defaults.
@@ -1189,223 +1375,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
     }
 
-    @Override
-    public SearchSourceBuilder readFrom(StreamInput in) throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
-        if (in.readBoolean()) {
-            builder.aggregations = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
-            }
-        builder.explain = in.readOptionalBoolean();
-        builder.fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
-        boolean hasFieldDataFields = in.readBoolean();
-        if (hasFieldDataFields) {
-            int size = in.readVInt();
-            List<String> fieldDataFields = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                fieldDataFields.add(in.readString());
-            }
-            builder.fieldDataFields = fieldDataFields;
-        }
-        boolean hasFieldNames = in.readBoolean();
-        if (hasFieldNames) {
-            int size = in.readVInt();
-            List<String> fieldNames = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                fieldNames.add(in.readString());
-            }
-            builder.fieldNames = fieldNames;
-        }
-        builder.from = in.readVInt();
-        builder.highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        boolean hasIndexBoost = in.readBoolean();
-        if (hasIndexBoost) {
-            int size = in.readVInt();
-            ObjectFloatHashMap<String> indexBoost = new ObjectFloatHashMap<String>(size);
-            for (int i = 0; i < size; i++) {
-                indexBoost.put(in.readString(), in.readFloat());
-            }
-            builder.indexBoost = indexBoost;
-        }
-        if (in.readBoolean()) {
-            builder.innerHitsBuilder = InnerHitsBuilder.PROTO.readFrom(in);
-        }
-        if (in.readBoolean()) {
-            builder.minScore = in.readFloat();
-        }
-        if (in.readBoolean()) {
-            builder.postQueryBuilder = in.readQuery();
-        }
-        if (in.readBoolean()) {
-            builder.queryBuilder = in.readQuery();
-        }
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<RescoreBuilder<?>> rescoreBuilders = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                rescoreBuilders.add(in.readRescorer());
-            }
-            builder.rescoreBuilders = rescoreBuilders;
-        }
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<ScriptField> scriptFields = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                scriptFields.add(ScriptField.PROTOTYPE.readFrom(in));
-            }
-            builder.scriptFields = scriptFields;
-        }
-        builder.size = in.readVInt();
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<SortBuilder<?>> sorts = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                sorts.add(in.readSortBuilder());
-            }
-            builder.sorts = sorts;
-        }
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<String> stats = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                stats.add(in.readString());
-            }
-            builder.stats = stats;
-        }
-        if (in.readBoolean()) {
-            builder.suggestBuilder = SuggestBuilder.PROTOTYPE.readFrom(in);
-        }
-        builder.terminateAfter = in.readVInt();
-        builder.timeoutInMillis = in.readLong();
-        builder.trackScores = in.readBoolean();
-        builder.version = in.readOptionalBoolean();
-        if (in.readBoolean()) {
-            builder.ext = in.readBytesReference();
-        }
-        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
-            builder.profile = in.readBoolean();
-        } else {
-            builder.profile = false;
-        }
-        if (in.readBoolean()) {
-            builder.searchAfterBuilder = SearchAfterBuilder.PROTOTYPE.readFrom(in);
-        }
-        return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        boolean hasAggregations = aggregations != null;
-        out.writeBoolean(hasAggregations);
-        if (hasAggregations) {
-            aggregations.writeTo(out);
-        }
-        out.writeOptionalBoolean(explain);
-        out.writeOptionalStreamable(fetchSourceContext);
-        boolean hasFieldDataFields = fieldDataFields != null;
-        out.writeBoolean(hasFieldDataFields);
-        if (hasFieldDataFields) {
-            out.writeVInt(fieldDataFields.size());
-            for (String field : fieldDataFields) {
-                out.writeString(field);
-            }
-        }
-        boolean hasFieldNames = fieldNames != null;
-        out.writeBoolean(hasFieldNames);
-        if (hasFieldNames) {
-            out.writeVInt(fieldNames.size());
-            for (String field : fieldNames) {
-                out.writeString(field);
-            }
-        }
-        out.writeVInt(from);
-        out.writeOptionalWriteable(highlightBuilder);
-        boolean hasIndexBoost = indexBoost != null;
-        out.writeBoolean(hasIndexBoost);
-        if (hasIndexBoost) {
-            out.writeVInt(indexBoost.size());
-            for (ObjectCursor<String> key : indexBoost.keys()) {
-                out.writeString(key.value);
-                out.writeFloat(indexBoost.get(key.value));
-            }
-        }
-        boolean hasInnerHitsBuilder = innerHitsBuilder != null;
-        out.writeBoolean(hasInnerHitsBuilder);
-        if (hasInnerHitsBuilder) {
-            innerHitsBuilder.writeTo(out);
-        }
-        boolean hasMinScore = minScore != null;
-        out.writeBoolean(hasMinScore);
-        if (hasMinScore) {
-            out.writeFloat(minScore);
-        }
-        boolean hasPostQuery = postQueryBuilder != null;
-        out.writeBoolean(hasPostQuery);
-        if (hasPostQuery) {
-            out.writeQuery(postQueryBuilder);
-        }
-        boolean hasQuery = queryBuilder != null;
-        out.writeBoolean(hasQuery);
-        if (hasQuery) {
-            out.writeQuery(queryBuilder);
-        }
-        boolean hasRescoreBuilders = rescoreBuilders != null;
-        out.writeBoolean(hasRescoreBuilders);
-        if (hasRescoreBuilders) {
-            out.writeVInt(rescoreBuilders.size());
-            for (RescoreBuilder<?> rescoreBuilder : rescoreBuilders) {
-                out.writeRescorer(rescoreBuilder);
-            }
-        }
-        boolean hasScriptFields = scriptFields != null;
-        out.writeBoolean(hasScriptFields);
-        if (hasScriptFields) {
-            out.writeVInt(scriptFields.size());
-            for (ScriptField scriptField : scriptFields) {
-                scriptField.writeTo(out);
-            }
-        }
-        out.writeVInt(size);
-        boolean hasSorts = sorts != null;
-        out.writeBoolean(hasSorts);
-        if (hasSorts) {
-            out.writeVInt(sorts.size());
-            for (SortBuilder<?> sort : sorts) {
-                out.writeSortBuilder(sort);
-            }
-        }
-        boolean hasStats = stats != null;
-        out.writeBoolean(hasStats);
-        if (hasStats) {
-            out.writeVInt(stats.size());
-            for (String stat : stats) {
-                out.writeString(stat);
-            }
-        }
-        boolean hasSuggestBuilder = suggestBuilder != null;
-        out.writeBoolean(hasSuggestBuilder);
-        if (hasSuggestBuilder) {
-            suggestBuilder.writeTo(out);
-        }
-        out.writeVInt(terminateAfter);
-        out.writeLong(timeoutInMillis);
-        out.writeBoolean(trackScores);
-        out.writeOptionalBoolean(version);
-        boolean hasExt = ext != null;
-        out.writeBoolean(hasExt);
-        if (hasExt) {
-            out.writeBytesReference(ext);
-        }
-        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
-            out.writeBoolean(profile);
-        }
-        boolean hasSearchAfter = searchAfterBuilder != null;
-        out.writeBoolean(hasSearchAfter);
-        if (hasSearchAfter) {
-            searchAfterBuilder.writeTo(out);
-        }
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
                 highlightBuilder, indexBoost, innerHitsBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,

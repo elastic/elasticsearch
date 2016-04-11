@@ -571,7 +571,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
                     queryParseContext.reset(parser);
                     queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                    parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext, aggParsers, suggesters));
+                    parseSource(context, SearchSourceBuilder.fromXContent(parser, queryParseContext, aggParsers, suggesters));
                 }
             }
             parseSource(context, request.source());

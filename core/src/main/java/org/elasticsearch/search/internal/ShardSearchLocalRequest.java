@@ -170,7 +170,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         return profile;
     }
 
-    @SuppressWarnings("unchecked")
     protected void innerReadFrom(StreamInput in) throws IOException {
         shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());
@@ -179,7 +178,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             scroll = readScroll(in);
         }
         if (in.readBoolean()) {
-            source = SearchSourceBuilder.readSearchSourceFrom(in);
+            source = new SearchSourceBuilder(in);
         }
         types = in.readStringArray();
         filteringAliases = in.readStringArray();

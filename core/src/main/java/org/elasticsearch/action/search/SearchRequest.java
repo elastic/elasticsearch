@@ -319,7 +319,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             scroll = readScroll(in);
         }
         if (in.readBoolean()) {
-            source = SearchSourceBuilder.readSearchSourceFrom(in);
+            source = new SearchSourceBuilder(in);
         }
 
         types = in.readStringArray();

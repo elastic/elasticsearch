@@ -82,9 +82,9 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    public void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds,
+    public void list(ShardId shardId, String[] nodesIds,
                      ActionListener<NodesGatewayStartedShards> listener) {
-        execute(new Request(shardId, indexMetaData.getIndexUUID(), nodesIds), listener);
+        execute(new Request(shardId, nodesIds), listener);
     }
 
     @Override
@@ -188,15 +188,13 @@ public class TransportNodesListGatewayStartedShards extends
     public static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;
-        private String indexUUID;
 
         public Request() {
         }
 
-        public Request(ShardId shardId, String indexUUID, String[] nodesIds) {
+        public Request(ShardId shardId, String[] nodesIds) {
             super(nodesIds);
             this.shardId = shardId;
-            this.indexUUID = indexUUID;
         }
 
 
@@ -208,18 +206,12 @@ public class TransportNodesListGatewayStartedShards extends
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardId = ShardId.readShardId(in);
-            indexUUID = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            out.writeString(indexUUID);
-        }
-
-        public String getIndexUUID() {
-            return indexUUID;
         }
     }
 
@@ -262,7 +254,6 @@ public class TransportNodesListGatewayStartedShards extends
     public static class NodeRequest extends BaseNodeRequest {
 
         private ShardId shardId;
-        private String indexUUID;
 
         public NodeRequest() {
         }
@@ -270,29 +261,22 @@ public class TransportNodesListGatewayStartedShards extends
         NodeRequest(String nodeId, Request request) {
             super(nodeId);
             this.shardId = request.shardId();
-            this.indexUUID = request.getIndexUUID();
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardId = ShardId.readShardId(in);
-            indexUUID = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            out.writeString(indexUUID);
         }
 
         public ShardId getShardId() {
             return shardId;
-        }
-
-        public String getIndexUUID() {
-            return indexUUID;
         }
     }
 

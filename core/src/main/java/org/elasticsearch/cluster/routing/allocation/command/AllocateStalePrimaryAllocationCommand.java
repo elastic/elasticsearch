@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -40,6 +42,7 @@ import java.io.IOException;
  */
 public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocationCommand {
     public static final String NAME = "allocate_stale_primary";
+    public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
     private static final ObjectParser<Builder, Void> STALE_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);
 
@@ -55,9 +58,20 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         super(index, shardId, node, acceptDataLoss);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public AllocateStalePrimaryAllocationCommand(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
     public String name() {
         return NAME;
+    }
+
+    public static AllocateStalePrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
+        return new Builder().parse(parser).build();
     }
 
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateStalePrimaryAllocationCommand> {
@@ -71,14 +85,6 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         public AllocateStalePrimaryAllocationCommand build() {
             validate();
             return new AllocateStalePrimaryAllocationCommand(index, shard, node, acceptDataLoss);
-        }
-    }
-
-    public static class Factory extends AbstractAllocateAllocationCommand.Factory<AllocateStalePrimaryAllocationCommand> {
-
-        @Override
-        protected Builder newBuilder() {
-            return new Builder();
         }
     }
 

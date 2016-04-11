@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -813,5 +814,12 @@ public abstract class StreamOutput extends OutputStream {
     /** Writes a {@link DocValueFormat}. */
     public void writeValueFormat(DocValueFormat format) throws IOException {
         writeNamedWriteable(format);
+    }
+
+    /**
+     * Writes an {@link AllocationCommand} to the stream.
+     */
+    public void writeAllocationCommand(AllocationCommand command) throws IOException {
+        writeNamedWriteable(command);
     }
 }

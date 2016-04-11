@@ -28,6 +28,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -813,6 +814,13 @@ public abstract class StreamInput extends InputStream {
      */
     public DocValueFormat readValueFormat() throws IOException {
         return readNamedWriteable(DocValueFormat.class);
+    }
+
+    /**
+     * Reads an {@link AllocationCommand} from the stream.
+     */
+    public AllocationCommand readAllocationCommand() throws IOException {
+        return readNamedWriteable(AllocationCommand.class);
     }
 
     /**

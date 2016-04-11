@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -41,6 +43,7 @@ import java.io.IOException;
  */
 public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocationCommand {
     public static final String NAME = "allocate_empty_primary";
+    public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
     private static final ObjectParser<Builder, Void> EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);
 
@@ -55,9 +58,20 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         super(index, shardId, node, acceptDataLoss);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public AllocateEmptyPrimaryAllocationCommand(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
     public String name() {
         return NAME;
+    }
+
+    public static AllocateEmptyPrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
+        return new Builder().parse(parser).build();
     }
 
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateEmptyPrimaryAllocationCommand> {
@@ -71,14 +85,6 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         public AllocateEmptyPrimaryAllocationCommand build() {
             validate();
             return new AllocateEmptyPrimaryAllocationCommand(index, shard, node, acceptDataLoss);
-        }
-    }
-
-    public static class Factory extends AbstractAllocateAllocationCommand.Factory<AllocateEmptyPrimaryAllocationCommand> {
-
-        @Override
-        protected Builder newBuilder() {
-            return new Builder();
         }
     }
 

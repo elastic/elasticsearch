@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation.command;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,48 +31,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A simple {@link AllocationCommand} composite managing several
  * {@link AllocationCommand} implementations
  */
 public class AllocationCommands {
-
-    private static Map<String, AllocationCommand.Factory> factories = new HashMap<>();
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerFactory(String type, AllocationCommand.Factory factory) {
-        factories.put(type, factory);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Nullable
-    public static <T extends AllocationCommand> AllocationCommand.Factory<T> lookupFactory(String name) {
-        return factories.get(name);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T extends AllocationCommand> AllocationCommand.Factory<T> lookupFactorySafe(String name) {
-        AllocationCommand.Factory<T> factory = factories.get(name);
-        if (factory == null) {
-            throw new IllegalArgumentException("No allocation command factory registered for name [" + name + "]");
-        }
-        return factory;
-    }
-
-    static {
-        registerFactory(AllocateEmptyPrimaryAllocationCommand.NAME, new AllocateEmptyPrimaryAllocationCommand.Factory());
-        registerFactory(AllocateStalePrimaryAllocationCommand.NAME, new AllocateStalePrimaryAllocationCommand.Factory());
-        registerFactory(AllocateReplicaAllocationCommand.NAME, new AllocateReplicaAllocationCommand.Factory());
-        registerFactory(CancelAllocationCommand.NAME, new CancelAllocationCommand.Factory());
-        registerFactory(MoveAllocationCommand.NAME, new MoveAllocationCommand.Factory());
-    }
-
     private final List<AllocationCommand> commands = new ArrayList<>();
 
     /**
@@ -131,8 +95,7 @@ public class AllocationCommands {
         AllocationCommands commands = new AllocationCommands();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            String name = in.readString();
-            commands.add(lookupFactorySafe(name).readFrom(in));
+            commands.add(in.readAllocationCommand());
         }
         return commands;
     }
@@ -147,8 +110,7 @@ public class AllocationCommands {
     public static void writeTo(AllocationCommands commands, StreamOutput out) throws IOException {
         out.writeVInt(commands.commands.size());
         for (AllocationCommand command : commands.commands) {
-            out.writeString(command.name());
-            lookupFactorySafe(command.name()).writeTo(command, out);
+            out.writeAllocationCommand(command);
         }
     }
 
@@ -162,10 +124,11 @@ public class AllocationCommands {
      *     }
      * </pre>
      * @param parser {@link XContentParser} to read the commands from
+     * @param registry of allocation command parsers
      * @return {@link AllocationCommands} read
      * @throws IOException if something bad happens while reading the stream
      */
-    public static AllocationCommands fromXContent(XContentParser parser) throws IOException {
+    public static AllocationCommands fromXContent(XContentParser parser, AllocationCommandRegistry registry) throws IOException {
         AllocationCommands commands = new AllocationCommands();
 
         XContentParser.Token token = parser.currentToken();
@@ -194,7 +157,7 @@ public class AllocationCommands {
                 token = parser.nextToken();
                 String commandName = parser.currentName();
                 token = parser.nextToken();
-                commands.add(AllocationCommands.lookupFactorySafe(commandName).fromXContent(parser));
+                commands.add(registry.lookup(commandName, parser).fromXContent(parser));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got [{}] instead", token);
@@ -218,8 +181,7 @@ public class AllocationCommands {
         builder.startArray("commands");
         for (AllocationCommand command : commands.commands) {
             builder.startObject();
-            builder.field(command.name());
-            AllocationCommands.lookupFactorySafe(command.name()).toXContent(command, builder, params, null);
+            builder.field(command.name(), command);
             builder.endObject();
         }
         builder.endArray();

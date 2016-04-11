@@ -61,10 +61,10 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<Clu
     }
 
     /**
-     * Sets the source for the request
+     * Sets the commands for the request to execute.
      */
-    public ClusterRerouteRequestBuilder setSource(BytesReference source) throws Exception {
-        request.source(source);
+    public ClusterRerouteRequestBuilder setCommands(AllocationCommand... commands) throws Exception {
+        request.commands(commands);
         return this;
     }
 }

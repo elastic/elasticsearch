@@ -31,14 +31,18 @@ import org.elasticsearch.cluster.routing.allocation.command.AbstractAllocateAllo
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -396,7 +400,15 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         );
         BytesStreamOutput bytes = new BytesStreamOutput();
         AllocationCommands.writeTo(commands, bytes);
-        AllocationCommands sCommands = AllocationCommands.readFrom(StreamInput.wrap(bytes.bytes()));
+        StreamInput in = StreamInput.wrap(bytes.bytes());
+
+        // Since the commands are named writeable we need to register them and wrap the input stream
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        new NetworkModule(null, Settings.EMPTY, true, namedWriteableRegistry);
+        in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+
+        // Now we can read them!
+        AllocationCommands sCommands = AllocationCommands.readFrom(in);
 
         assertThat(sCommands.commands().size(), equalTo(5));
         assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(1));
@@ -438,7 +450,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         // move two tokens, parser expected to be "on" `commands` field
         parser.nextToken();
         parser.nextToken();
-        AllocationCommands sCommands = AllocationCommands.fromXContent(parser);
+        AllocationCommandRegistry registry = new NetworkModule(null, Settings.EMPTY, true, new NamedWriteableRegistry())
+                .getAllocationCommandRegistry();
+        AllocationCommands sCommands = AllocationCommands.fromXContent(parser, registry);
 
         assertThat(sCommands.commands().size(), equalTo(5));
         assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(1));

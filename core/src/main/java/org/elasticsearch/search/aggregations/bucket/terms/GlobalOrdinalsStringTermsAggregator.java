@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -71,13 +72,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected RandomAccessOrds globalOrds;
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                                               Terms.Order order, BucketCountThresholds bucketCountThresholds,
- IncludeExclude.OrdinalsFilter includeExclude,
-            AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError,
-                pipelineAggregators,
-                metaData);
+           Terms.Order order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
+           IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
+           SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
+           Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
+                pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
     }
@@ -187,7 +187,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             survivingBucketOrds[i] = bucket.bucketOrd;
             BytesRef scratch = new BytesRef();
             copy(globalOrds.lookupOrd(bucket.globalOrd), scratch);
-            list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0);
+            list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0, format);
             list[i].bucketOrd = bucket.bucketOrd;
             otherDocCount -= list[i].docCount;
         }
@@ -201,7 +201,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             bucket.docCountError = 0;
         }
 
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
+        return new StringTerms(name, order, format, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
                 bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, pipelineAggregators(),
                 metaData());
     }
@@ -266,12 +266,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                        Terms.Order order, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext,
-                        Aggregator parent, SubAggCollectionMode collectionMode,
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource, Terms.Order order,
+                DocValueFormat format, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude,
+                AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode,
                 boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            super(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, collectionMode,
+                        throws IOException {
+            super(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude, aggregationContext, parent, collectionMode,
                     showTermDocCountError, pipelineAggregators, metaData);
             bucketOrds = new LongHash(1, aggregationContext.bigArrays());
         }
@@ -340,11 +340,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private RandomAccessOrds segmentOrds;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                Terms.Order order,
+                Terms.Order order, DocValueFormat format,
                 BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
                 SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
-            super(name, factories, valuesSource, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode,
+            super(name, factories, valuesSource, order, format, bucketCountThresholds, null, aggregationContext, parent, collectionMode,
                     showTermDocCountError, pipelineAggregators, metaData);
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -152,17 +151,14 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
         }
     }
 
-    private DocValueFormat format;
-
     DoubleTerms() {
     } // for serialization
 
     public DoubleTerms(String name, Terms.Order order, DocValueFormat format, int requiredSize, int shardSize,
             long minDocCount, List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError,
             long otherDocCount, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
+        super(name, order, format, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
                 metaData);
-        this.format = format;
     }
 
     @Override

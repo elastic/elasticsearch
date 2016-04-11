@@ -151,16 +151,13 @@ public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
         }
     }
 
-    DocValueFormat format;
-
     LongTerms() {} // for serialization
 
-    public LongTerms(String name, Terms.Order order, DocValueFormat formatter, int requiredSize, int shardSize, long minDocCount,
+    public LongTerms(String name, Terms.Order order, DocValueFormat format, int requiredSize, int shardSize, long minDocCount,
             List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
-                metaData);
-        this.format = formatter;
+        super(name, order, format, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount,
+                pipelineAggregators, metaData);
     }
 
     @Override

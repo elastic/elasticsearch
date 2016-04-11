@@ -110,6 +110,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
 
     protected Terms.Order order;
     protected int requiredSize;
+    protected DocValueFormat format;
     protected int shardSize;
     protected long minDocCount;
     protected List<? extends Bucket> buckets;
@@ -120,11 +121,12 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
 
     protected InternalTerms() {} // for serialization
 
-    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount,
+    protected InternalTerms(String name, Terms.Order order, DocValueFormat format, int requiredSize, int shardSize, long minDocCount,
             List<? extends Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.order = order;
+        this.format = format;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         this.minDocCount = minDocCount;

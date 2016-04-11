@@ -232,8 +232,7 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new TermsAggregatorFactory(name, type, config, order, includeExclude, executionHint, collectMode,
- bucketCountThresholds,
-                showTermDocCountError, context, parent, subFactoriesBuilder, metaData);
+                bucketCountThresholds, showTermDocCountError, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

@@ -119,7 +119,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -269,24 +268,6 @@ public class Node implements Closeable {
      * Start the node. If the node is already started, this method is no-op.
      */
     public Node start() {
-        return start((s, b) -> {});
-    }
-
-    /**
-     * Start the node but invoke the registered callback after network
-     * services are started but before the cluster service is started
-     * and before the network service starts accepting incoming network
-     * requests. If the node is already started, this method is a
-     * no-op.
-     *
-     * @param nodeStartCallback the registered callback
-     * @return the started node
-     */
-    public Node start(BiConsumer<Settings, BoundTransportAddress> nodeStartCallback) {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
-
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("starting ...");
         // hack around dependency injection problem (for now...)
@@ -325,12 +306,11 @@ public class Node implements Closeable {
         final TribeService tribeService = injector.getInstance(TribeService.class);
         tribeService.start();
 
-
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.start();
 
-        nodeStartCallback.accept(settings, transportService.boundAddress());
+        validateNotBeforeAcceptingRequests(settings, transportService.boundAddress());
 
         DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class)
                 .buildLocalNode(transportService.boundAddress().publishAddress());
@@ -539,6 +519,20 @@ public class Node implements Closeable {
 
     public Injector injector() {
         return this.injector;
+    }
+
+    /**
+     * Hook for validating the node after network
+     * services are started but before the cluster service is started
+     * and before the network service starts accepting incoming network
+     * requests.
+     *
+     * @param settings              the fully-resolved settings
+     * @param boundTransportAddress the network addresses the node is
+     *                              bound and publishing to
+     */
+    @SuppressWarnings("unused")
+    protected void validateNotBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
     }
 
     /** Writes a file to the logs dir containing the ports for the given transport type */

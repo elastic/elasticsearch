@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -184,7 +185,12 @@ final class Bootstrap {
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .build();
 
-        node = new Node(nodeSettings);
+        node = new Node(nodeSettings) {
+            @Override
+            protected void validateNotBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
+                BootstrapCheck.check(settings, boundTransportAddress);
+            }
+        };
     }
 
     private static Environment initialSettings(boolean foreground, String pidFile) {
@@ -197,7 +203,7 @@ final class Bootstrap {
     }
 
     private void start() {
-        node.start(BootstrapCheck::check);
+        node.start();
         keepAliveThread.start();
     }
 

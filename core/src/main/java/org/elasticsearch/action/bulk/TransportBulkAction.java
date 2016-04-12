@@ -65,6 +65,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.LongSupplier;
 
 /**
@@ -291,6 +293,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         // first, go over all the requests and create a ShardId -> Operations mapping
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+        boolean hasPipelines = bulkRequest.hasIndexRequestsWithPipelines();
 
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             ActionRequest request = bulkRequest.requests.get(i);
@@ -333,7 +336,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
+        AtomicLongArray ingestTooks = new AtomicLongArray(requestsByShard.size());
+        int slotCounter = 0;
         for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+            int slot = slotCounter++;
             final ShardId shardId = entry.getKey();
             final List<BulkItemRequest> requests = entry.getValue();
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, bulkRequest.refresh(), requests.toArray(new BulkItemRequest[requests.size()]));
@@ -342,6 +348,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
+                    ingestTooks.set(slot, bulkShardResponse.getIngestTookInMillis());
                     for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
                         // we may have no response if item failed
                         if (bulkItemResponse.getResponse() != null) {
@@ -379,7 +386,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos)));
+                    long ingestTook = BulkResponse.NO_INGEST_TOOK;
+                    if (hasPipelines) {
+                        for (int i = 0; i < ingestTooks.length(); i++) {
+                            ingestTook = Math.max(ingestTook, ingestTooks.get(i));
+                        }
+                    }
+                    listener.onResponse(new BulkResponse(
+                            responses.toArray(new BulkItemResponse[responses.length()]),
+                            buildTookInMillis(startTimeNanos),
+                            ingestTook
+                    ));
                 }
             });
         }

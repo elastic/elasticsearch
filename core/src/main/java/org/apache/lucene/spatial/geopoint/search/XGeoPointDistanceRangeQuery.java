@@ -30,9 +30,7 @@ import org.apache.lucene.spatial.geopoint.document.GeoPointField.TermEncoding;
  * NOTE: this query does not correctly support multi-value docs (see: https://issues.apache.org/jira/browse/LUCENE-7126)
  * <br>
  * TODO: remove this per ISSUE #17658
- *
- *    @lucene.experimental
- */
+ **/
 public final class XGeoPointDistanceRangeQuery extends GeoPointDistanceQuery {
     /** minimum distance range (in meters) from lat, lon center location, maximum is inherited */
     protected final double minRadiusMeters;

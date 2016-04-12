@@ -422,7 +422,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static boolean canOpenIndex(ESLogger logger, Path indexLocation, ShardId shardId) throws IOException {
         try {
-            tryOpenIndex(indexLocation, shardId);
+            tryOpenIndex(indexLocation, shardId, logger);
         } catch (Exception ex) {
             logger.trace("Can't open index for path [{}]", ex, indexLocation);
             return false;
@@ -435,10 +435,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * segment infos and possible corruption markers. If the index can not
      * be opened, an exception is thrown
      */
-    public static void tryOpenIndex(Path indexLocation, ShardId shardId) throws IOException {
+    public static void tryOpenIndex(Path indexLocation, ShardId shardId, ESLogger logger) throws IOException {
         try (Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
-            Lucene.readSegmentInfos(dir);
+            SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
+            logger.trace("{} loaded segment info [{}]", shardId, segInfo);
         }
     }
 

@@ -44,11 +44,18 @@ public class BootstrapCheckTests extends ESTestCase {
 
     public void testNonProductionMode() {
         // nothing should happen since we are in non-production mode
-        TransportAddress localTransportAddress = mock(TransportAddress.class);
-        when(localTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
+        final List<TransportAddress> transportAddresses = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(1, 8); i++) {
+            TransportAddress localTransportAddress = mock(TransportAddress.class);
+            when(localTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
+            transportAddresses.add(localTransportAddress);
+        }
+
+        TransportAddress publishAddress = mock(TransportAddress.class);
+        when(publishAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
         BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
-        when(boundTransportAddress.boundAddresses()).thenReturn(new TransportAddress[] { localTransportAddress });
-        when(boundTransportAddress.publishAddress()).thenReturn(localTransportAddress);
+        when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
+        when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
         BootstrapCheck.check(Settings.EMPTY, boundTransportAddress);
     }
 

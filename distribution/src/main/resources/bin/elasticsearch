@@ -54,7 +54,7 @@ EOF
     exit 1
 fi
 
-jvm_options() {
+parse_jvm_options() {
   if [ -f "$1" ]; then
     echo "$(grep "^-" "$1" | tr '\n' ' ')"
   fi
@@ -91,7 +91,7 @@ if [ -z "$ES_JVM_OPTIONS" ]; then
     done
 fi
 
-ES_JAVA_OPTS="$(jvm_options "$ES_JVM_OPTIONS") $ES_JAVA_OPTS"
+ES_JAVA_OPTS="$(parse_jvm_options "$ES_JVM_OPTIONS") $ES_JAVA_OPTS"
 
 # If an include wasn't specified in the environment, then search for one...
 if [ "x$ES_INCLUDE" = "x" ]; then

@@ -41,8 +41,13 @@ public class ExamplePluginConfiguration {
         // The directory part of the location matches the artifactId of this plugin
         Path path = env.configFile().resolve("jvm-example/example.yaml");
         settings = Settings.builder().loadFromPath(path).build();
+       
+        // asserts for tests
+        assert settings != null;
+        assert settings.get("test") != null;
+
         String testValue = settings.get("test", "default_value");
-        TEST_SETTING = new Setting<>("test", testValue, value -> (value.toLowerCase()), false, Setting.Scope.CLUSTER);
+        TEST_SETTING = new Setting<>("test", testValue, value -> (value.toLowerCase()), false, Setting.Scope.CLUSTER);   
     }
 
     public Setting<String> getTestConfig() {

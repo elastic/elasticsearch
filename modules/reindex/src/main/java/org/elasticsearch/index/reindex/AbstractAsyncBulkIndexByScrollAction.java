@@ -86,7 +86,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
         Map<String, Object> scriptCtx = null;
 
         for (SearchHit doc : docs) {
-            if (doc.isSourceEmpty()) {
+            if (doc.hasSource()) {
                 /*
                  * Either the document didn't store _source or we didn't fetch it for some reason. Since we don't allow the user to
                  * change the "fields" part of the search request it is unlikely that we got here because we didn't fetch _source.

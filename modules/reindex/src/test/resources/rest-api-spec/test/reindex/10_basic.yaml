@@ -374,3 +374,30 @@
         index: new_twitter
         type: tweet
   - match: { hits.total: 1 }
+
+---
+"Source document without any fields works":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    {}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - match: {created: 1}
+
+  - do:
+      get:
+        index:   dest
+        type:    foo
+        id:      1
+  - match: { _source: {} }

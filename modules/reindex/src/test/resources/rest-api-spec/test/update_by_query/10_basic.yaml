@@ -226,3 +226,27 @@
         index: test
         scroll_size: 1
   - match: {batches: 3}
+
+---
+"Source document without any fields works":
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    {}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index: test
+  - match: {updated: 1}
+
+  - do:
+      get:
+        index:   test
+        type:    foo
+        id:      1
+  - match: { _source: {} }
+  - match: { _version: 2 }

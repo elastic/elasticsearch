@@ -240,7 +240,7 @@ public class InternalSearchHit implements SearchHit {
     }
 
     @Override
-    public boolean isSourceEmpty() {
+    public boolean hasSource() {
         return source == null;
     }
 

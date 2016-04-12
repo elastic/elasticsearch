@@ -201,7 +201,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertNoFailures(response);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
-        assertThat(response.getHits().getAt(0).isSourceEmpty(), equalTo(true));
+        assertThat(response.getHits().getAt(0).hasSource(), equalTo(true));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
         Set<String> fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates

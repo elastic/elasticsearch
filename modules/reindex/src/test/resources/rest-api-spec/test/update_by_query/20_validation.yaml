@@ -77,3 +77,12 @@
       catch: /\[test\]\[test\]\[1\] didn't store _source/
       update_by_query:
         index: test
+
+---
+"source fields may not be modified":
+  - do:
+      catch: /fields is not supported in this context/
+      update_by_query:
+        index: test
+        body:
+          fields: [_id]

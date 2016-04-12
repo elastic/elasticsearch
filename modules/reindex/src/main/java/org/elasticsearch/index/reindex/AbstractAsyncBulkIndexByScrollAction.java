@@ -87,6 +87,11 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
 
         for (SearchHit doc : docs) {
             if (doc.isSourceEmpty()) {
+                /*
+                 * Either the document didn't store _source or we didn't fetch it for some reason. Since we don't allow the user to
+                 * change the "fields" part of the search request it is unlikely that we got here because we didn't fetch _source.
+                 * Thus the error message assumes that it wasn't stored.
+                 */
                 throw new IllegalArgumentException("[" + doc.index() + "][" + doc.type() + "][" + doc.id() + "] didn't store _source");
             }
             IndexRequest index = buildIndexRequest(doc);

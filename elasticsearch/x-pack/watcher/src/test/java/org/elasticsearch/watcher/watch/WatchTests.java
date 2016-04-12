@@ -353,11 +353,11 @@ public class WatchTests extends ESTestCase {
         Map<String, InputFactory> parsers = new HashMap<>();
         switch (input.type()) {
             case SearchInput.TYPE:
-                QueryParser<MatchAllQueryBuilder> termQueryParser = MatchAllQueryBuilder::fromXContent;
-                IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap(
-                        MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryBuilder.QUERY_NAME_FIELD, termQueryParser)));
-            parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null));
-            return new InputRegistry(parsers);
+                IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
+                QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
+                queryRegistry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null));
+                return new InputRegistry(parsers);
             default:
                 parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
                 return new InputRegistry(parsers);
@@ -421,9 +421,9 @@ public class WatchTests extends ESTestCase {
     }
 
     private TransformRegistry transformRegistry() {
-        QueryParser<MatchAllQueryBuilder> termQueryParser = MatchAllQueryBuilder::fromXContent;
-        IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry(Settings.EMPTY,
-                singletonMap(MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryBuilder.QUERY_NAME_FIELD, termQueryParser)));
+        IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
+        QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
+        queryRegistry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
         Map<String, TransformFactory> factories = new HashMap<>();
         ChainTransformFactory parser = new ChainTransformFactory();
         factories.put(ChainTransform.TYPE, parser);

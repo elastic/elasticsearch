@@ -68,6 +68,7 @@ public class BootstrapCheckTests extends ESTestCase {
         when(publishAddress.isLocalAddress()).thenReturn(randomBoolean());
 
         final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
+        Collections.shuffle(transportAddresses, random());
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 

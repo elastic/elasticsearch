@@ -65,8 +65,8 @@ public class WatchStore extends AbstractComponent {
         this.watchParser = watchParser;
         this.watches = ConcurrentCollections.newConcurrentMap();
 
-        this.scrollTimeout = settings.getAsTime("watcher.watch.scroll.timeout", TimeValue.timeValueSeconds(30));
-        this.scrollSize = settings.getAsInt("watcher.watch.scroll.size", 100);
+        this.scrollTimeout = settings.getAsTime("xpack.watcher.watch.scroll.timeout", TimeValue.timeValueSeconds(30));
+        this.scrollSize = settings.getAsInt("xpack.watcher.watch.scroll.size", 100);
     }
 
     public void start(ClusterState state) throws Exception {

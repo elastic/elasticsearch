@@ -38,23 +38,24 @@ public class WatcherF {
         settings.put("cluster.name", WatcherF.class.getSimpleName());
 
         // this is for the `test-watcher-integration` group level integration in HipChat
-        settings.put("watcher.actions.hipchat.service.account.integration.profile", "integration");
-        settings.put("watcher.actions.hipchat.service.account.integration.auth_token", "huuS9v7ccuOy3ZBWWWr1vt8Lqu3sQnLUE81nrLZU");
-        settings.put("watcher.actions.hipchat.service.account.integration.room", "test-watcher");
+        settings.put("xpack.watcher.actions.hipchat.service.account.integration.profile", "integration");
+        settings.put("xpack.watcher.actions.hipchat.service.account.integration.auth_token", "huuS9v7ccuOy3ZBWWWr1vt8Lqu3sQnLUE81nrLZU");
+        settings.put("xpack.watcher.actions.hipchat.service.account.integration.room", "test-watcher");
 
         // this is for the Watcher Test account in HipChat
-        settings.put("watcher.actions.hipchat.service.account.user.profile", "user");
-        settings.put("watcher.actions.hipchat.service.account.user.auth_token", "FYVx16oDH78ZW9r13wtXbcszyoyA7oX5tiMWg9X0");
+        settings.put("xpack.watcher.actions.hipchat.service.account.user.profile", "user");
+        settings.put("xpack.watcher.actions.hipchat.service.account.user.auth_token", "FYVx16oDH78ZW9r13wtXbcszyoyA7oX5tiMWg9X0");
 
         // this is for the `test-watcher-v1` notification token (hipchat)
-        settings.put("watcher.actions.hipchat.service.account.v1.profile", "v1");
-        settings.put("watcher.actions.hipchat.service.account.v1.auth_token", "a734baf62df618b96dda55b323fc30");
+        settings.put("xpack.watcher.actions.hipchat.service.account.v1.profile", "v1");
+        settings.put("xpack.watcher.actions.hipchat.service.account.v1.auth_token", "a734baf62df618b96dda55b323fc30");
 
         // this is for our test slack incoming webhook (under elasticsearch team)
-        System.setProperty("es.watcher.actions.slack.service.account.a1.url",
+        System.setProperty("es.xpack.watcher.actions.slack.service.account.a1.url",
                 "https://hooks.slack.com/services/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");
 
-        System.setProperty("es.watcher.actions.pagerduty.service.account.service1.service_api_key", "fc082467005d4072a914e0bb041882d0");
+        System.setProperty("es.xpack.watcher.actions.pagerduty.service.account.service1.service_api_key",
+                "fc082467005d4072a914e0bb041882d0");
 
         final CountDownLatch latch = new CountDownLatch(1);
         final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(XPackPlugin.class, XPackPlugin.class));

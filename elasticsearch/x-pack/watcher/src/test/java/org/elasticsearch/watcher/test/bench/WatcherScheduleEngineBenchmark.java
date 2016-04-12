@@ -135,7 +135,7 @@ public class WatcherScheduleEngineBenchmark {
             System.gc();
             Settings settings = Settings.builder()
                     .put(SETTINGS)
-                    .put("watcher.trigger.schedule.engine", engine)
+                    .put("xpack.watcher.trigger.schedule.engine", engine)
                     .put("node.data", false)
                     .build();
             try (Node node = new MockNode(settings, Version.CURRENT, Arrays.asList(XPackPlugin.class, XPackPlugin.class))) {

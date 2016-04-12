@@ -26,7 +26,7 @@ public class WatchLockService extends AbstractComponent {
     private final FairKeyedLock<String> watchLocks = new FairKeyedLock<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private static final TimeValue DEFAULT_MAX_STOP_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private static final String DEFAULT_MAX_STOP_TIMEOUT_SETTING = "watcher.stop.timeout";
+    private static final String DEFAULT_MAX_STOP_TIMEOUT_SETTING = "xpack.watcher.stop.timeout";
 
     private final TimeValue maxStopTimeout;
 

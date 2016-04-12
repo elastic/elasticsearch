@@ -42,9 +42,9 @@ public class WatcherClientProxy extends ClientProxy {
 
     @Inject
     public WatcherClientProxy(Settings settings) {
-        defaultSearchTimeout = settings.getAsTime("watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
-        defaultIndexTimeout = settings.getAsTime("watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(60));
-        defaultBulkTimeout = settings.getAsTime("watcher.internal.ops.bulk.default_timeout", TimeValue.timeValueSeconds(120));
+        defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
+        defaultIndexTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(60));
+        defaultBulkTimeout = settings.getAsTime("xpack.watcher.internal.ops.bulk.default_timeout", TimeValue.timeValueSeconds(120));
     }
 
     /**

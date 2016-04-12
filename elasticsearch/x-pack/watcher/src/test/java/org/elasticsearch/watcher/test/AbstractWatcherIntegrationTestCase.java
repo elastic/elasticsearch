@@ -133,10 +133,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
-                .put("watcher.execution.scroll.size", randomIntBetween(1, 100))
-                .put("watcher.watch.scroll.size", randomIntBetween(1, 100))
+                .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
+                .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
                 .put(ShieldSettings.settings(shieldEnabled))
-                .put("watcher.trigger.schedule.engine", scheduleImplName)
+                .put("xpack.watcher.trigger.schedule.engine", scheduleImplName)
                 .build();
     }
 

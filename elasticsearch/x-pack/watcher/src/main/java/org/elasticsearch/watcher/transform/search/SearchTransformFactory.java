@@ -38,7 +38,7 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
         this.queryRegistry = queryRegistry;
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
-        this.defaultTimeout = settings.getAsTime("watcher.transform.search.default_timeout", null);
+        this.defaultTimeout = settings.getAsTime("xpack.watcher.transform.search.default_timeout", null);
     }
 
     @Override

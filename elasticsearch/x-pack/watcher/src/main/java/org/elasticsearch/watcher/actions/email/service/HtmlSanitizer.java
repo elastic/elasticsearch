@@ -44,9 +44,9 @@ public class HtmlSanitizer {
 
     @Inject
     public HtmlSanitizer(Settings settings) {
-        enabled = settings.getAsBoolean("watcher.actions.email.html.sanitization.enabled", true);
-        String[] allow = settings.getAsArray("watcher.actions.email.html.sanitization.allow", DEFAULT_ALLOWED);
-        String[] disallow = settings.getAsArray("watcher.actions.email.html.sanitization.disallow", Strings.EMPTY_ARRAY);
+        enabled = settings.getAsBoolean("xpack.watcher.actions.email.html.sanitization.enabled", true);
+        String[] allow = settings.getAsArray("xpack.watcher.actions.email.html.sanitization.allow", DEFAULT_ALLOWED);
+        String[] disallow = settings.getAsArray("xpack.watcher.actions.email.html.sanitization.disallow", Strings.EMPTY_ARRAY);
         policy = createCommonPolicy(allow, disallow);
     }
 

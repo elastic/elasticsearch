@@ -123,7 +123,7 @@ public class HtmlSanitizerTests extends ESTestCase {
     public void testCustomDisabled() {
         String html = "<img src=\"http://test.com/nastyimage.jpg\" />This is a bad image";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.builder()
-                .put("watcher.actions.email.html.sanitization.enabled", false)
+                .put("xpack.watcher.actions.email.html.sanitization.enabled", false)
                 .build());
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo(html));
@@ -132,7 +132,7 @@ public class HtmlSanitizerTests extends ESTestCase {
     public void testCustomAllImageAllowed() {
         String html = "<img src=\"http://test.com/nastyimage.jpg\" />This is a bad image";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.builder()
-                .put("watcher.actions.email.html.sanitization.allow", "img:all")
+                .put("xpack.watcher.actions.email.html.sanitization.allow", "img:all")
                 .build());
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo(html));
@@ -141,7 +141,7 @@ public class HtmlSanitizerTests extends ESTestCase {
     public void testCustomTablesDisallowed() {
         String html = "<table><tr><td>cell1</td><td>cell2</td></tr></table>";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.builder()
-                .put("watcher.actions.email.html.sanitization.disallow", "_tables")
+                .put("xpack.watcher.actions.email.html.sanitization.disallow", "_tables")
                 .build());
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo("cell1cell2"));

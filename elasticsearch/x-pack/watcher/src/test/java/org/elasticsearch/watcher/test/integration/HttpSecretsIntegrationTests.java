@@ -88,7 +88,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         if (encryptSensitiveData) {
             return Settings.builder()
                     .put(super.nodeSettings(nodeOrdinal))
-                    .put("watcher.shield.encrypt_sensitive_data", encryptSensitiveData)
+                    .put("xpack.watcher.shield.encrypt_sensitive_data", encryptSensitiveData)
                     .build();
         }
         return super.nodeSettings(nodeOrdinal);

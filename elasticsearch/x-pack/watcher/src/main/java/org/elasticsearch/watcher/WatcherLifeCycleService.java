@@ -49,7 +49,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 stop(false);
             }
         });
-        watcherMetaData = new WatcherMetaData(!settings.getAsBoolean("watcher.start_immediately", true));
+        watcherMetaData = new WatcherMetaData(!settings.getAsBoolean("xpack.watcher.start_immediately", true));
     }
 
     public void start() {

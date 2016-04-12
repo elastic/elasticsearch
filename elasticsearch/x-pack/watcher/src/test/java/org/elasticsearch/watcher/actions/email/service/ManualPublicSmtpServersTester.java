@@ -26,13 +26,13 @@ public class ManualPublicSmtpServersTester {
 
         public static void main(String[] args) throws Exception {
             test(Profile.GMAIL, Settings.builder()
-                    .put("watcher.actions.email.service.account.gmail.smtp.auth", true)
-                    .put("watcher.actions.email.service.account.gmail.smtp.starttls.enable", true)
-                    .put("watcher.actions.email.service.account.gmail.smtp.host", "smtp.gmail.com")
-                    .put("watcher.actions.email.service.account.gmail.smtp.port", 587)
-                    .put("watcher.actions.email.service.account.gmail.smtp.user", terminal.readText("username: "))
-                    .put("watcher.actions.email.service.account.gmail.smtp.password", new String(terminal.readSecret("password: ")))
-                    .put("watcher.actions.email.service.account.gmail.email_defaults.to", terminal.readText("to: "))
+                    .put("xpack.watcher.actions.email.service.account.gmail.smtp.auth", true)
+                    .put("xpack.watcher.actions.email.service.account.gmail.smtp.starttls.enable", true)
+                    .put("xpack.watcher.actions.email.service.account.gmail.smtp.host", "smtp.gmail.com")
+                    .put("xpack.watcher.actions.email.service.account.gmail.smtp.port", 587)
+                    .put("xpack.watcher.actions.email.service.account.gmail.smtp.user", terminal.readText("username: "))
+                    .put("xpack.watcher.actions.email.service.account.gmail.smtp.password", new String(terminal.readSecret("password: ")))
+                    .put("xpack.watcher.actions.email.service.account.gmail.email_defaults.to", terminal.readText("to: "))
             );
         }
     }
@@ -41,13 +41,13 @@ public class ManualPublicSmtpServersTester {
 
         public static void main(String[] args) throws Exception {
             test(Profile.STANDARD, Settings.builder()
-                    .put("watcher.actions.email.service.account.outlook.smtp.auth", true)
-                    .put("watcher.actions.email.service.account.outlook.smtp.starttls.enable", true)
-                    .put("watcher.actions.email.service.account.outlook.smtp.host", "smtp-mail.outlook.com")
-                    .put("watcher.actions.email.service.account.outlook.smtp.port", 587)
-                    .put("watcher.actions.email.service.account.outlook.smtp.user", "elastic.user@outlook.com")
-                    .put("watcher.actions.email.service.account.outlook.smtp.password", "fantastic42")
-                    .put("watcher.actions.email.service.account.outlook.email_defaults.to", "elastic.user@outlook.com")
+                    .put("xpack.watcher.actions.email.service.account.outlook.smtp.auth", true)
+                    .put("xpack.watcher.actions.email.service.account.outlook.smtp.starttls.enable", true)
+                    .put("xpack.watcher.actions.email.service.account.outlook.smtp.host", "smtp-mail.outlook.com")
+                    .put("xpack.watcher.actions.email.service.account.outlook.smtp.port", 587)
+                    .put("xpack.watcher.actions.email.service.account.outlook.smtp.user", "elastic.user@outlook.com")
+                    .put("xpack.watcher.actions.email.service.account.outlook.smtp.password", "fantastic42")
+                    .put("xpack.watcher.actions.email.service.account.outlook.email_defaults.to", "elastic.user@outlook.com")
                     .put()
             );
         }
@@ -57,15 +57,15 @@ public class ManualPublicSmtpServersTester {
 
         public static void main(String[] args) throws Exception {
             test(Profile.STANDARD, Settings.builder()
-                            .put("watcher.actions.email.service.account.yahoo.smtp.starttls.enable", true)
-                            .put("watcher.actions.email.service.account.yahoo.smtp.auth", true)
-                            .put("watcher.actions.email.service.account.yahoo.smtp.host", "smtp.mail.yahoo.com")
-                            .put("watcher.actions.email.service.account.yahoo.smtp.port", 587)
-                            .put("watcher.actions.email.service.account.yahoo.smtp.user", "elastic.user@yahoo.com")
-                            .put("watcher.actions.email.service.account.yahoo.smtp.password", "fantastic42")
+                            .put("xpack.watcher.actions.email.service.account.yahoo.smtp.starttls.enable", true)
+                            .put("xpack.watcher.actions.email.service.account.yahoo.smtp.auth", true)
+                            .put("xpack.watcher.actions.email.service.account.yahoo.smtp.host", "smtp.mail.yahoo.com")
+                            .put("xpack.watcher.actions.email.service.account.yahoo.smtp.port", 587)
+                            .put("xpack.watcher.actions.email.service.account.yahoo.smtp.user", "elastic.user@yahoo.com")
+                            .put("xpack.watcher.actions.email.service.account.yahoo.smtp.password", "fantastic42")
                             // note: from must be set to the same authenticated user account
-                            .put("watcher.actions.email.service.account.yahoo.email_defaults.from", "elastic.user@yahoo.com")
-                            .put("watcher.actions.email.service.account.yahoo.email_defaults.to", "elastic.user@yahoo.com")
+                            .put("xpack.watcher.actions.email.service.account.yahoo.email_defaults.from", "elastic.user@yahoo.com")
+                            .put("xpack.watcher.actions.email.service.account.yahoo.email_defaults.to", "elastic.user@yahoo.com")
             );
         }
     }
@@ -75,15 +75,16 @@ public class ManualPublicSmtpServersTester {
 
         public static void main(String[] args) throws Exception {
             test(Profile.STANDARD, Settings.builder()
-                            .put("watcher.actions.email.service.account.ses.smtp.auth", true)
-                            .put("watcher.actions.email.service.account.ses.smtp.starttls.enable", true)
-                            .put("watcher.actions.email.service.account.ses.smtp.starttls.required", true)
-                            .put("watcher.actions.email.service.account.ses.smtp.host", "email-smtp.us-east-1.amazonaws.com")
-                            .put("watcher.actions.email.service.account.ses.smtp.port", 587)
-                            .put("watcher.actions.email.service.account.ses.smtp.user", terminal.readText("user: "))
-                            .put("watcher.actions.email.service.account.ses.smtp.password", new String(terminal.readSecret("password: ")))
-                            .put("watcher.actions.email.service.account.ses.email_defaults.from", "dummy.user@elasticsearch.com")
-                            .put("watcher.actions.email.service.account.ses.email_defaults.to", terminal.readText("to: "))
+                            .put("xpack.watcher.actions.email.service.account.ses.smtp.auth", true)
+                            .put("xpack.watcher.actions.email.service.account.ses.smtp.starttls.enable", true)
+                            .put("xpack.watcher.actions.email.service.account.ses.smtp.starttls.required", true)
+                            .put("xpack.watcher.actions.email.service.account.ses.smtp.host", "email-smtp.us-east-1.amazonaws.com")
+                            .put("xpack.watcher.actions.email.service.account.ses.smtp.port", 587)
+                            .put("xpack.watcher.actions.email.service.account.ses.smtp.user", terminal.readText("user: "))
+                            .put("xpack.watcher.actions.email.service.account.ses.email_defaults.from", "dummy.user@elasticsearch.com")
+                            .put("xpack.watcher.actions.email.service.account.ses.email_defaults.to", terminal.readText("to: "))
+                            .put("xpack.watcher.actions.email.service.account.ses.smtp.password",
+                                    new String(terminal.readSecret("password: ")))
             );
         }
     }

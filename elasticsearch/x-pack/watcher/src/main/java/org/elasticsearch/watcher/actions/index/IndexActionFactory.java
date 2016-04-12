@@ -28,7 +28,7 @@ public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableInd
     public IndexActionFactory(Settings settings, WatcherClientProxy client) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
         this.client = client;
-        this.defaultTimeout = settings.getAsTime("watcher.actions.index.default_timeout", null);
+        this.defaultTimeout = settings.getAsTime("xpack.watcher.actions.index.default_timeout", null);
     }
 
     @Override

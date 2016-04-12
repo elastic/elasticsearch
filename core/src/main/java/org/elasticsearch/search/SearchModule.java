@@ -468,7 +468,7 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new GeoBoundsParser());
         registerAggregatorParser(new GeoCentroidParser());
         registerAggregatorParser(new ScriptedMetricParser());
-        registerAggregation(ChildrenAggregatorBuilder.PROTOTYPE::readFrom, ChildrenAggregatorBuilder::parse,
+        registerAggregation(ChildrenAggregatorBuilder::new, ChildrenAggregatorBuilder::parse,
                 ChildrenAggregatorBuilder.AGGREGATION_NAME_FIELD);
 
         registerPipelineParser(new DerivativeParser());

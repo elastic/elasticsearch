@@ -253,13 +253,12 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
     public void testSerialization() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            testAgg.writeTo(output);
+            output.writeAggregatorBuilder(testAgg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder deserializedQuery = namedWriteableRegistry.getReader(AggregatorBuilder.class, testAgg.getWriteableName())
-                        .read(in);
-                assertEquals(testAgg, deserializedQuery);
-                assertEquals(testAgg.hashCode(), deserializedQuery.hashCode());
-                assertNotSame(testAgg, deserializedQuery);
+                AggregatorBuilder deserialized = in.readAggregatorBuilder();
+                assertEquals(testAgg, deserialized);
+                assertEquals(testAgg.hashCode(), deserialized.hashCode());
+                assertNotSame(testAgg, deserialized);
             }
         }
     }

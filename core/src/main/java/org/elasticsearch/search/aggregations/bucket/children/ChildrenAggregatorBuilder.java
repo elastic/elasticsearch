@@ -48,8 +48,6 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
     public static final String NAME = InternalChildren.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
-    public static final ChildrenAggregatorBuilder PROTOTYPE = new ChildrenAggregatorBuilder("", "");
-
     private String parentType;
     private final String childType;
     private Query parentFilter;
@@ -67,6 +65,24 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
         this.childType = childType;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ChildrenAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalChildren.TYPE, ValuesSourceType.BYTES, ValueType.STRING);
+        childType = in.readString();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeString(childType);
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     @Override
@@ -140,20 +156,6 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
         return new ChildrenAggregatorBuilder(aggregationName, childType);
     }
 
-
-    @Override
-    protected ChildrenAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        String childType = in.readString();
-        ChildrenAggregatorBuilder factory = new ChildrenAggregatorBuilder(name, childType);
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeString(childType);
-    }
-
     @Override
     protected int innerHashCode() {
         return Objects.hash(childType);
@@ -165,4 +167,8 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
         return Objects.equals(childType, other.childType);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

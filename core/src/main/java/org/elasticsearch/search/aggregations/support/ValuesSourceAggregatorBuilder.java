@@ -82,6 +82,93 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     }
 
     /**
+     * Read from a stream.
+     */
+    protected ValuesSourceAggregatorBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType)
+            throws IOException {
+        super(in, type);
+        this.valuesSourceType = valuesSourceType;
+        this.targetValueType = targetValueType;
+        field = in.readOptionalString();
+        if (in.readBoolean()) {
+            script = Script.readScript(in);
+        }
+        if (in.readBoolean()) {
+            valueType = ValueType.STRING.readFrom(in);
+        }
+        format = in.readOptionalString();
+        missing = in.readGenericValue();
+        if (in.readBoolean()) {
+            timeZone = DateTimeZone.forID(in.readString());
+        }
+    }
+
+    @Override
+    protected final void doWriteTo(StreamOutput out) throws IOException {
+        if (false == usesNewStyleSerialization()) {
+            valuesSourceType.writeTo(out);
+            boolean hasTargetValueType = targetValueType != null;
+            out.writeBoolean(hasTargetValueType);
+            if (hasTargetValueType) {
+                targetValueType.writeTo(out);
+            }
+            innerWriteTo(out);
+        }
+        out.writeOptionalString(field);
+        boolean hasScript = script != null;
+        out.writeBoolean(hasScript);
+        if (hasScript) {
+            script.writeTo(out);
+        }
+        boolean hasValueType = valueType != null;
+        out.writeBoolean(hasValueType);
+        if (hasValueType) {
+            valueType.writeTo(out);
+        }
+        out.writeOptionalString(format);
+        out.writeGenericValue(missing);
+        boolean hasTimeZone = timeZone != null;
+        out.writeBoolean(hasTimeZone);
+        if (hasTimeZone) {
+            out.writeString(timeZone.getID());
+        }
+        if (usesNewStyleSerialization()) {
+            innerWriteTo(out);
+        }
+    }
+
+    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
+
+    @SuppressWarnings("unchecked")
+    @Override
+    protected final AB doReadFrom(String name, StreamInput in) throws IOException {
+        ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
+        ValueType targetValueType = null;
+        if (in.readBoolean()) {
+            targetValueType = ValueType.STRING.readFrom(in);
+        }
+        ValuesSourceAggregatorBuilder<VS, AB> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
+        factory.field = in.readOptionalString();
+        if (in.readBoolean()) {
+            factory.script = Script.readScript(in);
+        }
+        if (in.readBoolean()) {
+            factory.valueType = ValueType.STRING.readFrom(in);
+        }
+        factory.format = in.readOptionalString();
+        factory.missing = in.readGenericValue();
+        if (in.readBoolean()) {
+            factory.timeZone = DateTimeZone.forID(in.readString());
+        }
+        return (AB) factory;
+    }
+
+    protected ValuesSourceAggregatorBuilder<VS, AB> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, StreamInput in) throws IOException {
+        throw new UnsupportedOperationException(); // NORELEASE remove when no longer overridden
+    }
+
+    /**
      * Sets the field to use for this aggregation.
      */
     @SuppressWarnings("unchecked")
@@ -294,64 +381,6 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         }
         return valueFormat;
     }
-
-    @Override
-    protected final void doWriteTo(StreamOutput out) throws IOException {
-        valuesSourceType.writeTo(out);
-        boolean hasTargetValueType = targetValueType != null;
-        out.writeBoolean(hasTargetValueType);
-        if (hasTargetValueType) {
-            targetValueType.writeTo(out);
-        }
-        innerWriteTo(out);
-        out.writeOptionalString(field);
-        boolean hasScript = script != null;
-        out.writeBoolean(hasScript);
-        if (hasScript) {
-            script.writeTo(out);
-        }
-        boolean hasValueType = valueType != null;
-        out.writeBoolean(hasValueType);
-        if (hasValueType) {
-            valueType.writeTo(out);
-        }
-        out.writeOptionalString(format);
-        out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
-        }
-    }
-
-    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
-
-    @SuppressWarnings("unchecked")
-    @Override
-    protected final AB doReadFrom(String name, StreamInput in) throws IOException {
-        ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
-        ValueType targetValueType = null;
-        if (in.readBoolean()) {
-            targetValueType = ValueType.STRING.readFrom(in);
-        }
-        ValuesSourceAggregatorBuilder<VS, AB> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
-        factory.field = in.readOptionalString();
-        if (in.readBoolean()) {
-            factory.script = Script.readScript(in);
-        }
-        if (in.readBoolean()) {
-            factory.valueType = ValueType.STRING.readFrom(in);
-        }
-        factory.format = in.readOptionalString();
-        factory.missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            factory.timeZone = DateTimeZone.forID(in.readString());
-        }
-        return (AB) factory;
-    }
-
-    protected abstract ValuesSourceAggregatorBuilder<VS, AB> innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

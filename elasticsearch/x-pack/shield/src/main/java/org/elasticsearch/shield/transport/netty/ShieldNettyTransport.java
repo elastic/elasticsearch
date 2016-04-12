@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.filter.IPFilter;
@@ -35,6 +36,7 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
 
+import static org.elasticsearch.shield.Security.featureEnabledSetting;
 import static org.elasticsearch.shield.Security.setting;
 import static org.elasticsearch.shield.Security.settingPrefix;
 import static org.elasticsearch.shield.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
@@ -46,10 +48,13 @@ import static org.elasticsearch.shield.transport.SSLExceptionHelper.isNotSslReco
 public class ShieldNettyTransport extends NettyTransport {
 
     public static final String CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED.name();
-    public static final boolean SSL_DEFAULT = false;
+    public static final boolean SSL_DEFAULT = true;
 
+    public static final Setting<Boolean> DEPRECATED_HOSTNAME_VERIFICATION_SETTING =
+            Setting.boolSetting(setting("ssl.hostname_verification"), true, Property.NodeScope, Property.Filtered, Property.Deprecated);
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_SETTING =
-            Setting.boolSetting(setting("ssl.hostname_verification"), true, Property.NodeScope, Property.Filtered);
+            Setting.boolSetting(featureEnabledSetting("ssl.hostname_verification"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
+                    Property.NodeScope, Property.Filtered);
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING =
             Setting.boolSetting(setting("ssl.hostname_verification.resolve_name"), true, Property.NodeScope, Property.Filtered);
 
@@ -74,6 +79,7 @@ public class ShieldNettyTransport extends NettyTransport {
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;
+    private final Global globalSSLConfiguration;
     private final @Nullable IPFilter authenticator;
     private final boolean ssl;
 
@@ -81,17 +87,19 @@ public class ShieldNettyTransport extends NettyTransport {
     public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                                 Version version, @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
                                 ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry,
-                                CircuitBreakerService circuitBreakerService) {
+                                CircuitBreakerService circuitBreakerService, Global globalSSLConfiguration) {
         super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.ssl = SSL_SETTING.get(settings);
         this.serverSslService = serverSSLService;
         this.clientSSLService = clientSSLService;
+        this.globalSSLConfiguration = globalSSLConfiguration;
     }
 
     @Override
     protected void doStart() {
         super.doStart();
+        globalSSLConfiguration.onTransportStart(boundAddress, profileBoundAddresses);
         if (authenticator != null) {
             authenticator.setBoundTransportAddress(this.boundAddress(), profileBoundAddresses());
         }
@@ -139,7 +147,7 @@ public class ShieldNettyTransport extends NettyTransport {
         // we can't use the fallback mechanism here since it may not exist in the profile settings and we get the wrong value
         // for the profile if they use the old setting
         if (PROFILE_SSL_SETTING.exists(profileSettings)) {
-            return SSL_SETTING.get(profileSettings);
+            return PROFILE_SSL_SETTING.get(profileSettings);
         } else if (DEPRECATED_PROFILE_SSL_SETTING.exists(profileSettings)) {
             return DEPRECATED_PROFILE_SSL_SETTING.get(profileSettings);
         } else {
@@ -256,5 +264,6 @@ public class ShieldNettyTransport extends NettyTransport {
         // deprecated transport settings
         settingsModule.registerSetting(DEPRECATED_SSL_SETTING);
         settingsModule.registerSetting(DEPRECATED_PROFILE_SSL_SETTING);
+        settingsModule.registerSetting(DEPRECATED_HOSTNAME_VERIFICATION_SETTING);
     }
 }

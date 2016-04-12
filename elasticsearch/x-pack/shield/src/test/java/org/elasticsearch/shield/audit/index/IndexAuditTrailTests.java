@@ -27,6 +27,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.Security;
+import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -130,7 +131,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         final boolean useSSL = useShield && randomBoolean();
         logger.info("--> remote indexing enabled. shield enabled: [{}], SSL enabled: [{}], nodes: [{}]", useShield, useSSL, numNodes);
         ShieldSettingsSource cluster2SettingsSource =
-                new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
+                new ShieldSettingsSource(numNodes, useSSL, randomBoolean(), systemKey(), createTempDir(), Scope.SUITE) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -158,6 +159,8 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             for (Map.Entry<String, String> entry : cluster2SettingsSource.getClientSSLSettings().getAsMap().entrySet()) {
                 builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
             }
+        } else {
+            builder.put("xpack.security.audit.index.client." + ShieldNettyTransport.SSL_SETTING.getKey(), false);
         }
         remoteSettings = builder.build();
     }

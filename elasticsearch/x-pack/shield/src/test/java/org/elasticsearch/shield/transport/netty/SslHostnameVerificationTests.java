@@ -11,6 +11,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -18,20 +19,33 @@ import org.elasticsearch.xpack.XPackPlugin;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map.Entry;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 
 public class SslHostnameVerificationTests extends ShieldIntegTestCase {
+
     @Override
     protected boolean sslTransportEnabled() {
         return true;
     }
 
     @Override
+    protected boolean autoSSLEnabled() {
+        return false;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settingsBuilder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        Settings settings = super.nodeSettings(nodeOrdinal);
+        Settings.Builder settingsBuilder = Settings.builder();
+        for (Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            if (entry.getKey().startsWith("xpack.security.ssl.") == false) {
+                settingsBuilder.put(entry.getKey(), entry.getValue());
+            }
+        }
         Path keystore;
         try {
             /*
@@ -45,9 +59,9 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        return settingsBuilder.put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
+        return settingsBuilder.put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath())
                 .put("xpack.security.ssl.keystore.password", "testnode-no-subjaltname")
-                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
+                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath())
                 .put("xpack.security.ssl.truststore.password", "testnode-no-subjaltname")
                 // disable hostname verification as this test uses non-localhost addresses
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
@@ -58,11 +72,26 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
     protected Settings transportClientSettings() {
         Path keystore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
         assert keystore != null;
-        return Settings.builder().put(super.transportClientSettings())
-                .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
-                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("xpack.security.ssl.truststore.password", "testnode-no-subjaltname")
-                .build();
+        Settings settings = super.transportClientSettings();
+        // remove all ssl settings
+        Settings.Builder builder = Settings.builder();
+        for (Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            String key = entry.getKey();
+            if (key.startsWith(Security.setting("ssl.")) == false) {
+                builder.put(key, entry.getValue());
+            }
+        }
+
+        builder.put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
+                .put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client keystore
+                .put("xpack.security.ssl.keystore.password", "testnode-no-subjaltname");
+
+        if (randomBoolean()) {
+            // randomly set the truststore, if not set the keystore should be used
+            builder.put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath())
+                    .put("xpack.security.ssl.truststore.password", "testnode-no-subjaltname");
+        }
+        return builder.build();
     }
 
     public void testThatHostnameMismatchDeniesTransportClientConnection() throws Exception {

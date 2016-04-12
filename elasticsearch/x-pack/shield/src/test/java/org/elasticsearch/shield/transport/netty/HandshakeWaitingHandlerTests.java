@@ -8,6 +8,7 @@ package org.elasticsearch.shield.transport.netty;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.test.ESTestCase;
 import org.jboss.netty.bootstrap.ClientBootstrap;
@@ -74,7 +75,7 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
                 .put("xpack.security.ssl.keystore.password", "testnode")
                 .build();
         Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        ServerSSLService sslService = new ServerSSLService(settings, env);
+        ServerSSLService sslService = new ServerSSLService(settings, env, new Global(settings), null);
 
         sslContext = sslService.sslContext();
 

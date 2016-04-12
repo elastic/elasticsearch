@@ -4,6 +4,14 @@ dependencies {
   testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
+String outputDir = "generated-resources/${project.name}"
+task copyXPackPluginProps(type: Copy) {
+  from project(':x-plugins:elasticsearch:x-pack').file('src/main/plugin-metadata')
+  from project(':x-plugins:elasticsearch:x-pack').tasks.pluginProperties
+  into outputDir
+}
+project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+
 integTest {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')

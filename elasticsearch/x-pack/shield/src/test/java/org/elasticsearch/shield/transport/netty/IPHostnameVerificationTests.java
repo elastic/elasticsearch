@@ -12,6 +12,7 @@ import org.elasticsearch.transport.TransportSettings;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map.Entry;
 
 import static org.hamcrest.CoreMatchers.is;
 
@@ -24,8 +25,21 @@ public class IPHostnameVerificationTests extends ShieldIntegTestCase {
     }
 
     @Override
+    protected boolean autoSSLEnabled() {
+        return false;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
+        Settings.Builder builder = Settings.builder();
+        for (Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            if (entry.getKey().startsWith("xpack.security.ssl.") == false) {
+                builder.put(entry.getKey(), entry.getValue());
+            }
+        }
+        settings = builder.build();
+
         // The default Unicast test behavior is to use 'localhost' with the port number. For this test we need to use IP
         String[] unicastAddresses = settings.getAsArray("discovery.zen.ping.unicast.hosts");
         for (int i = 0; i < unicastAddresses.length; i++) {
@@ -59,7 +73,16 @@ public class IPHostnameVerificationTests extends ShieldIntegTestCase {
 
     @Override
     protected Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings())
+        Settings clientSettings = super.transportClientSettings();
+        Settings.Builder builder = Settings.builder();
+        for (Entry<String, String> entry : clientSettings.getAsMap().entrySet()) {
+            if (entry.getKey().startsWith("xpack.security.ssl.") == false) {
+                builder.put(entry.getKey(), entry.getValue());
+            }
+        }
+        clientSettings = builder.build();
+
+        return Settings.builder().put(clientSettings)
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
                 .put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath())

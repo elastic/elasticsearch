@@ -52,14 +52,12 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
     @Override
     protected String configRoles() {
         return super.configRoles() +
-            // note the new line here.. we need to fix this in another PR
-            // as this throws another exception in the constructor and then we fuck up
             "\nallowed_role:\n" +
             "  cluster:\n" +
             "    - cluster:admin/indices/scroll/clear_all \n" +
             "denied_role:\n" +
             "  indices:\n" +
-            "    - names: '*'" +
+            "    - names: '*'\n" +
             "      privileges: [ALL]\n";
     }
 

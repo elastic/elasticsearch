@@ -5,21 +5,17 @@
  */
 package org.elasticsearch.shield.ssl;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.nio.file.Path;
-
-@SuppressForbidden(reason = "we don't have the environment to resolve files from when running in a transport client")
 public class ClientSSLService extends AbstractSSLService {
 
     @Inject
-    public ClientSSLService(Settings settings) {
-        super(settings, null);
+    public ClientSSLService(Settings settings, Global globalSSLConfiguration) {
+        super(settings, null, globalSSLConfiguration, null);
     }
 
     @Inject(optional = true)
@@ -27,31 +23,14 @@ public class ClientSSLService extends AbstractSSLService {
         this.env = environment;
     }
 
-    @Override
-    protected SSLSettings sslSettings(Settings customSettings) {
-        SSLSettings sslSettings = new SSLSettings(customSettings, settings);
-
-        if (sslSettings.keyStorePath != null) {
-            if (sslSettings.keyStorePassword == null) {
-                throw new IllegalArgumentException("no keystore password configured");
-            }
-            assert sslSettings.keyPassword != null;
-        }
-
-        if (sslSettings.trustStorePath != null) {
-            if (sslSettings.trustStorePassword == null) {
-                throw new IllegalArgumentException("no truststore password configured");
-            }
-        }
-
-        return sslSettings;
+    @Inject(optional = true)
+    public void setResourceWatcherService(ResourceWatcherService resourceWatcherService) {
+        this.resourceWatcherService = resourceWatcherService;
     }
 
     @Override
-    protected Path resolvePath(String location) {
-        if (env == null) {
-            return PathUtils.get(Strings.cleanPath(location));
-        }
-        return super.resolvePath(location);
+    protected void validateSSLConfiguration(SSLConfiguration sslConfiguration) {
+        sslConfiguration.keyConfig().validate();
+        sslConfiguration.trustConfig().validate();
     }
 }

@@ -74,8 +74,8 @@ import org.elasticsearch.shield.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.shield.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.shield.rest.action.user.RestPutUserAction;
 import org.elasticsearch.shield.ssl.SSLModule;
-import org.elasticsearch.shield.ssl.SSLSettings;
-import org.elasticsearch.shield.support.OptionalStringSetting;
+import org.elasticsearch.shield.ssl.SSLConfiguration;
+import org.elasticsearch.shield.support.OptionalSettings;
 import org.elasticsearch.shield.transport.ShieldClientTransportService;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
 import org.elasticsearch.shield.transport.ShieldTransportModule;
@@ -106,7 +106,7 @@ public class Security {
     public static final String NAME = "security";
     public static final String DLS_FLS_FEATURE = "security.dls_fls";
     public static final String OPT_OUT_QUERY_CACHE = "opt_out_cache";
-    public static final Setting<Optional<String>> USER_SETTING = OptionalStringSetting.create(setting("user"), Property.NodeScope);
+    public static final Setting<Optional<String>> USER_SETTING = OptionalSettings.createString(setting("user"), Property.NodeScope);
 
     private final Settings settings;
     private final boolean enabled;
@@ -170,7 +170,6 @@ public class Security {
         list.add(FileRolesStore.class);
         list.add(Realms.class);
         return list;
-
     }
 
     public Settings additionalSettings() {
@@ -193,7 +192,7 @@ public class Security {
         settingsModule.registerSetting(USER_SETTING);
 
         // SSL settings
-        SSLSettings.registerSettings(settingsModule);
+        SSLConfiguration.Global.registerSettings(settingsModule);
 
         // transport settings
         ShieldNettyTransport.registerSettings(settingsModule);

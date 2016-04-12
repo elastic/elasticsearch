@@ -17,6 +17,7 @@ import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -214,6 +215,7 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
         Settings settings = Settings.builder()
                 .put(extraSettings)
                 .put("cluster.name", clusterName)
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), false)
                 .build();
 
         return TransportClient.builder()

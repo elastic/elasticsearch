@@ -11,24 +11,24 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Custom;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
+import org.elasticsearch.shield.ssl.TrustConfig.Reloadable.Listener;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,34 +39,41 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public abstract class AbstractSSLService extends AbstractComponent {
 
-    private final ConcurrentHashMap<SSLSettings, SSLContext> sslContexts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<SSLConfiguration, SSLContext> sslContexts = new ConcurrentHashMap<>();
     private final SSLContextCacheLoader cacheLoader = new SSLContextCacheLoader();
-    protected Environment env;
 
-    public AbstractSSLService(Settings settings, Environment environment) {
+    protected SSLConfiguration globalSSLConfiguration;
+    protected Environment env;
+    protected ResourceWatcherService resourceWatcherService;
+
+    public AbstractSSLService(Settings settings, Environment environment, Global globalSSLConfiguration,
+                              ResourceWatcherService resourceWatcherService) {
         super(settings);
         this.env = environment;
-    }
-
-    /**
-     * @return A SSLSocketFactory (for client-side SSL handshaking)
-     */
-    public SSLSocketFactory sslSocketFactory() {
-        SSLSocketFactory socketFactory = sslContext().getSocketFactory();
-        return new ShieldSSLSocketFactory(socketFactory, supportedProtocols(), supportedCiphers(socketFactory.getSupportedCipherSuites(),
-                ciphers()));
+        this.globalSSLConfiguration = globalSSLConfiguration;
+        this.resourceWatcherService = resourceWatcherService;
     }
 
     public String[] supportedProtocols() {
-        return SSLSettings.Globals.SUPPORTED_PROTOCOLS_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        return globalSSLConfiguration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
     }
 
     public String[] ciphers() {
-        return SSLSettings.Globals.CIPHERS_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        return globalSSLConfiguration.ciphers().toArray(Strings.EMPTY_ARRAY);
+    }
+
+    public SSLSocketFactory sslSocketFactory(Settings settings) {
+        return sslSocketFactory(sslContext(settings));
+    }
+
+    protected SSLSocketFactory sslSocketFactory(SSLContext sslContext) {
+        SSLSocketFactory socketFactory = sslContext.getSocketFactory();
+        return new ShieldSSLSocketFactory(socketFactory, supportedProtocols(),
+                supportedCiphers(socketFactory.getSupportedCipherSuites(), ciphers(), false));
     }
 
     public SSLEngine createSSLEngine() {
-        return createSSLEngine(Settings.EMPTY);
+        return createSSLEngine(globalSSLConfiguration, null, -1);
     }
 
     public SSLEngine createSSLEngine(Settings settings) {
@@ -74,28 +81,46 @@ public abstract class AbstractSSLService extends AbstractComponent {
     }
 
     public SSLEngine createSSLEngine(Settings settings, String host, int port) {
-        String[] ciphers = SSLSettings.Globals.CIPHERS_SETTING.get(settings, this.settings).toArray(Strings.EMPTY_ARRAY);
-        String[] supportedProtocols = SSLSettings.Globals.SUPPORTED_PROTOCOLS_SETTING.get(settings, this.settings)
-                .toArray(Strings.EMPTY_ARRAY);
-        return createSSLEngine(sslContext(settings), ciphers, supportedProtocols, host, port);
+        if (settings.isEmpty()) {
+            return createSSLEngine(globalSSLConfiguration, host, port);
+        }
+        return createSSLEngine(sslConfiguration(settings), host, port);
+    }
+
+    public SSLEngine createSSLEngine(SSLConfiguration configuration, String host, int port) {
+        return createSSLEngine(sslContext(configuration),
+                configuration.ciphers().toArray(Strings.EMPTY_ARRAY),
+                configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
+                host, port);
     }
 
     public SSLContext sslContext() {
-        return sslContext(Settings.EMPTY);
+        return sslContext(globalSSLConfiguration);
     }
 
-    protected SSLContext sslContext(Settings settings) {
-        SSLSettings sslSettings = sslSettings(settings);
-        return sslContexts.computeIfAbsent(sslSettings, (theSettings) ->
-                cacheLoader.load(theSettings));
+    public SSLContext sslContext(Settings settings) {
+        if (settings.isEmpty()) {
+            return sslContext();
+        }
+
+        SSLConfiguration sslConfiguration = sslConfiguration(settings);
+        return sslContext(sslConfiguration);
     }
 
-    protected abstract SSLSettings sslSettings(Settings customSettings);
+    protected SSLContext sslContext(SSLConfiguration sslConfiguration) {
+        return sslContexts.computeIfAbsent(sslConfiguration, cacheLoader::load);
+    }
+
+    protected SSLConfiguration sslConfiguration(Settings customSettings) {
+        return new Custom(customSettings, globalSSLConfiguration);
+    }
+
+    protected abstract void validateSSLConfiguration(SSLConfiguration configuration);
 
     SSLEngine createSSLEngine(SSLContext sslContext, String[] ciphers, String[] supportedProtocols, String host, int port) {
         SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
         try {
-            sslEngine.setEnabledCipherSuites(supportedCiphers(sslEngine.getSupportedCipherSuites(), ciphers));
+            sslEngine.setEnabledCipherSuites(supportedCiphers(sslEngine.getSupportedCipherSuites(), ciphers, false));
         } catch (ElasticsearchException e) {
             throw e;
         } catch (Throwable t) {
@@ -110,7 +135,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
         return sslEngine;
     }
 
-    String[] supportedCiphers(String[] supportedCiphers, String[] requestedCiphers) {
+    String[] supportedCiphers(String[] supportedCiphers, String[] requestedCiphers, boolean log) {
         List<String> requestedCiphersList = new ArrayList<>(requestedCiphers.length);
         List<String> unsupportedCiphers = new LinkedList<>();
         boolean found;
@@ -130,58 +155,36 @@ public abstract class AbstractSSLService extends AbstractComponent {
         }
 
         if (requestedCiphersList.isEmpty()) {
-            throw new IllegalArgumentException("none of the ciphers [" + Arrays.asList(requestedCiphers) + "] are supported by this JVM");
+            throw new IllegalArgumentException("none of the ciphers " + Arrays.asList(requestedCiphers) + " are supported by this JVM");
         }
 
-        if (!unsupportedCiphers.isEmpty()) {
-            logger.error("unsupported ciphers [{}] were requested but cannot be used in this JVM. If you are trying to use ciphers\n" +
-                    "with a key length greater than 128 bits on an Oracle JVM, you will need to install the unlimited strength\n" +
-                    "JCE policy files. Additionally, please ensure the PKCS11 provider is enabled for your JVM.", unsupportedCiphers);
+        if (log && !unsupportedCiphers.isEmpty()) {
+            logger.error("unsupported ciphers [{}] were requested but cannot be used in this JVM, however there are supported ciphers " +
+                    "that will be used [{}]. If you are trying to use ciphers with a key length greater than 128 bits on an Oracle JVM, " +
+                    "you will need to install the unlimited strength JCE policy files.", unsupportedCiphers, requestedCiphersList);
         }
 
         return requestedCiphersList.toArray(new String[requestedCiphersList.size()]);
     }
 
-    protected Path resolvePath(String location) {
-        return env.configFile().resolve(location);
-    }
-
     private class SSLContextCacheLoader {
 
-        public SSLContext load(SSLSettings sslSettings) {
+        public SSLContext load(SSLConfiguration sslConfiguration) {
+            validateSSLConfiguration(sslConfiguration);
             if (logger.isDebugEnabled()) {
-                logger.debug("using keystore[{}], key_algorithm[{}], truststore[{}], truststore_algorithm[{}], tls_protocol[{}], " +
-                        "session_cache_size[{}], session_cache_timeout[{}]",
-                        sslSettings.keyStorePath, sslSettings.keyStoreAlgorithm, sslSettings.trustStorePath,
-                        sslSettings.trustStoreAlgorithm, sslSettings.sslProtocol, sslSettings.sessionCacheSize,
-                        sslSettings.sessionCacheTimeout);
+                logger.debug("using ssl settings [{}]", sslConfiguration);
             }
 
-            TrustManager[] trustManagers = trustManagers(sslSettings.trustStorePath, sslSettings.trustStorePassword,
-                    sslSettings.trustStoreAlgorithm);
-            KeyManager[] keyManagers = keyManagers(sslSettings.keyStorePath, sslSettings.keyStorePassword, sslSettings.keyStoreAlgorithm,
-                    sslSettings.keyPassword);
-            return createSslContext(keyManagers, trustManagers, sslSettings.sslProtocol, sslSettings.sessionCacheSize,
-                    sslSettings.sessionCacheTimeout);
-        }
+            ConfigRefreshListener configRefreshListener = new ConfigRefreshListener(sslConfiguration);
+            TrustManager[] trustManagers = sslConfiguration.trustConfig().trustManagers(env, resourceWatcherService, configRefreshListener);
+            KeyManager[] keyManagers = sslConfiguration.keyConfig().keyManagers(env, resourceWatcherService, configRefreshListener);
+            SSLContext sslContext = createSslContext(keyManagers, trustManagers, sslConfiguration.protocol(),
+                    sslConfiguration.sessionCacheSize(), sslConfiguration.sessionCacheTimeout());
 
-
-        private KeyManager[] keyManagers(String keyStore, String keyStorePassword, String keyStoreAlgorithm, String keyPassword) {
-            if (keyStore == null) {
-                return null;
-            }
-
-            try {
-                // Load KeyStore
-                KeyStore ks = readKeystore(keyStore, keyStorePassword);
-
-                // Initialize KeyManagerFactory
-                KeyManagerFactory kmf = KeyManagerFactory.getInstance(keyStoreAlgorithm);
-                kmf.init(ks, keyPassword.toCharArray());
-                return kmf.getKeyManagers();
-            } catch (Exception e) {
-                throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
-            }
+            // check the supported ciphers and log them here
+            supportedCiphers(sslContext.getSupportedSSLParameters().getCipherSuites(),
+                    sslConfiguration.ciphers().toArray(Strings.EMPTY_ARRAY), true);
+            return sslContext;
         }
 
         private SSLContext createSslContext(KeyManager[] keyManagers, TrustManager[] trustManagers, String sslProtocol,
@@ -197,34 +200,37 @@ public abstract class AbstractSSLService extends AbstractComponent {
                 throw new ElasticsearchException("failed to initialize the SSLContext", e);
             }
         }
+    }
 
-        private TrustManager[] trustManagers(String trustStorePath, String trustStorePassword, String trustStoreAlgorithm) {
-            try {
-                // Load TrustStore
-                KeyStore ks = null;
-                if (trustStorePath != null) {
-                    ks = readKeystore(trustStorePath, trustStorePassword);
-                }
+    class ConfigRefreshListener implements Listener {
 
-                // Initialize a trust manager factory with the trusted store
-                TrustManagerFactory trustFactory = TrustManagerFactory.getInstance(trustStoreAlgorithm);
-                trustFactory.init(ks);
-                return trustFactory.getTrustManagers();
-            } catch (Exception e) {
-                throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
+        private final SSLConfiguration sslConfiguration;
+
+        ConfigRefreshListener(SSLConfiguration sslConfiguration) {
+            this.sslConfiguration = sslConfiguration;
+        }
+
+        @Override
+        public void onReload() {
+            SSLContext context = sslContexts.get(sslConfiguration);
+            if (context != null) {
+                invalidateSessions(context.getClientSessionContext());
+                invalidateSessions(context.getServerSessionContext());
             }
         }
 
-        private KeyStore readKeystore(String path, String password) throws Exception {
-            try (InputStream in = Files.newInputStream(resolvePath(path))) {
-                // Load TrustStore
-                KeyStore ks = KeyStore.getInstance("jks");
-                assert password != null;
-                ks.load(in, password.toCharArray());
-                return ks;
+        void invalidateSessions(SSLSessionContext sslSessionContext) {
+            Enumeration<byte[]> sessionIds = sslSessionContext.getIds();
+            while (sessionIds.hasMoreElements()) {
+                byte[] sessionId = sessionIds.nextElement();
+                sslSessionContext.getSession(sessionId).invalidate();
             }
         }
 
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("failed to load updated ssl context for [{}]", e, sslConfiguration);
+        }
     }
 
     /**

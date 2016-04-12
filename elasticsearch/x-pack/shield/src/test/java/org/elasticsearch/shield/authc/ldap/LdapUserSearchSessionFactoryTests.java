@@ -29,6 +29,7 @@ import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.watcher.Watcher;
@@ -70,10 +71,11 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        clientSSLService = new ClientSSLService(Settings.builder()
+        Settings settings = Settings.builder()
                 .put("xpack.security.ssl.keystore.path", keystore)
                 .put("xpack.security.ssl.keystore.password", "changeit")
-                .build());
+                .build();
+        clientSSLService = new ClientSSLService(settings, new Global(settings));
         clientSSLService.setEnvironment(env);
 
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();

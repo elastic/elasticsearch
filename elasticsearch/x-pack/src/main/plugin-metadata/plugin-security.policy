@@ -12,4 +12,6 @@ grant {
   permission java.lang.RuntimePermission "setContextClassLoader";
   permission java.lang.RuntimePermission "getClassLoader";
 
+  // bouncy castle
+  permission java.security.SecurityPermission "putProviderProperty.BC";
 };

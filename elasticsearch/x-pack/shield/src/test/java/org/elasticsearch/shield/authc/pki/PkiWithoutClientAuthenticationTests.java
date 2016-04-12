@@ -58,6 +58,11 @@ public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
     }
 
     @Override
+    protected boolean autoSSLEnabled() {
+        return false;
+    }
+
+    @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))

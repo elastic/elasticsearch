@@ -84,7 +84,7 @@ final class BootstrapCheck {
             messages.add("bootstrap checks failed");
             exceptions.forEach(e -> messages.add(e.getMessage()));
             if (enforceLimits) {
-                RuntimeException re = new RuntimeException(String.join("\n", messages));
+                final RuntimeException re = new RuntimeException(String.join("\n", messages));
                 exceptions.forEach(re::addSuppressed);
                 throw re;
             } else {

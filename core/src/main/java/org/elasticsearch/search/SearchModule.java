@@ -101,7 +101,7 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.aggregations.bucket.children.ChildrenParser;
+import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterParser;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -468,7 +468,8 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new GeoBoundsParser());
         registerAggregatorParser(new GeoCentroidParser());
         registerAggregatorParser(new ScriptedMetricParser());
-        registerAggregatorParser(new ChildrenParser());
+        registerAggregation(ChildrenAggregatorBuilder.PROTOTYPE::readFrom, ChildrenAggregatorBuilder::parse,
+                ChildrenAggregatorBuilder.AGGREGATION_NAME_FIELD);
 
         registerPipelineParser(new DerivativeParser());
         registerPipelineParser(new MaxBucketParser());

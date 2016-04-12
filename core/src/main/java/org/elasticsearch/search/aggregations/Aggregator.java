@@ -44,13 +44,16 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Parses the aggregation request and creates the appropriate aggregator factory for it.
      *
      * @see AggregatorBuilder
-    */
+     */
+    @FunctionalInterface
     public interface Parser {
 
         /**
          * @return The aggregation type this parser is associated with.
          */
-        String type();
+        default String type() {
+            throw new UnsupportedOperationException(); // NORELEASE remove before 5.0.0GA
+        }
 
         /**
          * Returns the aggregator factory with which this parser is associated, may return {@code null} indicating the
@@ -68,7 +71,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @return an empty {@link AggregatorBuilder} instance for this parser
          *         that can be used for deserialization
          */
-        AggregatorBuilder<?> getFactoryPrototypes();
+        default AggregatorBuilder<?> getFactoryPrototypes() {
+            throw new UnsupportedOperationException(); // NORELEASE remove before 5.0.0GA
+        }
     }
 
     /**

@@ -19,9 +19,12 @@
 package org.elasticsearch.search.percolator;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -203,5 +206,27 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(4).getHighlightFields().get("field1").fragments()[0].string(),
                 equalTo("The quick brown <em>fox</em> jumps over the lazy dog"));
     }
+
+    public void testTakePositionOffsetGapIntoAccount() throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test")
+                .addMapping("type", "field", "type=text,position_increment_gap=5")
+        );
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query",
+                        new MatchPhraseQueryBuilder("field", "brown fox").slop(4)).endObject())
+                .get();
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
+                .setSource(jsonBuilder().startObject().field("query",
+                        new MatchPhraseQueryBuilder("field", "brown fox").slop(5)).endObject())
+                .get();
+        client().admin().indices().prepareRefresh().get();
+
+        SearchResponse response = client().prepareSearch().setQuery(
+                QueryBuilders.percolatorQuery("type", new BytesArray("{\"field\" : [\"brown\", \"fox\"]}"))
+        ).get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+    }
+
 
 }

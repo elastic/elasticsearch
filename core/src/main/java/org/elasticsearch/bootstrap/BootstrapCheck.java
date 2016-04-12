@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * We enforce limits once any network host is configured. In this case we assume the node is running in production
@@ -72,26 +73,23 @@ final class BootstrapCheck {
     static void check(final boolean enforceLimits, final List<Check> checks, final String nodeName) {
         final ESLogger logger = Loggers.getLogger(BootstrapCheck.class, nodeName);
 
-        final List<IllegalStateException> exceptions = new ArrayList<>();
-
-        for (final Check check : checks) {
-            final boolean fail = check.check();
-            if (fail) {
-                if (enforceLimits) {
-                    exceptions.add(new IllegalStateException(check.errorMessage()));
-                } else {
-                    logger.warn(check.errorMessage());
-                }
-            }
-        }
+        final List<IllegalStateException> exceptions =
+                checks.stream()
+                        .filter(BootstrapCheck.Check::check)
+                        .map(check -> new IllegalStateException(check.errorMessage()))
+                        .collect(Collectors.toList());
 
         if (!exceptions.isEmpty()) {
             final List<String> messages = new ArrayList<>(1 + exceptions.size());
             messages.add("bootstrap checks failed");
             exceptions.forEach(e -> messages.add(e.getMessage()));
-            RuntimeException re = new RuntimeException(String.join("\n", messages));
-            exceptions.forEach(re::addSuppressed);
-            throw re;
+            if (enforceLimits) {
+                RuntimeException re = new RuntimeException(String.join("\n", messages));
+                exceptions.forEach(re::addSuppressed);
+                throw re;
+            } else {
+                messages.forEach(message -> logger.warn(message));
+            }
         }
     }
 

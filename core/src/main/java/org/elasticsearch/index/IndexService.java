@@ -410,13 +410,15 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
 
     private void onShardClose(ShardLock lock, boolean ownsShard) {
-        if (deleted.get() && ownsShard) { // we remove that shards content if this index has been deleted and we own the shard
+        if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
-                try {
-                    eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
-                } finally {
-                    shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
-                    eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
+                if (ownsShard) {
+                    try {
+                        eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
+                    } finally {
+                        shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
+                        eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
+                    }
                 }
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);

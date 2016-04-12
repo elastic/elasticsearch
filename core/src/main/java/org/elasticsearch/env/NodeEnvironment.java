@@ -64,6 +64,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -421,7 +422,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     /**
      * Deletes an indexes data directory recursively iff all of the indexes
      * shards locks were successfully acquired. If any of the indexes shard directories can't be locked
-     * non of the shards will be deleted.
+     * non of the shards will be deleted
      *
      * @param index the index to delete
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
@@ -450,30 +451,11 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         IOUtils.rm(indexPaths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings);
-            // shared shard data on shared file systems might have already been deleted by another node,
-            // this can only happen if a shared file system index was closed, then deleted on all nodes
-            if (Files.exists(customLocation)) {
-                logger.trace("deleting custom index {} directory [{}]", index, customLocation);
-                IOUtils.rm(customLocation);
-            } else {
-                // assert that this should only happen if the index is on a shared file system
-                assert indexSettings.isOnSharedFilesystem();
-                logger.trace("custom index {} directory doesn't exist, nothing to delete: {}", index, customLocation);
-            }
+            logger.trace("deleting custom index {} directory [{}]", index, customLocation);
+            IOUtils.rm(customLocation);
         }
     }
 
-    /**
-     * Deletes a shared file system index's data directory recursively.  This method does not delete custom
-     * data paths and should only be invoked for indices on a shared file system where the index metadata
-     * directory should be deleted but the shard resources should remain intact.
-     */
-    public void deleteIndexDirectoryOnly(final Index index, final IndexSettings indexSettings) throws IOException {
-        assert indexSettings.isOnSharedFilesystem() : "should call deleteIndexDirectorySafe instead";
-        final Path[] indexPaths = indexPaths(index);
-        logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
-        IOUtils.rm(indexPaths);
-    }
 
     /**
      * Tries to lock all local shards for the given index. If any of the shard locks can't be acquired

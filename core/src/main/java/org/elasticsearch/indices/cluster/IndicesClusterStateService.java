@@ -236,7 +236,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             } else {
                 final IndexMetaData metaData = previousState.metaData().getIndexSafe(index);
                 indexSettings = new IndexSettings(metaData, settings);
-                indicesService.deleteUnassignedIndex("closed index no longer part of the metadata", metaData, event.state(), true);
+                indicesService.deleteUnassignedIndex("closed index no longer part of the metadata", metaData, event.state());
             }
             try {
                 nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);

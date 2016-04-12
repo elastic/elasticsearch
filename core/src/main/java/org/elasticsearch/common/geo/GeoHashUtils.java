@@ -28,9 +28,7 @@ import org.apache.lucene.util.BitUtil;
  * The geohash long format is represented as lon/lat (x/y) interleaved with the 4 least significant bits
  * representing the level (1-12) [xyxy...xyxyllll]
  *
- * This differs from a morton encoded value which interleaves lat/lon (y/x).
- *
- * @lucene.experimental
+ * This differs from a morton encoded value which interleaves lat/lon (y/x).*
  */
 public class GeoHashUtils {
     private static final char[] BASE_32 = {'0', '1', '2', '3', '4', '5', '6',

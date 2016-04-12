@@ -64,7 +64,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -422,7 +421,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     /**
      * Deletes an indexes data directory recursively iff all of the indexes
      * shards locks were successfully acquired. If any of the indexes shard directories can't be locked
-     * non of the shards will be deleted
+     * non of the shards will be deleted.
      *
      * @param index the index to delete
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
@@ -451,38 +450,29 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         IOUtils.rm(indexPaths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings);
-            logger.trace("deleting custom index {} directory [{}]", index, customLocation);
-            IOUtils.rm(customLocation);
-        }
-    }
-
-    //nocommit need to decide if this method is useful/needed
-    /**
-     * Do any of the index directories exist for this index?  Used to know if there is anything
-     * to delete by {@link #deleteIndexDirectorySafe(Index, long, IndexSettings)}.
-     */
-    public boolean indexDirectoryExists(final Index index, final IndexSettings indexSettings) {
-        boolean exists = false;
-        for (Path path : indexPaths(index)) {
-            if (Files.exists(path)) {
-                exists = true;
-                break;
+            // shared shard data on shared file systems might have already been deleted by another node,
+            // this can only happen if a shared file system index was closed, then deleted on all nodes
+            if (Files.exists(customLocation)) {
+                logger.trace("deleting custom index {} directory [{}]", index, customLocation);
+                IOUtils.rm(customLocation);
+            } else {
+                // assert that this should only happen if the index is on a shared file system
+                assert indexSettings.isOnSharedFilesystem();
+                logger.trace("custom index {} directory doesn't exist, nothing to delete: {}", index, customLocation);
             }
         }
-        if (exists == false && indexSettings.hasCustomDataPath()) {
-            exists = Files.exists(resolveIndexCustomLocation(indexSettings));
-        }
-        return exists;
     }
 
-    //nocommit just a convenience for debugging
-    public String indicesPathDirectoryTree() {
-        final StringBuilder buf = new StringBuilder();
-        for (NodePath nodePath : nodePaths()) {
-            buf.append("Node path [").append(nodePath.path).append("]:\n")
-               .append(FileSystemUtils.directoryTree(nodePath.indicesPath)).append("\n");
-        }
-        return buf.toString();
+    /**
+     * Deletes a shared file system index's data directory recursively.  This method does not delete custom
+     * data paths and should only be invoked for indices on a shared file system where the index metadata
+     * directory should be deleted but the shard resources should remain intact.
+     */
+    public void deleteIndexDirectoryOnly(final Index index, final IndexSettings indexSettings) throws IOException {
+        assert indexSettings.isOnSharedFilesystem() : "should call deleteIndexDirectorySafe instead";
+        final Path[] indexPaths = indexPaths(index);
+        logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
+        IOUtils.rm(indexPaths);
     }
 
     /**

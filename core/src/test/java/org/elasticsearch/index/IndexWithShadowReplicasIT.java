@@ -574,11 +574,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, 2);
 
         assertAcked(client().admin().indices().prepareDelete(IDX));
-        //nocommit - remove
-        logger.info("IndexWithShadowReplicaIT.testIndexWithShadowReplicasCleansUp - indices paths after deletion has completed:");
-        for (String node : nodes) {
-            logger.info(internalCluster().getInstance(NodeEnvironment.class, node).indicesPathDirectoryTree());
-        }
 
         assertPathHasBeenCleared(dataPath);
         assertIndicesDirsDeleted(nodes);
@@ -638,11 +633,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, docCount);
 
         assertAcked(client().admin().indices().prepareDelete(IDX));
-        //nocommit - remove
-        logger.info("IndexWithShadowReplicaIT.testShadowReplicaNaturalRelocation - indices paths after deletion has completed:");
-        for (String node : nodes) {
-            logger.info(internalCluster().getInstance(NodeEnvironment.class, node).indicesPathDirectoryTree());
-        }
 
         assertPathHasBeenCleared(dataPath);
         assertIndicesDirsDeleted(nodes);

@@ -157,54 +157,6 @@ public final class FileSystemUtils {
         }
     }
 
-    //nocommit is this generally useful?
-    /**
-     * Returns a tree representation of the file system from the root path as a string.
-     */
-    public static String directoryTree(final Path path) {
-        if (Files.isDirectory(path) == false) {
-            return "ERROR: " + path + " is not a directory";
-        }
-        StringBuilder buf = new StringBuilder();
-        buf.append("Directory: ").append(path).append("\n");
-        try {
-            directoryTree(path, 0, buf);
-        } catch (IOException e) {
-            buf.setLength(0);
-            buf.append("Failed to get directory tree structure[ " + path + "]: " + e.getMessage());
-        }
-        return buf.toString();
-    }
-
-    private static void directoryTree(final Path directory, final int indent, final StringBuilder buf) throws IOException {
-        buf.append(getIndentString(indent));
-        buf.append("+--");
-        buf.append(directory.getFileName());
-        buf.append("/");
-        buf.append("\n");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
-            for (Path path : stream) {
-                if (Files.isDirectory(path)) {
-                    directoryTree(path, indent + 1, buf);
-                } else {
-                    buf.append(getIndentString(indent + 1));
-                    buf.append("+--");
-                    buf.append(path.getFileName());
-                    buf.append("\n");
-                }
-            }
-        }
-    }
-
-    private static String getIndentString(final int indent) {
-        StringBuilder buf = new StringBuilder();
-        for (int i = 0; i < indent; i++) {
-            buf.append("|  ");
-        }
-        return buf.toString();
-    }
-    //nocommit end of directoryTree implementation
-
     private static Path[] toArray(DirectoryStream<Path> stream) {
         return StreamSupport.stream(stream.spliterator(), false).toArray(length -> new Path[length]);
     }

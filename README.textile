@@ -9,7 +9,7 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 * Distributed and Highly Available Search Engine.
 ** Each index is fully sharded with a configurable number of shards.
 ** Each shard can have one or more replicas.
-** Read / Search operations performed on either one of the replica shard.
+** Read / Search operations performed on any of the replica shards.
 * Multi Tenant with Multi Types.
 ** Support for more than one index.
 ** Support for more than one type per index.

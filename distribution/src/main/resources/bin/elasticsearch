@@ -136,6 +136,13 @@ if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
     unset JAVA_TOOL_OPTIONS
 fi
 
+# JAVA_OPTS is not a built-in JVM mechanism but some people think it is
+# so let us warn them that we are not observing the value of $JAVA_OPTS
+if [ ! -z "JAVA_OPTS" ]; then
+    echo "Warning: Ignoring JAVA_OPTS=$JAVA_OPTS"
+    echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
+fi
+
 # full hostname passed through cut for portability on systems that do not support hostname -s
 # export on separate line for shells that do not support combining definition and export
 HOSTNAME=`hostname | cut -d. -f1`

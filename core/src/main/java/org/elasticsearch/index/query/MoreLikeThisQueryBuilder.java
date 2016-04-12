@@ -52,8 +52,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
+import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -62,7 +64,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -93,6 +94,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public static final float DEFAULT_BOOST_TERMS = 0;  // no boost terms
     public static final boolean DEFAULT_INCLUDE = false;
     public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
+
+    private static final Set<Class<? extends MappedFieldType>> SUPPORTED_FIELD_TYPES = new HashSet<>(
+            Arrays.asList(StringFieldType.class, TextFieldType.class, KeywordFieldType.class));
 
     private interface Field {
         ParseField FIELDS = new ParseField("fields");
@@ -1032,12 +1036,18 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);
+                if (fieldType != null && SUPPORTED_FIELD_TYPES.contains(fieldType.getClass()) == false) {
+                    if (failOnUnsupportedField) {
+                        throw new IllegalArgumentException("more_like_this only supports text/keyword fields: [" + field + "]");
+                    } else {
+                        // skip
+                        continue;
+                    }
+                }
                 moreLikeFields.add(fieldType == null ? field : fieldType.name());
             }
         }
 
-        // possibly remove unsupported fields
-        removeUnsupportedFields(moreLikeFields, analyzerObj, failOnUnsupportedField);
         if (moreLikeFields.isEmpty()) {
             return null;
         }
@@ -1057,20 +1067,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         } else {
             return mltQuery;
         }
-    }
-
-    private static List<String> removeUnsupportedFields(List<String> moreLikeFields, Analyzer analyzer, boolean failOnUnsupportedField) throws IOException {
-        for (Iterator<String> it = moreLikeFields.iterator(); it.hasNext(); ) {
-            final String fieldName = it.next();
-            if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
-                if (failOnUnsupportedField) {
-                    throw new IllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
-                } else {
-                    it.remove();
-                }
-            }
-        }
-        return moreLikeFields;
     }
 
     private Query handleItems(QueryShardContext context, MoreLikeThisQuery mltQuery, Item[] likeItems, Item[] unlikeItems,

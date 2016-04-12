@@ -40,7 +40,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -90,11 +89,6 @@ public class LongFieldMapper extends NumberFieldMapper {
             LongFieldMapper fieldMapper = new LongFieldMapper(name, fieldType, defaultFieldType,
                     ignoreMalformed(context), coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             return (LongFieldMapper) fieldMapper.includeInAll(includeInAll);
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            return NumericLongAnalyzer.buildNamedAnalyzer(precisionStep);
         }
 
         @Override

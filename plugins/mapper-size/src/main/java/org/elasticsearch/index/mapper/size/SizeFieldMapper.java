@@ -21,9 +21,9 @@ package org.elasticsearch.index.mapper.size;
 
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -53,8 +53,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             SIZE_FIELD_TYPE.setStored(true);
             SIZE_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_32_BIT);
             SIZE_FIELD_TYPE.setName(NAME);
-            SIZE_FIELD_TYPE.setIndexAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_32_BIT));
-            SIZE_FIELD_TYPE.setSearchAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
+            SIZE_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            SIZE_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             SIZE_FIELD_TYPE.freeze();
         }
     }

@@ -28,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -80,11 +79,6 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
                     ignoreMalformed(context), coerce(context), context.indexSettings(),
                     analyzer, multiFieldsBuilder.build(this, context), copyTo);
             return (TokenCountFieldMapper) fieldMapper.includeInAll(includeInAll);
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            return NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep);
         }
 
         @Override

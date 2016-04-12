@@ -29,8 +29,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -75,11 +73,6 @@ public class Murmur3FieldMapper extends LongFieldMapper {
             defaultFieldType.setIndexOptions(IndexOptions.NONE);
             fieldType.setHasDocValues(true);
             defaultFieldType.setHasDocValues(true);
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            return NumericLongAnalyzer.buildNamedAnalyzer(precisionStep);
         }
 
         @Override

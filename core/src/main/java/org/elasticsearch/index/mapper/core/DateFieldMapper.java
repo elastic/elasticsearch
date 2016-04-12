@@ -44,7 +44,6 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -139,11 +138,6 @@ public class DateFieldMapper extends NumberFieldMapper {
         public Builder locale(Locale locale) {
             this.locale = locale;
             return this;
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            return NumericDateAnalyzer.buildNamedAnalyzer(fieldType().dateTimeFormatter, precisionStep);
         }
 
         @Override

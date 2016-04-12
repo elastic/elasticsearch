@@ -42,8 +42,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NumericAnalyzer;
-import org.elasticsearch.index.analysis.NumericTokenizer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -129,12 +127,6 @@ public class IpFieldMapper extends NumberFieldMapper {
             IpFieldMapper fieldMapper = new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             return (IpFieldMapper) fieldMapper.includeInAll(includeInAll);
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            String name = precisionStep == Integer.MAX_VALUE ? "_ip/max" : ("_ip/" + precisionStep);
-            return new NamedAnalyzer(name, new NumericIpAnalyzer(precisionStep));
         }
 
         @Override
@@ -362,29 +354,4 @@ public class IpFieldMapper extends NumberFieldMapper {
 
     }
 
-    public static class NumericIpAnalyzer extends NumericAnalyzer<NumericIpTokenizer> {
-
-        private final int precisionStep;
-
-        public NumericIpAnalyzer(int precisionStep) {
-            this.precisionStep = precisionStep;
-        }
-
-        @Override
-        protected NumericIpTokenizer createNumericTokenizer(char[] buffer) throws IOException {
-            return new NumericIpTokenizer(precisionStep, buffer);
-        }
-    }
-
-    public static class NumericIpTokenizer extends NumericTokenizer {
-
-        public NumericIpTokenizer(int precisionStep, char[] buffer) throws IOException {
-            super(new LegacyNumericTokenStream(precisionStep), buffer, null);
-        }
-
-        @Override
-        protected void setValue(LegacyNumericTokenStream tokenStream, String value) {
-            tokenStream.setLongValue(ipToLong(value));
-        }
-    }
 }

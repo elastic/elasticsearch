@@ -40,7 +40,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -92,12 +91,6 @@ public class IntegerFieldMapper extends NumberFieldMapper {
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             return (IntegerFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            return NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep);
-        }
-
         @Override
         protected int maxPrecisionStep() {
             return 32;

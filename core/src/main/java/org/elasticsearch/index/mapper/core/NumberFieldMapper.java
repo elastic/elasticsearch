@@ -127,11 +127,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
             if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
                 fieldType.setNumericPrecisionStep(Integer.MAX_VALUE);
             }
-            fieldType.setIndexAnalyzer(makeNumberAnalyzer(fieldType.numericPrecisionStep()));
-            fieldType.setSearchAnalyzer(makeNumberAnalyzer(Integer.MAX_VALUE));
         }
-
-        protected abstract NamedAnalyzer makeNumberAnalyzer(int precisionStep);
 
         protected abstract int maxPrecisionStep();
     }

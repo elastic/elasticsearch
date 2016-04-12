@@ -310,7 +310,7 @@ public class Node implements Closeable {
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.start();
 
-        validateNotBeforeAcceptingRequests(settings, transportService.boundAddress());
+        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
 
         DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class)
                 .buildLocalNode(transportService.boundAddress().publishAddress());
@@ -532,7 +532,7 @@ public class Node implements Closeable {
      *                              bound and publishing to
      */
     @SuppressWarnings("unused")
-    protected void validateNotBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
+    protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
     }
 
     /** Writes a file to the logs dir containing the ports for the given transport type */

@@ -54,6 +54,33 @@ EOF
     exit 1
 fi
 
+# TODO: remove for Elasticsearch 6.x
+unsupported_environment_variable() {
+    if [ ! -z "$1" ]; then
+        echo "$2=$1"
+    fi
+}
+
+if [[ !(-z "$ES_MIN_MEM" &&
+        -z "$ES_MAX_MEM" &&
+        -z "$ES_HEAP_SIZE" &&
+        -z "$ES_HEAP_NEWSIZE" &&
+        -z "$ES_DIRECT_SIZE" &&
+        -z "$ES_USE_IPV4" &&
+        -z "$ES_GC_OPTS") ]]; then
+    echo "Error: encountered environment variables that are no longer supported"
+    echo "Use jvm.options or ES_JAVA_OPTS to configure the JVM"
+    unsupported_environment_variable "$ES_MIN_MEM" ES_MIN_MEM
+    unsupported_environment_variable "$ES_MAX_MEM" ES_MAX_MEM
+    unsupported_environment_variable "$ES_HEAP_SIZE" ES_HEAP_SIZE
+    unsupported_environment_variable "$ES_HEAP_NEWSIZE" ES_HEAP_NEWSIZE
+    unsupported_environment_variable "$ES_DIRECT_SIZE" ES_DIRECT_SIZE
+    unsupported_environment_variable "$ES_USE_IPV4" ES_USE_IPV4
+    unsupported_environment_variable "$ES_GC_OPTS" ES_GC_OPTS
+    exit 1
+fi
+# end TODO: remove for Elasticsearch 6.x
+
 parse_jvm_options() {
   if [ -f "$1" ]; then
     echo "$(grep "^-" "$1" | tr '\n' ' ')"

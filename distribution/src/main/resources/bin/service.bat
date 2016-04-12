@@ -3,6 +3,28 @@ SETLOCAL enabledelayedexpansion
 
 TITLE Elasticsearch Service ${project.version}
 
+rem TODO: remove for Elasticsearch 6.x
+if not "%ES_MIN_MEM%" == "" set bad_env_var=1
+if not "%ES_MAX_MEM%" == "" set bad_env_var=1
+if not "%ES_HEAP_SIZE%" == "" set bad_env_var=1
+if not "%ES_HEAP_NEWSIZE%" == "" set bad_env_var=1
+if not "%ES_DIRECT_SIZE%" == "" set bad_env_var=1
+if not "%ES_USE_IPV4%" == "" set bad_env_var=1
+if not "%ES_GC_OPTS%" == "" set bad_env_var=1
+if %bad_env_var% == 1 (
+    echo Error: encountered environment variables that are no longer supported
+    echo Use jvm.options or ES_JAVA_OPTS to configure the JVM
+    if not "%ES_MIN_MEM%" == "" echo ES_MIN_MEM=%ES_MIN_MEM%
+    if not "%ES_MAX_MEM%" == "" echo ES_MAX_MEM=%ES_MAX_MEM%
+    if not "%ES_HEAP_SIZE%" == "" echo ES_HEAP_SIZE=%ES_HEAP_SIZE%
+    if not "%ES_HEAP_NEWSIZE%" == "" echo ES_HEAP_NEWSIZE=%ES_HEAP_NEWSIZE%
+    if not "%ES_DIRECT_SIZE%" == "" echo ES_DIRECT_SIZE=%ES_DIRECT_SIZE%
+    if not "%ES_USE_IPV4%" == "" echo ES_USE_IPV4=%ES_USE_IPV4%
+    if not "%ES_GC_OPTS%" == "" echo ES_GC_OPTS=%ES_GC_OPTS%
+    exit /b 1
+)
+rem end TODO: remove for Elasticsearch 6.x
+
 if NOT DEFINED JAVA_HOME goto err
 
 if not "%CONF_FILE%" == "" goto conffileset

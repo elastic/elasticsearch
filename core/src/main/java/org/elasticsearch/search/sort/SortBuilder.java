@@ -34,7 +34,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -140,15 +139,6 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
                     }
                 }
             }
-        }
-    }
-
-    public static void parseSort(XContentParser parser, SearchContext context) throws IOException {
-        QueryParseContext parseContext = context.getQueryShardContext().parseContext();
-        parseContext.reset(parser);
-        Optional<Sort> sortOptional = buildSort(SortBuilder.fromXContent(parseContext), context.getQueryShardContext());
-        if (sortOptional.isPresent()) {
-            context.sort(sortOptional.get());
         }
     }
 

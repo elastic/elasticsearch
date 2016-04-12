@@ -22,19 +22,22 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineExecutionService;
 import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.core.CompoundProcessor;
-import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.node.service.NodeService;
@@ -171,33 +174,35 @@ public class IngestActionFilterTests extends ESTestCase {
         when(nodeService.getIngestService()).thenReturn(ingestService);
         filter = new IngestActionFilter(Settings.EMPTY, nodeService);
 
-        BulkRequest bulkRequest = new BulkRequest();
         int numRequest = scaledRandomIntBetween(8, 64);
+        BulkItemRequest[] items = new BulkItemRequest[numRequest];
         for (int i = 0; i < numRequest; i++) {
+            ActionRequest request;
             if (rarely()) {
-                ActionRequest request;
                 if (randomBoolean()) {
                     request = new DeleteRequest("_index", "_type", "_id");
                 } else {
                     request = new UpdateRequest("_index", "_type", "_id");
                 }
-                bulkRequest.add(request);
             } else {
                 IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline("_id");
                 indexRequest.source("field1", "value1");
-                bulkRequest.add(indexRequest);
+                request = indexRequest;
             }
+            items[i] = new BulkItemRequest(i, request);
         }
+        BulkShardRequest request = new BulkShardRequest(new ShardId("_index", "_indexUUID", 0), false, items);
 
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        filter.apply(task, BulkAction.NAME, bulkRequest, actionListener, actionFilterChain);
-        verify(actionFilterChain).proceed(eq(task), eq(BulkAction.NAME), eq(bulkRequest), any());
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        verify(actionFilterChain).proceed(eq(task), eq(TransportShardBulkAction.ACTION_NAME), any(), any());
         verifyZeroInteractions(actionListener);
 
         int assertedRequests = 0;
-        for (ActionRequest actionRequest : bulkRequest.requests()) {
+        for (BulkItemRequest item : request.items()) {
+            ActionRequest actionRequest = item.request();
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 assertThat(indexRequest.sourceAsMap().size(), equalTo(2));

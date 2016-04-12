@@ -33,13 +33,22 @@ public class BulkShardResponse extends ReplicationResponse {
 
     private ShardId shardId;
     private BulkItemResponse[] responses;
+    private long ingestTookInMillis;
 
-    BulkShardResponse() {
+    public BulkShardResponse() {
     }
 
-    BulkShardResponse(ShardId shardId, BulkItemResponse[] responses) {
+    public BulkShardResponse(ShardId shardId, BulkItemResponse[] responses) {
         this.shardId = shardId;
         this.responses = responses;
+        this.ingestTookInMillis = BulkResponse.NO_INGEST_TOOK;
+    }
+
+    public BulkShardResponse(BulkShardResponse source, BulkItemResponse[] responses, long ingestTookInMillis) {
+        this.shardId = source.getShardId();
+        this.responses = responses;
+        this.ingestTookInMillis = ingestTookInMillis;
+        setShardInfo(source.getShardInfo());
     }
 
     public ShardId getShardId() {
@@ -50,6 +59,10 @@ public class BulkShardResponse extends ReplicationResponse {
         return responses;
     }
 
+    public long getIngestTookInMillis() {
+        return ingestTookInMillis;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -58,6 +71,7 @@ public class BulkShardResponse extends ReplicationResponse {
         for (int i = 0; i < responses.length; i++) {
             responses[i] = BulkItemResponse.readBulkItem(in);
         }
+        ingestTookInMillis = in.readZLong();
     }
 
     @Override
@@ -68,5 +82,6 @@ public class BulkShardResponse extends ReplicationResponse {
         for (BulkItemResponse response : responses) {
             response.writeTo(out);
         }
+        out.writeZLong(ingestTookInMillis);
     }
 }

@@ -21,9 +21,10 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -64,6 +66,7 @@ import static org.mockito.Mockito.when;
 
 public class IngestProxyActionFilterTests extends ESTestCase {
 
+    private final static ShardId SHARD_ID = new ShardId("_index", "_indexUUID", 0);
     private TransportService transportService;
 
     @SuppressWarnings("unchecked")
@@ -105,8 +108,10 @@ public class IngestProxyActionFilterTests extends ESTestCase {
             action = IndexAction.NAME;
             request = new IndexRequest().setPipeline("_id");
         } else {
-            action = BulkAction.NAME;
-            request = new BulkRequest().add(new IndexRequest().setPipeline("_id"));
+            action = TransportShardBulkAction.ACTION_NAME;
+            BulkItemRequest[] items =
+                    new BulkItemRequest[]{new BulkItemRequest(0, new IndexRequest().setPipeline("_id"))};
+            request = new BulkShardRequest(SHARD_ID, false, items);
         }
         try {
             filter.apply(task, action, request, actionListener, actionFilterChain);
@@ -132,8 +137,10 @@ public class IngestProxyActionFilterTests extends ESTestCase {
             action = IndexAction.NAME;
             request = new IndexRequest();
         } else {
-            action = BulkAction.NAME;
-            request = new BulkRequest().add(new IndexRequest());
+            action = TransportShardBulkAction.ACTION_NAME;
+            BulkItemRequest[] items =
+                    new BulkItemRequest[]{new BulkItemRequest(0, new IndexRequest())};
+            request = new BulkShardRequest(SHARD_ID, false, items);
         }
         filter.apply(task, action, request, actionListener, actionFilterChain);
         verifyZeroInteractions(transportService);
@@ -193,15 +200,17 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         };
         doAnswer(answer).when(transportService).sendRequest(any(DiscoveryNode.class), any(String.class), any(TransportRequest.class), any(TransportResponseHandler.class));
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest().setPipeline("_id"));
-        int numNoPipelineRequests = randomIntBetween(0, 10);
-        for (int i = 0; i < numNoPipelineRequests; i++) {
-            bulkRequest.add(new IndexRequest());
+        int numNoPipelineRequests = randomIntBetween(0, 10) + 1;
+        BulkItemRequest[] items = new BulkItemRequest[numNoPipelineRequests];
+        items[0] = new BulkItemRequest(0, new IndexRequest().setPipeline("_id"));
+        for (int i = 1; i < numNoPipelineRequests; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest());
         }
-        filter.apply(task, BulkAction.NAME, bulkRequest, actionListener, actionFilterChain);
+        BulkShardRequest bulkRequest = new BulkShardRequest(SHARD_ID, false, items);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, bulkRequest, actionListener, actionFilterChain);
 
-        verify(transportService).sendRequest(argThat(new IngestNodeMatcher()), eq(BulkAction.NAME), same(bulkRequest), any(TransportResponseHandler.class));
+        verify(transportService).sendRequest(argThat(new IngestNodeMatcher()), eq(TransportShardBulkAction.ACTION_NAME),
+                same(bulkRequest), any(TransportResponseHandler.class));
         verifyZeroInteractions(actionFilterChain);
         verify(actionListener).onResponse(any(BulkResponse.class));
         verify(actionListener, never()).onFailure(any(TransportException.class));
@@ -227,8 +236,10 @@ public class IngestProxyActionFilterTests extends ESTestCase {
             action = IndexAction.NAME;
             request = new IndexRequest().setPipeline("_id");
         } else {
-            action = BulkAction.NAME;
-            request = new BulkRequest().add(new IndexRequest().setPipeline("_id"));
+            action = TransportShardBulkAction.ACTION_NAME;
+            BulkItemRequest[] items =
+                    new BulkItemRequest[]{new BulkItemRequest(0, new IndexRequest().setPipeline("_id"))};
+            request = new BulkShardRequest(SHARD_ID, false, items);
         }
 
         filter.apply(task, action, request, actionListener, actionFilterChain);

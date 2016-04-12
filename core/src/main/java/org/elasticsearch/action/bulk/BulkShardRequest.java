@@ -19,7 +19,10 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,18 +43,35 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
     public BulkShardRequest() {
     }
 
-    BulkShardRequest(BulkRequest bulkRequest, ShardId shardId, boolean refresh, BulkItemRequest[] items) {
+    public BulkShardRequest(ShardId shardId, boolean refresh, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
         this.refresh = refresh;
     }
 
-    boolean refresh() {
+    public boolean refresh() {
         return this.refresh;
     }
 
-    BulkItemRequest[] items() {
+    public BulkItemRequest[] items() {
         return items;
+    }
+
+    /**
+     * @return Whether this bulk shard request contains index request with an ingest pipeline enabled.
+     */
+    public boolean hasIndexRequestsWithPipelines() {
+        for (BulkItemRequest item : items()) {
+            ActionRequest<?> actionRequest = item.request();
+            if (actionRequest instanceof IndexRequest) {
+                IndexRequest indexRequest = (IndexRequest) actionRequest;
+                if (Strings.hasText(indexRequest.getPipeline())) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     @Override

@@ -22,13 +22,16 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.BulkShardResponse;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -66,9 +69,19 @@ public final class IngestProxyActionFilter implements ActionFilter {
                     chain.proceed(task, action, request, listener);
                 }
                 break;
-            case BulkAction.NAME:
-                ingestAction = BulkAction.INSTANCE;
-                BulkRequest bulkRequest = (BulkRequest) request;
+            case TransportShardBulkAction.ACTION_NAME:
+                ingestAction = new Action(TransportShardBulkAction.ACTION_NAME) {
+                    @Override
+                    public ActionRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+                        return null;
+                    }
+
+                    @Override
+                    public ActionResponse newResponse() {
+                        return new BulkShardResponse();
+                    }
+                };
+                BulkShardRequest bulkRequest = (BulkShardRequest) request;
                 if (bulkRequest.hasIndexRequestsWithPipelines()) {
                     forwardIngestRequest(ingestAction, request, listener);
                 } else {

@@ -22,10 +22,12 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.ReplicationResponse;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.BulkShardResponse;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
@@ -39,10 +41,10 @@ import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public final class IngestActionFilter extends AbstractComponent implements ActionFilter {
@@ -66,11 +68,11 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
                     chain.proceed(task, action, request, listener);
                 }
                 break;
-            case BulkAction.NAME:
-                BulkRequest bulkRequest = (BulkRequest) request;
+            case TransportShardBulkAction.ACTION_NAME:
+                BulkShardRequest bulkRequest = (BulkShardRequest) request;
                 if (bulkRequest.hasIndexRequestsWithPipelines()) {
                     @SuppressWarnings("unchecked")
-                    ActionListener<BulkResponse> actionListener = (ActionListener<BulkResponse>) listener;
+                    ActionListener<BulkShardResponse> actionListener = (ActionListener<BulkShardResponse>) listener;
                     processBulkIndexRequest(task, bulkRequest, action, chain, actionListener);
                 } else {
                     chain.proceed(task, action, request, listener);
@@ -88,7 +90,6 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     }
 
     void processIndexRequest(Task task, String action, ActionListener listener, ActionFilterChain chain, IndexRequest indexRequest) {
-
         executionService.executeIndexRequest(indexRequest, t -> {
             logger.error("failed to execute pipeline [{}]", t, indexRequest.getPipeline());
             listener.onFailure(t);
@@ -101,7 +102,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         });
     }
 
-    void processBulkIndexRequest(Task task, BulkRequest original, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
+    void processBulkIndexRequest(Task task, BulkShardRequest original, String action, ActionFilterChain chain, ActionListener<BulkShardResponse> listener) {
         long ingestStartTimeInNanos = System.nanoTime();
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         executionService.executeBulkRequest(() -> bulkRequestModifier, (indexRequest, throwable) -> {
@@ -113,15 +114,17 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
                 listener.onFailure(throwable);
             } else {
                 long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
-                BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, listener);
-                if (bulkRequest.requests().isEmpty()) {
+                BulkShardRequest bulkShardRequest = bulkRequestModifier.getBulkShardRequest();
+                ActionListener<BulkShardResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, listener);
+                if (bulkShardRequest.items().length == 0) {
                     // at this stage, the transport bulk action can't deal with a bulk request with no requests,
                     // so we stop and send an empty response back to the client.
                     // (this will happen if pre-processing all items in the bulk failed)
-                    actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+                    BulkShardResponse response = new BulkShardResponse(original.shardId(), new BulkItemResponse[0]);
+                    response.setShardInfo(new ReplicationResponse.ShardInfo());
+                    actionListener.onResponse(response);
                 } else {
-                    chain.proceed(task, action, bulkRequest, actionListener);
+                    chain.proceed(task, action, bulkShardRequest, actionListener);
                 }
             }
         });
@@ -134,102 +137,81 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
 
     final static class BulkRequestModifier implements Iterator<ActionRequest<?>> {
 
-        final BulkRequest bulkRequest;
-        final Set<Integer> failedSlots;
+        final BulkShardRequest originalRequest;
+        final List<BulkItemRequest> itemRequests;
+        final Iterator<BulkItemRequest> iterator;
+
         final List<BulkItemResponse> itemResponses;
+        BulkItemRequest current;
 
-        int currentSlot = -1;
-        int[] originalSlots;
-
-        BulkRequestModifier(BulkRequest bulkRequest) {
-            this.bulkRequest = bulkRequest;
-            this.failedSlots = new HashSet<>();
-            this.itemResponses = new ArrayList<>(bulkRequest.requests().size());
+        BulkRequestModifier(BulkShardRequest originalRequest) {
+            this.originalRequest = originalRequest;
+            this.itemRequests = new ArrayList<>(Arrays.asList(originalRequest.items()));
+            this.iterator = itemRequests.iterator();
+            this.itemResponses = new ArrayList<>(originalRequest.items().length);
         }
 
         @Override
         public ActionRequest next() {
-            return bulkRequest.requests().get(++currentSlot);
+            current = iterator.next();
+            return current.request();
         }
 
         @Override
         public boolean hasNext() {
-            return (currentSlot + 1) < bulkRequest.requests().size();
+            return iterator.hasNext();
         }
 
-        BulkRequest getBulkRequest() {
-            if (itemResponses.isEmpty()) {
-                return bulkRequest;
-            } else {
-                BulkRequest modifiedBulkRequest = new BulkRequest();
-                modifiedBulkRequest.refresh(bulkRequest.refresh());
-                modifiedBulkRequest.consistencyLevel(bulkRequest.consistencyLevel());
-                modifiedBulkRequest.timeout(bulkRequest.timeout());
-
-                int slot = 0;
-                originalSlots = new int[bulkRequest.requests().size() - failedSlots.size()];
-                for (int i = 0; i < bulkRequest.requests().size(); i++) {
-                    ActionRequest request = bulkRequest.requests().get(i);
-                    if (failedSlots.contains(i) == false) {
-                        modifiedBulkRequest.add(request);
-                        originalSlots[slot++] = i;
-                    }
-                }
-                return modifiedBulkRequest;
-            }
+        BulkShardRequest getBulkShardRequest() {
+            BulkItemRequest[] items = itemRequests.toArray(new BulkItemRequest[itemRequests.size()]);
+            return new BulkShardRequest(originalRequest.shardId(), originalRequest.refresh(), items);
         }
 
-        ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
-            if (itemResponses.isEmpty()) {
-                return new ActionListener<BulkResponse>() {
-                    @Override
-                    public void onResponse(BulkResponse response) {
-                        actionListener.onResponse(new BulkResponse(response.getItems(), response.getTookInMillis(), ingestTookInMillis));
-                    }
-
-                    @Override
-                    public void onFailure(Throwable e) {
-                        actionListener.onFailure(e);
-                    }
-                };
-            } else {
-                return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
-            }
+        ActionListener<BulkShardResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkShardResponse> actionListener) {
+            return new IngestBulkResponseListener(ingestTookInMillis, itemResponses, actionListener);
         }
 
         void markCurrentItemAsFailed(Throwable e) {
-            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(currentSlot);
             // We hit a error during preprocessing a request, so we:
-            // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
+            // 1) Remove its request item as we can't continue to actual do the write operation.
+            iterator.remove();
             // 2) Add a bulk item failure for this request
+            int id = current.id();
+            IndexRequest indexRequest = (IndexRequest) current.request();
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
+                    indexRequest.index(), indexRequest.type(), indexRequest.id(), e
+            );
+            itemResponses.add(new BulkItemResponse(id, indexRequest.opType().lowercase(), failure));
             // 3) Continue with the next request in the bulk.
-            failedSlots.add(currentSlot);
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
-            itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType().lowercase(), failure));
         }
 
     }
 
-    final static class IngestBulkResponseListener implements ActionListener<BulkResponse> {
+    final static class IngestBulkResponseListener implements ActionListener<BulkShardResponse> {
 
         private final long ingestTookInMillis;
-        private final int[] originalSlots;
         private final List<BulkItemResponse> itemResponses;
-        private final ActionListener<BulkResponse> actionListener;
+        private final ActionListener<BulkShardResponse> actionListener;
 
-        IngestBulkResponseListener(long ingestTookInMillis, int[] originalSlots, List<BulkItemResponse> itemResponses, ActionListener<BulkResponse> actionListener) {
+        IngestBulkResponseListener(long ingestTookInMillis, List<BulkItemResponse> itemResponses, ActionListener<BulkShardResponse> actionListener) {
             this.ingestTookInMillis = ingestTookInMillis;
             this.itemResponses = itemResponses;
             this.actionListener = actionListener;
-            this.originalSlots = originalSlots;
         }
 
         @Override
-        public void onResponse(BulkResponse response) {
-            for (int i = 0; i < response.getItems().length; i++) {
-                itemResponses.add(originalSlots[i], response.getItems()[i]);
-            }
-            actionListener.onResponse(new BulkResponse(itemResponses.toArray(new BulkItemResponse[itemResponses.size()]), response.getTookInMillis(), ingestTookInMillis));
+        public void onResponse(BulkShardResponse response) {
+            Collections.addAll(itemResponses, response.getResponses());
+            BulkItemResponse[] itemResponses = this.itemResponses.toArray(new BulkItemResponse[this.itemResponses.size()]);
+            // sorting response items is required to ensure that the response items match with how to request items were specified
+            Arrays.sort(itemResponses, (a, b) -> Integer.compare(a.getItemId(), b.getItemId()));
+            actionListener.onResponse(
+                    new BulkShardResponse(
+                            response,
+                            itemResponses,
+                            ingestTookInMillis
+                    )
+            );
         }
 
         @Override

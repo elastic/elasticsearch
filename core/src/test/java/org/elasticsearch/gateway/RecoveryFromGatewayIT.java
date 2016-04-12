@@ -33,10 +33,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -46,6 +48,9 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -524,8 +529,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // nodes may need to report the shards they processed the initial recovered cluster state from the master
         final String nodeName = internalCluster().startNode();
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
-        ensureYellow();
         final Index index = resolveIndex("test");
+        final ShardId shardId = new ShardId(index, 0);
+        index("test", "type", "1");
+        flush("test");
+
+        final boolean corrupt = randomBoolean();
 
         internalCluster().fullRestart(new RestartCallback() {
             @Override
@@ -535,19 +544,39 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             }
         });
 
-        DiscoveryNode node  = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
+        if (corrupt) {
+            for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
+                final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
+                if (Files.exists(indexPath)) { // multi data path might only have one path in use
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
+                        for (Path item : stream) {
+                            if (item.getFileName().toString().startsWith("segments_")) {
+                                logger.debug("--> deleting [{}]", item);
+                                Files.delete(item);
+                            }
+                        }
+                    }
+                }
+
+            }
+        }
+
+        DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
 
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response;
         response = internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
-            .execute(new TransportNodesListGatewayStartedShards.Request(
-                new ShardId(index, 0), new String[] { node.getId()}))
+            .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new String[]{node.getId()}))
             .get();
 
         assertThat(response.getNodes(), arrayWithSize(1));
         assertThat(response.getNodes()[0].allocationId(), notNullValue());
-        assertThat(response.getNodes()[0].storeException(), nullValue());
+        if (corrupt) {
+            assertThat(response.getNodes()[0].storeException(), notNullValue());
+        } else {
+            assertThat(response.getNodes()[0].storeException(), nullValue());
+        }
 
-        // stop the nodes so cluster consistency checks won't time out due to the lack of state
-        internalCluster().stopCurrentMasterNode();
+        // start another node so cluster consistency checks won't time out due to the lack of state
+        internalCluster().startNode();
     }
 }

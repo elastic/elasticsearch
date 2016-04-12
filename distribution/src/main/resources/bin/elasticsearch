@@ -57,7 +57,7 @@ fi
 # TODO: remove for Elasticsearch 6.x
 unsupported_environment_variable() {
     if [ ! -z "$1" ]; then
-        echo "$2=$1"
+        echo "$2=$1: $3"
     fi
 }
 
@@ -70,13 +70,13 @@ if [[ !(-z "$ES_MIN_MEM" &&
         -z "$ES_GC_OPTS") ]]; then
     echo "Error: encountered environment variables that are no longer supported"
     echo "Use jvm.options or ES_JAVA_OPTS to configure the JVM"
-    unsupported_environment_variable "$ES_MIN_MEM" ES_MIN_MEM
-    unsupported_environment_variable "$ES_MAX_MEM" ES_MAX_MEM
-    unsupported_environment_variable "$ES_HEAP_SIZE" ES_HEAP_SIZE
-    unsupported_environment_variable "$ES_HEAP_NEWSIZE" ES_HEAP_NEWSIZE
-    unsupported_environment_variable "$ES_DIRECT_SIZE" ES_DIRECT_SIZE
-    unsupported_environment_variable "$ES_USE_IPV4" ES_USE_IPV4
-    unsupported_environment_variable "$ES_GC_OPTS" ES_GC_OPTS
+    unsupported_environment_variable "$ES_MIN_MEM" ES_MIN_MEM "set -Xms$ES_MIN_MEM in jvm.options or add \"-Xms$ES_MIN_MEM\" to ES_JAVA_OPTS"
+    unsupported_environment_variable "$ES_MAX_MEM" ES_MAX_MEM "set -Xms$ES_MAX_MEM in jvm.options or add \"-Xms$ES_MAX_MEM\" to ES_JAVA_OPTS"
+    unsupported_environment_variable "$ES_HEAP_SIZE" ES_HEAP_SIZE "set -Xms$ES_HEAP_SIZE and -Xmx$ES_HEAP_SIZE in jvm.options or add \"-Xms$ES_HEAP_SIZE -Xmx$ES_HEAP_SIZE\" to ES_JAVA_OPTS"
+    unsupported_environment_variable "$ES_HEAP_NEWSIZE" ES_HEAP_NEWSIZE "set -Xmn$ES_HEAP_NEWSIZE in jvm.options or add \"-Xmn$ES_HEAP_SIZE\" to ES_JAVA_OPTS"
+    unsupported_environment_variable "$ES_DIRECT_SIZE" ES_DIRECT_SIZE "set -XX:MaxDirectMemorySize=$ES_DIRECT_SIZE in jvm.options or add \"-XX:MaxDirectMemorySize=$ES_DIRECT_SIZE\" to ES_JAVA_OPTS"
+    unsupported_environment_variable "$ES_USE_IPV4" ES_USE_IPV4 "set -Djava.net.preferIPv4Stack=true in jvm.options or add \"-Djava.net.preferIPv4Stack=true\" to ES_JAVA_OPTS"
+    unsupported_environment_variable "$ES_GC_OPTS" ES_GC_OPTS "set ${ES_GC_OPTS// / and } in jvm.options or add \"$ES_GC_OPTS\" to ES_JAVA_OPTS"
     exit 1
 fi
 # end TODO: remove for Elasticsearch 6.x

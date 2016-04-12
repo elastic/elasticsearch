@@ -46,7 +46,7 @@ public interface TransportAddress extends Writeable<TransportAddress> {
 
     boolean sameHost(TransportAddress other);
 
-    default boolean isLocalAddress() {
+    default boolean isLoopbackOrLinkLocalAddress() {
         return false;
     }
 

@@ -45,7 +45,7 @@ public class BootstrapCheckTests extends ESTestCase {
     public void testNonProductionMode() {
         // nothing should happen since we are in non-production mode
         TransportAddress localTransportAddress = mock(TransportAddress.class);
-        when(localTransportAddress.isLocalAddress()).thenReturn(true);
+        when(localTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
         BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         when(boundTransportAddress.boundAddresses()).thenReturn(new TransportAddress[] { localTransportAddress });
         when(boundTransportAddress.publishAddress()).thenReturn(localTransportAddress);
@@ -55,17 +55,17 @@ public class BootstrapCheckTests extends ESTestCase {
     public void testEnforceLimitsWhenBoundToNonLocalAddress() {
         final List<TransportAddress> transportAddresses = new ArrayList<>();
         final TransportAddress nonLocalTransportAddress = mock(TransportAddress.class);
-        when(nonLocalTransportAddress.isLocalAddress()).thenReturn(false);
+        when(nonLocalTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(false);
         transportAddresses.add(nonLocalTransportAddress);
 
         for (int i = 0; i < randomIntBetween(0, 7); i++) {
             final TransportAddress randomTransportAddress = mock(TransportAddress.class);
-            when(randomTransportAddress.isLocalAddress()).thenReturn(randomBoolean());
+            when(randomTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(randomBoolean());
             transportAddresses.add(randomTransportAddress);
         }
 
         final TransportAddress publishAddress = mock(TransportAddress.class);
-        when(publishAddress.isLocalAddress()).thenReturn(randomBoolean());
+        when(publishAddress.isLoopbackOrLinkLocalAddress()).thenReturn(randomBoolean());
 
         final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         Collections.shuffle(transportAddresses, random());
@@ -80,12 +80,12 @@ public class BootstrapCheckTests extends ESTestCase {
 
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
             final TransportAddress randomTransportAddress = mock(TransportAddress.class);
-            when(randomTransportAddress.isLocalAddress()).thenReturn(false);
+            when(randomTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(false);
             transportAddresses.add(randomTransportAddress);
         }
 
         final TransportAddress publishAddress = mock(TransportAddress.class);
-        when(publishAddress.isLocalAddress()).thenReturn(true);
+        when(publishAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
 
         final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));

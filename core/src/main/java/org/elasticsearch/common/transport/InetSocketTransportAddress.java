@@ -75,7 +75,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
     }
 
     @Override
-    public boolean isLocalAddress() {
+    public boolean isLoopbackOrLinkLocalAddress() {
         return address.getAddress().isLinkLocalAddress() || address.getAddress().isLoopbackAddress();
     }
 

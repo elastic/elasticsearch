@@ -103,8 +103,8 @@ final class BootstrapCheck {
      */
     // visible for testing
     static boolean enforceLimits(BoundTransportAddress boundTransportAddress) {
-        return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(TransportAddress::isLocalAddress) &&
-                boundTransportAddress.publishAddress().isLocalAddress());
+        return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(TransportAddress::isLoopbackOrLinkLocalAddress) &&
+                boundTransportAddress.publishAddress().isLoopbackOrLinkLocalAddress());
     }
 
     // the list of checks to execute

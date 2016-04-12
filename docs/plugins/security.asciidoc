@@ -26,7 +26,3 @@ The following plugins have been contributed by our community:
 * https://github.com/sscarduzio/elasticsearch-readonlyrest-plugin[Readonly REST]:
   High performance access control for Elasticsearch native REST API (by Simone Scarduzio)
 
-This community plugin appears to have been abandoned:
-
-* https://github.com/sonian/elasticsearch-jetty[Jetty HTTP transport plugin]:
-  Uses Jetty to provide SSL connections, basic authentication, and request logging (by Sonian Inc.)

@@ -30,6 +30,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -43,11 +44,13 @@ import java.util.Objects;
 public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.SimpleQueryParser {
 
     private final Settings settings;
+    private QueryShardContext context;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
+    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings, QueryShardContext context) {
         super(analyzer, weights, flags);
         this.settings = settings;
+        this.context = context;
     }
 
     /**
@@ -58,6 +61,15 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             return null;
         }
         throw e;
+    }
+
+    @Override
+    protected Query newTermQuery(Term term) {
+        MappedFieldType currentFieldType = context.fieldMapper(term.field());
+        if (currentFieldType == null || currentFieldType.tokenized()) {
+            return super.newTermQuery(term);
+        }
+        return currentFieldType.termQuery(term.bytes(), context);
     }
 
     @Override

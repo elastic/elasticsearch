@@ -45,12 +45,6 @@
 # Check to see if you are trying to run this without building it first. Gradle
 # will replace the project.name with _something_.
 
-jvm_options() {
-  if [ -f "$1" ]; then
-    echo "$(grep "^-" "$1" | tr '\n' ' ')"
-  fi
-}
-
 if echo '${project.name}' | grep project.name > /dev/null ; then
     cat >&2 << EOF
 Error: You must build the project with Maven or download a pre-built package
@@ -59,6 +53,12 @@ or visit https://www.elastic.co/download to get a pre-built package.
 EOF
     exit 1
 fi
+
+jvm_options() {
+  if [ -f "$1" ]; then
+    echo "$(grep "^-" "$1" | tr '\n' ' ')"
+  fi
+}
 
 CDPATH=""
 SCRIPT="$0"

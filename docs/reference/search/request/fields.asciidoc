@@ -27,7 +27,7 @@ For example:
 [source,js]
 --------------------------------------------------
 {
-    "fields": "["xxx*", "*xxx", "*xxx*", "xxx*yyy", "user", "postDate"],
+    "fields": ["xxx*", "*xxx", "*xxx*", "xxx*yyy", "user", "postDate"],
     "query" : {
         "term" : { "user" : "kimchy" }
     }

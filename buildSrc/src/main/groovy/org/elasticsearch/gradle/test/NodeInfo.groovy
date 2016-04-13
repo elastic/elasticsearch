@@ -130,8 +130,7 @@ class NodeInfo {
         }
 
         env = [
-            'JAVA_HOME' : project.javaHome,
-            'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
+            'JAVA_HOME' : project.javaHome
         ]
         args.addAll("-E", "es.node.portsfile=true")
         env.put('ES_JAVA_OPTS', config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" "))

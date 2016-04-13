@@ -55,7 +55,7 @@ public class NettyPipeliningEnabledIT extends ESIntegTestCase {
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
-            Collection<HttpResponse> responses = nettyHttpClient.sendRequests(inetSocketTransportAddress.address(), requests.toArray(new String[]{}));
+            Collection<HttpResponse> responses = nettyHttpClient.get(inetSocketTransportAddress.address(), requests.toArray(new String[]{}));
             assertThat(responses, hasSize(5));
 
             Collection<String> opaqueIds = returnOpaqueIds(responses);

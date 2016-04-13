@@ -335,6 +335,8 @@ public class NettyHttpChannelTests extends ESTestCase {
 
         private HttpHeaders headers = new DefaultHttpHeaders();
 
+        private ChannelBuffer content = ChannelBuffers.EMPTY_BUFFER;
+
         @Override
         public HttpMethod getMethod() {
             return null;
@@ -372,12 +374,12 @@ public class NettyHttpChannelTests extends ESTestCase {
 
         @Override
         public ChannelBuffer getContent() {
-            return ChannelBuffers.EMPTY_BUFFER;
+            return content;
         }
 
         @Override
         public void setContent(ChannelBuffer content) {
-
+            this.content = content;
         }
 
         @Override

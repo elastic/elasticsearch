@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -56,19 +57,22 @@ public final class NettyHttpChannel extends AbstractRestChannel {
     private final NettyHttpServerTransport transport;
     private final Channel channel;
     private final org.jboss.netty.handler.codec.http.HttpRequest nettyRequest;
-    private OrderedUpstreamMessageEvent orderedUpstreamMessageEvent = null;
+    private final OrderedUpstreamMessageEvent orderedUpstreamMessageEvent;
 
+    /**
+     * @param transport                   The corresponding <code>NettyHttpServerTransport</code> where this channel belongs to.
+     * @param request                     The request that is handled by this channel.
+     * @param orderedUpstreamMessageEvent If HTTP pipelining is enabled provide the corresponding Netty upstream event. May be null if
+     *                                    HTTP pipelining is disabled.
+     * @param detailedErrorsEnabled       true iff error messages should include stack traces.
+     */
     public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request,
+                            @Nullable OrderedUpstreamMessageEvent orderedUpstreamMessageEvent,
                             boolean detailedErrorsEnabled) {
         super(request, detailedErrorsEnabled);
         this.transport = transport;
         this.channel = request.getChannel();
         this.nettyRequest = request.request();
-    }
-
-    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request,
-                            OrderedUpstreamMessageEvent orderedUpstreamMessageEvent, boolean detailedErrorsEnabled) {
-        this(transport, request, detailedErrorsEnabled);
         this.orderedUpstreamMessageEvent = orderedUpstreamMessageEvent;
     }
 

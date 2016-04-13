@@ -22,13 +22,25 @@ package org.elasticsearch.http;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,6 +49,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.rest.RestStatus.*;
 
@@ -57,15 +70,17 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     private final PluginSiteFilter pluginSiteFilter = new PluginSiteFilter();
 
+    private final CircuitBreakerService circuitBreakerService;
+
     @Inject
-    public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
-                      RestController restController,
-                      NodeService nodeService) {
+    public HttpServer(Settings settings, Environment environment, HttpServerTransport transport, RestController restController, NodeService nodeService,
+                      CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.environment = environment;
         this.transport = transport;
         this.restController = restController;
         this.nodeService = nodeService;
+        this.circuitBreakerService = circuitBreakerService;
         nodeService.setHttpServer(this);
 
         this.disableSites = this.settings.getAsBoolean("http.disable_sites", false);
@@ -125,7 +140,15 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             handleFavicon(request, channel);
             return;
         }
-        restController.dispatchRequest(request, channel);
+        RestChannel responseChannel = channel;
+        try {
+            inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(request.content().length(), "<http_request>");
+            // iff we could reserve bytes for the request we need to send the response also over this channel
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService);
+            restController.dispatchRequest(request, responseChannel);
+        } catch (Throwable t) {
+            restController.sendErrorResponse(request, responseChannel, t);
+        }
     }
 
 
@@ -277,4 +300,65 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     public static final Map<String, String> DEFAULT_MIME_TYPES;
+
+    private static final class ResourceHandlingHttpChannel implements RestChannel {
+        private final RestChannel delegate;
+        private final CircuitBreakerService circuitBreakerService;
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        public ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService) {
+            this.delegate = delegate;
+            this.circuitBreakerService = circuitBreakerService;
+        }
+
+        @Override
+        public XContentBuilder newBuilder() throws IOException {
+            return delegate.newBuilder();
+        }
+
+        @Override
+        public XContentBuilder newErrorBuilder() throws IOException {
+            return delegate.newErrorBuilder();
+        }
+
+        @Override
+        public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(autoDetectSource, useFiltering);
+        }
+
+        @Override
+        public BytesStreamOutput bytesOutput() {
+            return delegate.bytesOutput();
+        }
+
+        @Override
+        public RestRequest request() {
+            return delegate.request();
+        }
+
+        @Override
+        public boolean detailedErrorsEnabled() {
+            return delegate.detailedErrorsEnabled();
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            close();
+            delegate.sendResponse(response);
+        }
+
+        private void close() {
+            // attempt to close once atomically
+            if (closed.compareAndSet(false, true) == false) {
+                throw new IllegalStateException("Channel is already closed");
+            }
+            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-request().content().length());
+        }
+
+    }
+
+    private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {
+        // We always obtain a fresh breaker to reflect changes to the breaker configuration.
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+    }
 }

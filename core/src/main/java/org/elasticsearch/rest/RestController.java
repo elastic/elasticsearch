@@ -156,24 +156,24 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         return new ControllerFilterChain(executionFilter);
     }
 
-    public void dispatchRequest(final RestRequest request, final RestChannel channel) {
+    public void dispatchRequest(final RestRequest request, final RestChannel channel) throws Exception {
         if (!checkRequestParameters(request, channel)) {
             return;
         }
 
         if (filters.length == 0) {
-            try {
-                executeHandler(request, channel);
-            } catch (Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(channel, e));
-                } catch (Throwable e1) {
-                    logger.error("failed to send failure response for uri [" + request.uri() + "]", e1);
-                }
-            }
+            executeHandler(request, channel);
         } else {
             ControllerFilterChain filterChain = new ControllerFilterChain(handlerFilter);
             filterChain.continueProcessing(request, channel);
+        }
+    }
+
+    public void sendErrorResponse(RestRequest request, RestChannel channel, Throwable e) {
+        try {
+            channel.sendResponse(new BytesRestResponse(channel, e));
+        } catch (Throwable e1) {
+            logger.error("failed to send failure response for uri [" + request.uri() + "]", e1);
         }
     }
 

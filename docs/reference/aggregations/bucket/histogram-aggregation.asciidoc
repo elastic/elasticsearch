@@ -119,7 +119,7 @@ Response:
 --------------------------------------------------
 
 [[search-aggregations-bucket-histogram-aggregation-extended-bounds]]
-By default the date_/histogram returns all the buckets within the range of the data itself, that is, the documents with
+By default the `histogram` returns all the buckets within the range of the data itself, that is, the documents with
 the smallest values (on which with histogram) will determine the min bucket (the bucket with the smallest key) and the
 documents with the highest values will determine the max bucket (the bucket with the highest key). Often, when
 requesting empty buckets, this causes a confusion, specifically, when the data is also filtered.

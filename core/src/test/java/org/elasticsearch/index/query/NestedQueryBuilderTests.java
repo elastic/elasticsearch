@@ -118,7 +118,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     public void testValidate() {
         try {
-            new NestedQueryBuilder(null, EmptyQueryBuilder.PROTOTYPE);
+            new NestedQueryBuilder(null, new MatchAllQueryBuilder());
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected
@@ -131,7 +131,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             // expected
         }
 
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", EmptyQueryBuilder.PROTOTYPE);
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder());
         try {
             nestedQueryBuilder.scoreMode(null);
             fail("cannot be null");

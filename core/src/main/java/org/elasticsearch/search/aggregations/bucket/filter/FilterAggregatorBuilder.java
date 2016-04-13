@@ -35,7 +35,7 @@ import java.util.Objects;
 
 public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorBuilder> {
 
-    static final FilterAggregatorBuilder PROTOTYPE = new FilterAggregatorBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    static final FilterAggregatorBuilder PROTOTYPE = new FilterAggregatorBuilder("", new MatchAllQueryBuilder());
 
     private final QueryBuilder<?> filter;
 

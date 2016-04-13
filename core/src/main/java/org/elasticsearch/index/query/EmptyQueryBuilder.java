@@ -34,7 +34,6 @@ import java.io.IOException;
 public final class EmptyQueryBuilder extends AbstractQueryBuilder<EmptyQueryBuilder> {
 
     public static final String NAME = "empty_query";
-    public static final EmptyQueryBuilder PROTOTYPE = new EmptyQueryBuilder();
 
     /**
      * Construct an empty query. This query can *technically* be named and given a boost.

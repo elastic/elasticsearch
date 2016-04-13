@@ -33,24 +33,17 @@ public enum GeoExecType implements Writeable<GeoExecType> {
 
     private final int ordinal;
 
-    private static final GeoExecType PROTOTYPE = MEMORY;
-
     GeoExecType(int ordinal) {
         this.ordinal = ordinal;
     }
 
-    @Override
-    public GeoExecType readFrom(StreamInput in) throws IOException {
+    public static GeoExecType readFromStream(StreamInput in) throws IOException {
         int ord = in.readVInt();
         switch(ord) {
             case(0): return MEMORY;
             case(1): return INDEXED;
         }
         throw new ElasticsearchException("unknown serialized type [" + ord + "]");
-    }
-
-    public static GeoExecType readTypeFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
     }
 
     @Override

@@ -167,7 +167,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         builder.startObject();
         builder.startObject("has_parent");
         builder.field("query");
-        EmptyQueryBuilder.PROTOTYPE.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        new TermQueryBuilder("a", "a").toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.field("type", "foo"); // deprecated
         builder.endObject();
         builder.endObject();
@@ -187,7 +187,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         builder.startObject();
         builder.startObject("has_parent");
         builder.field("query");
-        EmptyQueryBuilder.PROTOTYPE.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        new TermQueryBuilder("a", "a").toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.field(key, score ? "score": "none");
         builder.field("parent_type", "foo");
         builder.endObject();

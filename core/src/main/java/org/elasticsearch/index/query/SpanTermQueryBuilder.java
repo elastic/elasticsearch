@@ -40,7 +40,6 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
 
     public static final String NAME = "span_term";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final SpanTermQueryBuilder PROTOTYPE = new SpanTermQueryBuilder("name", "value");
 
     private static final ParseField TERM_FIELD = new ParseField("term");
 

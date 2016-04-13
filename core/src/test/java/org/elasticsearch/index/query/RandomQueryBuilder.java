@@ -36,7 +36,7 @@ public class RandomQueryBuilder {
      * @param r random seed
      * @return a random {@link QueryBuilder}
      */
-    public static QueryBuilder createQuery(Random r) {
+    public static QueryBuilder<?> createQuery(Random r) {
         switch (RandomInts.randomIntBetween(r, 0, 4)) {
             case 0:
                 return new MatchAllQueryBuilderTests().createTestQueryBuilder();
@@ -47,7 +47,7 @@ public class RandomQueryBuilder {
             case 3:
                 return createMultiTermQuery(r);
             case 4:
-                return EmptyQueryBuilder.PROTOTYPE;
+                return new EmptyQueryBuilder();
             default:
                 throw new UnsupportedOperationException();
         }

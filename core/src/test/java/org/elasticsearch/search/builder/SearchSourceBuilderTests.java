@@ -573,7 +573,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
 
     public void testEmptyPostFilter() throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.postFilter(EmptyQueryBuilder.PROTOTYPE);
+        builder.postFilter(new EmptyQueryBuilder());
         String query = "{ \"post_filter\": {} }";
         assertParseSearchSource(builder, new BytesArray(query));
     }

@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.filters;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -39,7 +39,7 @@ import java.util.Objects;
 
 public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregatorBuilder> {
 
-    static final FiltersAggregatorBuilder PROTOTYPE = new FiltersAggregatorBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    static final FiltersAggregatorBuilder PROTOTYPE = new FiltersAggregatorBuilder("", new MatchAllQueryBuilder());
 
     private final List<KeyedFilter> filters;
     private final boolean keyed;

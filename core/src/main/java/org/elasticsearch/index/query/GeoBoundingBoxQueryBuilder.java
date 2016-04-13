@@ -102,7 +102,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         fieldName = in.readString();
         topLeft = in.readGeoPoint();
         bottomRight = in.readGeoPoint();
-        type = GeoExecType.readTypeFrom(in);
+        type = GeoExecType.readFromStream(in);
         validationMethod = GeoValidationMethod.readFromStream(in);
     }
 

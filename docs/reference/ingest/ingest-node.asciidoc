@@ -920,9 +920,8 @@ expression that supports aliased expressions that can be reused.
 
 This tool is perfect for syslog logs, apache and other webserver logs, mysql logs, and in general, any log format
 that is generally written for humans and not computer consumption.
-
-The processor comes packaged with over 120 reusable patterns that are located at `$ES_HOME/config/ingest/grok/patterns`.
-Here, you can add your own custom grok pattern files with custom grok expressions to be used by the processor.
+This processor comes packaged with over
+https://github.com/elastic/elasticsearch/tree/master/modules/ingest-grok/src/main/resources/patterns[120 reusable patterns].
 
 If you need help building patterns to match your logs, you will find the <http://grokdebug.herokuapp.com> and
 <http://grokconstructor.appspot.com/> applications quite useful!

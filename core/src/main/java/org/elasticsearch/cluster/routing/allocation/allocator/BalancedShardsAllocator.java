@@ -560,15 +560,14 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 continue;
                             }
                             RoutingNode target = currentNode.getRoutingNode(routingNodes);
+                            // don't use canRebalance as we want hard filtering rules to apply. See #17698
                             Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
-                            Decision rebalanceDecision = allocation.deciders().canRebalance(shardRouting, allocation);
-                            if (allocationDecision.type() == Type.YES && rebalanceDecision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
+                            if (allocationDecision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                                 Decision sourceDecision = sourceNode.removeShard(shardRouting);
                                 ShardRouting targetRelocatingShard = routingNodes.relocate(shardRouting, target.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                                 // re-add (now relocating shard) to source node
                                 sourceNode.addShard(shardRouting, sourceDecision);
-                                Decision targetDecision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
-                                currentNode.addShard(targetRelocatingShard, targetDecision);
+                                currentNode.addShard(targetRelocatingShard, allocationDecision);
                                 if (logger.isTraceEnabled()) {
                                     logger.trace("Moved shard [{}] to node [{}]", shardRouting, routingNode.node());
                                 }

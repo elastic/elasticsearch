@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
@@ -635,6 +636,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         TermQuery termQuery = (TermQuery) query;
         assertThat(termQuery.getTerm().field(), equalTo(field));
         assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(value.toLowerCase(Locale.ROOT)));
+    }
+
+    protected static void assertPrefixQuery(Query query, String field, String value) {
+        assertThat(query, instanceOf(PrefixQuery.class));
+        PrefixQuery prefixQuery = (PrefixQuery) query;
+        assertThat(prefixQuery.getPrefix().field(), equalTo(field));
+        assertThat(prefixQuery.getPrefix().text(), equalTo(value));
     }
 
     /**

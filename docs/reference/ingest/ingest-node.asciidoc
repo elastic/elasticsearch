@@ -964,33 +964,6 @@ Grok expression.
 %{NUMBER:duration} %{IP:client}
 --------------------------------------------------
 
-[[custom-patterns]]
-==== Custom Patterns and Pattern Files
-
-The Grok processor comes pre-packaged with a base set of pattern files. These patterns may not always have
-what you are looking for. These pattern files have a very basic format. Each line describes a named pattern with
-the following format:
-
-[source,js]
---------------------------------------------------
-NAME ' '+ PATTERN '\n'
---------------------------------------------------
-
-You can add new patterns to an existing file, or add your own file in the patterns directory here: `$ES_HOME/config/ingest/grok/patterns`.
-Ingest node picks up files in this directory and loads the patterns into the grok processor's known patterns.
-These patterns are loaded at startup, so you need to restart your ingest node if you want to update these files.
-
-Here is an example snippet of pattern definitions found in the `grok-patterns` patterns file:
-
-[source,js]
---------------------------------------------------
-YEAR (?>\d\d){1,2}
-HOUR (?:2[0123]|[01]?[0-9])
-MINUTE (?:[0-5][0-9])
-SECOND (?:(?:[0-5]?[0-9]|60)(?:[:.,][0-9]+)?)
-TIME (?!<[0-9])%{HOUR}:%{MINUTE}(?::%{SECOND})(?![0-9])
---------------------------------------------------
-
 [[using-grok]]
 ==== Using the Grok Processor in a Pipeline
 
@@ -1052,6 +1025,13 @@ This pipeline will insert these named captures as new fields within the document
 }
 --------------------------------------------------
 
+[[custom-patterns]]
+==== Custom Patterns and Pattern Files
+
+The Grok processor comes pre-packaged with a base set of pattern. These patterns may not always have
+what you are looking for. Pattern have a very basic format. Each entry describes has a name and the pattern itself.
+
+You can add your own patterns to a processor definition under the `pattern_definitions` option.
 Here is an example of a pipeline specifying custom pattern definitions:
 
 [source,js]

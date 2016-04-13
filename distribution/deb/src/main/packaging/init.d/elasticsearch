@@ -67,9 +67,6 @@ CONF_DIR=/etc/$NAME
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
 
-# Path to the GC log file
-#ES_GC_LOG_FILE=/var/log/elasticsearch/gc.log
-
 # Elasticsearch PID file directory
 PID_DIR="/var/run/elasticsearch"
 

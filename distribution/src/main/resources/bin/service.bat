@@ -11,6 +11,7 @@ if not "%ES_HEAP_NEWSIZE%" == "" set bad_env_var=1
 if not "%ES_DIRECT_SIZE%" == "" set bad_env_var=1
 if not "%ES_USE_IPV4%" == "" set bad_env_var=1
 if not "%ES_GC_OPTS%" == "" set bad_env_var=1
+if not "%ES_GC_LOG_FILE%" == "" set bad_env_var=1
 if %bad_env_var% == 1 (
     echo Error: encountered environment variables that are no longer supported
     echo Use jvm.options or ES_JAVA_OPTS to configure the JVM
@@ -21,6 +22,7 @@ if %bad_env_var% == 1 (
     if not "%ES_DIRECT_SIZE%" == "" echo ES_DIRECT_SIZE=%ES_DIRECT_SIZE%: set -XX:MaxDirectMemorySize=%ES_DIRECT_SIZE% in jvm.options or add "-XX:MaxDirectMemorySize=%ES_DIRECT_SIZE%" to ES_JAVA_OPTS
     if not "%ES_USE_IPV4%" == "" echo ES_USE_IPV4=%ES_USE_IPV4%: set -Djava.net.preferIPv4Stack=true in jvm.options or add "-Djava.net.preferIPv4Stack=true" to ES_JAVA_OPTS
     if not "%ES_GC_OPTS%" == "" echo ES_GC_OPTS=%ES_GC_OPTS%: set %ES_GC_OPTS: = and % in jvm.options or add "%ES_GC_OPTS%" to ES_JAVA_OPTS
+    if not "%ES_GC_LOG_FILE%" == "" echo ES_GC_LOG_FILE=%ES_GC_LOG_FILE%: set -Xloggc:%ES_GC_LOG_FILE% in jvm.options or add "-Xloggc:%ES_GC_LOG_FILE%" to ES_JAVA_OPTS"
     exit /b 1
 )
 rem end TODO: remove for Elasticsearch 6.x

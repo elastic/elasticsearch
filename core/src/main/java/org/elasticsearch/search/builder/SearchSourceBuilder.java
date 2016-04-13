@@ -263,7 +263,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         profile = in.readBoolean();
         if (in.readBoolean()) {
-            searchAfterBuilder = SearchAfterBuilder.PROTOTYPE.readFrom(in);
+            searchAfterBuilder = new SearchAfterBuilder(in);
         }
     }
 
@@ -1105,7 +1105,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
                     fetchSourceContext = FetchSourceContext.parse(parser, context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SEARCH_AFTER)) {
-                    searchAfterBuilder = SearchAfterBuilder.PROTOTYPE.fromXContent(parser, context.parseFieldMatcher());
+                    searchAfterBuilder = SearchAfterBuilder.fromXContent(parser, context.parseFieldMatcher());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());

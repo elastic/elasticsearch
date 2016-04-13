@@ -159,14 +159,14 @@ public class SearchAfterBuilderTests extends ESTestCase {
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
-        return SearchAfterBuilder.PROTOTYPE.fromXContent(parser, null);
+        return SearchAfterBuilder.fromXContent(parser, null);
     }
 
     private static SearchAfterBuilder serializedCopy(SearchAfterBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return SearchAfterBuilder.PROTOTYPE.readFrom(in);
+                return new SearchAfterBuilder(in);
             }
         }
     }
@@ -224,7 +224,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
-            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.PROTOTYPE.fromXContent(parser, null);
+            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser, null);
             assertNotSame(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());

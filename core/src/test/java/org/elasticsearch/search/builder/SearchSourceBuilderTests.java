@@ -402,7 +402,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
-            builder.searchAfter(SearchAfterBuilder.PROTOTYPE.fromXContent(parser, null).getSortValues());
+            builder.searchAfter(SearchAfterBuilder.fromXContent(parser, null).getSortValues());
         }
         if (randomBoolean()) {
             builder.highlighter(HighlightBuilderTests.randomHighlighterBuilder());

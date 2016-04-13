@@ -69,14 +69,11 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
 
     /**
      * Returns HTTP status
-     * <p/>
      * <ul>
-     * <li>{@link RestStatus#ACCEPTED}</li> if snapshot is still in progress
-     * <li>{@link RestStatus#OK}</li> if snapshot was successful or partially successful
-     * <li>{@link RestStatus#INTERNAL_SERVER_ERROR}</li> if snapshot failed completely
+     * <li>{@link RestStatus#ACCEPTED} if snapshot is still in progress</li>
+     * <li>{@link RestStatus#OK} if snapshot was successful or partially successful</li>
+     * <li>{@link RestStatus#INTERNAL_SERVER_ERROR} if snapshot failed completely</li>
      * </ul>
-     *
-     * @return
      */
     public RestStatus status() {
         if (snapshotInfo == null) {

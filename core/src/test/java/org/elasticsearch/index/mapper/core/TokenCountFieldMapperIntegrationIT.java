@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -32,14 +31,17 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     @ParametersFactory
@@ -65,8 +67,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     /**
      * It is possible to get the token count in a search response.
      */
-    @Test
-    public void searchReturnsTokenCount() throws IOException {
+    public void testSearchReturnsTokenCount() throws IOException {
         init();
 
         assertSearchReturns(searchById("single"), "single");
@@ -80,8 +81,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     /**
      * It is possible to search by token count.
      */
-    @Test
-    public void searchByTokenCount() throws IOException {
+    public void testSearchByTokenCount() throws IOException {
         init();
 
         assertSearchReturns(searchByNumericRange(4, 4).get(), "single");
@@ -94,12 +94,11 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     /**
      * It is possible to search by token count.
      */
-    @Test
-    public void facetByTokenCount() throws IOException {
+    public void testFacetByTokenCount() throws IOException {
         init();
 
-        String facetField = randomFrom(ImmutableList.of(
-                "foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
+        String facetField = randomFrom(Arrays.asList(
+            "foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
         SearchResponse result = searchByNumericRange(1, 10)
                 .addAggregation(AggregationBuilders.terms("facet").field(facetField)).get();
         assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
@@ -113,13 +112,10 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
                 .startObject("test")
                     .startObject("properties")
                         .startObject("foo")
-                            .field("type", "multi_field")
+                            .field("type", "text")
+                            .field("store", storeCountedFields)
+                            .field("analyzer", "simple")
                             .startObject("fields")
-                                .startObject("foo")
-                                    .field("type", "string")
-                                    .field("store", storeCountedFields)
-                                    .field("analyzer", "simple")
-                                .endObject()
                                 .startObject("token_count")
                                     .field("type", "token_count")
                                     .field("analyzer", "standard")
@@ -132,9 +128,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
                                 .startObject("token_count_with_doc_values")
                                     .field("type", "token_count")
                                     .field("analyzer", "standard")
-                                    .startObject("fielddata")
-                                        .field("format", "doc_values")
-                                    .endObject()
+                                    .field("doc_values", true)
                                 .endObject()
                             .endObject()
                         .endObject()
@@ -166,7 +160,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
 
     private SearchRequestBuilder searchByNumericRange(int low, int high) {
         return prepareSearch().setQuery(QueryBuilders.rangeQuery(randomFrom(
-                ImmutableList.of("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values")
+                Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values")
         )).gte(low).lte(high));
     }
 

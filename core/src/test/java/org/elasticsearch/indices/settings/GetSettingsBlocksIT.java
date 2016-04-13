@@ -21,26 +21,27 @@ package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class GetSettingsBlocksIT extends ESIntegTestCase {
-
-    @Test
     public void testGetSettingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", -1)
                         .put("index.merge.policy.expunge_deletes_allowed", "30")
-                        .put("index.mapper.dynamic", false)));
+                        .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)));
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {
@@ -49,7 +50,7 @@ public class GetSettingsBlocksIT extends ESIntegTestCase {
                 assertThat(response.getIndexToSettings().size(), greaterThanOrEqualTo(1));
                 assertThat(response.getSetting("test", "index.refresh_interval"), equalTo("-1"));
                 assertThat(response.getSetting("test", "index.merge.policy.expunge_deletes_allowed"), equalTo("30"));
-                assertThat(response.getSetting("test", "index.mapper.dynamic"), equalTo("false"));
+                assertThat(response.getSetting("test", MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey()), equalTo("false"));
             } finally {
                 disableIndexBlock("test", block);
             }

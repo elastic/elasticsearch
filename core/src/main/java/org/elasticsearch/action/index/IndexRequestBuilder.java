@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -107,8 +108,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     /**
      * Sets the document source to index.
-     * <p/>
-     * <p>Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * <p>
+     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #setSource(byte[])}.
      */
     public IndexRequestBuilder setSource(String source) {
@@ -254,9 +255,35 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         return this;
     }
 
-    // Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise.
+    /**
+     * Sets the ttl value as a time value expression.
+     */
+    public IndexRequestBuilder setTTL(String ttl) {
+        request.ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
+     */
     public IndexRequestBuilder setTTL(long ttl) {
         request.ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Sets the ttl as a {@link TimeValue} instance.
+     */
+    public IndexRequestBuilder setTTL(TimeValue ttl) {
+        request.ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Sets the ingest pipeline to be executed before indexing the document
+     */
+    public IndexRequestBuilder setPipeline(String pipeline) {
+        request.setPipeline(pipeline);
         return this;
     }
 }

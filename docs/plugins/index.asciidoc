@@ -1,0 +1,52 @@
+= Elasticsearch Plugins and Integrations
+
+:ref: https://www.elastic.co/guide/en/elasticsearch/reference/master
+:guide: https://www.elastic.co/guide
+
+[[intro]]
+== Introduction to plugins
+
+Plugins are a way to enhance the core Elasticsearch functionality in a custom
+manner. They range from adding custom mapping types, custom analyzers, native
+scripts, custom discovery and more.
+
+Plugins contain JAR files, but may also contain scripts and config files, and
+must be installed on every node in the cluster.  After installation, each
+node must be restarted before the plugin becomes visible.
+
+IMPORTANT: Site plugins -- plugins containing HTML, CSS and Javascript -- are
+no longer supported.
+
+For advice on writing your own plugin, see <<plugin-authors>>.
+
+include::plugin-script.asciidoc[]
+
+include::api.asciidoc[]
+
+include::alerting.asciidoc[]
+
+include::analysis.asciidoc[]
+
+include::discovery.asciidoc[]
+
+include::ingest.asciidoc[]
+
+include::management.asciidoc[]
+
+include::mapper.asciidoc[]
+
+include::scripting.asciidoc[]
+
+include::security.asciidoc[]
+
+include::repository.asciidoc[]
+
+include::store.asciidoc[]
+
+include::integrations.asciidoc[]
+
+include::authors.asciidoc[]
+
+include::redirects.asciidoc[]
+
+

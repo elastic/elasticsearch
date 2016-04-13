@@ -1,8 +1,0 @@
-{
-    "wildcard":{
-        "name.first":{
-            "value":"sh*",
-            "boost":1.2
-        }
-    }
-}

@@ -12,19 +12,19 @@
           test_type:
             properties:
               text1:
-                type:     string
+                type:     text
                 analyzer: whitespace
               text2:
-                type:     string
+                type:     text
                 analyzer: whitespace
 
   - do:
       indices.get_mapping:
         index: test_index
   
-  - match: {test_index.mappings.test_type.properties.text1.type:     string}
+  - match: {test_index.mappings.test_type.properties.text1.type:     text}
   - match: {test_index.mappings.test_type.properties.text1.analyzer: whitespace}
-  - match: {test_index.mappings.test_type.properties.text2.type:     string}
+  - match: {test_index.mappings.test_type.properties.text2.type:     text}
   - match: {test_index.mappings.test_type.properties.text2.analyzer: whitespace}
 
   - do:
@@ -35,28 +35,16 @@
           test_type:
             properties:
               text1:
-                type: multi_field
-                fields:
-                  text1:
-                    type:     string
-                    analyzer: whitespace
-                  text_raw:
-                    type:     string
-                    index:    not_analyzed
-              text2:
-                type:     string
+                type:     text
                 analyzer: whitespace
                 fields:
                   text_raw:
-                    type:     string
-                    index:    not_analyzed
+                    type:     keyword
 
 
   - do:
       indices.get_mapping:
         index: test_index
   
-  - match: {test_index.mappings.test_type.properties.text1.type:     string}
-  - match: {test_index.mappings.test_type.properties.text1.fields.text_raw.index: not_analyzed}
-  - match: {test_index.mappings.test_type.properties.text2.type:     string}
-  - match: {test_index.mappings.test_type.properties.text2.fields.text_raw.index: not_analyzed}
+  - match: {test_index.mappings.test_type.properties.text1.type:     text}
+  - match: {test_index.mappings.test_type.properties.text1.fields.text_raw.type: keyword}

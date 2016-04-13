@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.property;
 
-import com.google.common.base.Preconditions;
 import org.elasticsearch.common.Strings;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 
@@ -30,8 +30,8 @@ import java.util.Set;
  * Utility class for working with Strings that have placeholder values in them. A placeholder takes the form
  * <tt>${name}</tt>. Using <tt>PropertyPlaceholder</tt> these placeholders can be substituted for
  * user-supplied values.
- * <p/>
- * <p> Values for substitution can be supplied using a {@link Properties} instance or using a
+ * <p>
+ * Values for substitution can be supplied using a {@link Properties} instance or using a
  * {@link PlaceholderResolver}.
  */
 public class PropertyPlaceholder {
@@ -61,8 +61,8 @@ public class PropertyPlaceholder {
      */
     public PropertyPlaceholder(String placeholderPrefix, String placeholderSuffix,
                                boolean ignoreUnresolvablePlaceholders) {
-        Preconditions.checkNotNull(placeholderPrefix, "Argument 'placeholderPrefix' must not be null.");
-        Preconditions.checkNotNull(placeholderSuffix, "Argument 'placeholderSuffix' must not be null.");
+        Objects.requireNonNull(placeholderPrefix, "Argument 'placeholderPrefix' must not be null.");
+        Objects.requireNonNull(placeholderSuffix, "Argument 'placeholderSuffix' must not be null.");
         this.placeholderPrefix = placeholderPrefix;
         this.placeholderSuffix = placeholderSuffix;
         this.ignoreUnresolvablePlaceholders = ignoreUnresolvablePlaceholders;
@@ -76,8 +76,9 @@ public class PropertyPlaceholder {
      * @param placeholderResolver the <code>PlaceholderResolver</code> to use for replacement.
      * @return the supplied value with placeholders replaced inline.
      */
-    public String replacePlaceholders(String value, PlaceholderResolver placeholderResolver) {
-        Preconditions.checkNotNull(value, "Argument 'value' must not be null.");
+    public String replacePlaceholders(String key, String value, PlaceholderResolver placeholderResolver) {
+        Objects.requireNonNull(key);
+        Objects.requireNonNull(value, "value can not be null for [" + key + "]");
         return parseStringValue(value, placeholderResolver, new HashSet<String>());
     }
 

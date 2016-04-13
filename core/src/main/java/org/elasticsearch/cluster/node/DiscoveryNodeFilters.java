@@ -19,9 +19,12 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,12 +33,10 @@ import java.util.Map;
  */
 public class DiscoveryNodeFilters {
 
-    public static enum OpType {
+    public enum OpType {
         AND,
         OR
     }
-
-    ;
 
     public static DiscoveryNodeFilters buildFromSettings(OpType opType, String prefix, Settings settings) {
         return buildFromKeyValue(opType, settings.getByPrefix(prefix).getAsMap());
@@ -64,21 +65,72 @@ public class DiscoveryNodeFilters {
         this.filters = filters;
     }
 
+    private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
+        for (String value : values) {
+            boolean matchIp = Regex.simpleMatch(value, hostIp) || Regex.simpleMatch(value, publishIp);
+            if (matchIp) {
+                return matchIp;
+            }
+        }
+        return false;
+    }
+
     public boolean match(DiscoveryNode node) {
         for (Map.Entry<String, String[]> entry : filters.entrySet()) {
             String attr = entry.getKey();
             String[] values = entry.getValue();
             if ("_ip".equals(attr)) {
-                for (String value : values) {
-                    if (Regex.simpleMatch(value, node.getHostAddress())) {
-                        if (opType == OpType.OR) {
-                            return true;
-                        }
-                    } else {
-                        if (opType == OpType.AND) {
-                            return false;
-                        }
+                // We check both the host_ip or the publish_ip
+                String publishAddress = null;
+                if (node.getAddress() instanceof InetSocketTransportAddress) {
+                    publishAddress = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
+                }
+
+                boolean match = matchByIP(values, node.getHostAddress(), publishAddress);
+
+                if (opType == OpType.AND) {
+                    if (match) {
+                        // If we match, we can check to the next filter
+                        continue;
                     }
+                    return false;
+                }
+
+                if (match && opType == OpType.OR) {
+                    return true;
+                }
+            } else if ("_host_ip".equals(attr)) {
+                // We check explicitly only the host_ip
+                boolean match = matchByIP(values, node.getHostAddress(), null);
+                if (opType == OpType.AND) {
+                    if (match) {
+                        // If we match, we can check to the next filter
+                        continue;
+                    }
+                    return false;
+                }
+
+                if (match && opType == OpType.OR) {
+                    return true;
+                }
+            } else if ("_publish_ip".equals(attr)) {
+                // We check explicitly only the publish_ip
+                String address = null;
+                if (node.getAddress() instanceof InetSocketTransportAddress) {
+                    address = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
+                }
+
+                boolean match = matchByIP(values, address, null);
+                if (opType == OpType.AND) {
+                    if (match) {
+                        // If we match, we can check to the next filter
+                        continue;
+                    }
+                    return false;
+                }
+
+                if (match && opType == OpType.OR) {
+                    return true;
                 }
             } else if ("_host".equals(attr)) {
                 for (String value : values) {
@@ -103,7 +155,7 @@ public class DiscoveryNodeFilters {
                 }
             } else if ("_id".equals(attr)) {
                 for (String value : values) {
-                    if (node.id().equals(value)) {
+                    if (node.getId().equals(value)) {
                         if (opType == OpType.OR) {
                             return true;
                         }
@@ -115,7 +167,7 @@ public class DiscoveryNodeFilters {
                 }
             } else if ("_name".equals(attr) || "name".equals(attr)) {
                 for (String value : values) {
-                    if (Regex.simpleMatch(value, node.name())) {
+                    if (Regex.simpleMatch(value, node.getName())) {
                         if (opType == OpType.OR) {
                             return true;
                         }
@@ -126,7 +178,7 @@ public class DiscoveryNodeFilters {
                     }
                 }
             } else {
-                String nodeAttributeValue = node.attributes().get(attr);
+                String nodeAttributeValue = node.getAttributes().get(attr);
                 if (nodeAttributeValue == null) {
                     if (opType == OpType.AND) {
                         return false;
@@ -171,7 +223,7 @@ public class DiscoveryNodeFilters {
             for (String value : values) {
                 sb.append(value);
                 if (valueCount > 1) {
-                    sb.append(" " + opType.toString() + " ");
+                    sb.append(" ").append(opType.toString()).append(" ");
                 }
                 valueCount--;
             }

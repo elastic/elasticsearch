@@ -20,6 +20,11 @@ bucket_key = value - rem
 
 From the rounding function above it can be seen that the intervals themselves **must** be integers.
 
+WARNING: Currently, values are cast to integers before being bucketed, which
+might cause negative floating-point values to fall into the wrong bucket. For
+instance, `-4.5` with an interval of `2` would be cast to `-4`, and so would
+end up in the `-4 <= val < -2` bucket instead of the `-6 <= val < -4` bucket.
+
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 
 [source,js]
@@ -116,7 +121,7 @@ Response:
 [[search-aggregations-bucket-histogram-aggregation-extended-bounds]]
 By default the date_/histogram returns all the buckets within the range of the data itself, that is, the documents with
 the smallest values (on which with histogram) will determine the min bucket (the bucket with the smallest key) and the
-documents with the highest values will determine the max bucket (the bucket with the highest key). Often, when when
+documents with the highest values will determine the max bucket (the bucket with the highest key). Often, when
 requesting empty buckets, this causes a confusion, specifically, when the data is also filtered.
 
 To understand why, let's look at an example:
@@ -143,7 +148,7 @@ Example:
 --------------------------------------------------
 {
     "query" : {
-        "filtered" : { "filter": { "range" : { "price" : { "to" : "500" } } } }
+        "constant_score" : { "filter": { "range" : { "price" : { "to" : "500" } } } }
     },
     "aggs" : {
         "prices" : {

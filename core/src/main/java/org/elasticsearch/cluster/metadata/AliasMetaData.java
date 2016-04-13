@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Strings;
@@ -35,6 +34,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.emptySet;
 
 /**
  *
@@ -61,7 +62,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         if (searchRouting != null) {
             searchRoutingValues = Collections.unmodifiableSet(Strings.splitStringByCommaToSet(searchRouting));
         } else {
-            searchRoutingValues = ImmutableSet.of();
+            searchRoutingValues = emptySet();
         }
     }
 

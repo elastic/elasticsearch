@@ -50,6 +50,10 @@ public class FlushStats implements Streamable, ToXContent {
     }
 
     public void add(FlushStats flushStats) {
+        addTotals(flushStats);
+    }
+
+    public void addTotals(FlushStats flushStats) {
         if (flushStats == null) {
             return;
         }

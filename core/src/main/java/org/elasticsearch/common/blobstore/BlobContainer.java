@@ -19,11 +19,10 @@
 
 package org.elasticsearch.common.blobstore;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Map;
 
@@ -37,14 +36,19 @@ public interface BlobContainer {
     boolean blobExists(String blobName);
 
     /**
-     * Creates a new {@link InputStream} for the given blob name
+     * Creates a new InputStream for the given blob name
      */
-    InputStream openInput(String blobName) throws IOException;
+    InputStream readBlob(String blobName) throws IOException;
 
     /**
-     * Creates a new OutputStream for the given blob name
+     * Reads blob content from the input stream and writes it to the blob store
      */
-    OutputStream createOutput(String blobName) throws IOException;
+    void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException;
+
+    /**
+     * Writes bytes to the blob
+     */
+    void writeBlob(String blobName, BytesReference bytes) throws IOException;
 
     /**
      * Deletes a blob with giving name.

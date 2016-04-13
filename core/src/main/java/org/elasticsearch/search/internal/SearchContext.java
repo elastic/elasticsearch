@@ -18,37 +18,36 @@
  */
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.MultimapBuilder;
+
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -57,37 +56,38 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class SearchContext implements Releasable, HasContextAndHeaders {
+public abstract class SearchContext implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public final static int DEFAULT_TERMINATE_AFTER = 0;
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
-        QueryParseContext.setTypes(value.types());
     }
 
     public static void removeCurrent() {
         current.remove();
-        QueryParseContext.removeTypes();
     }
 
     public static SearchContext current() {
         return current.get();
     }
 
-    private Multimap<Lifetime, Releasable> clearables = null;
+    private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private InnerHitsContext innerHitsContext;
 
     protected final ParseFieldMatcher parseFieldMatcher;
 
@@ -135,10 +135,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract int numberOfShards();
 
-    public abstract boolean hasTypes();
-
-    public abstract String[] types();
-
     public abstract float queryBoost();
 
     public abstract SearchContext queryBoost(float queryBoost);
@@ -150,15 +146,28 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
         return nowInMillisImpl();
     }
 
+    public final Callable<Long> nowCallable() {
+        return new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return nowInMillis();
+            }
+        };
+    };
+
     public final boolean nowInMillisUsed() {
         return nowInMillisUsed;
     }
 
+    public final void resetNowInMillisUsed() {
+        this.nowInMillisUsed = false;
+    }
+
     protected abstract long nowInMillisImpl();
 
-    public abstract Scroll scroll();
+    public abstract ScrollContext scrollContext();
 
-    public abstract SearchContext scroll(Scroll scroll);
+    public abstract SearchContext scrollContext(ScrollContext scroll);
 
     public abstract SearchContextAggregations aggregations();
 
@@ -170,9 +179,12 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract void highlight(SearchContextHighlight highlight);
 
-    public abstract void innerHits(InnerHitsContext innerHitsContext);
-
-    public abstract InnerHitsContext innerHits();
+    public InnerHitsContext innerHits() {
+        if (innerHitsContext == null) {
+            innerHitsContext = new InnerHitsContext();
+        }
+        return innerHitsContext;
+    }
 
     public abstract SuggestionSearchContext suggest();
 
@@ -208,8 +220,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract AnalysisService analysisService();
 
-    public abstract IndexQueryParserService queryParserService();
-
     public abstract SimilarityService similarityService();
 
     public abstract ScriptService scriptService();
@@ -221,6 +231,8 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract IndexFieldDataService fieldData();
+
+    public abstract PercolatorQueryCache percolatorQueryCache();
 
     public abstract long timeoutInMillis();
 
@@ -242,6 +254,10 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract boolean trackScores();
 
+    public abstract SearchContext searchAfter(FieldDoc searchAfter);
+
+    public abstract FieldDoc searchAfter();
+
     public abstract SearchContext parsedPostFilter(ParsedQuery postFilter);
 
     public abstract ParsedQuery parsedPostFilter();
@@ -256,16 +272,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
      * The query to execute, might be rewritten.
      */
     public abstract Query query();
-
-    /**
-     * Has the query been rewritten already?
-     */
-    public abstract boolean queryRewritten();
-
-    /**
-     * Rewrites the query and updates it. Only happens once.
-     */
-    public abstract SearchContext updateRewriteQuery(Query rewriteQuery);
 
     public abstract int from();
 
@@ -310,17 +316,20 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract void keepAlive(long keepAlive);
 
-    public abstract void lastEmittedDoc(ScoreDoc doc);
-
-    public abstract ScoreDoc lastEmittedDoc();
-
     public abstract SearchLookup lookup();
 
     public abstract DfsSearchResult dfsResult();
 
     public abstract QuerySearchResult queryResult();
 
+    public abstract FetchPhase fetchPhase();
+
     public abstract FetchSearchResult fetchResult();
+
+    /**
+     * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
+     */
+    public abstract Profilers getProfilers();
 
     /**
      * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object
@@ -328,36 +337,51 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
      */
     public void addReleasable(Releasable releasable, Lifetime lifetime) {
         if (clearables == null) {
-            clearables = MultimapBuilder.enumKeys(Lifetime.class).arrayListValues().build();
+            clearables = new HashMap<>();
         }
-        clearables.put(lifetime, releasable);
+        List<Releasable> releasables = clearables.get(lifetime);
+        if (releasables == null) {
+            releasables = new ArrayList<>();
+            clearables.put(lifetime, releasables);
+        }
+        releasables.add(releasable);
     }
 
     public void clearReleasables(Lifetime lifetime) {
         if (clearables != null) {
-            List<Collection<Releasable>> releasables = new ArrayList<>();
+            List<List<Releasable>>releasables = new ArrayList<>();
             for (Lifetime lc : Lifetime.values()) {
                 if (lc.compareTo(lifetime) > 0) {
                     break;
                 }
-                releasables.add(clearables.removeAll(lc));
+                List<Releasable> remove = clearables.remove(lc);
+                if (remove != null) {
+                    releasables.add(remove);
+                }
             }
-            Releasables.close(Iterables.concat(releasables));
+            Releasables.close(Iterables.flatten(releasables));
         }
     }
 
-    public abstract ScanContext scanContext();
-
-    public abstract MappedFieldType smartNameFieldType(String name);
+    /**
+     * @return true if the request contains only suggest
+     */
+    public final boolean hasOnlySuggest() {
+        return request().source() != null
+            && request().source().isSuggestOnly();
+    }
 
     /**
      * Looks up the given field, but does not restrict to fields in the types set on this context.
      */
-    public abstract MappedFieldType smartNameFieldTypeFromAnyType(String name);
+    public abstract MappedFieldType smartNameFieldType(String name);
 
     public abstract ObjectMapper getObjectMapper(String name);
 
     public abstract Counter timeEstimateCounter();
+
+    /** Return a view of the additional query collectors that should be run for this context. */
+    public abstract Map<Class<?>, Collector> queryCollectors();
 
     /**
      * The life time of an object that is used during search execution.
@@ -375,5 +399,20 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
          * This life time is for objects that need to live until the search context they are attached to is destroyed.
          */
         CONTEXT
+    }
+
+    public abstract QueryShardContext getQueryShardContext();
+
+    @Override
+    public String toString() {
+        StringBuilder result = new StringBuilder().append(shardTarget());
+        if (searchType() != SearchType.DEFAULT) {
+            result.append("searchType=[").append(searchType()).append("]");
+        }
+        if (scrollContext() != null) {
+            result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+        }
+        result.append(" query=[").append(query()).append("]");
+        return result.toString();
     }
 }

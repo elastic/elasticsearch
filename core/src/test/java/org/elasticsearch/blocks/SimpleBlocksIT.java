@@ -27,19 +27,16 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SimpleBlocksIT extends ESIntegTestCase {
-    
-    @Test
-    public void verifyIndexAndClusterReadOnly() throws Exception {
+    public void testVerifyIndexAndClusterReadOnly() throws Exception {
         // cluster.read_only = null: write and metadata not blocked
         canCreateIndex("test1");
         canIndexDocument("test1");
@@ -82,16 +79,15 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         canIndexExists("ro");
     }
 
-    @Test
     public void testIndexReadWriteMetaDataBlocks() {
         canCreateIndex("test1");
         canIndexDocument("test1");
         client().admin().indices().prepareUpdateSettings("test1")
-                .setSettings(settingsBuilder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true))
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true))
                 .execute().actionGet();
         canNotIndexDocument("test1");
         client().admin().indices().prepareUpdateSettings("test1")
-                .setSettings(settingsBuilder().put(IndexMetaData.SETTING_BLOCKS_WRITE, false))
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, false))
                 .execute().actionGet();
         canIndexDocument("test1");
     }

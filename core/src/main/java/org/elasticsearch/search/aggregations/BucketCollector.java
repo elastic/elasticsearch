@@ -20,14 +20,14 @@
 package org.elasticsearch.search.aggregations;
 
 
-import com.google.common.collect.Iterables;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 /**
  * A Collector that can collect data in separate buckets.
@@ -58,7 +58,8 @@ public abstract class BucketCollector implements Collector {
      * Wrap the given collectors into a single instance.
      */
     public static BucketCollector wrap(Iterable<? extends BucketCollector> collectorList) {
-        final BucketCollector[] collectors = Iterables.toArray(collectorList, BucketCollector.class);
+        final BucketCollector[] collectors =
+                StreamSupport.stream(collectorList.spliterator(), false).toArray(size -> new BucketCollector[size]);
         switch (collectors.length) {
             case 0:
                 return NO_OP_COLLECTOR;
@@ -98,6 +99,11 @@ public abstract class BucketCollector implements Collector {
                             }
                         }
                         return false;
+                    }
+
+                    @Override
+                    public String toString() {
+                        return Arrays.toString(collectors);
                     }
                 };
         }

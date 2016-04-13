@@ -59,8 +59,8 @@ public enum RestStatus {
      * entity format is specified by the media type given in the Content-Type header field. The origin server MUST
      * create the resource before returning the 201 status code. If the action cannot be carried out immediately, the
      * server SHOULD respond with 202 (Accepted) response instead.
-     * <p/>
-     * <p>A 201 response MAY contain an ETag response header field indicating the current value of the entity tag
+     * <p>
+     * A 201 response MAY contain an ETag response header field indicating the current value of the entity tag
      * for the requested variant just created, see section 14.19.
      */
     CREATED(201),
@@ -68,8 +68,8 @@ public enum RestStatus {
      * The request has been accepted for processing, but the processing has not been completed.  The request might
      * or might not eventually be acted upon, as it might be disallowed when processing actually takes place. There
      * is no facility for re-sending a status code from an asynchronous operation such as this.
-     * <p/>
-     * <p>The 202 response is intentionally non-committal. Its purpose is to allow a server to accept a request for
+     * <p>
+     * The 202 response is intentionally non-committal. Its purpose is to allow a server to accept a request for
      * some other process (perhaps a batch-oriented process that is only run once per day) without requiring that
      * the user agent's connection to the server persist until the process is completed. The entity returned with
      * this response SHOULD include an indication of the request's current status and either a pointer to a status
@@ -88,13 +88,13 @@ public enum RestStatus {
      * The server has fulfilled the request but does not need to return an entity-body, and might want to return
      * updated meta information. The response MAY include new or updated meta information in the form of
      * entity-headers, which if present SHOULD be associated with the requested variant.
-     * <p/>
-     * <p>If the client is a user agent, it SHOULD NOT change its document view from that which caused the request
+     * <p>
+     * If the client is a user agent, it SHOULD NOT change its document view from that which caused the request
      * to be sent. This response is primarily intended to allow input for actions to take place without causing a
      * change to the user agent's active document view, although any new or updated meta information SHOULD be
      * applied to the document currently in the user agent's active view.
-     * <p/>
-     * <p>The 204 response MUST NOT include a message-body, and thus is always terminated by the first empty
+     * <p>
+     * The 204 response MUST NOT include a message-body, and thus is always terminated by the first empty
      * line after the header fields.
      */
     NO_CONTENT(204),
@@ -109,8 +109,8 @@ public enum RestStatus {
      * The server has fulfilled the partial GET request for the resource. The request MUST have included a Range
      * header field (section 14.35) indicating the desired range, and MAY have included an If-Range header
      * field (section 14.27) to make the request conditional.
-     * <p/>
-     * <p>The response MUST include the following header fields:
+     * <p>
+     * The response MUST include the following header fields:
      * <ul>
      * <li>Either a Content-Range header field (section 14.16) indicating the range included with this response,
      * or a multipart/byteranges Content-Type including Content-Range fields for each part. If a Content-Length
@@ -121,34 +121,34 @@ public enum RestStatus {
      * <li>Expires, Cache-Control, and/or Vary, if the field-value might differ from that sent in any previous
      * response for the same variant</li>
      * </ul>
-     * <p/>
-     * <p>If the 206 response is the result of an If-Range request that used a strong cache validator
+     * <p>
+     * If the 206 response is the result of an If-Range request that used a strong cache validator
      * (see section 13.3.3), the response SHOULD NOT include other entity-headers. If the response is the result
      * of an If-Range request that used a weak validator, the response MUST NOT include other entity-headers;
      * this prevents inconsistencies between cached entity-bodies and updated headers. Otherwise, the response MUST
      * include all of the entity-headers that would have been returned with a 200 (OK) response to the same request.
-     * <p/>
-     * <p>A cache MUST NOT combine a 206 response with other previously cached content if the ETag or Last-Modified
+     * <p>
+     * A cache MUST NOT combine a 206 response with other previously cached content if the ETag or Last-Modified
      * headers do not match exactly, see 13.5.4.
-     * <p/>
-     * <p>A cache that does not support the Range and Content-Range headers MUST NOT cache 206 (Partial) responses.
+     * <p>
+     * A cache that does not support the Range and Content-Range headers MUST NOT cache 206 (Partial) responses.
      */
     PARTIAL_CONTENT(206),
     /**
      * The 207 (Multi-Status) status code provides status for multiple independent operations (see Section 13 for
      * more information).
-     * <p/>
-     * <p>A Multi-Status response conveys information about multiple resources in situations where multiple status
+     * <p>
+     * A Multi-Status response conveys information about multiple resources in situations where multiple status
      * codes might be appropriate. The default Multi-Status response body is a text/xml or application/xml HTTP
      * entity with a 'multistatus' root element. Further elements contain 200, 300, 400, and 500 series status codes
      * generated during the method invocation. 100 series status codes SHOULD NOT be recorded in a 'response'
      * XML element.
-     * <p/>
-     * <p>Although '207' is used as the overall response status code, the recipient needs to consult the contents
+     * <p>
+     * Although '207' is used as the overall response status code, the recipient needs to consult the contents
      * of the multistatus response body for further information about the success or failure of the method execution.
      * The response MAY be used in success, partial success and also in failure situations.
-     * <p/>
-     * <p>The 'multistatus' root element holds zero or more 'response' elements in any order, each with
+     * <p>
+     * The 'multistatus' root element holds zero or more 'response' elements in any order, each with
      * information about an individual resource. Each 'response' element MUST have an 'href' element
      * to identify the resource.
      */
@@ -157,14 +157,14 @@ public enum RestStatus {
      * The requested resource corresponds to any one of a set of representations, each with its own specific
      * location, and agent-driven negotiation information (section 12) is being provided so that the user (or user
      * agent) can select a preferred representation and redirect its request to that location.
-     * <p/>
-     * <p>Unless it was a HEAD request, the response SHOULD include an entity containing a list of resource
+     * <p>
+     * Unless it was a HEAD request, the response SHOULD include an entity containing a list of resource
      * characteristics and location(s) from which the user or user agent can choose the one most appropriate.
      * The entity format is specified by the media type given in the Content-Type header field. Depending upon the
      * format and the capabilities of the user agent, selection of the most appropriate choice MAY be performed
      * automatically. However, this specification does not define any standard for such automatic selection.
-     * <p/>
-     * <p>If the server has a preferred choice of representation, it SHOULD include the specific URI for that
+     * <p>
+     * If the server has a preferred choice of representation, it SHOULD include the specific URI for that
      * representation in the Location field; user agents MAY use the Location field value for automatic redirection.
      * This response is cacheable unless indicated otherwise.
      */
@@ -174,11 +174,11 @@ public enum RestStatus {
      * SHOULD use one of the returned URIs.  Clients with link editing capabilities ought to automatically re-link
      * references to the Request-URI to one or more of the new references returned by the server, where possible.
      * This response is cacheable unless indicated otherwise.
-     * <p/>
-     * <p>The new permanent URI SHOULD be given by the Location field in the response. Unless the request method
+     * <p>
+     * The new permanent URI SHOULD be given by the Location field in the response. Unless the request method
      * was HEAD, the entity of the response SHOULD contain a short hypertext note with a hyperlink to the new URI(s).
-     * <p/>
-     * <p>If the 301 status code is received in response to a request other than GET or HEAD, the user agent
+     * <p>
+     * If the 301 status code is received in response to a request other than GET or HEAD, the user agent
      * MUST NOT automatically redirect the request unless it can be confirmed by the user, since this might change
      * the conditions under which the request was issued.
      */
@@ -187,11 +187,11 @@ public enum RestStatus {
      * The requested resource resides temporarily under a different URI. Since the redirection might be altered on
      * occasion, the client SHOULD continue to use the Request-URI for future requests.  This response is only
      * cacheable if indicated by a Cache-Control or Expires header field.
-     * <p/>
-     * <p>The temporary URI SHOULD be given by the Location field in the response. Unless the request method was
+     * <p>
+     * The temporary URI SHOULD be given by the Location field in the response. Unless the request method was
      * HEAD, the entity of the response SHOULD contain a short hypertext note with a hyperlink to the new URI(s).
-     * <p/>
-     * <p>If the 302 status code is received in response to a request other than GET or HEAD, the user agent
+     * <p>
+     * If the 302 status code is received in response to a request other than GET or HEAD, the user agent
      * MUST NOT automatically redirect the request unless it can be confirmed by the user, since this might change
      * the conditions under which the request was issued.
      */
@@ -202,8 +202,8 @@ public enum RestStatus {
      * user agent to a selected resource. The new URI is not a substitute reference for the originally requested
      * resource. The 303 response MUST NOT be cached, but the response to the second (redirected) request might be
      * cacheable.
-     * <p/>
-     * <p>The different URI SHOULD be given by the Location field in the response. Unless the request method was
+     * <p>
+     * The different URI SHOULD be given by the Location field in the response. Unless the request method was
      * HEAD, the entity of the response SHOULD contain a short hypertext note with a hyperlink to the new URI(s).
      */
     SEE_OTHER(303),
@@ -211,8 +211,8 @@ public enum RestStatus {
      * If the client has performed a conditional GET request and access is allowed, but the document has not been
      * modified, the server SHOULD respond with this status code. The 304 response MUST NOT contain a message-body,
      * and thus is always terminated by the first empty line after the header fields.
-     * <p/>
-     * <p>The response MUST include the following header fields:
+     * <p>
+     * The response MUST include the following header fields:
      * <ul>
      * <li>Date, unless its omission is required by section 14.18.1
      * If a clockless origin server obeys these rules, and proxies and clients add their own Date to any
@@ -223,15 +223,15 @@ public enum RestStatus {
      * <li>Expires, Cache-Control, and/or Vary, if the field-value might differ from that sent in any previous
      * response for the same variant</li>
      * </ul>
-     * <p/>
-     * <p>If the conditional GET used a strong cache validator (see section 13.3.3), the response SHOULD NOT include
+     * <p>
+     * If the conditional GET used a strong cache validator (see section 13.3.3), the response SHOULD NOT include
      * other entity-headers. Otherwise (i.e., the conditional GET used a weak validator), the response MUST NOT
      * include other entity-headers; this prevents inconsistencies between cached entity-bodies and updated headers.
-     * <p/>
-     * <p>If a 304 response indicates an entity not currently cached, then the cache MUST disregard the response
+     * <p>
+     * If a 304 response indicates an entity not currently cached, then the cache MUST disregard the response
      * and repeat the request without the conditional.
-     * <p/>
-     * <p>If a cache uses a received 304 response to update a cache entry, the cache MUST update the entry to
+     * <p>
+     * If a cache uses a received 304 response to update a cache entry, the cache MUST update the entry to
      * reflect any new field values given in the response.
      */
     NOT_MODIFIED(304),
@@ -245,13 +245,13 @@ public enum RestStatus {
      * The requested resource resides temporarily under a different URI. Since the redirection MAY be altered on
      * occasion, the client SHOULD continue to use the Request-URI for future requests.  This response is only
      * cacheable if indicated by a Cache-Control or Expires header field.
-     * <p/>
-     * <p>The temporary URI SHOULD be given by the Location field in the response. Unless the request method was
+     * <p>
+     * The temporary URI SHOULD be given by the Location field in the response. Unless the request method was
      * HEAD, the entity of the response SHOULD contain a short hypertext note with a hyperlink to the new URI(s) ,
      * since many pre-HTTP/1.1 user agents do not understand the 307 status. Therefore, the note SHOULD contain
      * the information necessary for a user to repeat the original request on the new URI.
-     * <p/>
-     * <p>If the 307 status code is received in response to a request other than GET or HEAD, the user agent MUST NOT
+     * <p>
+     * If the 307 status code is received in response to a request other than GET or HEAD, the user agent MUST NOT
      * automatically redirect the request unless it can be confirmed by the user, since this might change the
      * conditions under which the request was issued.
      */
@@ -300,18 +300,18 @@ public enum RestStatus {
     /**
      * The resource identified by the request is only capable of generating response entities which have content
      * characteristics not acceptable according to the accept headers sent in the request.
-     * <p/>
-     * <p>Unless it was a HEAD request, the response SHOULD include an entity containing a list of available entity
+     * <p>
+     * Unless it was a HEAD request, the response SHOULD include an entity containing a list of available entity
      * characteristics and location(s) from which the user or user agent can choose the one most appropriate.
      * The entity format is specified by the media type given in the Content-Type header field. Depending upon the
      * format and the capabilities of the user agent, selection of the most appropriate choice MAY be performed
      * automatically. However, this specification does not define any standard for such automatic selection.
-     * <p/>
-     * <p>Note: HTTP/1.1 servers are allowed to return responses which are not acceptable according to the accept
+     * <p>
+     * Note: HTTP/1.1 servers are allowed to return responses which are not acceptable according to the accept
      * headers sent in the request. In some cases, this may even be preferable to sending a 406 response. User
      * agents are encouraged to inspect the headers of an incoming response to determine if it is acceptable.
-     * <p/>
-     * <p>If the response could be unacceptable, a user agent SHOULD temporarily stop receipt of more data and query
+     * <p>
+     * If the response could be unacceptable, a user agent SHOULD temporarily stop receipt of more data and query
      * the user for a decision on further actions.
      */
     NOT_ACCEPTABLE(406),
@@ -334,8 +334,8 @@ public enum RestStatus {
      * resubmit the request. The response body SHOULD include enough information for the user to recognize the
      * source of the conflict. Ideally, the response entity would include enough information for the user or user
      * agent to fix the problem; however, that might not be possible and is not required.
-     * <p/>
-     * <p>Conflicts are most likely to occur in response to a PUT request. For example, if versioning were being
+     * <p>
+     * Conflicts are most likely to occur in response to a PUT request. For example, if versioning were being
      * used and the entity being PUT included changes to a resource which conflict with those made by an earlier
      * (third-party) request, the server might use the 409 response to indicate that it can't complete the request.
      * In this case, the response entity would likely contain a list of the differences between the two versions in
@@ -348,8 +348,8 @@ public enum RestStatus {
      * the Request-URI after user approval. If the server does not know, or has no facility to determine, whether or
      * not the condition is permanent, the status code 404 (Not Found) SHOULD be used instead. This response is
      * cacheable unless indicated otherwise.
-     * <p/>
-     * <p>The 410 response is primarily intended to assist the task of web maintenance by notifying the recipient
+     * <p>
+     * The 410 response is primarily intended to assist the task of web maintenance by notifying the recipient
      * that the resource is intentionally unavailable and that the server owners desire that remote links to that
      * resource be removed. Such an event is common for limited-time, promotional services and for resources belonging
      * to individuals no longer working at the server's site. It is not necessary to mark all permanently unavailable
@@ -372,8 +372,8 @@ public enum RestStatus {
     /**
      * The server is refusing to process a request because the request entity is larger than the server is willing
      * or able to process. The server MAY close the connection to prevent the client from continuing the request.
-     * <p/>
-     * <p>If the condition is temporary, the server SHOULD include a Retry-After header field to indicate that it
+     * <p>
+     * If the condition is temporary, the server SHOULD include a Retry-After header field to indicate that it
      * is temporary and after what time the client MAY try again.
      */
     REQUEST_ENTITY_TOO_LARGE(413),
@@ -397,8 +397,8 @@ public enum RestStatus {
      * selected resource, and the request did not include an If-Range request-header field. (For byte-ranges, this
      * means that the first-byte-pos of all of the byte-range-spec values were greater than the current length of
      * the selected resource.)
-     * <p/>
-     * <p>When this status code is returned for a byte-range request, the response SHOULD include a Content-Range
+     * <p>
+     * When this status code is returned for a byte-range request, the response SHOULD include a Content-Range
      * entity-header field specifying the current length of the selected resource (see section 14.16). This
      * response MUST NOT use the multipart/byteranges content-type.
      */

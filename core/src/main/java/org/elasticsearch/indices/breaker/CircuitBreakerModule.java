@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 
 public class CircuitBreakerModule extends AbstractModule {
 
-    public static final String IMPL = "indices.breaker.type";
+    public static final String TYPE_KEY = "indices.breaker.type";
 
     private final Settings settings;
 
@@ -34,6 +34,15 @@ public class CircuitBreakerModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(CircuitBreakerService.class).to(settings.getAsClass(IMPL, HierarchyCircuitBreakerService.class)).asEagerSingleton();
+        String type = settings.get(TYPE_KEY);
+        Class<? extends CircuitBreakerService> impl;
+        if (type == null || type.equals("hierarchy")) {
+            impl = HierarchyCircuitBreakerService.class;
+        } else if (type.equals("none")) {
+            impl = NoneCircuitBreakerService.class;
+        } else {
+            throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
+        }
+        bind(CircuitBreakerService.class).to(impl).asEagerSingleton();
     }
 }

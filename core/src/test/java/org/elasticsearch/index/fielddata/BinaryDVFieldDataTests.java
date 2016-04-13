@@ -22,38 +22,36 @@ package org.elasticsearch.index.fielddata;
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
-
+public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
     @Override
     protected boolean hasDocValues() {
         return true;
     }
 
-    @Test
     public void testDocValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("test")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "binary")
-                .startObject("fielddata").field("format", "doc_values").endObject()
+                .field("doc_values", true)
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();
 
-        final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
 
 
         ObjectArrayList<byte[]> bytesList1 = new ObjectArrayList<>(2);
@@ -109,12 +107,12 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
     private byte[] randomBytes() {
         int size = randomIntBetween(10, 1000);
         byte[] bytes = new byte[size];
-        getRandom().nextBytes(bytes);
+        random().nextBytes(bytes);
         return bytes;
     }
 
     @Override
-    protected FieldDataType getFieldDataType() {
-        return new FieldDataType("binary", Settings.builder().put("format", "doc_values"));
+    protected String getFieldDataType() {
+        return "binary";
     }
 }

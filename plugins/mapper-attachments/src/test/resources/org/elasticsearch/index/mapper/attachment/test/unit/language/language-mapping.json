@@ -1,0 +1,12 @@
+{
+    "person": {
+        "properties": {
+            "file": {
+                "type": "attachment",
+                "fields": {
+                    "language": { "type": "text" }
+                }
+            }
+        }
+    }
+}

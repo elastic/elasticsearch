@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.info;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
@@ -27,8 +26,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.util.Set;
@@ -42,11 +48,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesInfoAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
-    private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "network", "os", "plugins", "process", "settings", "thread_pool", "transport");
+    private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport", "ingest");
 
     @Inject
     public RestNodesInfoAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_nodes", this);
         // this endpoint is used for metrics, not for nodeIds, like /_nodes/fs
         controller.registerHandler(GET, "/_nodes/{nodeId}", this);
@@ -81,7 +87,8 @@ public class RestNodesInfoAction extends BaseRestHandler {
         }
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);
-        // shortcut, dont do checks if only all is specified
+        nodesInfoRequest.timeout(request.param("timeout"));
+        // shortcut, don't do checks if only all is specified
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesInfoRequest.all();
         } else {
@@ -91,10 +98,10 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.process(metrics.contains("process"));
             nodesInfoRequest.jvm(metrics.contains("jvm"));
             nodesInfoRequest.threadPool(metrics.contains("thread_pool"));
-            nodesInfoRequest.network(metrics.contains("network"));
             nodesInfoRequest.transport(metrics.contains("transport"));
             nodesInfoRequest.http(metrics.contains("http"));
             nodesInfoRequest.plugins(metrics.contains("plugins"));
+            nodesInfoRequest.ingest(metrics.contains("ingest"));
         }
 
         settingsFilter.addFilterSettingParams(request);

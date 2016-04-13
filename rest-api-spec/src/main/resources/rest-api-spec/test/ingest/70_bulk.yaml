@@ -1,0 +1,144 @@
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline1"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field1",
+                  "value": "value1"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline2"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "value2"
+                }
+              }
+            ]
+          }
+
+---
+"Test bulk request without default pipeline":
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id1
+              pipeline: pipeline1
+          - f1: v1
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id2
+          - f1: v2
+  - gte: { ingest_took: 0 }
+
+  - do:
+      get:
+        index: test_index
+        type: test_type
+        id: test_id1
+
+  - match: {_source.field1: value1}
+  - is_false: _source.field2
+
+  - do:
+      get:
+        index: test_index
+        type: test_type
+        id: test_id2
+
+  - is_false: _source.field1
+  - is_false: _source.field2
+
+  - do:
+      cluster.state: {}
+    # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      nodes.stats:
+        metric: [ ingest ]
+  #we can't assert anything here since we might have more than one node in the cluster
+  - gte: {nodes.$master.ingest.total.count: 0}
+  - gte: {nodes.$master.ingest.total.failed: 0}
+  - gte: {nodes.$master.ingest.total.time_in_millis: 0}
+  - match: {nodes.$master.ingest.total.current: 0}
+  - gte: {nodes.$master.ingest.pipelines.pipeline1.count: 0}
+  - match: {nodes.$master.ingest.pipelines.pipeline1.failed: 0}
+  - gte: {nodes.$master.ingest.pipelines.pipeline1.time_in_millis: 0}
+  - match: {nodes.$master.ingest.pipelines.pipeline1.current: 0}
+
+---
+"Test bulk request with default pipeline":
+
+  - do:
+      bulk:
+        pipeline: pipeline1
+        body:
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id1
+          - f1: v1
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id2
+              pipeline: pipeline2
+          - f1: v2
+  - gte: { ingest_took: 0 }
+
+  - do:
+      cluster.state: {}
+  # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      nodes.stats:
+        metric: [ ingest ]
+  #we can't assert anything here since we might have more than one node in the cluster
+  - gte: {nodes.$master.ingest.total.count: 0}
+  - gte: {nodes.$master.ingest.total.failed: 0}
+  - gte: {nodes.$master.ingest.total.time_in_millis: 0}
+  - match: {nodes.$master.ingest.total.current: 0}
+  - gte: {nodes.$master.ingest.pipelines.pipeline2.count: 0}
+  - match: {nodes.$master.ingest.pipelines.pipeline2.failed: 0}
+  - gte: {nodes.$master.ingest.pipelines.pipeline2.time_in_millis: 0}
+  - match: {nodes.$master.ingest.pipelines.pipeline2.current: 0}
+
+  - do:
+      get:
+        index: test_index
+        type: test_type
+        id: test_id1
+
+  - match: {_source.field1: value1}
+  - is_false: _source.field2
+
+  - do:
+      get:
+        index: test_index
+        type: test_type
+        id: test_id2
+
+  - is_false: _source.field1
+  - match: {_source.field2: value2}
+

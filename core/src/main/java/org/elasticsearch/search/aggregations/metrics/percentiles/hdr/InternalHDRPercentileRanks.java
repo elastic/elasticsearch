@@ -18,16 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
-import com.google.common.collect.UnmodifiableIterator;
-
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -57,7 +55,7 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
     InternalHDRPercentileRanks() {
     } // for serialization
 
-    public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, ValueFormatter formatter,
+    public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
     }
@@ -85,7 +83,7 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalHDRPercentileRanks(name, keys, merged, keyed, valueFormatter, pipelineAggregators, metaData);
+        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metaData);
     }
 
     @Override
@@ -106,7 +104,7 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
         return percentileRank;
     }
 
-    public static class Iter extends UnmodifiableIterator<Percentile> {
+    public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;
         private final DoubleHistogram state;
@@ -128,6 +126,11 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
             final Percentile next = new InternalPercentile(percentileRank(state, values[i]), values[i]);
             ++i;
             return next;
+        }
+
+        @Override
+        public final void remove() {
+            throw new UnsupportedOperationException();
         }
     }
 }

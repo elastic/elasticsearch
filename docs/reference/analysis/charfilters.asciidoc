@@ -3,7 +3,7 @@
 
 Character filters are used to preprocess the string of 
 characters before it is passed to the <<analysis-tokenizers,tokenizer>>.
-A character filter may be used to strip out HTML markup, , or to convert
+A character filter may be used to strip out HTML markup, or to convert
 `"&"` characters to the word `"and"`.    
 
 Elasticsearch has built in characters filters which can be

@@ -20,21 +20,18 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.google.common.base.Charsets;
-
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 
 public class BulkIntegrationIT extends ESIntegTestCase {
-
-    @Test
     public void testBulkIndexCreatesMapping() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        bulkBuilder.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         bulkBuilder.get();
         assertBusy(new Runnable() {
             @Override

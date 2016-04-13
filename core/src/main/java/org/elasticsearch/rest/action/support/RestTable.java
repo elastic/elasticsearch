@@ -30,10 +30,17 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  */
@@ -41,7 +48,7 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        XContentType xContentType = XContentType.fromRestContentType(request.param("format", request.header("Content-Type")));
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
         if (xContentType != null) {
             return buildXContentBuilder(table, channel);
         }
@@ -68,27 +75,33 @@ public class RestTable {
 
     public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
         RestRequest request = channel.request();
-        boolean verbose = request.paramAsBoolean("v", true);
+        boolean verbose = request.paramAsBoolean("v", false);
 
         List<DisplayHeader> headers = buildDisplayHeaders(table, request);
         int[] width = buildWidths(table, request, verbose, headers);
 
         BytesStreamOutput bytesOut = channel.bytesOutput();
         UTF8StreamWriter out = new UTF8StreamWriter().setOutput(bytesOut);
+        int lastHeader = headers.size() - 1;
         if (verbose) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
-                pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out);
-                out.append(" ");
+                boolean isLastColumn = col == lastHeader;
+                pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out, isLastColumn);
+                if (!isLastColumn) {
+                    out.append(" ");
+                }
             }
             out.append("\n");
         }
-
         for (int row = 0; row < table.getRows().size(); row++) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
-                pad(table.getAsMap().get(header.name).get(row), width[col], request, out);
-                out.append(" ");
+                boolean isLastColumn = col == lastHeader;
+                pad(table.getAsMap().get(header.name).get(row), width[col], request, out, isLastColumn);
+                if (!isLastColumn) {
+                    out.append(" ");
+                }
             }
             out.append("\n");
         }
@@ -236,6 +249,10 @@ public class RestTable {
     }
 
     public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out) throws IOException {
+      pad(cell, width, request, out, false);
+    }
+
+    public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out, boolean isLast) throws IOException {
         String sValue = renderValue(request, cell.value);
         int length = sValue == null ? 0 : sValue.length();
         byte leftOver = (byte) (width - length);
@@ -254,8 +271,11 @@ public class RestTable {
             if (sValue != null) {
                 out.append(sValue);
             }
-            for (byte i = 0; i < leftOver; i++) {
-                out.append(" ");
+            // Ignores the leftover spaces if the cell is the last of the column.
+            if (!isLast) {
+                for (byte i = 0; i < leftOver; i++) {
+                    out.append(" ");
+                }
             }
         }
     }

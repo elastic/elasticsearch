@@ -23,139 +23,186 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.plain.*;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.MapperBuilders;
-import org.elasticsearch.index.mapper.core.*;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.ByteFieldMapper;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.FloatFieldMapper;
+import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.ShortFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Set;
+import java.util.Collection;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 
 public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
-    private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     public void testGetForFieldDefaults() {
         final IndexService indexService = createIndex("test");
         final IndexFieldDataService ifdService = indexService.fieldData();
-        for (boolean docValues : Arrays.asList(true, false)) {
-            final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
-            final MappedFieldType stringMapper = new StringFieldMapper.Builder("string").tokenized(false).docValues(docValues).build(ctx).fieldType();
-            ifdService.clear();
-            IndexFieldData<?> fd = ifdService.getForField(stringMapper);
-            if (docValues) {
-                assertTrue(fd instanceof SortedSetDVOrdinalsIndexFieldData);
-            } else {
-                assertTrue(fd instanceof PagedBytesIndexFieldData);
-            }
-
-            for (MappedFieldType mapper : Arrays.asList(
-                    new ByteFieldMapper.Builder("int").docValues(docValues).build(ctx).fieldType(),
-                    new ShortFieldMapper.Builder("int").docValues(docValues).build(ctx).fieldType(),
-                    new IntegerFieldMapper.Builder("int").docValues(docValues).build(ctx).fieldType(),
-                    new LongFieldMapper.Builder("long").docValues(docValues).build(ctx).fieldType()
-                    )) {
-                ifdService.clear();
-                fd = ifdService.getForField(mapper);
-                if (docValues) {
-                    assertTrue(fd instanceof SortedNumericDVIndexFieldData);
-                } else {
-                    assertTrue(fd instanceof PackedArrayIndexFieldData);
-                }
-            }
-
-            final MappedFieldType floatMapper = new FloatFieldMapper.Builder("float").docValues(docValues).build(ctx).fieldType();
-            ifdService.clear();
-            fd = ifdService.getForField(floatMapper);
-            if (docValues) {
-                assertTrue(fd instanceof SortedNumericDVIndexFieldData);
-            } else {
-                assertTrue(fd instanceof FloatArrayIndexFieldData);
-            }
-
-            final MappedFieldType doubleMapper = new DoubleFieldMapper.Builder("double").docValues(docValues).build(ctx).fieldType();
-            ifdService.clear();
-            fd = ifdService.getForField(doubleMapper);
-            if (docValues) {
-                assertTrue(fd instanceof SortedNumericDVIndexFieldData);
-            } else {
-                assertTrue(fd instanceof DoubleArrayIndexFieldData);
-            }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testByPassDocValues() {
-        final IndexService indexService = createIndex("test");
-        final IndexFieldDataService ifdService = indexService.fieldData();
-        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
-        final MappedFieldType stringMapper = MapperBuilders.stringField("string").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(Settings.builder().put("format", "disabled").build()).build(ctx).fieldType();
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(ctx).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper);
-        assertTrue(fd instanceof DisabledIndexFieldData);
+        assertTrue(fd instanceof SortedSetDVOrdinalsIndexFieldData);
 
-        final Settings fdSettings = Settings.builder().put("format", "array").build();
         for (MappedFieldType mapper : Arrays.asList(
-                new ByteFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType(),
-                new ShortFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType(),
-                new IntegerFieldMapper.Builder("int").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType(),
-                new LongFieldMapper.Builder("long").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType()
+                new ByteFieldMapper.Builder("int").build(ctx).fieldType(),
+                new ShortFieldMapper.Builder("int").build(ctx).fieldType(),
+                new IntegerFieldMapper.Builder("int").build(ctx).fieldType(),
+                new LongFieldMapper.Builder("long").build(ctx).fieldType()
                 )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper);
-            assertTrue(fd instanceof PackedArrayIndexFieldData);
+            assertTrue(fd instanceof SortedNumericDVIndexFieldData);
         }
 
-        final MappedFieldType floatMapper = MapperBuilders.floatField("float").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType();
+        final MappedFieldType floatMapper = new FloatFieldMapper.Builder("float").build(ctx).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper);
-        assertTrue(fd instanceof FloatArrayIndexFieldData);
+        assertTrue(fd instanceof SortedNumericDVIndexFieldData);
 
-        final MappedFieldType doubleMapper = MapperBuilders.doubleField("double").fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(fdSettings).build(ctx).fieldType();
+        final MappedFieldType doubleMapper = new DoubleFieldMapper.Builder("double").build(ctx).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper);
-        assertTrue(fd instanceof DoubleArrayIndexFieldData);
+        assertTrue(fd instanceof SortedNumericDVIndexFieldData);
     }
 
-    public void testChangeFieldDataFormat() throws Exception {
+    public void testFieldDataCacheListener() throws Exception {
         final IndexService indexService = createIndex("test");
-        final IndexFieldDataService ifdService = indexService.fieldData();
-        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
-        final MappedFieldType mapper1 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        // copy the ifdService since we can set the listener only once.
+        final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
+                indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s").fielddata(true).build(ctx).fieldType();
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
         writer.addDocument(doc);
-        final IndexReader reader1 = DirectoryReader.open(writer, true);
+        DirectoryReader open = DirectoryReader.open(writer);
+        final boolean wrap = randomBoolean();
+        final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, new ShardId("test", "_na_", 1)) : open;
+        final AtomicInteger onCacheCalled = new AtomicInteger();
+        final AtomicInteger onRemovalCalled = new AtomicInteger();
+        ifdService.setListener(new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+                if (wrap) {
+                    assertEquals(new ShardId("test", "_na_", 1), shardId);
+                } else {
+                    assertNull(shardId);
+                }
+                onCacheCalled.incrementAndGet();
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                if (wrap) {
+                    assertEquals(new ShardId("test", "_na_", 1), shardId);
+                } else {
+                    assertNull(shardId);
+                }
+                onRemovalCalled.incrementAndGet();
+            }
+        });
         IndexFieldData<?> ifd = ifdService.getForField(mapper1);
-        assertThat(ifd, instanceOf(PagedBytesIndexFieldData.class));
-        Set<LeafReader> oldSegments = Collections.newSetFromMap(new IdentityHashMap<LeafReader, Boolean>());
-        for (LeafReaderContext arc : reader1.leaves()) {
-            oldSegments.add(arc.reader());
-            AtomicFieldData afd = ifd.load(arc);
-            assertThat(afd, instanceOf(PagedBytesAtomicFieldData.class));
-        }
-        // write new segment
-        writer.addDocument(doc);
-        final IndexReader reader2 = DirectoryReader.open(writer, true);
-        final MappedFieldType mapper2 = MapperBuilders.stringField("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "doc_values").build()).build(ctx).fieldType();
-        ifd = ifdService.getForField(mapper2);
-        assertThat(ifd, instanceOf(SortedSetDVOrdinalsIndexFieldData.class));
-        reader1.close();
-        reader2.close();
+        LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
+        AtomicFieldData load = ifd.load(leafReaderContext);
+        assertEquals(1, onCacheCalled.get());
+        assertEquals(0, onRemovalCalled.get());
+        reader.close();
+        load.close();
         writer.close();
-        writer.getDirectory().close();
+        assertEquals(1, onCacheCalled.get());
+        assertEquals(1, onRemovalCalled.get());
+        ifdService.clear();
+    }
+
+    public void testSetCacheListenerTwice() {
+        final IndexService indexService = createIndex("test");
+        IndexFieldDataService shardPrivateService = indexService.fieldData();
+        try {
+            shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+
+                }
+
+                @Override
+                public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+
+                }
+            });
+            fail("listener already set");
+        } catch (IllegalStateException ex) {
+            // all well
+        }
+    }
+
+    private void doTestRequireDocValues(MappedFieldType ft) {
+        ThreadPool threadPool = new ThreadPool("random_threadpool_name");
+        try {
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
+            ft.setName("some_long");
+            ft.setHasDocValues(true);
+            ifds.getForField(ft); // no exception
+            ft.setHasDocValues(false);
+            try {
+                ifds.getForField(ft);
+                fail();
+            } catch (IllegalStateException e) {
+                assertThat(e.getMessage(), containsString("doc values"));
+            }
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testRequireDocValuesOnLongs() {
+        doTestRequireDocValues(new LongFieldMapper.LongFieldType());
+    }
+
+    public void testRequireDocValuesOnDoubles() {
+        doTestRequireDocValues(new DoubleFieldMapper.DoubleFieldType());
+    }
+
+    public void testRequireDocValuesOnBools() {
+        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType());
     }
 
 }

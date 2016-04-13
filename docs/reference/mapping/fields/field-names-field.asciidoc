@@ -3,9 +3,8 @@
 
 The `_field_names` field indexes the names of every field in a document that
 contains any value other than `null`.  This field is used by the
-<<query-dsl-exists-query,`exists`>> and <<query-dsl-missing-query,`missing`>>
-queries to find documents that either have or don't have any non-+null+ value
-for a particular field.
+<<query-dsl-exists-query,`exists`>> query to find documents that
+either have or don't have any non-+null+ value for a particular field.
 
 The value of the `_field_name` field is accessible in queries, aggregations, and
 scripts:
@@ -49,7 +48,6 @@ GET my_index/_search
 --------------------------
 // AUTOSENSE
 
-<1> Querying on the `_field_names` field (also see the <<query-dsl-exists-query,`exists`>> and <<query-dsl-missing-query,`missing`>> queries)
+<1> Querying on the `_field_names` field (also see the <<query-dsl-exists-query,`exists`>> query)
 <2> Aggregating on the `_field_names` field
 <3> Accessing the `_field_names` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
-

@@ -23,15 +23,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
-
-    @Test
     public void testBulkProcessorAutoCreateRestrictions() throws Exception {
         // See issue #8125
-        Settings settings = Settings.settingsBuilder().put("action.auto_create_index", false).build();
+        Settings settings = Settings.builder().put("action.auto_create_index", false).build();
 
         internalCluster().startNode(settings);
 

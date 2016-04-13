@@ -24,16 +24,14 @@ import org.joda.time.chrono.ISOChronology;
 import org.joda.time.convert.ConverterManager;
 import org.joda.time.convert.InstantConverter;
 
-import java.io.Serializable;
-
 /**
  * BaseDateTime is an abstract implementation of ReadableDateTime that stores
  * data in <code>long</code> and <code>Chronology</code> fields.
- * <p/>
+ * <p>
  * This class should generally not be used directly by API users.
  * The {@link ReadableDateTime} interface should be used when different
  * kinds of date/time objects are to be referenced.
- * <p/>
+ * <p>
  * BaseDateTime subclasses may be mutable and not thread-safe.
  *
  * @author Stephen Colebourne
@@ -43,13 +41,7 @@ import java.io.Serializable;
  */
 public abstract class BaseDateTime
         extends AbstractDateTime
-        implements ReadableDateTime, Serializable {
-
-    /**
-     * Serialization lock
-     */
-    private static final long serialVersionUID = -6728882245981L;
-
+        implements ReadableDateTime {
     /**
      * The millis from 1970-01-01T00:00:00Z
      */
@@ -73,7 +65,7 @@ public abstract class BaseDateTime
     /**
      * Constructs an instance set to the current system millisecond time
      * using <code>ISOChronology</code> in the specified time zone.
-     * <p/>
+     * <p>
      * If the specified time zone is null, the default zone is used.
      *
      * @param zone the time zone, null means default zone
@@ -85,7 +77,7 @@ public abstract class BaseDateTime
     /**
      * Constructs an instance set to the current system millisecond time
      * using the specified chronology.
-     * <p/>
+     * <p>
      * If the chronology is null, <code>ISOChronology</code>
      * in the default time zone is used.
      *
@@ -110,7 +102,7 @@ public abstract class BaseDateTime
     /**
      * Constructs an instance set to the milliseconds from 1970-01-01T00:00:00Z
      * using <code>ISOChronology</code> in the specified time zone.
-     * <p/>
+     * <p>
      * If the specified time zone is null, the default zone is used.
      *
      * @param instant the milliseconds from 1970-01-01T00:00:00Z
@@ -123,7 +115,7 @@ public abstract class BaseDateTime
     /**
      * Constructs an instance set to the milliseconds from 1970-01-01T00:00:00Z
      * using the specified chronology.
-     * <p/>
+     * <p>
      * If the chronology is null, <code>ISOChronology</code>
      * in the default time zone is used.
      *
@@ -145,10 +137,10 @@ public abstract class BaseDateTime
     /**
      * Constructs an instance from an Object that represents a datetime,
      * forcing the time zone to that specified.
-     * <p/>
+     * <p>
      * If the object contains no chronology, <code>ISOChronology</code> is used.
      * If the specified time zone is null, the default zone is used.
-     * <p/>
+     * <p>
      * The recognised object types are defined in
      * {@link org.joda.time.convert.ConverterManager ConverterManager} and
      * include ReadableInstant, String, Calendar and Date.
@@ -168,9 +160,9 @@ public abstract class BaseDateTime
     /**
      * Constructs an instance from an Object that represents a datetime,
      * using the specified chronology.
-     * <p/>
+     * <p>
      * If the chronology is null, ISO in the default time zone is used.
-     * <p/>
+     * <p>
      * The recognised object types are defined in
      * {@link org.joda.time.convert.ConverterManager ConverterManager} and
      * include ReadableInstant, String, Calendar and Date.
@@ -215,7 +207,7 @@ public abstract class BaseDateTime
     /**
      * Constructs an instance from datetime field values
      * using <code>ISOChronology</code> in the specified time zone.
-     * <p/>
+     * <p>
      * If the specified time zone is null, the default zone is used.
      *
      * @param year           the year
@@ -243,7 +235,7 @@ public abstract class BaseDateTime
     /**
      * Constructs an instance from datetime field values
      * using the specified chronology.
-     * <p/>
+     * <p>
      * If the chronology is null, <code>ISOChronology</code>
      * in the default time zone is used.
      *
@@ -277,7 +269,7 @@ public abstract class BaseDateTime
     /**
      * Checks the specified chronology before storing it, potentially altering it.
      * This method must not access any instance variables.
-     * <p/>
+     * <p>
      * This implementation converts nulls to ISOChronology in the default zone.
      *
      * @param chronology the chronology to use, may be null
@@ -290,7 +282,7 @@ public abstract class BaseDateTime
     /**
      * Checks the specified instant before storing it, potentially altering it.
      * This method must not access any instance variables.
-     * <p/>
+     * <p>
      * This implementation simply returns the instant.
      *
      * @param instant    the milliseconds from 1970-01-01T00:00:00Z to round
@@ -328,7 +320,7 @@ public abstract class BaseDateTime
 
     /**
      * Sets the milliseconds of the datetime.
-     * <p/>
+     * <p>
      * All changes to the millisecond field occurs via this method.
      * Override and block this method to make a subclass immutable.
      *
@@ -340,7 +332,7 @@ public abstract class BaseDateTime
 
     /**
      * Sets the chronology of the datetime.
-     * <p/>
+     * <p>
      * All changes to the chronology field occurs via this method.
      * Override and block this method to make a subclass immutable.
      *

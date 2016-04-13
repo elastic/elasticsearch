@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,29 +33,21 @@ import java.util.List;
  */
 public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
 
-    private int shardId;
-
     private BulkItemRequest[] items;
 
     private boolean refresh;
 
-    BulkShardRequest() {
+    public BulkShardRequest() {
     }
 
-    BulkShardRequest(BulkRequest bulkRequest, String index, int shardId, boolean refresh, BulkItemRequest[] items) {
-        super(bulkRequest);
-        this.index = index;
-        this.shardId = shardId;
+    BulkShardRequest(BulkRequest bulkRequest, ShardId shardId, boolean refresh, BulkItemRequest[] items) {
+        super(shardId);
         this.items = items;
         this.refresh = refresh;
     }
 
     boolean refresh() {
         return this.refresh;
-    }
-
-    int shardId() {
-        return shardId;
     }
 
     BulkItemRequest[] items() {
@@ -75,7 +68,6 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shardId);
         out.writeVInt(items.length);
         for (BulkItemRequest item : items) {
             if (item != null) {
@@ -91,7 +83,6 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardId = in.readVInt();
         items = new BulkItemRequest[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
             if (in.readBoolean()) {
@@ -99,5 +90,16 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
             }
         }
         refresh = in.readBoolean();
+    }
+
+    @Override
+    public String toString() {
+        // This is included in error messages so we'll try to make it somewhat user friendly.
+        StringBuilder b = new StringBuilder("BulkShardRequest to [");
+        b.append(index).append("] containing [").append(items.length).append("] requests");
+        if (refresh) {
+            b.append(" and a refresh");
+        }
+        return b.toString();
     }
 }

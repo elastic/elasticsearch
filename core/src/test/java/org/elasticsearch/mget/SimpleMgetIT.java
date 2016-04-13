@@ -29,18 +29,18 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleMgetIT extends ESIntegTestCase {
-
-    @Test
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");
         ensureYellow();
@@ -59,7 +59,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("no such index"));
-        assertThat(((ElasticsearchException)mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
+        assertThat(((ElasticsearchException) mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex().getName(), is("nonExistingIndex"));
 
 
         mgetResponse = client().prepareMultiGet()
@@ -69,12 +69,11 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), is("no such index"));
-        assertThat(((ElasticsearchException)mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
+        assertThat(((ElasticsearchException) mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex().getName(), is("nonExistingIndex"));
 
 
     }
 
-    @Test
     public void testThatParentPerDocumentIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("test", jsonBuilder()
@@ -106,7 +105,6 @@ public class SimpleMgetIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @Test
     public void testThatSourceFilteringIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureYellow();
@@ -146,7 +144,6 @@ public class SimpleMgetIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testThatRoutingPerDocumentIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .setSettings(Settings.builder()

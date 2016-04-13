@@ -21,10 +21,13 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,9 +35,8 @@ import java.util.Map;
  */
 public interface Transport extends LifecycleComponent<Transport> {
 
-    public static class TransportSettings {
-        public static final String TRANSPORT_TCP_COMPRESS = "transport.tcp.compress";
-    }
+
+    Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
 
     void transportServiceAdapter(TransportServiceAdapter service);
 
@@ -52,7 +54,7 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * Returns an address from its string representation.
      */
-    TransportAddress[] addressesFromString(String address) throws Exception;
+    TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception;
 
     /**
      * Is the address type supported.
@@ -89,4 +91,6 @@ public interface Transport extends LifecycleComponent<Transport> {
      * Returns count of currently open connections
      */
     long serverOpen();
+
+    List<String> getLocalAddresses();
 }

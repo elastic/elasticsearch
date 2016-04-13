@@ -24,21 +24,26 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class MultiMatchQuery extends MatchQuery {
 
@@ -48,17 +53,20 @@ public class MultiMatchQuery extends MatchQuery {
         this.groupTieBreaker = tieBreaker;
     }
 
-    public MultiMatchQuery(QueryParseContext parseContext) {
-        super(parseContext);
+    public MultiMatchQuery(QueryShardContext context) {
+        super(context);
     }
-    
+
     private Query parseAndApply(Type type, String fieldName, Object value, String minimumShouldMatch, Float boostValue) throws IOException {
         Query query = parse(type, fieldName, value);
-        if (query instanceof BooleanQuery) {
-            Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
+        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
+        // and multiple variations of the same word in the query (synonyms for instance).
+        if (query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
+            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
-        if (boostValue != null && query != null) {
-            query.setBoost(boostValue);
+        if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST) {
+            query = new BoostQuery(query, boostValue);
         }
         return query;
     }
@@ -85,7 +93,7 @@ public class MultiMatchQuery extends MatchQuery {
                 throw new IllegalStateException("No such type: " + type);
         }
         final List<? extends Query> queries = queryBuilder.buildGroupedQueries(type, fieldNames, value, minimumShouldMatch);
-        return queryBuilder.conbineGrouped(queries);
+        return queryBuilder.combineGrouped(queries);
     }
 
     private QueryBuilder queryBuilder;
@@ -103,7 +111,7 @@ public class MultiMatchQuery extends MatchQuery {
             this.tieBreaker = tieBreaker;
         }
 
-        public  List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException{
+        public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException{
             List<Query> queries = new ArrayList<>();
             for (String fieldName : fieldNames.keySet()) {
                 Float boostValue = fieldNames.get(fieldName);
@@ -119,7 +127,7 @@ public class MultiMatchQuery extends MatchQuery {
             return parseAndApply(type, field, value, minimumShouldMatch, boostValue);
         }
 
-        public Query conbineGrouped(List<? extends Query> groupQuery) {
+        public Query combineGrouped(List<? extends Query> groupQuery) {
             if (groupQuery == null || groupQuery.isEmpty()) {
                 return null;
             }
@@ -127,17 +135,17 @@ public class MultiMatchQuery extends MatchQuery {
                 return groupQuery.get(0);
             }
             if (groupDismax) {
-                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreaker);
+                List<Query> queries = new ArrayList<>();
                 for (Query query : groupQuery) {
-                    disMaxQuery.add(query);
+                    queries.add(query);
                 }
-                return disMaxQuery;
+                return new DisjunctionMaxQuery(queries, tieBreaker);
             } else {
-                final BooleanQuery booleanQuery = new BooleanQuery();
+                final BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
                 for (Query query : groupQuery) {
                     booleanQuery.add(query, BooleanClause.Occur.SHOULD);
                 }
-                return booleanQuery;
+                return booleanQuery.build();
             }
         }
 
@@ -145,12 +153,12 @@ public class MultiMatchQuery extends MatchQuery {
             return MultiMatchQuery.super.blendTermQuery(term, fieldType);
         }
 
-        public boolean forceAnalyzeQueryString() {
-            return false;
+        public Query termQuery(MappedFieldType fieldType, Object value) {
+            return MultiMatchQuery.this.termQuery(fieldType, value, lenient);
         }
     }
 
-    public class CrossFieldsQueryBuilder extends QueryBuilder {
+    final class CrossFieldsQueryBuilder extends QueryBuilder {
         private FieldAndFieldType[] blendedFields;
 
         public CrossFieldsQueryBuilder(float tieBreaker) {
@@ -163,18 +171,18 @@ public class MultiMatchQuery extends MatchQuery {
             List<Tuple<String, Float>> missing = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
                 String name = entry.getKey();
-                MappedFieldType fieldType = parseContext.fieldMapper(name);
+                MappedFieldType fieldType = context.fieldMapper(name);
                 if (fieldType != null) {
                     Analyzer actualAnalyzer = getAnalyzer(fieldType);
-                    name = fieldType.names().indexName();
+                    name = fieldType.name();
                     if (!groups.containsKey(actualAnalyzer)) {
-                       groups.put(actualAnalyzer, new ArrayList<FieldAndFieldType>());
+                       groups.put(actualAnalyzer, new ArrayList<>());
                     }
                     Float boost = entry.getValue();
                     boost = boost == null ? Float.valueOf(1.0f) : boost;
-                    groups.get(actualAnalyzer).add(new FieldAndFieldType(name, fieldType, boost));
+                    groups.get(actualAnalyzer).add(new FieldAndFieldType(fieldType, boost));
                 } else {
-                    missing.add(new Tuple(name, entry.getValue()));
+                    missing.add(new Tuple<>(name, entry.getValue()));
                 }
 
             }
@@ -195,8 +203,13 @@ public class MultiMatchQuery extends MatchQuery {
                 } else {
                     blendedFields = null;
                 }
-                final FieldAndFieldType fieldAndFieldType = group.get(0);
-                Query q = parseGroup(type.matchQueryType(), fieldAndFieldType.field, fieldAndFieldType.boost, value, minimumShouldMatch);
+                /*
+                 * We have to pick some field to pass through the superclass so
+                 * we just pick the first field. It shouldn't matter because
+                 * fields are already grouped by their analyzers/types.
+                 */
+                String representativeField = group.get(0).fieldType.name();
+                Query q = parseGroup(type.matchQueryType(), representativeField, 1f, value, minimumShouldMatch);
                 if (q != null) {
                     queries.add(q);
                 }
@@ -206,29 +219,79 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
-        public boolean forceAnalyzeQueryString() {
-            return blendedFields != null;
-        }
-
-        @Override
         public Query blendTerm(Term term, MappedFieldType fieldType) {
             if (blendedFields == null) {
                 return super.blendTerm(term, fieldType);
             }
-            final Term[] terms = new Term[blendedFields.length];
-            float[] blendedBoost = new float[blendedFields.length];
-            for (int i = 0; i < blendedFields.length; i++) {
-                terms[i] = blendedFields[i].newTerm(term.text());
-                blendedBoost[i] = blendedFields[i].boost;
-            }
-            if (commonTermsCutoff != null) {
-                return BlendedTermQuery.commonTermsBlendedQuery(terms, blendedBoost, false, commonTermsCutoff);
-            }
+            return MultiMatchQuery.blendTerm(term.bytes(), commonTermsCutoff, tieBreaker, blendedFields);
+        }
 
-            if (tieBreaker == 1.0f) {
-                return BlendedTermQuery.booleanBlendedQuery(terms, blendedBoost, false);
+        @Override
+        public Query termQuery(MappedFieldType fieldType, Object value) {
+            /*
+             * Use the string value of the term because we're reusing the
+             * portion of the query is usually after the analyzer has run on
+             * each term. We just skip that analyzer phase.
+             */
+            return blendTerm(new Term(fieldType.name(), value.toString()), fieldType);
+        }
+    }
+
+    static Query blendTerm(BytesRef value, Float commonTermsCutoff, float tieBreaker, FieldAndFieldType... blendedFields) {
+        List<Query> queries = new ArrayList<>();
+        Term[] terms = new Term[blendedFields.length];
+        float[] blendedBoost = new float[blendedFields.length];
+        int i = 0;
+        for (FieldAndFieldType ft : blendedFields) {
+            Query query;
+            try {
+                query = ft.fieldType.termQuery(value, null);
+            } catch (IllegalArgumentException e) {
+                // the query expects a certain class of values such as numbers
+                // of ip addresses and the value can't be parsed, so ignore this
+                // field
+                continue;
             }
-            return BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker);
+            float boost = ft.boost;
+            while (query instanceof BoostQuery) {
+                BoostQuery bq = (BoostQuery) query;
+                query = bq.getQuery();
+                boost *= bq.getBoost();
+            }
+            if (query.getClass() == TermQuery.class) {
+                terms[i] = ((TermQuery) query).getTerm();
+                blendedBoost[i] = boost;
+                i++;
+            } else {
+                if (boost != 1f) {
+                    query = new BoostQuery(query, boost);
+                }
+                queries.add(query);
+            }
+        }
+        if (i > 0) {
+            terms = Arrays.copyOf(terms, i);
+            blendedBoost = Arrays.copyOf(blendedBoost, i);
+            if (commonTermsCutoff != null) {
+                queries.add(BlendedTermQuery.commonTermsBlendedQuery(terms, blendedBoost, false, commonTermsCutoff));
+            } else if (tieBreaker == 1.0f) {
+                queries.add(BlendedTermQuery.booleanBlendedQuery(terms, blendedBoost, false));
+            } else {
+                queries.add(BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker));
+            }
+        }
+        if (queries.size() == 1) {
+            return queries.get(0);
+        } else {
+            // best effort: add clauses that are not term queries so that they have an opportunity to match
+            // however their score contribution will be different
+            // TODO: can we improve this?
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            bq.setDisableCoord(true);
+            for (Query query : queries) {
+                bq.add(query, Occur.SHOULD);
+            }
+            return bq.build();
         }
     }
 
@@ -240,32 +303,22 @@ public class MultiMatchQuery extends MatchQuery {
         return queryBuilder.blendTerm(term, fieldType);
     }
 
-    private static final class FieldAndFieldType {
-        final String field;
+    @Override
+    protected Query termQuery(MappedFieldType fieldType, Object value) {
+        if (queryBuilder == null) {
+            // Can be null when the MultiMatchQuery collapses into a MatchQuery
+            return super.termQuery(fieldType, value);
+        }
+        return queryBuilder.termQuery(fieldType, value);
+    }
+
+    static final class FieldAndFieldType {
         final MappedFieldType fieldType;
         final float boost;
 
-
-        private FieldAndFieldType(String field, MappedFieldType fieldType, float boost) {
-            this.field = field;
-            this.fieldType = fieldType;
+        FieldAndFieldType(MappedFieldType fieldType, float boost) {
+            this.fieldType = Objects.requireNonNull(fieldType);
             this.boost = boost;
         }
-
-        public Term newTerm(String value) {
-            try {
-                final BytesRef bytesRef = fieldType.indexedValueForSearch(value);
-                return new Term(field, bytesRef);
-            } catch (Exception ex) {
-                // we can't parse it just use the incoming value -- it will
-                // just have a DF of 0 at the end of the day and will be ignored
-            }
-            return new Term(field, value);
-        }
-    }
-
-    @Override
-    protected boolean forceAnalyzeQueryString() {
-        return this.queryBuilder == null ? super.forceAnalyzeQueryString() : this.queryBuilder.forceAnalyzeQueryString();
     }
 }

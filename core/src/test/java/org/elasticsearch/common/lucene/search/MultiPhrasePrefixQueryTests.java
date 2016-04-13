@@ -22,45 +22,45 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiPhrasePrefixQueryTests extends ESTestCase {
-
-    @Test
-    public void simpleTests() throws Exception {
+    public void testSimple() throws Exception {
         IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         Document doc = new Document();
         doc.add(new Field("field", "aaa bbb ccc ddd", TextField.TYPE_NOT_STORED));
         writer.addDocument(doc);
-        IndexReader reader = DirectoryReader.open(writer, true);
+        IndexReader reader = DirectoryReader.open(writer);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery();
         query.add(new Term("field", "aa"));
-        assertThat(Lucene.count(searcher, query), equalTo(1l));
+        assertThat(searcher.count(query), equalTo(1));
 
         query = new MultiPhrasePrefixQuery();
         query.add(new Term("field", "aaa"));
         query.add(new Term("field", "bb"));
-        assertThat(Lucene.count(searcher, query), equalTo(1l));
+        assertThat(searcher.count(query), equalTo(1));
 
         query = new MultiPhrasePrefixQuery();
         query.setSlop(1);
         query.add(new Term("field", "aaa"));
         query.add(new Term("field", "cc"));
-        assertThat(Lucene.count(searcher, query), equalTo(1l));
+        assertThat(searcher.count(query), equalTo(1));
 
         query = new MultiPhrasePrefixQuery();
         query.setSlop(1);
         query.add(new Term("field", "xxx"));
-        assertThat(Lucene.count(searcher, query), equalTo(0l));
+        assertThat(searcher.count(query), equalTo(0));
     }
 }

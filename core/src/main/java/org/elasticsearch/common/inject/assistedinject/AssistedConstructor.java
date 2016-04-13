@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2007 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.TypeLiteral;
 
@@ -24,10 +23,14 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Type;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
- * Internal respresentation of a constructor annotated with
+ * Internal representation of a constructor annotated with
  * {@link AssistedInject}
  *
  * @author jmourits@google.com (Jerome Mourits)
@@ -45,7 +48,7 @@ class AssistedConstructor<T> {
 
         Annotation[][] annotations = constructor.getParameterAnnotations();
 
-        List<Type> typeList = Lists.newArrayList();
+        List<Type> typeList = new ArrayList<>();
         allParameters = new ArrayList<>();
 
         // categorize params as @Assisted or @Injected
@@ -85,7 +88,6 @@ class AssistedConstructor<T> {
      * supplied arguments.
      */
     public T newInstance(Object[] args) throws Throwable {
-        constructor.setAccessible(true);
         try {
             return constructor.newInstance(args);
         } catch (InvocationTargetException e) {

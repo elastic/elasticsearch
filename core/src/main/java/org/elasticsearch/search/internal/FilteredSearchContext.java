@@ -19,15 +19,14 @@
 
 package org.elasticsearch.search.internal;
 
-import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.*;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -35,15 +34,16 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -52,13 +52,13 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 public abstract class FilteredSearchContext extends SearchContext {
 
@@ -121,16 +121,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasTypes() {
-        return in.hasTypes();
-    }
-
-    @Override
-    public String[] types() {
-        return in.types();
-    }
-
-    @Override
     public float queryBoost() {
         return in.queryBoost();
     }
@@ -151,13 +141,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Scroll scroll() {
-        return in.scroll();
+    public ScrollContext scrollContext() {
+        return in.scrollContext();
     }
 
     @Override
-    public SearchContext scroll(Scroll scroll) {
-        return in.scroll(scroll);
+    public SearchContext scrollContext(ScrollContext scroll) {
+        return in.scrollContext(scroll);
     }
 
     @Override
@@ -178,11 +168,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void highlight(SearchContextHighlight highlight) {
         in.highlight(highlight);
-    }
-
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        in.innerHits(innerHitsContext);
     }
 
     @Override
@@ -261,11 +246,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public IndexQueryParserService queryParserService() {
-        return in.queryParserService();
-    }
-
-    @Override
     public SimilarityService similarityService() {
         return in.similarityService();
     }
@@ -293,6 +273,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public IndexFieldDataService fieldData() {
         return in.fieldData();
+    }
+
+    @Override
+    public PercolatorQueryCache percolatorQueryCache() {
+        return in.percolatorQueryCache();
     }
 
     @Override
@@ -346,6 +331,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        return in.searchAfter(searchAfter);
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return in.searchAfter();
+    }
+
+    @Override
     public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         return in.parsedPostFilter(postFilter);
     }
@@ -373,16 +368,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public Query query() {
         return in.query();
-    }
-
-    @Override
-    public boolean queryRewritten() {
-        return in.queryRewritten();
-    }
-
-    @Override
-    public SearchContext updateRewriteQuery(Query rewriteQuery) {
-        return in.updateRewriteQuery(rewriteQuery);
     }
 
     @Override
@@ -491,16 +476,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void lastEmittedDoc(ScoreDoc doc) {
-        in.lastEmittedDoc(doc);
-    }
-
-    @Override
-    public ScoreDoc lastEmittedDoc() {
-        return in.lastEmittedDoc();
-    }
-
-    @Override
     public SearchLookup lookup() {
         return in.lookup();
     }
@@ -521,18 +496,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public ScanContext scanContext() {
-        return in.scanContext();
+    public FetchPhase fetchPhase() {
+        return in.fetchPhase();
     }
 
     @Override
     public MappedFieldType smartNameFieldType(String name) {
         return in.smartNameFieldType(name);
-    }
-
-    @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        return in.smartNameFieldTypeFromAnyType(name);
     }
 
     @Override
@@ -546,82 +516,20 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public <V> V putInContext(Object key, Object value) {
-        return in.putInContext(key, value);
-    }
-
-    @Override
-    public void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
-        in.putAllInContext(map);
-    }
-
-    @Override
-    public <V> V getFromContext(Object key) {
-        return in.getFromContext(key);
-    }
-
-    @Override
-    public <V> V getFromContext(Object key, V defaultValue) {
-        return in.getFromContext(key, defaultValue);
-    }
-
-    @Override
-    public boolean hasInContext(Object key) {
-        return in.hasInContext(key);
-    }
-
-    @Override
-    public int contextSize() {
-        return in.contextSize();
-    }
-
-    @Override
-    public boolean isContextEmpty() {
-        return in.isContextEmpty();
-    }
-
-    @Override
-    public ImmutableOpenMap<Object, Object> getContext() {
-        return in.getContext();
-    }
-
-    @Override
-    public void copyContextFrom(HasContext other) {
-        in.copyContextFrom(other);
-    }
-
-    @Override
-    public <V> void putHeader(String key, V value) {
-        in.putHeader(key, value);
-    }
-
-    @Override
-    public <V> V getHeader(String key) {
-        return in.getHeader(key);
-    }
-
-    @Override
-    public boolean hasHeader(String key) {
-        return in.hasHeader(key);
-    }
-
-    @Override
-    public Set<String> getHeaders() {
-        return in.getHeaders();
-    }
-
-    @Override
-    public void copyHeadersFrom(HasHeaders from) {
-        in.copyHeadersFrom(from);
-    }
-
-    @Override
-    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
-        in.copyContextAndHeadersFrom(other);
-    }
-
-    @Override
     public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
         return in.getFetchSubPhaseContext(contextFactory);
+    }
+
+    @Override
+    public Profilers getProfilers() {
+        return in.getProfilers();
+    }
+
+    @Override
+    public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
+
+    @Override
+    public QueryShardContext getQueryShardContext() {
+        return in.getQueryShardContext();
     }
 }

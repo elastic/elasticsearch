@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +16,17 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.Binding;
+import org.elasticsearch.common.inject.ConfigurationException;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.ProvisionException;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.spi.Message;
@@ -30,10 +36,14 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static com.google.common.base.Preconditions.checkState;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.inject.internal.Annotations.getKey;
 
 /**
@@ -43,7 +53,7 @@ import static org.elasticsearch.common.inject.internal.Annotations.getKey;
  * @author jessewilson@google.com (Jesse Wilson)
  * @author dtm@google.com (Daniel Martin)
  */
-final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
+public final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
 
     /**
      * if a factory method parameter isn't annotated, it gets this annotation.
@@ -80,8 +90,8 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      * the produced type, or null if all methods return concrete types
      */
     private final Key<?> producedType;
-    private final ImmutableMap<Method, Key<?>> returnTypesByMethod;
-    private final ImmutableMap<Method, ImmutableList<Key<?>>> paramTypes;
+    private final Map<Method, Key<?>> returnTypesByMethod;
+    private final Map<Method, List<Key<?>>> paramTypes;
 
     /**
      * the hosting injector, or null if we haven't been initialized yet
@@ -107,9 +117,8 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
                 Class<F> factoryRawType = (Class) factoryType.getRawType();
 
         try {
-            ImmutableMap.Builder<Method, Key<?>> returnTypesBuilder = ImmutableMap.builder();
-            ImmutableMap.Builder<Method, ImmutableList<Key<?>>> paramTypesBuilder
-                    = ImmutableMap.builder();
+            Map<Method, Key<?>> returnTypesBuilder = new HashMap<>();
+            Map<Method, List<Key<?>>> paramTypesBuilder = new HashMap<>();
             // TODO: also grab methods from superinterfaces
             for (Method method : factoryRawType.getMethods()) {
                 Key<?> returnType = getKey(
@@ -118,15 +127,15 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
                 List<TypeLiteral<?>> params = factoryType.getParameterTypes(method);
                 Annotation[][] paramAnnotations = method.getParameterAnnotations();
                 int p = 0;
-                List<Key<?>> keys = Lists.newArrayList();
+                List<Key<?>> keys = new ArrayList<>();
                 for (TypeLiteral<?> param : params) {
                     Key<?> paramKey = getKey(param, method, paramAnnotations[p++], errors);
                     keys.add(assistKey(method, paramKey, errors));
                 }
-                paramTypesBuilder.put(method, ImmutableList.copyOf(keys));
+                paramTypesBuilder.put(method, Collections.unmodifiableList(keys));
             }
-            returnTypesByMethod = returnTypesBuilder.build();
-            paramTypes = paramTypesBuilder.build();
+            returnTypesByMethod = unmodifiableMap(returnTypesBuilder);
+            paramTypes = unmodifiableMap(paramTypesBuilder);
         } catch (ErrorsException e) {
             throw new ConfigurationException(e.getErrors().getMessages());
         }
@@ -163,10 +172,10 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      * all factory methods will be able to build the target types.
      */
     @Inject
-    void initialize(Injector injector) {
+    public void initialize(Injector injector) {
         if (this.injector != null) {
-            throw new ConfigurationException(ImmutableList.of(new Message(FactoryProvider2.class,
-                    "Factories.create() factories may only be used in one Injector!")));
+            throw new ConfigurationException(Collections.singletonList(new Message(FactoryProvider2.class,
+                "Factories.create() factories may only be used in one Injector!")));
         }
 
         this.injector = injector;
@@ -182,8 +191,9 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      * Creates a child injector that binds the args, and returns the binding for the method's result.
      */
     public Binding<?> getBindingFromNewInjector(final Method method, final Object[] args) {
-        checkState(injector != null,
-                "Factories.create() factories cannot be used until they're initialized by Guice.");
+        if (injector == null) {
+            throw new IllegalStateException("Factories.create() factories cannot be used until they're initialized by Guice.");
+        }
 
         final Key<?> returnType = returnTypesByMethod.get(method);
 
@@ -227,7 +237,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
         } catch (ProvisionException e) {
             // if this is an exception declared by the factory method, throw it as-is
             if (e.getErrorMessages().size() == 1) {
-                Message onlyError = Iterables.getOnlyElement(e.getErrorMessages());
+                Message onlyError = e.getErrorMessages().iterator().next();
                 Throwable cause = onlyError.getCause();
                 if (cause != null && canRethrow(method, cause)) {
                     throw cause;
@@ -246,6 +256,12 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
     @Override
     public boolean equals(Object o) {
         return o == this || o == factory;
+    }
+
+    @Override
+    public int hashCode() {
+        // This way both this and its factory hash to the same spot, making hashCode consistent.
+        return factory.hashCode();
     }
 
     /**

@@ -45,6 +45,15 @@ which returns:
 }
 -----------------------------------
 
+Information about multiple repositories can be fetched in one go by using a comma-delimited list of repository names.
+Star wildcards are supported as well. For example, information about repositories that start with `repo` or that contain `backup`
+can be obtained using the following command:
+
+[source,js]
+-----------------------------------
+GET /_snapshot/repo*,*backup*
+-----------------------------------
+
 If a repository name is not specified, or `_all` is used as repository name Elasticsearch will return information about
 all repositories currently registered in the cluster:
 
@@ -65,7 +74,7 @@ GET /_snapshot/_all
 
 The shared file system repository (`"type": "fs"`) uses the shared file system to store snapshots. In order to register
 the shared file system repository it is necessary to mount the same shared filesystem to the same location on all
-master and data nodes. This location (or one of its parent directories) has to be registered in the `path.repo`
+master and data nodes. This location (or one of its parent directories) must be registered in the `path.repo`
 setting on all master and data nodes.
 
 Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, the following setting should be added to
@@ -74,6 +83,14 @@ Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, th
 [source,yaml]
 --------------
 path.repo: ["/mount/backups", "/mount/longterm_backups"]
+--------------
+
+The `path.repo` setting supports Microsoft Windows UNC paths as long as at least server name and share are specified as
+a prefix and back slashes are properly escaped:
+
+[source,yaml]
+--------------
+path.repo: ["\\\\MY_SERVER\\Snapshots"]
 --------------
 
 After all nodes are restarted, the following command can be used to register the shared file system repository with
@@ -113,6 +130,7 @@ The following settings are supported:
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
+`readonly`:: Makes repository read-only.  Defaults to `false`.
 
 [float]
 ===== Read-only URL Repository
@@ -133,7 +151,7 @@ This setting supports wildcards in the place of host, path, query, and fragment.
 repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
 -----------------------------------
 
-URL repositories with `file:` URLs can only point to locations registered in the `repo.path` setting similiar to
+URL repositories with `file:` URLs can only point to locations registered in the `path.repo` setting similar to
 shared file system repository.
 
 [float]
@@ -141,9 +159,9 @@ shared file system repository.
 
 Other repository backends are available in these official plugins:
 
-* https://github.com/elasticsearch/elasticsearch-cloud-aws#s3-repository[AWS Cloud Plugin] for S3 repositories
-* https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[HDFS Plugin] for Hadoop environments
-* https://github.com/elasticsearch/elasticsearch-cloud-azure#azure-repository[Azure Cloud Plugin] for Azure storage repositories
+* {plugins}/repository-s3.html[repository-s3] for S3 repository support
+* {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in Hadoop environments
+* {plugins}/repository-azure.html[repository-azure] for Azure storage repositories
 
 [float]
 ===== Repository Verification
@@ -168,7 +186,7 @@ The verification process can also be executed manually by running the following 
 
 [source,js]
 -----------------------------------
-POST /_snapshot/my_backup/_verify
+POST /_snapshot/s3_repository/_verify
 -----------------------------------
 // AUTOSENSE
 
@@ -177,7 +195,7 @@ It returns a list of nodes where repository was successfully verified or an erro
 [float]
 === Snapshot
 
-A repository can contain multiple snapshots of the same cluster. Snapshot are identified by unique names within the
+A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names within the
 cluster. A snapshot with the name `snapshot_1` in the repository `my_backup` can be created by executing the following
 command:
 
@@ -242,6 +260,14 @@ GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
 // AUTOSENSE
 
+Similar as for repositories, information about multiple snapshots can be queried in one go, supporting wildcards as well:
+
+[source,sh]
+-----------------------------------
+GET /_snapshot/my_backup/snapshot_*,some_other_snapshot
+-----------------------------------
+// AUTOSENSE
+
 All snapshots currently stored in the repository can be listed using the following command:
 
 [source,sh]
@@ -250,7 +276,10 @@ GET /_snapshot/my_backup/_all
 -----------------------------------
 // AUTOSENSE
 
-coming[2.0] A currently running snapshot can be retrieved using the following command:
+The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unvailable` can be used to
+return all snapshots that are currently available.
+
+A currently running snapshot can be retrieved using the following command:
 
 [source,sh]
 -----------------------------------

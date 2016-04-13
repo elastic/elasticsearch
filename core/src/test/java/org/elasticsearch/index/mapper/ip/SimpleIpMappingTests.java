@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.mapper.ip;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -39,13 +38,12 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class SimpleIpMappingTests extends ESSingleNodeTestCase {
 
-    @Test
     public void testSimpleMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("ip").field("type", "ip").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -57,12 +55,10 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("ip"), is("2130706433"));
     }
 
-    @Test
     public void testThatValidIpCanBeConvertedToLong() throws Exception {
         assertThat(IpFieldMapper.ipToLong("127.0.0.1"), is(2130706433L));
     }
 
-    @Test
     public void testThatInvalidIpThrowsException() throws Exception {
         try {
             IpFieldMapper.ipToLong("127.0.011.1111111");
@@ -72,7 +68,6 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testThatIpv6AddressThrowsException() throws Exception {
         try {
             IpFieldMapper.ipToLong("2001:db8:0:8d3:0:8a2e:70:7344");
@@ -82,14 +77,13 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testIgnoreMalformedOption() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("field1")
                 .field("type", "ip").field("ignore_malformed", true).endObject().startObject("field2").field("type", "ip")
                 .field("ignore_malformed", false).endObject().startObject("field3").field("type", "ip").endObject().endObject().endObject()
                 .endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1",
                 XContentFactory.jsonBuilder().startObject().field("field1", "").field("field2", "10.20.30.40").endObject().bytes());
@@ -110,8 +104,8 @@ public class SimpleIpMappingTests extends ESSingleNodeTestCase {
         }
 
         // Unless the global ignore_malformed option is set to true
-        Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
-        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        Settings indexSettings = Settings.builder().put("index.mapping.ignore_malformed", true).build();
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
         assertThat(doc.rootDoc().getField("field3"), nullValue());
 

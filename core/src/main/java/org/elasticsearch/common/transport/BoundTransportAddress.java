@@ -26,28 +26,31 @@ import org.elasticsearch.common.io.stream.Streamable;
 import java.io.IOException;
 
 /**
- * A bounded transport address is a tuple of two {@link TransportAddress}, one that represents
- * the address the transport is bounded on, the the published one represents the one clients should
- * communicate on.
+ * A bounded transport address is a tuple of {@link TransportAddress}, one array that represents
+ * the addresses the transport is bound to, and the other is the published one that represents the address clients
+ * should communicate on.
  *
  *
  */
 public class BoundTransportAddress implements Streamable {
 
-    private TransportAddress boundAddress;
+    private TransportAddress[] boundAddresses;
 
     private TransportAddress publishAddress;
 
     BoundTransportAddress() {
     }
 
-    public BoundTransportAddress(TransportAddress boundAddress, TransportAddress publishAddress) {
-        this.boundAddress = boundAddress;
+    public BoundTransportAddress(TransportAddress[] boundAddresses, TransportAddress publishAddress) {
+        if (boundAddresses == null || boundAddresses.length < 1) {
+            throw new IllegalArgumentException("at least one bound address must be provided");
+        }
+        this.boundAddresses = boundAddresses;
         this.publishAddress = publishAddress;
     }
 
-    public TransportAddress boundAddress() {
-        return boundAddress;
+    public TransportAddress[] boundAddresses() {
+        return boundAddresses;
     }
 
     public TransportAddress publishAddress() {
@@ -62,18 +65,38 @@ public class BoundTransportAddress implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        boundAddress = TransportAddressSerializers.addressFromStream(in);
+        int boundAddressLength = in.readInt();
+        boundAddresses = new TransportAddress[boundAddressLength];
+        for (int i = 0; i < boundAddressLength; i++) {
+            boundAddresses[i] = TransportAddressSerializers.addressFromStream(in);
+        }
         publishAddress = TransportAddressSerializers.addressFromStream(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        TransportAddressSerializers.addressToStream(out, boundAddress);
+        out.writeInt(boundAddresses.length);
+        for (TransportAddress address : boundAddresses) {
+            TransportAddressSerializers.addressToStream(out, address);
+        }
         TransportAddressSerializers.addressToStream(out, publishAddress);
     }
 
     @Override
     public String toString() {
-        return "bound_address {" + boundAddress + "}, publish_address {" + publishAddress + "}";
+        StringBuilder builder = new StringBuilder("publish_address {");
+        builder.append(publishAddress);
+        builder.append("}, bound_addresses ");
+        boolean firstAdded = false;
+        for (TransportAddress address : boundAddresses) {
+            if (firstAdded) {
+                builder.append(", ");
+            } else {
+                firstAdded = true;
+            }
+
+            builder.append("{").append(address).append("}");
+        }
+        return builder.toString();
     }
 }

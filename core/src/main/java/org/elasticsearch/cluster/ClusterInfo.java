@@ -19,10 +19,8 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.routing.ShardRouting;
-
-import java.util.Map;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -31,21 +29,68 @@ import java.util.Map;
  * for the key used in the shardSizes map
  */
 public class ClusterInfo {
+    private final ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage;
+    private final ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage;
+    final ImmutableOpenMap<String, Long> shardSizes;
+    public static final ClusterInfo EMPTY = new ClusterInfo();
+    private final ImmutableOpenMap<ShardRouting, String> routingToDataPath;
 
-    private final Map<String, DiskUsage> usages;
-    final Map<String, Long> shardSizes;
+    protected ClusterInfo() {
+       this(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+    }
 
-    public ClusterInfo(Map<String, DiskUsage> usages, Map<String, Long> shardSizes) {
-        this.usages = usages;
+    /**
+     * Creates a new ClusterInfo instance.
+     *
+     * @param leastAvailableSpaceUsage a node id to disk usage mapping for the path that has the least available space on the node.
+     * @param mostAvailableSpaceUsage  a node id to disk usage mapping for the path that has the most available space on the node.
+     * @param shardSizes a shardkey to size in bytes mapping per shard.
+     * @param routingToDataPath the shard routing to datapath mapping
+     * @see #shardIdentifierFromRouting
+     */
+    public ClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
+            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage, ImmutableOpenMap<String, Long> shardSizes,
+            ImmutableOpenMap<ShardRouting, String> routingToDataPath) {
+        this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
+        this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
+        this.routingToDataPath = routingToDataPath;
     }
 
-    public Map<String, DiskUsage> getNodeDiskUsages() {
-        return this.usages;
+    /**
+     * Returns a node id to disk usage mapping for the path that has the least available space on the node.
+     */
+    public ImmutableOpenMap<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
+        return this.leastAvailableSpaceUsage;
     }
 
+    /**
+     * Returns a node id to disk usage mapping for the path that has the most available space on the node.
+     */
+    public ImmutableOpenMap<String, DiskUsage> getNodeMostAvailableDiskUsages() {
+        return this.mostAvailableSpaceUsage;
+    }
+
+    /**
+     * Returns the shard size for the given shard routing or <code>null</code> it that metric is not available.
+     */
     public Long getShardSize(ShardRouting shardRouting) {
         return shardSizes.get(shardIdentifierFromRouting(shardRouting));
+    }
+
+    /**
+     * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
+     */
+    public String getDataPath(ShardRouting shardRouting) {
+        return routingToDataPath.get(shardRouting);
+    }
+
+    /**
+     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
+     */
+    public long getShardSize(ShardRouting shardRouting, long defaultValue) {
+        Long shardSize = getShardSize(shardRouting);
+        return shardSize == null ? defaultValue : shardSize;
     }
 
     /**

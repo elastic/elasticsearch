@@ -22,16 +22,15 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
-import java.lang.reflect.Field;
-
-import static org.elasticsearch.indices.analysis.HunspellService.*;
+import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_IGNORE_CASE;
+import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_LAZY_LOAD;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -39,13 +38,11 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes=0)
 public class HunspellServiceIT extends ESIntegTestCase {
-
-    @Test
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
-                .put(HUNSPELL_LAZY_LOAD, randomBoolean())
-                .put(HUNSPELL_IGNORE_CASE, true)
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/conf_dir"))
+                .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
+                .put(HUNSPELL_IGNORE_CASE.getKey(), true)
                 .build();
 
         internalCluster().startNode(settings);
@@ -54,12 +51,11 @@ public class HunspellServiceIT extends ESIntegTestCase {
         assertIgnoreCase(true, dictionary);
     }
 
-    @Test
     public void testLocaleDirectoryWithLocaleSpecificConfig() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
-                .put(HUNSPELL_LAZY_LOAD, randomBoolean())
-                .put(HUNSPELL_IGNORE_CASE, true)
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/conf_dir"))
+                .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
+                .put(HUNSPELL_IGNORE_CASE.getKey(), true)
                 .put("indices.analysis.hunspell.dictionary.en_US.strict_affix_parsing", false)
                 .put("indices.analysis.hunspell.dictionary.en_US.ignore_case", false)
                 .build();
@@ -77,11 +73,10 @@ public class HunspellServiceIT extends ESIntegTestCase {
         assertIgnoreCase(true, dictionary);
     }
 
-    @Test
     public void testDicWithNoAff() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.conf", getDataPath("/indices/analyze/no_aff_conf_dir"))
-                .put(HUNSPELL_LAZY_LOAD, randomBoolean())
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/no_aff_conf_dir"))
+                .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
                 .build();
 
         Dictionary dictionary = null;
@@ -96,11 +91,10 @@ public class HunspellServiceIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDicWithTwoAffs() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.conf", getDataPath("/indices/analyze/two_aff_conf_dir"))
-                .put(HUNSPELL_LAZY_LOAD, randomBoolean())
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/two_aff_conf_dir"))
+                .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
                 .build();
 
         Dictionary dictionary = null;
@@ -114,10 +108,8 @@ public class HunspellServiceIT extends ESIntegTestCase {
         }
     }
 
-    // TODO: open up a getter on Dictionary
+    // TODO: on next upgrade of lucene, just use new getter
     private void assertIgnoreCase(boolean expected, Dictionary dictionary) throws Exception {
-        Field f = Dictionary.class.getDeclaredField("ignoreCase");
-        f.setAccessible(true);
-        assertEquals(expected, f.getBoolean(dictionary));
+        // assertEquals(expected, dictionary.getIgnoreCase());
     }
 }

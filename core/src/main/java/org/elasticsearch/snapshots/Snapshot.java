@@ -19,18 +19,19 @@
 
 package org.elasticsearch.snapshots;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.*;
 
 /**
  * Represent information about snapshot
@@ -57,7 +58,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
 
     private final List<SnapshotShardFailure> shardFailures;
 
-    private final static List<SnapshotShardFailure> NO_FAILURES = ImmutableList.of();
+    private final static List<SnapshotShardFailure> NO_FAILURES = Collections.emptyList();
 
     public final static Snapshot PROTO = new Snapshot();
 
@@ -94,7 +95,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
      * Special constructor for the prototype object
      */
     private Snapshot() {
-        this("", (List<String>) EMPTY_LIST, 0);
+        this("", Collections.emptyList(), 0);
     }
 
     private static SnapshotState snapshotState(String reason, List<SnapshotShardFailure> shardFailures) {
@@ -165,7 +166,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
 
     /**
      * Returns time when snapshot ended
-     * <p/>
+     * <p>
      * Can be 0L if snapshot is still running
      *
      * @return snapshot end time
@@ -228,7 +229,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
     @Override
     public int hashCode() {
         int result = name.hashCode();
-        result = 31 * result + (int) (startTime ^ (startTime >>> 32));
+        result = 31 * result + Long.hashCode(startTime);
         return result;
     }
 
@@ -287,7 +288,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
         Version version = Version.CURRENT;
         SnapshotState state = SnapshotState.IN_PROGRESS;
         String reason = null;
-        ImmutableList<String> indices = ImmutableList.of();
+        List<String> indices = Collections.emptyList();
         long startTime = 0;
         long endTime = 0;
         int totalShard = 0;
@@ -331,13 +332,13 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     indicesArray.add(parser.text());
                                 }
-                                indices = ImmutableList.copyOf(indicesArray);
+                                indices = Collections.unmodifiableList(indicesArray);
                             } else if ("failures".equals(currentFieldName)) {
                                 ArrayList<SnapshotShardFailure> shardFailureArrayList = new ArrayList<>();
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     shardFailureArrayList.add(SnapshotShardFailure.fromXContent(parser));
                                 }
-                                shardFailures = ImmutableList.copyOf(shardFailureArrayList);
+                                shardFailures = Collections.unmodifiableList(shardFailureArrayList);
                             } else {
                                 // It was probably created by newer version - ignoring
                                 parser.skipChildren();

@@ -18,7 +18,11 @@
  */
 package org.elasticsearch.action.termvectors;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TermStatistics;
@@ -151,7 +155,7 @@ final class TermVectorsWriter {
     }
 
     private PostingsEnum writeTermWithDocsOnly(TermsEnum iterator, PostingsEnum docsEnum) throws IOException {
-        docsEnum = iterator.postings(null, docsEnum);
+        docsEnum = iterator.postings(docsEnum);
         int nextDoc = docsEnum.nextDoc();
         assert nextDoc != DocIdSetIterator.NO_MORE_DOCS;
         writeFreq(docsEnum.freq());
@@ -162,7 +166,7 @@ final class TermVectorsWriter {
 
     private PostingsEnum writeTermWithDocsAndPos(TermsEnum iterator, PostingsEnum docsAndPosEnum, boolean positions,
                                                          boolean offsets, boolean payloads) throws IOException {
-        docsAndPosEnum = iterator.postings(null, docsAndPosEnum, PostingsEnum.ALL);
+        docsAndPosEnum = iterator.postings(docsAndPosEnum, PostingsEnum.ALL);
         // for each term (iterator next) in this field (field)
         // iterate over the docs (should only be one)
         int nextDoc = docsAndPosEnum.nextDoc();

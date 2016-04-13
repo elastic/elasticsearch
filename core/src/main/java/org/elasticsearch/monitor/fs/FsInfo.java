@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.fs;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -235,7 +235,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
 
     @Override
     public Iterator<Path> iterator() {
-        return Iterators.forArray(paths);
+        return Arrays.stream(paths).iterator();
     }
 
     public static FsInfo readFsInfo(StreamInput in) throws IOException {

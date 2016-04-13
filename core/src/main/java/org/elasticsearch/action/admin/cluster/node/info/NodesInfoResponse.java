@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -67,15 +68,15 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
         builder.startObject("nodes");
         for (NodeInfo nodeInfo : this) {
-            builder.startObject(nodeInfo.getNode().id(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(nodeInfo.getNode().getId(), XContentBuilder.FieldCaseConversion.NONE);
 
-            builder.field("name", nodeInfo.getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("transport_address", nodeInfo.getNode().address().toString());
+            builder.field("name", nodeInfo.getNode().getName(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("transport_address", nodeInfo.getNode().getAddress().toString());
             builder.field("host", nodeInfo.getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("ip", nodeInfo.getNode().getHostAddress(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.field("version", nodeInfo.getVersion());
-            builder.field("build", nodeInfo.getBuild().hashShort());
+            builder.field("build_hash", nodeInfo.getBuild().shortHash());
 
             if (nodeInfo.getServiceAttributes() != null) {
                 for (Map.Entry<String, String> nodeAttribute : nodeInfo.getServiceAttributes().entrySet()) {
@@ -83,14 +84,19 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
                 }
             }
 
-            if (!nodeInfo.getNode().attributes().isEmpty()) {
+            builder.startArray("roles");
+            for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
+                builder.value(role.getRoleName());
+            }
+            builder.endArray();
+
+            if (!nodeInfo.getNode().getAttributes().isEmpty()) {
                 builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : nodeInfo.getNode().attributes().entrySet()) {
-                    builder.field(attr.getKey(), attr.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                for (Map.Entry<String, String> entry : nodeInfo.getNode().getAttributes().entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
                 }
                 builder.endObject();
             }
-
 
             if (nodeInfo.getSettings() != null) {
                 builder.startObject("settings");
@@ -119,6 +125,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
             if (nodeInfo.getPlugins() != null) {
                 nodeInfo.getPlugins().toXContent(builder, params);
+            }
+            if (nodeInfo.getIngest() != null) {
+                nodeInfo.getIngest().toXContent(builder, params);
             }
 
             builder.endObject();

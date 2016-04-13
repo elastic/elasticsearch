@@ -19,11 +19,20 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldTypeTests;
 
 public class TimestampFieldTypeTests extends DateFieldTypeTests {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new TimestampFieldMapper.TimestampFieldType();
+    }
+
+    @Override
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        String date = "2015-10-12T12:09:55.000Z";
+        long instant = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
+        assertEquals(instant, ft.valueForSearch(instant));
     }
 }

@@ -3,7 +3,7 @@
 
 Allows to add one or more sort on specific fields. Each sort can be
 reversed as well. The sort is defined on a per field level, with special
-field name for `_score` to sort by score.
+field name for `_score` to sort by score, and `_doc` to sort by index order.
 
 [source,js]
 --------------------------------------------------
@@ -20,6 +20,10 @@ field name for `_score` to sort by score.
     }
 }
 --------------------------------------------------
+
+NOTE: `_doc` has no real use-case besides being the most efficient sort order.
+So if you don't care about the order in which documents are returned, then you
+should sort by `_doc`. This especially helps when <<search-request-scroll,scrolling>>.
 
 ==== Sort Values
 
@@ -71,6 +75,7 @@ curl -XPOST 'localhost:9200/_search' -d '{
 }'
 --------------------------------------------------
 
+[[nested-sorting]]
 ==== Sorting within nested objects.
 
 Elasticsearch also supports sorting by
@@ -79,23 +84,20 @@ field support has the following parameters on top of the already
 existing sort options:
 
 `nested_path`::
-    Defines the on what nested object to sort. The actual
-    sort field must be a direct field inside this nested object. The default
-    is to use the most immediate inherited nested object from the sort
-    field.
+    Defines on which nested object to sort. The actual
+    sort field must be a direct field inside this nested object.
+    When sorting by nested field, this field is mandatory.
 
 `nested_filter`::
-    A filter the inner objects inside the nested path
+    A filter that the inner objects inside the nested path
     should match with in order for its field values to be taken into account
     by sorting. Common case is to repeat the query / filter inside the
     nested filter or query. By default no `nested_filter` is active.
 
 ===== Nested sorting example
 
-In the below example `offer` is a field of type `nested`. Because
-`offer` is the closest inherited nested field, it is picked as
-`nested_path`. Only the inner objects that have color blue will
-participate in sorting.
+In the below example `offer` is a field of type `nested`.
+The `nested_path` needs to be specified; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------
@@ -108,6 +110,7 @@ curl -XPOST 'localhost:9200/_search' -d '{
           "offer.price" : {
              "mode" :  "avg",
              "order" : "asc",
+             "nested_path" : "offer",
              "nested_filter" : {
                 "term" : { "offer.color" : "blue" }
              }
@@ -166,6 +169,7 @@ If any of the indices that are queried doesn't have a mapping for `price`
 then Elasticsearch will handle it as if there was a mapping of type
 `long`, with all documents in this index having no value for this field.
 
+[[geo-sorting]]
 ==== Geo Distance Sorting
 
 Allow to sort by `_geo_distance`. Here is an example:
@@ -234,7 +238,7 @@ Format in `lat,lon`.
     "sort" : [
         {
             "_geo_distance" : {
-                "pin.location" : "-70,40",
+                "pin.location" : "40,-70",
                 "order" : "asc",
                 "unit" : "km"
             }
@@ -297,7 +301,7 @@ Multiple geo points can be passed as an array containing any `geo_point` format,
 [source,js]
 --------------------------------------------------
 "pin.location" : [[-70, 40], [-71, 42]]
-"pin.location" : [{"lat": -70, "lon": 40}, {"lat": -71, "lon": 42}]
+"pin.location" : [{"lat": 40, "lon": -70}, {"lat": 42, "lon": -71}]
 --------------------------------------------------
 
 and so forth.
@@ -331,8 +335,6 @@ Allow to sort based on custom scripts, here is an example:
 }
 --------------------------------------------------
 
-Note, it is recommended, for single custom based script based sorting,
-to use `function_score` query instead as sorting based on score is faster.
 
 ==== Track Scores
 
@@ -344,7 +346,7 @@ When sorting on a field, scores are not computed. By setting
 {
     "track_scores": true,
     "sort" : [
-        { "post_date" : {"reverse" : true} },
+        { "post_date" : {"order" : "desc"} },
         { "name" : "desc" },
         { "age" : "desc" }
     ],

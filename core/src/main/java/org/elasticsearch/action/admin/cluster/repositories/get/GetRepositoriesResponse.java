@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +26,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -35,13 +36,13 @@ import java.util.List;
  */
 public class GetRepositoriesResponse extends ActionResponse implements Iterable<RepositoryMetaData> {
 
-    private ImmutableList<RepositoryMetaData> repositories = ImmutableList.of();
+    private List<RepositoryMetaData> repositories = Collections.emptyList();
 
 
     GetRepositoriesResponse() {
     }
 
-    GetRepositoriesResponse(ImmutableList<RepositoryMetaData> repositories) {
+    GetRepositoriesResponse(List<RepositoryMetaData> repositories) {
         this.repositories = repositories;
     }
 
@@ -59,7 +60,7 @@ public class GetRepositoriesResponse extends ActionResponse implements Iterable<
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        ImmutableList.Builder<RepositoryMetaData> repositoryListBuilder = ImmutableList.builder();
+        List<RepositoryMetaData> repositoryListBuilder = new ArrayList<>();
         for (int j = 0; j < size; j++) {
             repositoryListBuilder.add(new RepositoryMetaData(
                     in.readString(),
@@ -67,7 +68,7 @@ public class GetRepositoriesResponse extends ActionResponse implements Iterable<
                     Settings.readSettingsFromStream(in))
             );
         }
-        repositories = repositoryListBuilder.build();
+        repositories = Collections.unmodifiableList(repositoryListBuilder);
     }
 
     @Override

@@ -18,14 +18,17 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -44,7 +47,7 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
     protected static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
 
     static {
-        Map<String, String> snapshotOnlyParams = Maps.newHashMap();
+        Map<String, String> snapshotOnlyParams = new HashMap<>();
         // when metadata is serialized certain elements of the metadata shouldn't be included into snapshot
         // exclusion of these elements is done by setting MetaData.CONTEXT_MODE_PARAM to MetaData.CONTEXT_MODE_SNAPSHOT
         snapshotOnlyParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_SNAPSHOT);
@@ -68,7 +71,6 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
      * @param blobContainer blob container
      * @param blobName blob name
      * @return parsed blob object
-     * @throws IOException
      */
     public abstract T readBlob(BlobContainer blobContainer, String blobName) throws IOException;
 
@@ -78,7 +80,6 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
      * @param blobContainer blob container
      * @param name          name to be translated into
      * @return parsed blob object
-     * @throws IOException
      */
     public T read(BlobContainer blobContainer, String name) throws IOException {
         String blobName = blobName(name);

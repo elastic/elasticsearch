@@ -19,15 +19,15 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 /**
  * Shard-level snapshot repository
- * <p/>
+ * <p>
  * IndexShardRepository is used on data node to create snapshots of individual shards. See {@link org.elasticsearch.repositories.Repository}
  * for more information.
  */
@@ -35,10 +35,10 @@ public interface IndexShardRepository {
 
     /**
      * Creates a snapshot of the shard based on the index commit point.
-     * <p/>
+     * <p>
      * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#snapshotIndex} method.
      * IndexShardRepository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
-     * <p/>
+     * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#aborted()} to see if the snapshot process should be aborted.
      *
@@ -47,11 +47,11 @@ public interface IndexShardRepository {
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
      */
-    void snapshot(SnapshotId snapshotId, ShardId shardId, SnapshotIndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus);
+    void snapshot(SnapshotId snapshotId, ShardId shardId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus);
 
     /**
      * Restores snapshot of the shard.
-     * <p/>
+     * <p>
      * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
      *
      * @param snapshotId      snapshot id

@@ -19,22 +19,19 @@
 
 package org.elasticsearch.action.fieldstats;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Terms;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -48,7 +45,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public class TransportFieldStatsTransportAction extends TransportBroadcastAction<FieldStatsRequest, FieldStatsResponse, FieldStatsShardRequest, FieldStatsShardResponse> {
@@ -59,7 +63,7 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
     public TransportFieldStatsTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                               TransportService transportService, ActionFilters actionFilters,
                                               IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
-        super(settings, FieldStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, FieldStatsRequest.class, FieldStatsShardRequest.class, ThreadPool.Names.MANAGEMENT);
+        super(settings, FieldStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, FieldStatsRequest::new, FieldStatsShardRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 
@@ -95,9 +99,9 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
                     indicesMergedFieldStats.put(indexName, indexMergedFieldStats = new HashMap<>());
                 }
 
-                Map<String, FieldStats> fieldStats = shardResponse.getFieldStats();
-                for (Map.Entry<String, FieldStats> entry : fieldStats.entrySet()) {
-                    FieldStats existing = indexMergedFieldStats.get(entry.getKey());
+                Map<String, FieldStats<?>> fieldStats = shardResponse.getFieldStats();
+                for (Map.Entry<String, FieldStats<?>> entry : fieldStats.entrySet()) {
+                    FieldStats<?> existing = indexMergedFieldStats.get(entry.getKey());
                     if (existing != null) {
                         if (existing.getType() != entry.getValue().getType()) {
                             throw new IllegalStateException(
@@ -119,14 +123,14 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
                 while (iterator.hasNext()) {
                     Map.Entry<String, Map<String, FieldStats>> entry = iterator.next();
                     FieldStats indexConstraintFieldStats = entry.getValue().get(indexConstraint.getField());
-                    if (indexConstraintFieldStats.match(indexConstraint)) {
+                    if (indexConstraintFieldStats != null && indexConstraintFieldStats.match(indexConstraint)) {
                         // If the field stats didn't occur in the list of fields in the original request we need to remove the
                         // field stats, because it was never requested and was only needed to validate the index constraint
                         if (fieldStatFields.contains(indexConstraint.getField()) == false) {
                             entry.getValue().remove(indexConstraint.getField());
                         }
                     } else {
-                        // The index constraint didn't match, so we remove all the field stats of the index we're checking
+                        // The index constraint didn't match or was empty, so we remove all the field stats of the index we're checking
                         iterator.remove();
                     }
                 }
@@ -149,21 +153,19 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
     @Override
     protected FieldStatsShardResponse shardOperation(FieldStatsShardRequest request) {
         ShardId shardId = request.shardId();
-        Map<String, FieldStats> fieldStats = new HashMap<>();
+        Map<String, FieldStats<?>> fieldStats = new HashMap<>();
         IndexService indexServices = indicesService.indexServiceSafe(shardId.getIndex());
         MapperService mapperService = indexServices.mapperService();
-        IndexShard shard = indexServices.shardSafe(shardId.id());
+        IndexShard shard = indexServices.getShard(shardId.id());
         try (Engine.Searcher searcher = shard.acquireSearcher("fieldstats")) {
             for (String field : request.getFields()) {
                 MappedFieldType fieldType = mapperService.fullName(field);
-                if (fieldType != null) {
-                    IndexReader reader = searcher.reader();
-                    Terms terms = MultiFields.getTerms(reader, field);
-                    if (terms != null) {
-                        fieldStats.put(field, fieldType.stats(terms, reader.maxDoc()));
-                    }
-                } else {
+                if (fieldType == null) {
                     throw new IllegalArgumentException("field [" + field + "] doesn't exist");
+                }
+                FieldStats<?> stats = fieldType.stats(searcher.reader());
+                if (stats != null) {
+                    fieldStats.put(field, stats);
                 }
             }
         } catch (IOException e) {

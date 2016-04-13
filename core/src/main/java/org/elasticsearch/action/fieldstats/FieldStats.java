@@ -28,6 +28,8 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 
@@ -107,24 +109,55 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
     }
 
     /**
+     * @return the lowest value in the field.
+     *
+     * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
+     */
+    public T getMinValue() {
+        return minValue;
+    }
+
+    /**
+     * @return the highest value in the field.
+     *
+     * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
+     */
+    public T getMaxValue() {
+        return maxValue;
+    }
+
+    /**
      * @return the lowest value in the field represented as a string.
      *
      * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
      */
-    public abstract String getMinValue();
+    public abstract String getMinValueAsString();
 
     /**
      * @return the highest value in the field represented as a string.
      *
      * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
      */
-    public abstract String getMaxValue();
+    public abstract String getMaxValueAsString();
 
     /**
      * @param value The string to be parsed
-     * @return The concrete object represented by the string argument
+     * @param optionalFormat A string describing how to parse the specified value. Whether this parameter is supported
+     *                       depends on the implementation. If optionalFormat is specified and the implementation
+     *                       doesn't support it an {@link UnsupportedOperationException} is thrown
      */
-    protected abstract T valueOf(String value);
+    protected abstract T valueOf(String value, String optionalFormat);
+
+    /**
+     * @param value
+     *            The value to be converted to a String
+     * @param optionalFormat
+     *            A string describing how to print the specified value. Whether
+     *            this parameter is supported depends on the implementation. If
+     *            optionalFormat is specified and the implementation doesn't
+     *            support it an {@link UnsupportedOperationException} is thrown
+     */
+    public abstract String stringValueOf(Object value, String optionalFormat);
 
     /**
      * Merges the provided stats into this stats instance.
@@ -153,7 +186,7 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
      */
     public boolean match(IndexConstraint constraint) {
         int cmp;
-        T value  = valueOf(constraint.getValue());
+        T value  = valueOf(constraint.getValue(), constraint.getOptionalFormat());
         if (constraint.getProperty() == IndexConstraint.Property.MIN) {
             cmp = minValue.compareTo(value);
         } else if (constraint.getProperty() == IndexConstraint.Property.MAX) {
@@ -190,8 +223,10 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
     }
 
     protected void toInnerXContent(XContentBuilder builder) throws IOException {
-        builder.field(Fields.MIN_VALUE, minValue);
-        builder.field(Fields.MAX_VALUE, maxValue);
+        builder.field(Fields.MIN_VALUE, getMinValue());
+        builder.field(Fields.MIN_VALUE_AS_STRING, getMinValueAsString());
+        builder.field(Fields.MAX_VALUE, getMaxValue());
+        builder.field(Fields.MAX_VALUE_AS_STRING, getMaxValueAsString());
     }
 
     @Override
@@ -227,12 +262,12 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return String.valueOf(minValue.longValue());
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return String.valueOf(maxValue.longValue());
         }
 
@@ -245,8 +280,23 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        protected java.lang.Long valueOf(String value) {
+        protected java.lang.Long valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
             return java.lang.Long.valueOf(value);
+        }
+
+        @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            if (value instanceof Number) {
+                return java.lang.Long.toString(((Number) value).longValue());
+            } else {
+                throw new IllegalArgumentException("value must be a Long: " + value);
+            }
         }
 
         @Override
@@ -277,12 +327,12 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return String.valueOf(minValue.floatValue());
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return String.valueOf(maxValue.floatValue());
         }
 
@@ -295,8 +345,23 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        protected java.lang.Float valueOf(String value) {
+        protected java.lang.Float valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
             return java.lang.Float.valueOf(value);
+        }
+
+        @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            if (value instanceof Number) {
+                return java.lang.Float.toString(((Number) value).floatValue());
+            } else {
+                throw new IllegalArgumentException("value must be a Float: " + value);
+            }
         }
 
         @Override
@@ -327,12 +392,12 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return String.valueOf(minValue.doubleValue());
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return String.valueOf(maxValue.doubleValue());
         }
 
@@ -345,8 +410,23 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        protected java.lang.Double valueOf(String value) {
+        protected java.lang.Double valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
             return java.lang.Double.valueOf(value);
+        }
+
+        @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            if (value instanceof Number) {
+                return java.lang.Double.toString(((Number) value).doubleValue());
+            } else {
+                throw new IllegalArgumentException("value must be a Double: " + value);
+            }
         }
 
         @Override
@@ -377,12 +457,12 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return minValue.utf8ToString();
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return maxValue.utf8ToString();
         }
 
@@ -399,14 +479,29 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        protected BytesRef valueOf(String value) {
+        protected BytesRef valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
             return new BytesRef(value);
         }
 
         @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
+            if (value instanceof BytesRef) {
+                return ((BytesRef) value).utf8ToString();
+            } else {
+                throw new IllegalArgumentException("value must be a BytesRef: " + value);
+            }
+        }
+
+        @Override
         protected void toInnerXContent(XContentBuilder builder) throws IOException {
-            builder.field(Fields.MIN_VALUE, getMinValue());
-            builder.field(Fields.MAX_VALUE, getMaxValue());
+            builder.field(Fields.MIN_VALUE, getMinValueAsString());
+            builder.field(Fields.MAX_VALUE, getMaxValueAsString());
         }
 
         @Override
@@ -438,24 +533,41 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return dateFormatter.printer().print(minValue);
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return dateFormatter.printer().print(maxValue);
         }
 
         @Override
-        protected java.lang.Long valueOf(String value) {
+        protected java.lang.Long valueOf(String value, String optionalFormat) {
+            FormatDateTimeFormatter dateFormatter = this.dateFormatter;
+            if (optionalFormat != null) {
+                dateFormatter = Joda.forPattern(optionalFormat);
+            }
             return dateFormatter.parser().parseMillis(value);
         }
 
         @Override
-        protected void toInnerXContent(XContentBuilder builder) throws IOException {
-            builder.field(Fields.MIN_VALUE, getMinValue());
-            builder.field(Fields.MAX_VALUE, getMaxValue());
+        public String stringValueOf(Object value, String optionalFormat) {
+            FormatDateTimeFormatter dateFormatter = this.dateFormatter;
+            if (optionalFormat != null) {
+                dateFormatter = Joda.forPattern(optionalFormat);
+            }
+            long millis;
+            if (value instanceof java.lang.Long) {
+                millis = ((java.lang.Long) value).longValue();
+            } else if (value instanceof DateTime) {
+                millis = ((DateTime) value).getMillis();
+            } else if (value instanceof BytesRef) {
+                millis = dateFormatter.parser().parseMillis(((BytesRef) value).utf8ToString());
+            } else {
+                throw new IllegalArgumentException("value must be either a DateTime or a long: " + value);
+            }
+            return dateFormatter.printer().print(millis);
         }
 
         @Override
@@ -470,6 +582,28 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
             out.writeString(dateFormatter.format());
         }
 
+    }
+
+    public static class Ip extends Long {
+
+        public Ip(int maxDoc, int docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue) {
+            super(maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
+        }
+
+        protected Ip(int type, long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue) {
+            super(type, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
+        }
+
+        public Ip() {
+        }
+
+        @Override
+        public String stringValueOf(Object value, String optionalFormat) {
+            if (value instanceof BytesRef) {
+                return super.stringValueOf(IpFieldMapper.ipToLong(((BytesRef) value).utf8ToString()), optionalFormat);
+            }
+            return super.stringValueOf(value, optionalFormat);
+        }
     }
 
     public static FieldStats read(StreamInput in) throws IOException {
@@ -507,7 +641,9 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         final static XContentBuilderString SUM_DOC_FREQ = new XContentBuilderString("sum_doc_freq");
         final static XContentBuilderString SUM_TOTAL_TERM_FREQ = new XContentBuilderString("sum_total_term_freq");
         final static XContentBuilderString MIN_VALUE = new XContentBuilderString("min_value");
+        final static XContentBuilderString MIN_VALUE_AS_STRING = new XContentBuilderString("min_value_as_string");
         final static XContentBuilderString MAX_VALUE = new XContentBuilderString("max_value");
+        final static XContentBuilderString MAX_VALUE_AS_STRING = new XContentBuilderString("max_value_as_string");
 
     }
 

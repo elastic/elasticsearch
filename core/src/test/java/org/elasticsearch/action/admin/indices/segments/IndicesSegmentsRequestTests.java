@@ -22,19 +22,30 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
-import org.junit.Test;
 
+import java.util.Collection;
 import java.util.List;
 
+import static org.hamcrest.Matchers.is;
+
 public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
-    
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     @Before
     public void setupIndex() {
         Settings settings = Settings.builder()
             // don't allow any merges so that the num docs is the expected segments
-            .put("index.merge.policy.segments_per_tier", 1000000f)
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .build();
         createIndex("test", settings);
 
@@ -43,28 +54,32 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
             String id = Integer.toString(j);
             client().prepareIndex("test", "type1", id).setSource("text", "sometext").get();
         }
-        client().admin().indices().prepareFlush("test").get();
+        client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).get();
     }
 
     public void testBasic() {
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").get();
         List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
-        assertNull(segments.get(0).ramTree);
+        assertNull(segments.get(0).toString(), segments.get(0).ramTree);
     }
-    
+
     public void testVerbose() {
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").setVerbose(true).get();
         List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
-        assertNotNull(segments.get(0).ramTree);
+        assertNotNull(segments.get(0).toString(), segments.get(0).ramTree);
     }
 
     /**
      * with the default IndicesOptions inherited from BroadcastOperationRequest this will raise an exception
      */
-    @Test(expected=org.elasticsearch.indices.IndexClosedException.class)
     public void testRequestOnClosedIndex() {
         client().admin().indices().prepareClose("test").get();
-        client().admin().indices().prepareSegments("test").get();
+        try {
+            client().admin().indices().prepareSegments("test").get();
+            fail("Expected IndexClosedException");
+        } catch (IndexClosedException e) {
+            assertThat(e.getMessage(), is("closed"));
+        }
     }
 
     /**

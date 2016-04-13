@@ -19,15 +19,13 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
@@ -53,7 +51,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     @Override
     public Iterator<ShardRouting> iterator() {
-        return Iterators.unmodifiableIterator(shards.iterator());
+        return Collections.unmodifiableCollection(shards).iterator();
     }
 
     Iterator<ShardRouting> mutableIterator() {
@@ -62,7 +60,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     /**
      * Returns the nodes {@link DiscoveryNode}.
-     * 
+     *
      * @return discoveryNode of this node
      */
     public DiscoveryNode node() {
@@ -70,7 +68,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     /**
-     * Get the id of this node 
+     * Get the id of this node
      * @return id of the node
      */
     public String nodeId() {
@@ -89,7 +87,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         // TODO use Set with ShardIds for faster lookup.
         for (ShardRouting shardRouting : shards) {
             if (shardRouting.isSameShard(shard)) {
-                throw new IllegalStateException("Trying to add a shard [" + shard.shardId().index().name() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
+                throw new IllegalStateException("Trying to add a shard [" + shard.shardId().getIndex().getName() + "][" + shard.shardId().id() + "] to a node [" + nodeId + "] where it already exists");
             }
         }
         shards.add(shard);
@@ -98,7 +96,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     /**
      * Determine the number of shards with a specific state
      * @param states set of states which should be counted
-     * @return number of shards 
+     * @return number of shards
      */
     public int numberOfShardsWithState(ShardRoutingState... states) {
         int count = 0;
@@ -115,10 +113,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
     /**
      * Determine the shards with a specific state
      * @param states set of states which should be listed
-     * @return List of shards 
+     * @return List of shards
      */
     public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (ShardRouting shardEntry : this) {
             for (ShardRoutingState state : states) {
                 if (shardEntry.state() == state) {
@@ -130,16 +128,16 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     /**
-     * Determine the shards of an index with a specific state 
+     * Determine the shards of an index with a specific state
      * @param index id of the index
      * @param states set of states which should be listed
      * @return a list of shards
      */
     public List<ShardRouting> shardsWithState(String index, ShardRoutingState... states) {
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
 
         for (ShardRouting shardEntry : this) {
-            if (!shardEntry.index().equals(index)) {
+            if (!shardEntry.getIndexName().equals(index)) {
                 continue;
             }
             for (ShardRoutingState state : states) {

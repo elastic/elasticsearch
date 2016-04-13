@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -32,14 +34,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, CardinalityAggregatorFactory> {
 
     private final long precisionThreshold;
     private final boolean rehash;
     private boolean sumDirectly ;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig config, long precisionThreshold, boolean rehash) {
-        super(name, InternalCardinality.TYPE.name(), config);
+    public CardinalityAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, Long precisionThreshold,
+            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.precisionThreshold = precisionThreshold;
         this.rehash = rehash;
     }
@@ -58,7 +62,7 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         final CardinalityAggregator cardinalityAggregator = new CardinalityAggregator(name, null, true, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
         cardinalityAggregator.setSumDirectly(sumDirectly);
@@ -77,6 +81,10 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
         return cardinalityAggregator;
     }
 
+    private int precision(Aggregator parent) {
+        return precisionThreshold == null ? defaultPrecision(parent) : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
+    }
+
     /*
      * If one of the parent aggregators is a MULTI_BUCKET one, we might want to lower the precision
      * because otherwise it might be memory-intensive. On the other hand, for top-level aggregators
@@ -86,7 +94,7 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
         int precision = HyperLogLogPlusPlus.DEFAULT_PRECISION;
         while (parent != null) {
             if (parent instanceof SingleBucketAggregator == false) {
-                // if the parent creates buckets, we substract 5 to the precision,
+                // if the parent creates buckets, we subtract 5 to the precision,
                 // which will effectively divide the memory usage of each counter by 32
                 precision -= 5;
             }
@@ -95,5 +103,4 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
 
         return Math.max(precision, HyperLogLogPlusPlus.MIN_PRECISION);
     }
-
 }

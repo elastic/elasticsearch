@@ -19,27 +19,25 @@
 
 package org.elasticsearch.rest.util;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 public class RestUtilsTests extends ESTestCase {
 
-    @Test
     public void testDecodeQueryString() {
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
 
         String uri = "something?test=value";
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
@@ -64,9 +62,8 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
     }
 
-    @Test
     public void testDecodeQueryStringEdgeCases() {
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
 
         String uri = "something?";
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
@@ -125,7 +122,6 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("p1"), equalTo("v1"));
     }
 
-    @Test
     public void testCorsSettingIsARegex() {
         assertCorsSettingRegex("/foo/", Pattern.compile("foo"));
         assertCorsSettingRegex("/.*/", Pattern.compile(".*"));
@@ -137,19 +133,28 @@ public class RestUtilsTests extends ESTestCase {
         assertCorsSettingRegexIsNull("/foo");
         assertCorsSettingRegexIsNull("foo");
         assertCorsSettingRegexIsNull("");
-        assertThat(RestUtils.getCorsSettingRegex(Settings.EMPTY), is(nullValue()));
+    }
+
+    public void testCrazyURL() {
+        Map<String, String> params = new HashMap<>();
+
+        // This is a valid URL
+        String uri = "example.com/:@-._~!$&'()*+,=;:@-._~!$&'()*+,=:@-._~!$&'()*+,==?/?:@-._~!$'()*+,;=/?:@-._~!$'()*+,;==#/?:@-._~!$&'()*+,;=";
+        RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
+        assertThat(params.get("/?:@-._~!$'()* ,;"), equalTo("/?:@-._~!$'()* ,;=="));
+        assertThat(params.size(), equalTo(1));
     }
 
     private void assertCorsSettingRegexIsNull(String settingsValue) {
-        assertThat(RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build()), is(nullValue()));
+        assertThat(RestUtils.checkCorsSettingForRegex(settingsValue), is(nullValue()));
     }
 
     private void assertCorsSettingRegex(String settingsValue, Pattern pattern) {
-        assertThat(RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build()).toString(), is(pattern.toString()));
+        assertThat(RestUtils.checkCorsSettingForRegex(settingsValue).toString(), is(pattern.toString()));
     }
 
     private void assertCorsSettingRegexMatches(String settingsValue, boolean expectMatch, String ... candidates) {
-        Pattern pattern = RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build());
+        Pattern pattern = RestUtils.checkCorsSettingForRegex(settingsValue);
         for (String candidate : candidates) {
             assertThat(String.format(Locale.ROOT, "Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
                     pattern.matcher(candidate).matches(), is(expectMatch));

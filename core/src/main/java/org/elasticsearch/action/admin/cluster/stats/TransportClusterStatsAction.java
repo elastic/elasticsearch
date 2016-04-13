@@ -19,20 +19,19 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -57,7 +56,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(CommonStatsFlags.Flag.Docs, CommonStatsFlags.Flag.Store,
             CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache, CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments,
-            CommonStatsFlags.Flag.Percolate);
+            CommonStatsFlags.Flag.PercolatorCache);
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
@@ -69,7 +68,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                                        NodeService nodeService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClusterStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ClusterStatsRequest.class, ClusterStatsNodeRequest.class, ThreadPool.Names.MANAGEMENT);
+                indexNameExpressionResolver, ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }
@@ -99,40 +98,21 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
-        NodeInfo nodeInfo = nodeService.info(false, true, false, true, false, false, true, false, true);
-        NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, false, true, true, false, false, true, false, false, false);
+        NodeInfo nodeInfo = nodeService.info(false, true, false, true, false, true, false, true, false);
+        NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, false, true, true, false, true, false, false, false, false, false, false);
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
-                    shardsStats.add(new ShardStats(indexShard, indexShard.routingEntry(), SHARD_STATS_FLAGS));
+                    shardsStats.add(new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indicesService.getIndicesQueryCache(), indexService.cache().getPercolatorQueryCache(), indexShard, SHARD_STATS_FLAGS), indexShard.commitStats()));
                 }
             }
         }
 
         ClusterHealthStatus clusterStatus = null;
-        if (clusterService.state().nodes().localNodeMaster()) {
-            // populate cluster status
-            clusterStatus = ClusterHealthStatus.GREEN;
-            for (IndexRoutingTable indexRoutingTable : clusterService.state().routingTable()) {
-                IndexMetaData indexMetaData = clusterService.state().metaData().index(indexRoutingTable.index());
-                if (indexRoutingTable == null) {
-                    continue;
-                }
-
-                ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
-                switch (indexHealth.getStatus()) {
-                    case RED:
-                        clusterStatus = ClusterHealthStatus.RED;
-                        break;
-                    case YELLOW:
-                        if (clusterStatus != ClusterHealthStatus.RED) {
-                            clusterStatus = ClusterHealthStatus.YELLOW;
-                        }
-                        break;
-                }
-            }
+        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+            clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
         return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[shardsStats.size()]));
@@ -144,15 +124,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         return false;
     }
 
-    static class ClusterStatsNodeRequest extends BaseNodeRequest {
+    public static class ClusterStatsNodeRequest extends BaseNodeRequest {
 
         ClusterStatsRequest request;
 
-        ClusterStatsNodeRequest() {
+        public ClusterStatsNodeRequest() {
         }
 
         ClusterStatsNodeRequest(String nodeId, ClusterStatsRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

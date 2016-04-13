@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache.query;
 
+import org.apache.lucene.search.DocIdSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;

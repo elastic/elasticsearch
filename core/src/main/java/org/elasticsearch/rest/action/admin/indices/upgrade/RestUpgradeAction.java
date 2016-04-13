@@ -49,7 +49,7 @@ public class RestUpgradeAction extends BaseRestHandler {
 
     @Inject
     public RestUpgradeAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(POST, "/_upgrade", this);
         controller.registerHandler(POST, "/{index}/_upgrade", this);
 

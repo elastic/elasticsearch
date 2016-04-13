@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.search.fetch.explain;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -31,6 +29,8 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
 /**
  *
  */
@@ -38,7 +38,7 @@ public class ExplainFetchSubPhase implements FetchSubPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("explain", new ExplainParseElement());
+        return singletonMap("explain", new ExplainParseElement());
     }
 
     @Override
@@ -60,7 +60,7 @@ public class ExplainFetchSubPhase implements FetchSubPhase {
         try {
             final int topLevelDocId = hitContext.hit().docId();
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
-            
+
             for (RescoreSearchContext rescore : context.rescore()) {
                 explanation = rescore.rescorer().explain(topLevelDocId, context, rescore, explanation);
             }
@@ -68,6 +68,8 @@ public class ExplainFetchSubPhase implements FetchSubPhase {
             hitContext.hit().explanation(explanation);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(context, "Failed to explain doc [" + hitContext.hit().type() + "#" + hitContext.hit().id() + "]", e);
+        } finally {
+            context.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
     }
 }

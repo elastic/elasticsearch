@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchException;
-
 import java.io.Closeable;
 
 /**

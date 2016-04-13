@@ -20,11 +20,14 @@ package org.elasticsearch.common.io.stream;
 
 import java.io.IOException;
 
+/**
+ * Implementers can be read from {@linkplain StreamInput} by calling their {@link #readFrom(StreamInput)} method.
+ *
+ * Implementers of this interface that also implement {@link Writeable} should see advice there on how to do so.
+ */
 public interface StreamableReader<T> {
     /**
-     * Reads a copy of an object with the same type form the stream input
-     *
-     * The caller object remains unchanged.
+     * Reads an object of this type from the provided {@linkplain StreamInput}. The receiving instance remains unchanged.
      */
     T readFrom(StreamInput in) throws IOException;
 }

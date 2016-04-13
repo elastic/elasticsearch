@@ -20,13 +20,10 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.search.MultiValueMode;
-import org.junit.Test;
 
 /** Returns an implementation based on paged bytes which doesn't implement WithOrdinals in order to visit different paths in the code,
  *  eg. BytesRefFieldComparatorSource makes decisions based on whether the field data implements WithOrdinals. */
@@ -41,13 +38,8 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             }
 
             @Override
-            public Names getFieldNames() {
-                return in.getFieldNames();
-            }
-
-            @Override
-            public FieldDataType getFieldDataType() {
-                return in.getFieldDataType();
+            public String getFieldName() {
+                return in.getFieldName();
             }
 
             @Override
@@ -70,11 +62,6 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
                 in.clear();
             }
 
-            @Override
-            public void clear(IndexReader reader) {
-                in.clear(reader);
-            }
-
         };
     }
 
@@ -84,9 +71,8 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
         return hideOrdinals(super.getForField(fieldName));
     }
 
-    @Test
     @Override
     public void testTermsEnum() throws Exception {
-        // We can't test this, since the returned IFD instance doesn't implement IndexFieldData.WithOrdinals
+        assumeTrue("We can't test this, since the returned IFD instance doesn't implement IndexFieldData.WithOrdinals", false);
     }
 }

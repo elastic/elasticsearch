@@ -28,14 +28,17 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
 
 import java.io.IOException;
-import java.io.NotSerializableException;
 
 /**
  *
@@ -50,7 +53,8 @@ public class NettyTransportChannel implements TransportChannel {
     private final long requestId;
     private final String profileName;
 
-    public NettyTransportChannel(NettyTransport transport, TransportServiceAdapter transportServiceAdapter, String action, Channel channel, long requestId, Version version, String profileName) {
+    public NettyTransportChannel(NettyTransport transport, TransportServiceAdapter transportServiceAdapter, String action, Channel channel,
+            long requestId, Version version, String profileName) {
         this.transportServiceAdapter = transportServiceAdapter;
         this.version = version;
         this.transport = transport;
@@ -78,7 +82,7 @@ public class NettyTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         if (transport.compress) {
-            options.withCompress(true);
+            options = TransportResponseOptions.builder(options).withCompress(transport.compress).build();
         }
 
         byte status = 0;
@@ -116,7 +120,8 @@ public class NettyTransportChannel implements TransportChannel {
     public void sendResponse(Throwable error) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
         stream.skip(NettyHeader.HEADER_SIZE);
-        RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
+        RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()),
+                action, error);
         stream.writeThrowable(tx);
         byte status = 0;
         status = TransportStatus.setResponse(status);
@@ -127,6 +132,16 @@ public class NettyTransportChannel implements TransportChannel {
         NettyHeader.writeHeader(buffer, requestId, status, version);
         channel.write(buffer);
         transportServiceAdapter.onResponseSent(requestId, action, error);
+    }
+
+    @Override
+    public long getRequestId() {
+        return requestId;
+    }
+
+    @Override
+    public String getChannelType() {
+        return "netty";
     }
 
     /**

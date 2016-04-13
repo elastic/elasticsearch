@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -74,7 +75,7 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
     }
 
     /**
-     * Waits for N number of nodes. Use "12" for exact mapping, ">12" and "<12" for range.
+     * Waits for N number of nodes. Use "12" for exact mapping, "&gt;12" and "&lt;12" for range.
      */
     public ClusterHealthRequestBuilder setWaitForNodes(String waitForNodes) {
         request.waitForNodes(waitForNodes);

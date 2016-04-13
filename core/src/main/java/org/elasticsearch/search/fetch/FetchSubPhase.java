@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.fetch;
 
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -29,6 +27,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -76,7 +75,7 @@ public interface FetchSubPhase {
 
         public Map<String, Object> cache() {
             if (cache == null) {
-                cache = Maps.newHashMap();
+                cache = new HashMap<>();
             }
             return cache;
         }

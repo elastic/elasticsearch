@@ -25,16 +25,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class IndexRequestBuilderIT extends ESIntegTestCase {
-    
-    
-    @Test
     public void testSetSource() throws InterruptedException, ExecutionException {
         createIndex("test");
         ensureYellow();
@@ -52,10 +50,13 @@ public class IndexRequestBuilderIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")).get();
         ElasticsearchAssertions.assertHitCount(searchResponse, builders.length);
     }
-    
-    @Test(expected = IllegalArgumentException.class)
-    public void testOddNumberOfSourceObjetc() {
-        client().prepareIndex("test", "test").setSource((Object)"test_field", (Object)"foobar", new Object());
-    }
 
+    public void testOddNumberOfSourceObjects() {
+        try {
+            client().prepareIndex("test", "test").setSource("test_field", "foobar", new Object());
+            fail ("Expected IllegalArgumentException");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("The number of object passed must be even but was [3]"));
+        }
+    }
 }

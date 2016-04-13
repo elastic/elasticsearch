@@ -16,8 +16,7 @@ matches are required to be in-order. The span near query maps to Lucene
             { "span_term" : { "field" : "value3" } }
         ],
         "slop" : 12,
-        "in_order" : false,
-        "collect_payloads" : false
+        "in_order" : false
     }
 }
 --------------------------------------------------

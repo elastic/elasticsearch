@@ -87,6 +87,7 @@ public class AnalysisFactoryTests extends ESTestCase {
         put("commongrams",               CommonGramsTokenFilterFactory.class);
         put("commongramsquery",          CommonGramsTokenFilterFactory.class);
         put("czechstem",                 CzechStemTokenFilterFactory.class);
+        put("decimaldigit",              DecimalDigitFilterFactory.class);
         put("delimitedpayload",          DelimitedPayloadTokenFilterFactory.class);
         put("dictionarycompoundword",    DictionaryCompoundWordTokenFilterFactory.class);
         put("edgengram",                 EdgeNGramTokenFilterFactory.class);
@@ -176,6 +177,10 @@ public class AnalysisFactoryTests extends ESTestCase {
         put("tokenoffsetpayload",        Void.class);
         // puts the type into the payload
         put("typeaspayload",             Void.class);
+        // fingerprint
+        put("fingerprint",               Void.class);
+        // for tee-sinks
+        put("daterecognizer",            Void.class);
     }};
     
     public void testTokenFilters() {

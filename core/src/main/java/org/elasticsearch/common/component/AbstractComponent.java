@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.component;
 
-import com.google.common.base.Strings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -50,7 +50,7 @@ public abstract class AbstractComponent {
      * Returns the nodes name from the settings or the empty string if not set.
      */
     public final String nodeName() {
-        return settings.get("name", "");
+        return settings.get("node.name", "");
     }
 
     /**

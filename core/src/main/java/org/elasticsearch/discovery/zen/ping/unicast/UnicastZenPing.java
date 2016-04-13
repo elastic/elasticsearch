@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.ping.unicast;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Lists;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -29,11 +28,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -42,17 +45,40 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
-import static com.google.common.collect.Lists.newArrayList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPingResponse;
@@ -63,8 +89,16 @@ import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPing
 public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
+    public static final Setting<List<String>> DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
+        Setting.listSetting("discovery.zen.ping.unicast.hosts", emptyList(), Function.identity(),
+            Property.NodeScope);
+    public static final Setting<Integer> DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
+        Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, Property.NodeScope);
 
-    public static final int LIMIT_PORTS_COUNT = 1;
+    // these limits are per-address
+    public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
+    public static final int LIMIT_LOCAL_PORTS_COUNT = 5;
+
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -96,8 +130,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private volatile boolean closed = false;
 
+    @Inject
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
-                          Version version, ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+                          Version version, ElectMasterService electMasterService,
+                          @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -110,22 +146,27 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             }
         }
 
-        this.concurrentConnects = this.settings.getAsInt("discovery.zen.ping.unicast.concurrent_connects", 10);
-        String[] hostArr = this.settings.getAsArray("discovery.zen.ping.unicast.hosts");
-        // trim the hosts
-        for (int i = 0; i < hostArr.length; i++) {
-            hostArr[i] = hostArr[i].trim();
+        this.concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
+        List<String> hosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
+        final int limitPortCounts;
+        if (hosts.isEmpty()) {
+            // if unicast hosts are not specified, fill with simple defaults on the local machine
+            limitPortCounts = LIMIT_LOCAL_PORTS_COUNT;
+            hosts.addAll(transportService.getLocalAddresses());
+        } else {
+            // we only limit to 1 addresses, makes no sense to ping 100 ports
+            limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
         }
-        List<String> hosts = Lists.newArrayList(hostArr);
+
         logger.debug("using initial hosts {}, with concurrent_connects [{}]", hosts, concurrentConnects);
 
-        List<DiscoveryNode> configuredTargetNodes = Lists.newArrayList();
+        List<DiscoveryNode> configuredTargetNodes = new ArrayList<>();
         for (String host : hosts) {
             try {
-                TransportAddress[] addresses = transportService.addressesFromString(host);
-                // we only limit to 1 addresses, makes no sense to ping 100 ports
-                for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
-                    configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", addresses[i], version.minimumCompatibilityVersion()));
+                TransportAddress[] addresses = transportService.addressesFromString(host, limitPortCounts);
+                for (TransportAddress address : addresses) {
+                    configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#",
+                            address, emptyMap(), emptySet(), version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);
@@ -133,10 +174,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
         this.configuredTargetNodes = configuredTargetNodes.toArray(new DiscoveryNode[configuredTargetNodes.size()]);
 
-        transportService.registerRequestHandler(ACTION_NAME, UnicastPingRequest.class, ThreadPool.Names.SAME, new UnicastPingRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, UnicastPingRequest::new, ThreadPool.Names.SAME,
+                new UnicastPingRequestHandler());
 
         ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
-        unicastConnectExecutor = EsExecutors.newScaling(0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory);
+        unicastConnectExecutor = EsExecutors.newScaling("unicast_connect", 0, concurrentConnects, 60, TimeUnit.SECONDS,
+                threadFactory, threadPool.getThreadContext());
     }
 
     @Override
@@ -309,15 +352,15 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         // sort the nodes by likelihood of being an active master
         List<DiscoveryNode> sortedNodesToPing = electMasterService.sortByMasterLikelihood(nodesToPingSet);
 
-        // new add the the unicast targets first
-        ArrayList<DiscoveryNode> nodesToPing = Lists.newArrayList(configuredTargetNodes);
+        // new add the unicast targets first
+        List<DiscoveryNode> nodesToPing = CollectionUtils.arrayAsArrayList(configuredTargetNodes);
         nodesToPing.addAll(sortedNodesToPing);
 
         final CountDownLatch latch = new CountDownLatch(nodesToPing.size());
         for (final DiscoveryNode node : nodesToPing) {
             // make sure we are connected
             final boolean nodeFoundByAddress;
-            DiscoveryNode nodeToSend = discoNodes.findByAddress(node.address());
+            DiscoveryNode nodeToSend = discoNodes.findByAddress(node.getAddress());
             if (nodeToSend != null) {
                 nodeFoundByAddress = true;
             } else {
@@ -335,11 +378,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 // to make sure we don't disconnect a true node which was temporarily removed from the DiscoveryNodes
                 // but will be added again during the pinging. We therefore create a new temporary node
                 if (!nodeFoundByAddress) {
-                    if (!nodeToSend.id().startsWith(UNICAST_NODE_PREFIX)) {
+                    if (!nodeToSend.getId().startsWith(UNICAST_NODE_PREFIX)) {
                         DiscoveryNode tempNode = new DiscoveryNode("",
-                                UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.id() + "#",
-                                nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.address(), nodeToSend.attributes(), nodeToSend.version()
-                        );
+                                UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.getId() + "#",
+                                nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(), nodeToSend.getAttributes(),
+                                nodeToSend.getRoles(), nodeToSend.getVersion());
+
                         logger.trace("replacing {} with temp node {}", nodeToSend, tempNode);
                         nodeToSend = tempNode;
                     }
@@ -370,7 +414,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             } else {
                                 // connect took too long, just log it and bail
                                 latch.countDown();
-                                logger.trace("[{}] connect to {} was too long outside of ping window, bailing", sendPingsHandler.id(), node);
+                                logger.trace("[{}] connect to {} was too long outside of ping window, bailing",
+                                        sendPingsHandler.id(), node);
                             }
                             success = true;
                         } catch (ConnectTransportException e) {
@@ -378,7 +423,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             logger.trace("[{}] failed to connect to {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } catch (RemoteTransportException e) {
                             // something went wrong on the other side
-                            logger.debug("[{}] received a remote error as a response to ping {}", e, sendPingsHandler.id(), finalNodeToSend);
+                            logger.debug("[{}] received a remote error as a response to ping {}", e,
+                                    sendPingsHandler.id(), finalNodeToSend);
                         } catch (Throwable e) {
                             logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } finally {
@@ -401,9 +447,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    private void sendPingRequestToNode(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest, final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
+    private void sendPingRequestToNode(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest,
+                                       final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
         logger.trace("[{}] sending to {}", id, nodeToSend);
-        transportService.sendRequest(nodeToSend, ACTION_NAME, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
+        transportService.sendRequest(nodeToSend, ACTION_NAME, pingRequest, TransportRequestOptions.builder()
+                .withTimeout((long) (timeout.millis() * 1.25)).build(), new BaseTransportResponseHandler<UnicastPingResponse>() {
 
             @Override
             public UnicastPingResponse newInstance() {
@@ -421,13 +469,14 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 try {
                     DiscoveryNodes discoveryNodes = contextProvider.nodes();
                     for (PingResponse pingResponse : response.pingResponses) {
-                        if (pingResponse.node().id().equals(discoveryNodes.localNodeId())) {
+                        if (pingResponse.node().getId().equals(discoveryNodes.getLocalNodeId())) {
                             // that's us, ignore
                             continue;
                         }
                         if (!pingResponse.clusterName().equals(clusterName)) {
                             // not part of the cluster
-                            logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.node(), pingResponse.clusterName().value());
+                            logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.node(),
+                                    pingResponse.clusterName().value());
                             continue;
                         }
                         SendPingsHandler sendPingsHandler = receivedResponses.get(response.id);
@@ -470,7 +519,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             }
         });
 
-        List<PingResponse> pingResponses = newArrayList(temporalResponses);
+        List<PingResponse> pingResponses = CollectionUtils.iterableAsArrayList(temporalResponses);
         pingResponses.add(createPingResponse(contextProvider.nodes()));
 
 
@@ -489,13 +538,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    static class UnicastPingRequest extends TransportRequest {
+    public static class UnicastPingRequest extends TransportRequest {
 
         int id;
         TimeValue timeout;
         PingResponse pingResponse;
 
-        UnicastPingRequest() {
+        public UnicastPingRequest() {
         }
 
         @Override
@@ -516,7 +565,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     private PingResponse createPingResponse(DiscoveryNodes discoNodes) {
-        return new PingResponse(discoNodes.localNode(), discoNodes.masterNode(), clusterName, contextProvider.nodeHasJoinedClusterOnce());
+        return new PingResponse(discoNodes.getLocalNode(), discoNodes.getMasterNode(), clusterName,
+                contextProvider.nodeHasJoinedClusterOnce());
     }
 
     static class UnicastPingResponse extends TransportResponse {

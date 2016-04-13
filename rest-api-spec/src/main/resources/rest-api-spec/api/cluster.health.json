@@ -7,7 +7,7 @@
       "paths": ["/_cluster/health", "/_cluster/health/{index}"],
       "parts": {
         "index": {
-          "type" : "string",
+          "type" : "list",
           "description" : "Limit the information returned to a specific index"
         }
       },

@@ -19,54 +19,66 @@
 
 package org.elasticsearch.search.internal;
 
-import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.*;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -88,15 +100,13 @@ public class DefaultSearchContext extends SearchContext {
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
-    // lazy initialized only if needed
-    private ScanContext scanContext;
     private float queryBoost = 1.0f;
     // timeout in millis
     private long timeoutInMillis;
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private List<String> groupStats;
-    private Scroll scroll;
+    private ScrollContext scrollContext;
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
     private List<String> fieldNames;
@@ -107,7 +117,21 @@ public class DefaultSearchContext extends SearchContext {
     private Sort sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
+    private FieldDoc searchAfter;
+    /**
+     * The original query as sent by the user without the types and aliases
+     * applied. Putting things in here leaks them into highlighting so don't add
+     * things like the type filter or alias filters.
+     */
     private ParsedQuery originalQuery;
+    /**
+     * Just like originalQuery but with the filters from types and aliases
+     * applied.
+     */
+    private ParsedQuery filteredQuery;
+    /**
+     * The query to actually execute.
+     */
     private Query query;
     private ParsedQuery postFilter;
     private Query aliasFilter;
@@ -119,24 +143,24 @@ public class DefaultSearchContext extends SearchContext {
     private SuggestionSearchContext suggest;
     private List<RescoreSearchContext> rescore;
     private SearchLookup searchLookup;
-    private boolean queryRewritten;
     private volatile long keepAlive;
-    private ScoreDoc lastEmittedDoc;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
-    private InnerHitsContext innerHitsContext;
+    private Profilers profilers;
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    private final QueryShardContext queryShardContext;
+    private FetchPhase fetchPhase;
 
-    public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
-                                Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
-                                ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                                BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
-                                TimeValue timeout
-    ) {
+    public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
+            IndexService indexService, IndexShard indexShard, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+            BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
+            FetchPhase fetchPhase) {
         super(parseFieldMatcher);
         this.id = id;
         this.request = request;
+        this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
         this.engineSearcher = engineSearcher;
@@ -149,14 +173,15 @@ public class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
-        this.searcher = new ContextIndexSearcher(this, engineSearcher);
+        this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeoutInMillis = timeout.millis();
+        queryShardContext = indexService.newQueryShardContext(searcher.getIndexReader());
+        queryShardContext.setTypes(request.types());
     }
 
     @Override
     public void doClose() {
-        scanContext = null;
         // clear and scope phase we  have
         Releasables.close(searcher, engineSearcher);
     }
@@ -166,53 +191,92 @@ public class DefaultSearchContext extends SearchContext {
      */
     @Override
     public void preProcess() {
-        if (!(from() == -1 && size() == -1)) {
-            // from and size have been set.
-            int numHits = from() + size();
-            if (numHits < 0) {
-                String msg = "Result window is too large, from + size must be less than or equal to: [" + Integer.MAX_VALUE + "] but was [" + (((long) from()) + ((long) size())) + "]";
-                throw new QueryPhaseExecutionException(this, msg);
+        if (hasOnlySuggest() ) {
+            return;
+        }
+        if (scrollContext == null) {
+            long from = from() == -1 ? 0 : from();
+            long size = size() == -1 ? 10 : size();
+            long resultWindow = from + size;
+            // We need settingsService's view of the settings because its dynamic.
+            // indexService's isn't.
+            int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
+
+            if (resultWindow > maxResultWindow) {
+                throw new QueryPhaseExecutionException(this,
+                        "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
+                                + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
+                                + "This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
+                                + "] index level parameter.");
             }
         }
 
         // initialize the filtering alias based on the provided filters
-        aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
+        aliasFilter = indexService.aliasFilter(queryShardContext, request.filteringAliases());
 
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
-        if (queryBoost() != 1.0f) {
-            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));
+        if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
         }
-        Query searchFilter = searchFilter(types());
-        if (searchFilter != null) {
-            if (Queries.isConstantMatchAllQuery(query())) {
-                Query q = new ConstantScoreQuery(searchFilter);
-                q.setBoost(query().getBoost());
-                parsedQuery(new ParsedQuery(q, parsedQuery()));
-            } else {
-                BooleanQuery filtered = new BooleanQuery();
-                filtered.add(query(), Occur.MUST);
-                filtered.add(searchFilter, Occur.FILTER);
-                parsedQuery(new ParsedQuery(filtered, parsedQuery()));
-            }
+        filteredQuery(buildFilteredQuery());
+        try {
+            this.query = searcher().rewrite(this.query);
+        } catch (IOException e) {
+            throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
         }
     }
 
+    private ParsedQuery buildFilteredQuery() {
+        Query searchFilter = searchFilter(queryShardContext.getTypes());
+        if (searchFilter == null) {
+            return originalQuery;
+        }
+        Query result;
+        if (Queries.isConstantMatchAllQuery(query())) {
+            result = new ConstantScoreQuery(searchFilter);
+        } else {
+            result = new BooleanQuery.Builder()
+                    .add(query, Occur.MUST)
+                    .add(searchFilter, Occur.FILTER)
+                    .build();
+        }
+        return new ParsedQuery(result, originalQuery);
+    }
+
     @Override
-    public Filter searchFilter(String[] types) {
-        Query filter = mapperService().searchFilter(types);
-        if (filter == null && aliasFilter == null) {
+    @Nullable
+    public Query searchFilter(String[] types) {
+        return createSearchFilter(types, aliasFilter, mapperService().hasNested());
+    }
+
+    // extracted to static helper method to make writing unit tests easier:
+    static Query createSearchFilter(String[] types, Query aliasFilter, boolean hasNestedFields) {
+        Query typesFilter = null;
+        if (types != null && types.length >= 1) {
+            BytesRef[] typesBytes = new BytesRef[types.length];
+            for (int i = 0; i < typesBytes.length; i++) {
+                typesBytes[i] = new BytesRef(types[i]);
+            }
+            typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
+        }
+
+        if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {
             return null;
         }
-        BooleanQuery bq = new BooleanQuery();
-        if (filter != null) {
-            bq.add(filter, Occur.MUST);
+
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        if (typesFilter != null) {
+            bq.add(typesFilter, Occur.FILTER);
+        } else if (hasNestedFields) {
+            bq.add(Queries.newNonNestedFilter(), Occur.FILTER);
         }
         if (aliasFilter != null) {
-            bq.add(aliasFilter, Occur.MUST);
+            bq.add(aliasFilter, Occur.FILTER);
         }
-        return new QueryWrapperFilter(bq);
+
+        return bq.build();
     }
 
     @Override
@@ -252,16 +316,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasTypes() {
-        return request.types() != null && request.types().length > 0;
-    }
-
-    @Override
-    public String[] types() {
-        return request.types();
-    }
-
-    @Override
     public float queryBoost() {
         return queryBoost;
     }
@@ -283,13 +337,13 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Scroll scroll() {
-        return this.scroll;
+    public ScrollContext scrollContext() {
+        return this.scrollContext;
     }
 
     @Override
-    public SearchContext scroll(Scroll scroll) {
-        this.scroll = scroll;
+    public SearchContext scrollContext(ScrollContext scrollContext) {
+        this.scrollContext = scrollContext;
         return this;
     }
 
@@ -408,11 +462,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public IndexQueryParserService queryParserService() {
-        return indexService.queryParserService();
-    }
-
-    @Override
     public SimilarityService similarityService() {
         return indexService.similarityService();
     }
@@ -434,12 +483,17 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public BitsetFilterCache bitsetFilterCache() {
-        return indexService.bitsetFilterCache();
+        return indexService.cache().bitsetFilterCache();
     }
 
     @Override
     public IndexFieldDataService fieldData() {
         return indexService.fieldData();
+    }
+
+    @Override
+    public PercolatorQueryCache percolatorQueryCache() {
+        return indexService.cache().getPercolatorQueryCache();
     }
 
     @Override
@@ -496,6 +550,17 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        this.searchAfter = searchAfter;
+        return this;
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return searchAfter;
+    }
+
+    @Override
     public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         this.postFilter = postFilter;
         return this;
@@ -513,10 +578,18 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public SearchContext parsedQuery(ParsedQuery query) {
-        queryRewritten = false;
         this.originalQuery = query;
         this.query = query.query();
         return this;
+    }
+
+    public ParsedQuery filteredQuery() {
+        return filteredQuery;
+    }
+
+    private void filteredQuery(ParsedQuery filteredQuery) {
+        this.filteredQuery = filteredQuery;
+        this.query = filteredQuery.query();
     }
 
     @Override
@@ -525,29 +598,11 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * The query to execute, might be rewritten.
+     * The query to execute, in its rewritten form.
      */
     @Override
     public Query query() {
         return this.query;
-    }
-
-    /**
-     * Has the query been rewritten already?
-     */
-    @Override
-    public boolean queryRewritten() {
-        return queryRewritten;
-    }
-
-    /**
-     * Rewrites the query and updates it. Only happens once.
-     */
-    @Override
-    public SearchContext updateRewriteQuery(Query rewriteQuery) {
-        query = rewriteQuery;
-        queryRewritten = true;
-        return this;
     }
 
     @Override
@@ -580,14 +635,14 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public List<String> fieldNames() {
         if (fieldNames == null) {
-            fieldNames = Lists.newArrayList();
+            fieldNames = new ArrayList<>();
         }
         return fieldNames;
     }
 
     @Override
     public void emptyFieldNames() {
-        this.fieldNames = ImmutableList.of();
+        this.fieldNames = Collections.emptyList();
     }
 
     @Override
@@ -665,16 +720,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void lastEmittedDoc(ScoreDoc doc) {
-        this.lastEmittedDoc = doc;
-    }
-
-    @Override
-    public ScoreDoc lastEmittedDoc() {
-        return lastEmittedDoc;
-    }
-
-    @Override
     public SearchLookup lookup() {
         // TODO: The types should take into account the parsing context in QueryParserContext...
         if (searchLookup == null) {
@@ -694,31 +739,23 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public FetchPhase fetchPhase() {
+        return fetchPhase;
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
     }
 
     @Override
-    public ScanContext scanContext() {
-        if (scanContext == null) {
-            scanContext = new ScanContext();
-        }
-        return scanContext;
-    }
-
-    @Override
     public MappedFieldType smartNameFieldType(String name) {
-        return mapperService().smartNameFieldType(name, request.types());
-    }
-
-    @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        return mapperService().smartNameFieldType(name);
+        return mapperService().fullName(name);
     }
 
     @Override
     public ObjectMapper getObjectMapper(String name) {
-        return mapperService().getObjectMapper(name, request.types());
+        return mapperService().getObjectMapper(name);
     }
 
     @Override
@@ -727,87 +764,21 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        this.innerHitsContext = innerHitsContext;
+    public Map<Class<?>, Collector> queryCollectors() {
+        return queryCollectors;
     }
 
     @Override
-    public InnerHitsContext innerHits() {
-        return innerHitsContext;
+    public QueryShardContext getQueryShardContext() {
+        return queryShardContext;
     }
 
     @Override
-    public <V> V putInContext(Object key, Object value) {
-        return request.putInContext(key, value);
+    public Profilers getProfilers() {
+        return profilers;
     }
 
-    @Override
-    public void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
-        request.putAllInContext(map);
-    }
-
-    @Override
-    public <V> V getFromContext(Object key) {
-        return request.getFromContext(key);
-    }
-
-    @Override
-    public <V> V getFromContext(Object key, V defaultValue) {
-        return request.getFromContext(key, defaultValue);
-    }
-
-    @Override
-    public boolean hasInContext(Object key) {
-        return request.hasInContext(key);
-    }
-
-    @Override
-    public int contextSize() {
-        return request.contextSize();
-    }
-
-    @Override
-    public boolean isContextEmpty() {
-        return request.isContextEmpty();
-    }
-
-    @Override
-    public ImmutableOpenMap<Object, Object> getContext() {
-        return request.getContext();
-    }
-
-    @Override
-    public void copyContextFrom(HasContext other) {
-        request.copyContextFrom(other);
-    }
-
-    @Override
-    public <V> void putHeader(String key, V value) {
-        request.putHeader(key, value);
-    }
-
-    @Override
-    public <V> V getHeader(String key) {
-        return request.getHeader(key);
-    }
-
-    @Override
-    public boolean hasHeader(String key) {
-        return request.hasHeader(key);
-    }
-
-    @Override
-    public Set<String> getHeaders() {
-        return request.getHeaders();
-    }
-
-    @Override
-    public void copyHeadersFrom(HasHeaders from) {
-        request.copyHeadersFrom(from);
-    }
-
-    @Override
-    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
-        request.copyContextAndHeadersFrom(other);
+    public void setProfilers(Profilers profilers) {
+        this.profilers = profilers;
     }
 }

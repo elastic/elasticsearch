@@ -23,9 +23,9 @@ import org.apache.log4j.Level;
 import org.apache.log4j.spi.LoggingEvent;
 import org.elasticsearch.common.regex.Regex;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
@@ -39,7 +39,7 @@ public class MockLogAppender extends AppenderSkeleton {
     private List<LoggingExpectation> expectations;
 
     public MockLogAppender() {
-        expectations = newArrayList();
+        expectations = new ArrayList<>();
     }
 
     public void addExpectation(LoggingExpectation expectation) {
@@ -80,7 +80,7 @@ public class MockLogAppender extends AppenderSkeleton {
         protected final String logger;
         protected final Level level;
         protected final String message;
-        protected boolean saw;
+        volatile boolean saw;
 
         public AbstractEventExpectation(String name, String logger, Level level, String message) {
             this.name = name;

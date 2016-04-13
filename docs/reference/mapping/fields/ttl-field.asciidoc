@@ -1,5 +1,7 @@
 [[mapping-ttl-field]]
-=== `_ttl`
+=== `_ttl` field
+
+deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
 
 Some types of documents, such as session data or special offers, come with an
 expiration date. The `_ttl` field allows you to specify the minimum time a
@@ -62,7 +64,7 @@ PUT my_index
     "my_type": {
       "_ttl": {
         "enabled": true,
-        "defaut": "5m"
+        "default": "5m"
       }
     }
   }
@@ -91,7 +93,7 @@ used for future documents.
 
 ==== Note on documents expiration
 
-Expired documents will be automatically deleted periodoically. The following
+Expired documents will be automatically deleted periodically. The following
 settings control the expiry process:
 
 `indices.ttl.interval`::
@@ -104,3 +106,7 @@ may still be retrieved before they are purged.
 How many deletions are handled by a single <<docs-bulk,`bulk`>> request. The
 default value is `10000`.
 
+==== Note on `detect_noop`
+If an update tries to update just the `_ttl` without changing the `_source` of
+the document it's expiration time won't be updated if `detect_noop` is `true`.
+In 2.1 `detect_noop` defaults to `true`.

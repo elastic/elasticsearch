@@ -26,12 +26,12 @@ import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
+
+import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -39,30 +39,25 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.SUITE)
 public class IndexTemplateFilteringIT extends ESIntegTestCase {
-
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", TestPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(TestPlugin.class);
     }
 
-    @Test
     public void testTemplateFiltering() throws Exception {
         client().admin().indices().preparePutTemplate("template1")
                 .setTemplate("test*")
-                .addMapping("type1", "field1", "type=string").get();
+                .addMapping("type1", "field1", "type=text").get();
 
         client().admin().indices().preparePutTemplate("template2")
                 .setTemplate("test*")
-                .addMapping("type2", "field2", "type=string").get();
+                .addMapping("type2", "field2", "type=text").get();
 
         client().admin().indices().preparePutTemplate("template3")
                 .setTemplate("no_match")
-                .addMapping("type3", "field3", "type=string").get();
+                .addMapping("type3", "field3", "type=text").get();
 
-        assertAcked(prepareCreate("test").putHeader("header_test", "header_value"));
+        assertAcked(prepareCreate("test"));
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
         assertThat(response, notNullValue());
@@ -71,16 +66,15 @@ public class IndexTemplateFilteringIT extends ESIntegTestCase {
         assertThat(metadata.get("type2"), notNullValue());
     }
 
-
     public static class TestFilter implements IndexTemplateFilter {
         @Override
         public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
             //make sure that no_match template is filtered out before the custom filters as it doesn't match the index name
-            return (template.name().equals("template2") || template.name().equals("no_match")) && request.originalMessage().getHeader("header_test").equals("header_value");
+            return (template.name().equals("template2") || template.name().equals("no_match"));
         }
     }
 
-    public static class TestPlugin extends AbstractPlugin {
+    public static class TestPlugin extends Plugin {
         @Override
         public String name() {
             return "test-plugin";

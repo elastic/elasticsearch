@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,10 +47,6 @@ class SingleMethodInjector implements SingleMemberInjector {
         // We can't use FastMethod if the method is private.
         int modifiers = method.getModifiers();
         if (!Modifier.isPrivate(modifiers) && !Modifier.isProtected(modifiers)) {
-        }
-
-        if (!Modifier.isPublic(modifiers)) {
-            method.setAccessible(true);
         }
 
         return new MethodInvoker() {

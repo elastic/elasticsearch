@@ -24,13 +24,15 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
@@ -42,9 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class DuelScrollIT extends ESIntegTestCase {
-
-    @Test
-    public void testDuel_queryThenFetch() throws Exception {
+    public void testDuelQueryThenFetch() throws Exception {
         TestContext context = create(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH);
 
         SearchResponse control = client().prepareSearch("index")
@@ -99,8 +99,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         clearScroll(scrollId);
     }
 
-    @Test
-    public void testDuel_queryAndFetch() throws Exception {
+    public void testDuelQueryAndFetch() throws Exception {
         // *_QUERY_AND_FETCH search types are tricky: the ordering can be incorrect, since it returns num_shards * (from + size)
         // a subsequent scroll call can return hits that should have been in the hits of the first scroll call.
 
@@ -139,7 +138,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                     .field("type", "long")
                 .endObject()
                 .startObject("field2")
-                    .field("type", "string")
+                    .field("type", "keyword")
                 .endObject()
                 .startObject("nested")
                     .field("type", "nested")
@@ -148,7 +147,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                             .field("type", "long")
                         .endObject()
                         .startObject("field4")
-                            .field("type", "string")
+                            .field("type", "keyword")
                         .endObject()
                     .endObject()
                 .endObject()
@@ -204,7 +203,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
         sort.order(randomBoolean() ? SortOrder.ASC : SortOrder.DESC);
 
-        SearchType searchType = RandomPicks.randomFrom(getRandom(), Arrays.asList(searchTypes));
+        SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(searchTypes));
 
         logger.info("numDocs={}, scrollRequestSize={}, sort={}, searchType={}", numDocs, scrollRequestSize, sort, searchType);
         return new TestContext(numDocs, scrollRequestSize, sort, searchType);
@@ -226,4 +225,83 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
     }
 
+    private int createIndex(boolean singleShard) throws Exception {
+        Settings.Builder settings = Settings.builder();
+        if (singleShard) {
+            settings.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1);
+        }
+        // no replicas, as they might be ordered differently
+        settings.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
+
+        assertAcked(prepareCreate("test").setSettings(settings.build()).get());
+        final int numDocs = randomIntBetween(10, 200);
+
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; ++i) {
+            builders[i] = client().prepareIndex("test", "type", Integer.toString(i)).setSource("foo", random().nextBoolean());
+        }
+        indexRandom(true, builders);
+        return numDocs;
+    }
+
+    private void testDuelIndexOrder(SearchType searchType, boolean trackScores, int numDocs) throws Exception {
+        final int size = scaledRandomIntBetween(5, numDocs + 5);
+        final SearchResponse control = client().prepareSearch("test")
+                .setSearchType(searchType)
+                .setSize(numDocs)
+                .setQuery(QueryBuilders.matchQuery("foo", "true"))
+                .addSort(SortBuilders.fieldSort("_doc"))
+                .setTrackScores(trackScores)
+                .get();
+        assertNoFailures(control);
+
+        SearchResponse scroll = client().prepareSearch("test")
+                .setSearchType(searchType)
+                .setSize(size)
+                .setQuery(QueryBuilders.matchQuery("foo", "true"))
+                .addSort(SortBuilders.fieldSort("_doc"))
+                .setTrackScores(trackScores)
+                .setScroll("10m").get();
+
+        int scrollDocs = 0;
+        try {
+            while (true) {
+                assertNoFailures(scroll);
+                assertEquals(control.getHits().getTotalHits(), scroll.getHits().getTotalHits());
+                assertEquals(control.getHits().getMaxScore(), scroll.getHits().getMaxScore(), 0.01f);
+                if (scroll.getHits().hits().length == 0) {
+                    break;
+                }
+                for (int i = 0; i < scroll.getHits().hits().length; ++i) {
+                    SearchHit controlHit = control.getHits().getAt(scrollDocs + i);
+                    SearchHit scrollHit = scroll.getHits().getAt(i);
+                    assertEquals(controlHit.getId(), scrollHit.getId());
+                }
+                scrollDocs += scroll.getHits().hits().length;
+                scroll = client().prepareSearchScroll(scroll.getScrollId()).setScroll("10m").get();
+            }
+            assertEquals(control.getHits().getTotalHits(), scrollDocs);
+        } catch (AssertionError e) {
+            logger.info("Control:\n{}", control);
+            logger.info("Scroll size={}, from={}:\n{}", size, scrollDocs, scroll);
+            throw e;
+        } finally {
+            clearScroll(scroll.getScrollId());
+        }
+    }
+
+    public void testDuelIndexOrderQueryAndFetch() throws Exception {
+        final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_AND_FETCH, SearchType.DFS_QUERY_AND_FETCH));
+        // QUERY_AND_FETCH only works with a single shard
+        final int numDocs = createIndex(true);
+        testDuelIndexOrder(searchType, false, numDocs);
+        testDuelIndexOrder(searchType, true, numDocs);
+    }
+
+    public void testDuelIndexOrderQueryThenFetch() throws Exception {
+        final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH));
+        final int numDocs = createIndex(false);
+        testDuelIndexOrder(searchType, false, numDocs);
+        testDuelIndexOrder(searchType, true, numDocs);
+    }
 }

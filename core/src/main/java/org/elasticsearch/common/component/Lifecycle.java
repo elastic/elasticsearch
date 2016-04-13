@@ -23,27 +23,25 @@ package org.elasticsearch.common.component;
 /**
  * Lifecycle state. Allows the following transitions:
  * <ul>
- * <li>INITIALIZED -> STARTED, STOPPED, CLOSED</li>
- * <li>STARTED     -> STOPPED</li>
- * <li>STOPPED     -> STARTED, CLOSED</li>
- * <li>CLOSED      -> </li>
+ * <li>INITIALIZED -&gt; STARTED, STOPPED, CLOSED</li>
+ * <li>STARTED     -&gt; STOPPED</li>
+ * <li>STOPPED     -&gt; STARTED, CLOSED</li>
+ * <li>CLOSED      -&gt; </li>
  * </ul>
- * <p/>
- * <p>Also allows to stay in the same state. For example, when calling stop on a component, the
+ * <p>
+ * Also allows to stay in the same state. For example, when calling stop on a component, the
  * following logic can be applied:
- * <p/>
  * <pre>
  * public void stop() {
- *  if (!lifeccycleState.moveToStopped()) {
+ *  if (!lifecycleState.moveToStopped()) {
  *      return;
  *  }
  * // continue with stop logic
  * }
  * </pre>
- * <p/>
- * <p>Note, closed is only allowed to be called when stopped, so make sure to stop the component first.
+ * <p>
+ * Note, closed is only allowed to be called when stopped, so make sure to stop the component first.
  * Here is how the logic can be applied:
- * <p/>
  * <pre>
  * public void close() {
  *  if (lifecycleState.started()) {
@@ -52,7 +50,7 @@ package org.elasticsearch.common.component;
  *  if (!lifecycleState.moveToClosed()) {
  *      return;
  *  }
- *  // perofrm close logic here
+ *  // perform close logic here
  * }
  * </pre>
  */

@@ -45,7 +45,7 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     * <p/>
+     * <p>
      * For example indices that don't exist.
      */
     public UpdateSettingsRequestBuilder setIndicesOptions(IndicesOptions options) {
@@ -82,6 +82,11 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
      */
     public UpdateSettingsRequestBuilder setSettings(Map<String, Object> source) {
         request.settings(source);
+        return this;
+    }
+
+    public UpdateSettingsRequestBuilder setPreserveExisting(boolean preserveExisting) {
+        request.setPreserveExisting(preserveExisting);
         return this;
     }
 }

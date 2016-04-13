@@ -19,18 +19,22 @@
 
 package org.elasticsearch.plugin.analysis.kuromoji;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.analysis.*;
-import org.elasticsearch.indices.analysis.KuromojiIndicesAnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
-
-import java.util.ArrayList;
-import java.util.Collection;
+import org.elasticsearch.index.analysis.JapaneseStopTokenFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiAnalyzerProvider;
+import org.elasticsearch.index.analysis.KuromojiBaseFormFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiIterationMarkCharFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiKatakanaStemmerFactory;
+import org.elasticsearch.index.analysis.KuromojiNumberFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiPartOfSpeechFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiReadingFormFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiTokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.Plugin;
 
 /**
  *
  */
-public class AnalysisKuromojiPlugin extends AbstractPlugin {
+public class AnalysisKuromojiPlugin extends Plugin {
 
     @Override
     public String name() {
@@ -42,21 +46,16 @@ public class AnalysisKuromojiPlugin extends AbstractPlugin {
         return "Kuromoji analysis support";
     }
 
-    @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> classes = new ArrayList<>();
-        classes.add(KuromojiIndicesAnalysisModule.class);
-        return classes;
-    }
 
     public void onModule(AnalysisModule module) {
-        module.addCharFilter("kuromoji_iteration_mark", KuromojiIterationMarkCharFilterFactory.class);
-        module.addAnalyzer("kuromoji", KuromojiAnalyzerProvider.class);
-        module.addTokenizer("kuromoji_tokenizer", KuromojiTokenizerFactory.class);
-        module.addTokenFilter("kuromoji_baseform", KuromojiBaseFormFilterFactory.class);
-        module.addTokenFilter("kuromoji_part_of_speech", KuromojiPartOfSpeechFilterFactory.class);
-        module.addTokenFilter("kuromoji_readingform", KuromojiReadingFormFilterFactory.class);
-        module.addTokenFilter("kuromoji_stemmer", KuromojiKatakanaStemmerFactory.class);
-        module.addTokenFilter("ja_stop", JapaneseStopTokenFilterFactory.class);
+        module.registerCharFilter("kuromoji_iteration_mark", KuromojiIterationMarkCharFilterFactory::new);
+        module.registerAnalyzer("kuromoji", KuromojiAnalyzerProvider::new);
+        module.registerTokenizer("kuromoji_tokenizer", KuromojiTokenizerFactory::new);
+        module.registerTokenFilter("kuromoji_baseform", KuromojiBaseFormFilterFactory::new);
+        module.registerTokenFilter("kuromoji_part_of_speech", KuromojiPartOfSpeechFilterFactory::new);
+        module.registerTokenFilter("kuromoji_readingform", KuromojiReadingFormFilterFactory::new);
+        module.registerTokenFilter("kuromoji_stemmer", KuromojiKatakanaStemmerFactory::new);
+        module.registerTokenFilter("ja_stop", JapaneseStopTokenFilterFactory::new);
+        module.registerTokenFilter("kuromoji_number", KuromojiNumberFilterFactory::new);
     }
 }

@@ -1,0 +1,4 @@
+[[string]]
+=== String datatype
+
+NOTE: The `string` field has been removed in favor of the `text` and `keyword` fields.

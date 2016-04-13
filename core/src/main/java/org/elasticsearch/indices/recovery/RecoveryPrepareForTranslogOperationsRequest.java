@@ -29,13 +29,13 @@ import java.io.IOException;
 /**
  *
  */
-class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
+public class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
 
-    RecoveryPrepareForTranslogOperationsRequest() {
+    public RecoveryPrepareForTranslogOperationsRequest() {
     }
 
     RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {

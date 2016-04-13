@@ -34,17 +34,16 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.junit.After;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,13 +104,12 @@ public class DateDerivativeIT extends ESIntegTestCase {
         internalCluster().wipeIndices("idx2");
     }
 
-    @Test
-    public void singleValuedField() throws Exception {
+    public void testSingleValuedField() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -125,7 +123,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, nullValue());
 
@@ -133,7 +131,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(1d));
@@ -142,19 +140,18 @@ public class DateDerivativeIT extends ESIntegTestCase {
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(1d));
     }
 
-    @Test
-    public void singleValuedField_normalised() throws Exception {
+    public void testSingleValuedFieldNormalised() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count").unit(DateHistogramInterval.DAY))).execute()
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.DAY))).execute()
                 .actionGet();
 
         assertSearchResponse(response);
@@ -169,7 +166,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         Derivative docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, nullValue());
 
@@ -177,7 +174,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), closeTo(1d, 0.00001));
@@ -187,20 +184,19 @@ public class DateDerivativeIT extends ESIntegTestCase {
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), closeTo(1d, 0.00001));
         assertThat(docCountDeriv.normalizedValue(), closeTo(1d / 29d, 0.00001));
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation() throws Exception {
+    public void testSingleValuedFieldWithSubAggregation() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("sum")).subAggregation(sum("sum").field("value")))
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                            .subAggregation(sum("sum").field("value")).subAggregation(derivative("deriv", "sum")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -218,7 +214,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -226,14 +222,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
         SimpleValue deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, nullValue());
         assertThat((DateTime) propertiesKeys[0], equalTo(key));
-        assertThat((long) propertiesDocCounts[0], equalTo(1l));
+        assertThat((long) propertiesDocCounts[0], equalTo(1L));
         assertThat((double) propertiesCounts[0], equalTo(1.0));
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -243,14 +239,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(deriv.value(), equalTo(4.0));
         assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()), equalTo(4.0));
         assertThat((DateTime) propertiesKeys[1], equalTo(key));
-        assertThat((long) propertiesDocCounts[1], equalTo(2l));
+        assertThat((long) propertiesDocCounts[1], equalTo(2L));
         assertThat((double) propertiesCounts[1], equalTo(5.0));
 
         key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -260,17 +256,16 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(deriv.value(), equalTo(10.0));
         assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()), equalTo(10.0));
         assertThat((DateTime) propertiesKeys[2], equalTo(key));
-        assertThat((long) propertiesDocCounts[2], equalTo(3l));
+        assertThat((long) propertiesDocCounts[2], equalTo(3L));
         assertThat((double) propertiesCounts[2], equalTo(15.0));
     }
 
-    @Test
-    public void multiValuedField() throws Exception {
+    public void testMultiValuedField() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("dates").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+                        dateHistogram("histo").field("dates").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -284,7 +279,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(true));
         SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, nullValue());
@@ -293,7 +288,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
@@ -303,7 +298,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
@@ -313,20 +308,19 @@ public class DateDerivativeIT extends ESIntegTestCase {
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(-2.0));
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -336,13 +330,12 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(deriv.getBuckets().size(), equalTo(0));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+                        dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
+                                .subAggregation(derivative("deriv", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -356,7 +349,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getDocCount(), equalTo(1L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(true));
         SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, nullValue());
@@ -365,7 +358,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
@@ -375,7 +368,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());

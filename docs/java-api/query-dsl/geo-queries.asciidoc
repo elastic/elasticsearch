@@ -10,7 +10,7 @@ The queries in this group are:
 <<java-query-dsl-geo-shape-query,`geo_shape`>> query::
 
     Find document with geo-shapes which either intersect, are contained by, or
-    do not interesect with the specified geo-shape.
+    do not intersect with the specified geo-shape.
 
 <<java-query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query::
 

@@ -53,7 +53,6 @@ public interface DocumentRequest<T> extends IndicesRequest {
 
     /**
      * Set the routing for this request
-     * @param routing
      * @return the Request
      */
     T routing(String routing);
@@ -63,4 +62,12 @@ public interface DocumentRequest<T> extends IndicesRequest {
      * @return the Routing
      */
     String routing();
+
+
+    /**
+     * Get the parent for this request
+     * @return the Parent
+     */
+    String parent();
+
 }

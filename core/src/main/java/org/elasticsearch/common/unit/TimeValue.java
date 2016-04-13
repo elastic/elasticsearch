@@ -20,19 +20,16 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.settings.Settings;
 import org.joda.time.Period;
 import org.joda.time.PeriodType;
 import org.joda.time.format.PeriodFormat;
 import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -229,9 +226,38 @@ public class TimeValue implements Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
+    public String getStringRep() {
+        if (duration < 0) {
+            return Long.toString(duration);
+        }
+        switch (timeUnit) {
+            case NANOSECONDS:
+                return Strings.format1Decimals(duration, "nanos");
+            case MICROSECONDS:
+                return Strings.format1Decimals(duration, "micros");
+            case MILLISECONDS:
+                return Strings.format1Decimals(duration, "ms");
+            case SECONDS:
+                return Strings.format1Decimals(duration, "s");
+            case MINUTES:
+                return Strings.format1Decimals(duration, "m");
+            case HOURS:
+                return Strings.format1Decimals(duration, "h");
+            case DAYS:
+                return Strings.format1Decimals(duration, "d");
+            default:
+                throw new IllegalArgumentException("unknown time unit: " + timeUnit.name());
+        }
+    }
+
+    public static TimeValue parseTimeValue(String sValue, String settingName) {
+        Objects.requireNonNull(settingName);
+        Objects.requireNonNull(sValue);
+        return parseTimeValue(sValue, null, settingName);
+    }
+
     public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String settingName) {
         settingName = Objects.requireNonNull(settingName);
-        assert settingName.startsWith("index.") == false || MetaDataIndexUpgradeService.INDEX_TIME_SETTINGS.contains(settingName);
         if (sValue == null) {
             return defaultValue;
         }
@@ -239,17 +265,17 @@ public class TimeValue implements Streamable {
             long millis;
             String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
             if (lowerSValue.endsWith("ms")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 2)));
+                millis = parse(lowerSValue, 2, 1);
             } else if (lowerSValue.endsWith("s")) {
-                millis = (long) Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000;
+                millis = parse(lowerSValue, 1, 1000);
             } else if (lowerSValue.endsWith("m")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 1000);
+                millis = parse(lowerSValue, 1, 60 * 1000);
             } else if (lowerSValue.endsWith("h")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 60 * 1000);
+                millis = parse(lowerSValue, 1, 60 * 60 * 1000);
             } else if (lowerSValue.endsWith("d")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 24 * 60 * 60 * 1000);
+                millis = parse(lowerSValue, 1, 24 * 60 * 60 * 1000);
             } else if (lowerSValue.endsWith("w")) {
-                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
+                millis = parse(lowerSValue, 1, 7 * 24 * 60 * 60 * 1000);
             } else if (lowerSValue.equals("-1")) {
                 // Allow this special value to be unit-less:
                 millis = -1;
@@ -257,18 +283,17 @@ public class TimeValue implements Streamable {
                 // Allow this special value to be unit-less:
                 millis = 0;
             } else {
-                if (Settings.getSettingsRequireUnits()) {
-                    // Missing units:
-                    throw new ElasticsearchParseException("Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized", settingName, sValue);
-                } else {
-                    // Leniency default to msec for bwc:
-                    millis = Long.parseLong(sValue);
-                }
+                // Missing units:
+                throw new ElasticsearchParseException("Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized", settingName, sValue);
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, sValue);
         }
+    }
+
+    private static long parse(String s, int suffixLength, long scale) {
+        return (long) (Double.parseDouble(s.substring(0, s.length() - suffixLength)) * scale);
     }
 
     static final long C0 = 1L;
@@ -311,7 +336,7 @@ public class TimeValue implements Streamable {
     @Override
     public int hashCode() {
         long normalized = timeUnit.toNanos(duration);
-        return (int) (normalized ^ (normalized >>> 32));
+        return Long.hashCode(normalized);
     }
 
     public static long nsecToMSec(long ns) {

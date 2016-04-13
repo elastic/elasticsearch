@@ -2,4 +2,4 @@
 === Phonetic Token Filter
 
 The `phonetic` token filter is provided as a plugin and located
-https://github.com/elasticsearch/elasticsearch-analysis-phonetic[here].
+https://github.com/elastic/elasticsearch-analysis-phonetic[here].

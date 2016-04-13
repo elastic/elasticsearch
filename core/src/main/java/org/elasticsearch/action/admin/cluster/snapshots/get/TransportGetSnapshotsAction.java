@@ -19,17 +19,17 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -37,7 +37,11 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Transport Action for get snapshots operation
@@ -49,7 +53,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     public TransportGetSnapshotsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetSnapshotsRequest.class);
+        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetSnapshotsRequest::new);
         this.snapshotsService = snapshotsService;
     }
 
@@ -71,9 +75,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     @Override
     protected void masterOperation(final GetSnapshotsRequest request, ClusterState state, final ActionListener<GetSnapshotsResponse> listener) {
         try {
-            ImmutableList.Builder<SnapshotInfo> snapshotInfoBuilder = ImmutableList.builder();
+            List<SnapshotInfo> snapshotInfoBuilder = new ArrayList<>();
             if (isAllSnapshots(request.snapshots())) {
-                List<Snapshot> snapshots = snapshotsService.snapshots(request.repository());
+                List<Snapshot> snapshots = snapshotsService.snapshots(request.repository(), request.ignoreUnavailable());
                 for (Snapshot snapshot : snapshots) {
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
                 }
@@ -83,12 +87,28 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
                 }
             } else {
-                for (int i = 0; i < request.snapshots().length; i++) {
-                    SnapshotId snapshotId = new SnapshotId(request.repository(), request.snapshots()[i]);
+                Set<String> snapshotsToGet = new LinkedHashSet<>(); // to keep insertion order
+                List<Snapshot> snapshots = null;
+                for (String snapshotOrPattern : request.snapshots()) {
+                    if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
+                        snapshotsToGet.add(snapshotOrPattern);
+                    } else {
+                        if (snapshots == null) { // lazily load snapshots
+                            snapshots = snapshotsService.snapshots(request.repository(), request.ignoreUnavailable());
+                        }
+                        for (Snapshot snapshot : snapshots) {
+                            if (Regex.simpleMatch(snapshotOrPattern, snapshot.name())) {
+                                snapshotsToGet.add(snapshot.name());
+                            }
+                        }
+                    }
+                }
+                for (String snapshot : snapshotsToGet) {
+                    SnapshotId snapshotId = new SnapshotId(request.repository(), snapshot);
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshotsService.snapshot(snapshotId)));
                 }
             }
-            listener.onResponse(new GetSnapshotsResponse(snapshotInfoBuilder.build()));
+            listener.onResponse(new GetSnapshotsResponse(Collections.unmodifiableList(snapshotInfoBuilder)));
         } catch (Throwable t) {
             listener.onFailure(t);
         }

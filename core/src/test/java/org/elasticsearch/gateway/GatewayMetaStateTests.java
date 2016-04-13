@@ -19,23 +19,26 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -53,9 +56,9 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
     ClusterChangedEvent generateEvent(boolean initializing, boolean versionChanged, boolean masterEligible) {
         //ridiculous settings to make sure we don't run into uninitialized because fo default
-        AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 100)
-                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+        AllocationService strategy = createAllocationService(Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", 100)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
                 .build());
@@ -75,11 +78,13 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
         // new cluster state will have initializing shards on node 1
-        RoutingTable routingTableNewClusterState = strategy.reroute(init).routingTable();
+        RoutingTable routingTableNewClusterState = strategy.reroute(init, "reroute").routingTable();
         if (initializing == false) {
             // pretend all initialized, nothing happened
-            ClusterState temp = ClusterState.builder(init).routingTable(routingTableNewClusterState).metaData(metaDataOldClusterState).build();
-            routingTableNewClusterState = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
+            ClusterState temp = ClusterState.builder(init).routingTable(routingTableNewClusterState)
+                    .metaData(metaDataOldClusterState).build();
+            routingTableNewClusterState = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING))
+                    .routingTable();
             routingTableOldClusterState = routingTableNewClusterState;
 
         } else {
@@ -98,7 +103,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .routingTable(routingTableOldClusterState)
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
-        newClusterState = ClusterState.builder(previousClusterState).routingTable(routingTableNewClusterState).metaData(metaDataNewClusterState).version(previousClusterState.getVersion() + 1).build();
+        newClusterState = ClusterState.builder(previousClusterState).routingTable(routingTableNewClusterState)
+                .metaData(metaDataNewClusterState).version(previousClusterState.getVersion() + 1).build();
 
         ClusterChangedEvent event = new ClusterChangedEvent("test", newClusterState, previousClusterState);
         assertThat(event.state().version(), equalTo(event.previousState().version() + 1));
@@ -107,9 +113,9 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
     ClusterChangedEvent generateCloseEvent(boolean masterEligible) {
         //ridiculous settings to make sure we don't run into uninitialized because fo default
-        AllocationService strategy = createAllocationService(settingsBuilder()
-                .put("cluster.routing.allocation.concurrent_recoveries", 100)
-                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+        AllocationService strategy = createAllocationService(Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", 100)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
                 .build());
@@ -128,9 +134,10 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .routingTable(routingTableIndexCreated)
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
-        RoutingTable routingTableInitializing = strategy.reroute(init).routingTable();
+        RoutingTable routingTableInitializing = strategy.reroute(init, "reroute").routingTable();
         ClusterState temp = ClusterState.builder(init).routingTable(routingTableInitializing).build();
-        RoutingTable routingTableStarted = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
+        RoutingTable routingTableStarted = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING))
+                .routingTable();
 
         // create new meta data either with version changed or not
         MetaData metaDataStarted = MetaData.builder()
@@ -139,7 +146,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
         // create the cluster states with meta data and routing tables as computed before
         MetaData metaDataClosed = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).state(IndexMetaData.State.CLOSE).numberOfShards(5).numberOfReplicas(2)).version(metaDataStarted.version() + 1)
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).state(IndexMetaData.State.CLOSE)
+                        .numberOfShards(5).numberOfReplicas(2)).version(metaDataStarted.version() + 1)
                 .build();
         previousClusterState = ClusterState.builder(init)
                 .metaData(metaDataStarted)
@@ -157,39 +165,34 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
     }
 
     private DiscoveryNodes.Builder generateDiscoveryNodes(boolean masterEligible) {
-        Map<String, String> masterNodeAttributes = new HashMap<>();
-        masterNodeAttributes.put("master", "true");
-        masterNodeAttributes.put("data", "true");
-        Map<String, String> dataNodeAttributes = new HashMap<>();
-        dataNodeAttributes.put("master", "false");
-        dataNodeAttributes.put("data", "true");
-        return DiscoveryNodes.builder().put(newNode("node1", masterEligible ? masterNodeAttributes : dataNodeAttributes)).put(newNode("master_node", masterNodeAttributes)).localNodeId("node1").masterNodeId(masterEligible ? "node1" : "master_node");
+        Set<DiscoveryNode.Role> dataOnlyRoles = Collections.singleton(DiscoveryNode.Role.DATA);
+        return DiscoveryNodes.builder().put(newNode("node1", masterEligible ? MASTER_DATA_ROLES : dataOnlyRoles))
+                .put(newNode("master_node", MASTER_DATA_ROLES)).localNodeId("node1").masterNodeId(masterEligible ? "node1" : "master_node");
     }
 
     public void assertState(ClusterChangedEvent event,
                             boolean stateInMemory,
                             boolean expectMetaData) throws Exception {
         MetaData inMemoryMetaData = null;
-        ImmutableSet<String> oldIndicesList = ImmutableSet.of();
+        Set<Index> oldIndicesList = emptySet();
         if (stateInMemory) {
             inMemoryMetaData = event.previousState().metaData();
-            ImmutableSet.Builder<String> relevantIndices = ImmutableSet.builder();
-            oldIndicesList = relevantIndices.addAll(GatewayMetaState.getRelevantIndices(event.previousState(), event.previousState(), oldIndicesList)).build();
+            oldIndicesList = GatewayMetaState.getRelevantIndices(event.previousState(), event.previousState(), oldIndicesList);
         }
-        Set<String> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(),event.previousState(), oldIndicesList);
+        Set<Index> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(),event.previousState(), oldIndicesList);
         // third, get the actual write info
-        Iterator<GatewayMetaState.IndexMetaWriteInfo> indices = GatewayMetaState.resolveStatesToBeWritten(oldIndicesList, newIndicesList, inMemoryMetaData, event.state().metaData()).iterator();
+        Iterator<GatewayMetaState.IndexMetaWriteInfo> indices = GatewayMetaState.resolveStatesToBeWritten(oldIndicesList, newIndicesList,
+                inMemoryMetaData, event.state().metaData()).iterator();
 
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));
-            assertThat(indices.next().getNewMetaData().index(), equalTo("test"));
+            assertThat(indices.next().getNewMetaData().getIndex().getName(), equalTo("test"));
             assertThat(indices.hasNext(), equalTo(false));
         } else {
             assertThat(indices.hasNext(), equalTo(false));
         }
     }
 
-    @Test
     public void testVersionChangeIsAlwaysWritten() throws Exception {
         // test that version changes are always written
         boolean initializing = randomBoolean();
@@ -201,7 +204,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testNewShardsAlwaysWritten() throws Exception {
         // make sure new shards on data only node always written
         boolean initializing = true;
@@ -213,7 +215,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testAllUpToDateNothingWritten() throws Exception {
         // make sure state is not written again if we wrote already
         boolean initializing = false;
@@ -225,7 +226,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testNoWriteIfNothingChanged() throws Exception {
         boolean initializing = false;
         boolean versionChanged = false;
@@ -237,7 +237,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(newEventWithNothingChanged, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testWriteClosedIndex() throws Exception {
         // test that the closing of an index is written also on data only node
         boolean masterEligible = randomBoolean();

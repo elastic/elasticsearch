@@ -19,23 +19,20 @@
 
 package org.elasticsearch.common.settings.loader;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class YamlSettingsLoaderTests extends ESTestCase {
 
-    @Test
     public void testSimpleYamlSettings() throws Exception {
-        Settings settings = settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/common/settings/loader/test-settings.yml")
+        final String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
+        final Settings settings = Settings.builder()
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .build();
 
         assertThat(settings.get("test1.value1"), equalTo("value1"));
@@ -50,17 +47,42 @@ public class YamlSettingsLoaderTests extends ESTestCase {
         assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
     }
 
-    @Test(expected = SettingsException.class)
     public void testIndentation() {
-        settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/common/settings/loader/indentation-settings.yml")
-                .build();
+        final String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
+        final SettingsException e =
+                expectThrows(
+                        SettingsException.class,
+                        () -> Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml)).build());
+        assertThat(e.getMessage(), containsString("Failed to load settings"));
     }
 
-    @Test(expected = SettingsException.class)
     public void testIndentationWithExplicitDocumentStart() {
-        settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml")
-                .build();
+        final String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
+        final SettingsException e =
+                expectThrows(
+                        SettingsException.class,
+                        () -> Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml)).build());
+        assertThat(e.getMessage(), containsString("Failed to load settings"));
     }
+
+    public void testDuplicateKeysThrowsException() {
+        final String yaml = "foo: bar\nfoo: baz";
+        final SettingsException e = expectThrows(SettingsException.class, () -> Settings.builder().loadFromSource(yaml).build());
+        assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
+        assertThat(
+                e.toString(),
+                containsString("duplicate settings key [foo] " +
+                        "found at line number [2], " +
+                        "column number [6], " +
+                        "previous value [bar], " +
+                        "current value [baz]"));
+    }
+
+    public void testNullValuedSettingThrowsException() {
+        final String yaml = "foo:";
+        final ElasticsearchParseException e =
+                expectThrows(ElasticsearchParseException.class, () -> new YamlSettingsLoader(false).load(yaml));
+        assertThat(e.toString(), containsString("null-valued setting found for key [foo] found at line number [1], column number [5]"));
+    }
+
 }

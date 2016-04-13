@@ -21,7 +21,9 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 
 import java.util.Comparator;
 
@@ -33,16 +35,16 @@ import java.util.Comparator;
  * here the newer indices matter more). If even that is the same, we compare the index name which is useful
  * if the date is baked into the index name. ie logstash-2015.05.03.
  */
-abstract class PriorityComparator implements Comparator<ShardRouting> {
+public abstract class PriorityComparator implements Comparator<ShardRouting> {
 
     @Override
     public final int compare(ShardRouting o1, ShardRouting o2) {
-        final String o1Index = o1.index();
-        final String o2Index = o2.index();
+        final String o1Index = o1.getIndexName();
+        final String o2Index = o2.getIndexName();
         int cmp = 0;
         if (o1Index.equals(o2Index) == false) {
-            final Settings settingsO1 = getIndexSettings(o1Index);
-            final Settings settingsO2 = getIndexSettings(o2Index);
+            final Settings settingsO1 = getIndexSettings(o1.index());
+            final Settings settingsO2 = getIndexSettings(o2.index());
             cmp = Long.compare(priority(settingsO2), priority(settingsO1));
             if (cmp == 0) {
                 cmp = Long.compare(timeCreated(settingsO2), timeCreated(settingsO1));
@@ -55,12 +57,25 @@ abstract class PriorityComparator implements Comparator<ShardRouting> {
     }
 
     private int priority(Settings settings) {
-        return settings.getAsInt(IndexMetaData.SETTING_PRIORITY, 1);
+        return IndexMetaData.INDEX_PRIORITY_SETTING.get(settings);
     }
 
     private long timeCreated(Settings settings) {
-        return settings.getAsLong(IndexMetaData.SETTING_CREATION_DATE, -1l);
+        return settings.getAsLong(IndexMetaData.SETTING_CREATION_DATE, -1L);
     }
 
-    protected abstract Settings getIndexSettings(String index);
+    protected abstract Settings getIndexSettings(Index index);
+
+    /**
+     * Returns a PriorityComparator that uses the RoutingAllocation index metadata to access the index setting per index.
+     */
+    public static PriorityComparator getAllocationComparator(final RoutingAllocation allocation) {
+        return new PriorityComparator() {
+            @Override
+            protected Settings getIndexSettings(Index index) {
+                IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(index);
+                return indexMetaData.getSettings();
+            }
+        };
+    }
 }

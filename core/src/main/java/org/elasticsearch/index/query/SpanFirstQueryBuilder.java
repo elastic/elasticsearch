@@ -19,51 +19,155 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanFirstQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public class SpanFirstQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanFirstQueryBuilder> {
+public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder<SpanFirstQueryBuilder>{
 
-    private final SpanQueryBuilder matchBuilder;
+    public static final String NAME = "span_first";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
+    private static final ParseField MATCH_FIELD = new ParseField("match");
+    private static final ParseField END_FIELD = new ParseField("end");
+
+    private final SpanQueryBuilder<?> matchBuilder;
 
     private final int end;
 
-    private float boost = -1;
-
-    private String queryName;
-
-    public SpanFirstQueryBuilder(SpanQueryBuilder matchBuilder, int end) {
+    /**
+     * Query that matches spans queries defined in <code>matchBuilder</code>
+     * whose end position is less than or equal to <code>end</code>.
+     * @param matchBuilder inner {@link SpanQueryBuilder}
+     * @param end maximum end position of the match, needs to be positive
+     * @throws IllegalArgumentException for negative <code>end</code> positions
+     */
+    public SpanFirstQueryBuilder(SpanQueryBuilder<?> matchBuilder, int end) {
+        if (matchBuilder == null) {
+            throw new IllegalArgumentException("inner span query cannot be null");
+        }
+        if (end < 0) {
+            throw new IllegalArgumentException("parameter [end] needs to be positive.");
+        }
         this.matchBuilder = matchBuilder;
         this.end = end;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public SpanFirstQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        matchBuilder = (SpanQueryBuilder<?>)in.readQuery();
+        end = in.readInt();
+    }
+
     @Override
-    public SpanFirstQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(matchBuilder);
+        out.writeInt(end);
     }
 
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @return the inner {@link SpanQueryBuilder} defined in this query
      */
-    public SpanFirstQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public SpanQueryBuilder<?> innerQuery() {
+        return this.matchBuilder;
+    }
+
+    /**
+     * @return maximum end position of the matching inner span query
+     */
+    public int end() {
+        return this.end;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SpanFirstQueryParser.NAME);
-        builder.field("match");
+        builder.startObject(NAME);
+        builder.field(MATCH_FIELD.getPreferredName());
         matchBuilder.toXContent(builder, params);
-        builder.field("end", end);
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
+        builder.field(END_FIELD.getPreferredName(), end);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static SpanFirstQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+
+        SpanQueryBuilder match = null;
+        Integer end = null;
+        String queryName = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, MATCH_FIELD)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (!(query instanceof SpanQueryBuilder)) {
+                        throw new ParsingException(parser.getTokenLocation(), "spanFirst [match] must be of type span query");
+                    }
+                    match = (SpanQueryBuilder) query;
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[span_first] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, END_FIELD)) {
+                    end = parser.intValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[span_first] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        if (match == null) {
+            throw new ParsingException(parser.getTokenLocation(), "spanFirst must have [match] span query clause");
+        }
+        if (end == null) {
+            throw new ParsingException(parser.getTokenLocation(), "spanFirst must have [end] set for it");
+        }
+        SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(match, end);
+        queryBuilder.boost(boost).queryName(queryName);
+        return queryBuilder;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query innerSpanQuery = matchBuilder.toQuery(context);
+        assert innerSpanQuery instanceof SpanQuery;
+        return new SpanFirstQuery((SpanQuery) innerSpanQuery, end);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(matchBuilder, end);
+    }
+
+    @Override
+    protected boolean doEquals(SpanFirstQueryBuilder other) {
+        return Objects.equals(matchBuilder, other.matchBuilder) &&
+               Objects.equals(end, other.end);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

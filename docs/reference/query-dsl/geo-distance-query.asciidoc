@@ -22,8 +22,8 @@ filter:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -51,8 +51,8 @@ representation of the geo point, the filter can accept it as well:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -77,8 +77,8 @@ conform with http://geojson.org/[GeoJSON].
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -99,8 +99,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -119,8 +119,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -158,6 +158,14 @@ The following are options allowed on the filter:
     sure the `geo_point` type index lat lon in this case), or `none` which
     disables bounding box optimization.
 
+`_name`::
+
+    Optional name field to identify the query
+
+`ignore_malformed`::
+
+    Set to `true` to accept geo points with invalid latitude or
+    longitude (default is `false`).
 
 [float]
 ==== geo_point Type

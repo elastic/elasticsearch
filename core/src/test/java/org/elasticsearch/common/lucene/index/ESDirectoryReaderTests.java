@@ -54,8 +54,8 @@ public class ESDirectoryReaderTests extends ESTestCase {
         iw.addDocument(doc);
         
         // open reader
-        ShardId shardId = new ShardId(new Index("fake"), 1);
-        DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw, true), shardId);
+        ShardId shardId = new ShardId("fake", "_na_", 1);
+        DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), shardId);
         assertEquals(2, ir.numDocs());
         assertEquals(1, ir.leaves().size());
 
@@ -67,10 +67,6 @@ public class ESDirectoryReaderTests extends ESTestCase {
         assertEquals(1, ir2.numDocs());
         assertEquals(1, ir2.leaves().size());
         assertSame(ir.leaves().get(0).reader().getCoreCacheKey(), ir2.leaves().get(0).reader().getCoreCacheKey());
-        
-        // this is kind of stupid, but for now its here
-        assertNotSame(ir.leaves().get(0).reader().getCombinedCoreAndDeletesKey(), ir2.leaves().get(0).reader().getCombinedCoreAndDeletesKey());
-        
         IOUtils.close(ir, ir2, iw, dir);
     }
 }

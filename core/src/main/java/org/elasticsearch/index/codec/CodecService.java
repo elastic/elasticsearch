@@ -19,58 +19,41 @@
 
 package org.elasticsearch.index.codec;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
+import org.apache.lucene.codecs.lucene54.Lucene54Codec;
+import org.apache.lucene.codecs.lucene60.Lucene60Codec;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
+
+import java.util.Map;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
- * codec layer that allows to use use-case specific file formats &
+ * codec layer that allows to use use-case specific file formats &amp;
  * data-structures per field. Elasticsearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
- *
- * @see PostingsFormatService
- * @see DocValuesFormatService
  */
-public class CodecService extends AbstractIndexComponent {
+public class CodecService {
 
-    private final MapperService mapperService;
-    private final ImmutableMap<String, Codec> codecs;
+    private final Map<String, Codec> codecs;
 
     public final static String DEFAULT_CODEC = "default";
     public final static String BEST_COMPRESSION_CODEC = "best_compression";
     /** the raw unfiltered lucene default. useful for testing */
     public final static String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    public CodecService(Index index) {
-        this(index, Settings.Builder.EMPTY_SETTINGS);
-    }
-
-    public CodecService(Index index, @IndexSettings Settings indexSettings) {
-        this(index, indexSettings, null);
-    }
-
-    @Inject
-    public CodecService(Index index, @IndexSettings Settings indexSettings, MapperService mapperService) {
-        super(index, indexSettings);
-        this.mapperService = mapperService;
-        MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
+    public CodecService(@Nullable MapperService mapperService, ESLogger logger) {
+        final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene50Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene50Codec(Mode.BEST_COMPRESSION));
+            codecs.put(DEFAULT_CODEC, new Lucene60Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene60Codec(Mode.BEST_COMPRESSION));
         } else {
-            codecs.put(DEFAULT_CODEC, 
+            codecs.put(DEFAULT_CODEC,
                     new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
-            codecs.put(BEST_COMPRESSION_CODEC, 
+            codecs.put(BEST_COMPRESSION_CODEC,
                     new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
@@ -78,10 +61,6 @@ public class CodecService extends AbstractIndexComponent {
             codecs.put(codec, Codec.forName(codec));
         }
         this.codecs = codecs.immutableMap();
-    }
-
-    public MapperService mapperService() {
-        return mapperService;
     }
 
     public Codec codec(String name) {

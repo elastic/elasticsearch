@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-max-bucket-aggregation]]
 === Max Bucket Aggregation
 
-coming[2.0.0]
-
 experimental[]
 
 A sibling pipeline aggregation which identifies the bucket(s) with the maximum value of a specified metric in a sibling aggregation
@@ -25,7 +23,7 @@ A `max_bucket` aggregation looks like this in isolation:
 .`max_bucket` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`buckets_path` |The path to the buckets we wish to find the maximum for (see <<bucket-path-syntax>> for more
+|`buckets_path` |The path to the buckets we wish to find the maximum for (see <<buckets-path-syntax>> for more
  details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional, defaults to `skip` |
@@ -53,13 +51,13 @@ The following snippet calculates the maximum of the total monthly `sales`:
         },
         "max_monthly_sales": {
             "max_bucket": {
-                "buckets_paths": "sales_per_month>sales" <1>
+                "buckets_path": "sales_per_month>sales" <1>
             }
         }
     }
 }
 --------------------------------------------------
-<1> `bucket_paths` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the 
+<1> `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the 
 `sales_per_month` date histogram.
 
 And the following may be the response:

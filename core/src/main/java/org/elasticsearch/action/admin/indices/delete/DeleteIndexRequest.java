@@ -44,7 +44,7 @@ public class DeleteIndexRequest extends MasterNodeRequest<DeleteIndexRequest> im
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private TimeValue timeout = AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
 
-    DeleteIndexRequest() {
+    public DeleteIndexRequest() {
     }
 
     /**

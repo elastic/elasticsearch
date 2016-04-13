@@ -25,8 +25,10 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
+import java.util.Objects;
+
 /**
- * Pseudo randomly generate a score for each {@link #score}.
+ * Pseudo randomly generate a score for each {@link LeafScoreFunction#score}.
  */
 public class RandomScoreFunction extends ScoreFunction {
 
@@ -38,7 +40,7 @@ public class RandomScoreFunction extends ScoreFunction {
      * Default constructor. Only useful for constructing as a placeholder, but should not be used for actual scoring.
      */
     public RandomScoreFunction() {
-        super(CombineFunction.MULT);
+        super(CombineFunction.MULTIPLY);
         uidFieldData = null;
     }
 
@@ -50,7 +52,7 @@ public class RandomScoreFunction extends ScoreFunction {
      * @param uidFieldData The field data for _uid to use for generating consistent random values for the same id
      */
     public RandomScoreFunction(int seed, int salt, IndexFieldData<?> uidFieldData) {
-        super(CombineFunction.MULT);
+        super(CombineFunction.MULTIPLY);
         this.originalSeed = seed;
         this.saltedSeed = seed ^ salt;
         this.uidFieldData = uidFieldData;
@@ -81,4 +83,20 @@ public class RandomScoreFunction extends ScoreFunction {
         };
     }
 
+    @Override
+    public boolean needsScores() {
+        return false;
+    }
+
+    @Override
+    protected boolean doEquals(ScoreFunction other) {
+        RandomScoreFunction randomScoreFunction = (RandomScoreFunction) other;
+        return this.originalSeed == randomScoreFunction.originalSeed &&
+                this.saltedSeed == randomScoreFunction.saltedSeed;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(originalSeed, saltedSeed);
+    }
 }

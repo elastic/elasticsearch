@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch.version;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -33,14 +32,17 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
 /**
  *
  */
 public class VersionFetchSubPhase implements FetchSubPhase {
+    private static final Map<String, ? extends SearchParseElement> PARSE_ELEMENTS = singletonMap("version", new VersionParseElement());
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("version", new VersionParseElement());
+        return PARSE_ELEMENTS;
     }
 
     @Override

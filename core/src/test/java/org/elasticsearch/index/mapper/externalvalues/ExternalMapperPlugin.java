@@ -19,34 +19,30 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collection;
+public class ExternalMapperPlugin extends Plugin {
 
-import static com.google.common.collect.Lists.newArrayList;
+    public static final String EXTERNAL = "external";
+    public static final String EXTERNAL_BIS = "external_bis";
+    public static final String EXTERNAL_UPPER = "external_upper";
 
-public class ExternalMapperPlugin extends AbstractPlugin {
-    /**
-     * The name of the plugin.
-     */
     @Override
     public String name() {
         return "external-mappers";
     }
 
-    /**
-     * The description of the plugin.
-     */
     @Override
     public String description() {
         return "External Mappers Plugin";
     }
 
-    @Override
-    public Collection<Class<? extends Module>> indexModules() {
-        Collection<Class<? extends Module>> modules = newArrayList();
-        modules.add(ExternalIndexModule.class);
-        return modules;
+    public void onModule(IndicesModule indicesModule) {
+        indicesModule.registerMetadataMapper(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser());
+        indicesModule.registerMapper(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
+        indicesModule.registerMapper(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
+        indicesModule.registerMapper(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));
     }
+
 }

@@ -25,11 +25,9 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -37,18 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class JsonVsSmileTests extends ESTestCase {
-
-//    @Test public void testBinarySmileField() throws Exception {
-//        JsonGenerator gen = new SmileFactory().createJsonGenerator(new ByteArrayOutputStream());
-////        JsonGenerator gen = new JsonFactory().createJsonGenerator(new ByteArrayOutputStream(), JsonEncoding.UTF8);
-//        gen.writeStartObject();
-//        gen.writeFieldName("field1");
-//        gen.writeBinary(new byte[]{1, 2, 3});
-//        gen.writeEndObject();
-//    }
-
-    @Test
-    public void compareParsingTokens() throws IOException {
+    public void testCompareParsingTokens() throws IOException {
         BytesStreamOutput xsonOs = new BytesStreamOutput();
         XContentGenerator xsonGen = XContentFactory.xContent(XContentType.SMILE).createGenerator(xsonOs);
 

@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -76,7 +77,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
-     * <p/>
+     * <p>
      * The script works with the variable <code>ctx</code>, which is bound to the entry,
      * e.g. <code>ctx._source.mycounter += 1</code>.
      *
@@ -308,6 +309,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Sets whether to perform extra effort to detect noop updates via docAsUpsert.
+     * Defautls to true.
      */
     public UpdateRequestBuilder setDetectNoop(boolean detectNoop) {
         request.detectNoop(detectNoop);
@@ -320,6 +322,36 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setScriptedUpsert(boolean scriptedUpsert) {
         request.scriptedUpsert(scriptedUpsert);
+        return this;
+    }
+
+    /**
+     * Set the new ttl of the document as a long. Note that if detectNoop is true (the default)
+     * and the source of the document isn't changed then the ttl update won't take
+     * effect.
+     */
+    public UpdateRequestBuilder setTtl(Long ttl) {
+        request.doc().ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Set the new ttl of the document as a time value expression. Note that if detectNoop is true (the default)
+     * and the source of the document isn't changed then the ttl update won't take
+     * effect.
+     */
+    public UpdateRequestBuilder setTtl(String ttl) {
+        request.doc().ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Set the new ttl of the document as a {@link TimeValue} instance. Note that if detectNoop is true (the default)
+     * and the source of the document isn't changed then the ttl update won't take
+     * effect.
+     */
+    public UpdateRequestBuilder setTtl(TimeValue ttl) {
+        request.doc().ttl(ttl);
         return this;
     }
 }

@@ -19,19 +19,17 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingsModule;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An {@link org.elasticsearch.common.inject.Module} which manages {@link ScriptEngineService}s, as well
@@ -39,20 +37,20 @@ import java.util.Map;
  */
 public class ScriptModule extends AbstractModule {
 
-    private final Settings settings;
+    private final List<ScriptEngineRegistry.ScriptEngineRegistration> scriptEngineRegistrations = new ArrayList<>();
 
-    private final List<Class<? extends ScriptEngineService>> scriptEngines = Lists.newArrayList();
-
-    private final Map<String, Class<? extends NativeScriptFactory>> scripts = Maps.newHashMap();
-
-    private final List<ScriptContext.Plugin> customScriptContexts = Lists.newArrayList();
-
-    public ScriptModule(Settings settings) {
-        this.settings = settings;
+    {
+        scriptEngineRegistrations.add(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.TYPES));
     }
 
-    public void addScriptEngine(Class<? extends ScriptEngineService> scriptEngine) {
-        scriptEngines.add(scriptEngine);
+    private final Map<String, Class<? extends NativeScriptFactory>> scripts = new HashMap<>();
+
+    private final List<ScriptContext.Plugin> customScriptContexts = new ArrayList<>();
+
+
+    public void addScriptEngine(ScriptEngineRegistry.ScriptEngineRegistration scriptEngineRegistration) {
+        Objects.requireNonNull(scriptEngineRegistration);
+        scriptEngineRegistrations.add(scriptEngineRegistration);
     }
 
     public void registerScript(String name, Class<? extends NativeScriptFactory> script) {
@@ -67,6 +65,21 @@ public class ScriptModule extends AbstractModule {
         customScriptContexts.add(scriptContext);
     }
 
+    /**
+     * This method is called after all modules have been processed but before we actually validate all settings. This allows the
+     * script extensions to add all their settings.
+     */
+    public void prepareSettings(SettingsModule settingsModule) {
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineRegistrations);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+
+        scriptSettings.getScriptTypeSettings().forEach(settingsModule::registerSetting);
+        scriptSettings.getScriptContextSettings().forEach(settingsModule::registerSetting);
+        scriptSettings.getScriptLanguageSettings().forEach(settingsModule::registerSetting);
+        settingsModule.registerSetting(scriptSettings.getDefaultScriptLanguageSetting());
+    }
+
     @Override
     protected void configure() {
         MapBinder<String, NativeScriptFactory> scriptsBinder
@@ -75,46 +88,21 @@ public class ScriptModule extends AbstractModule {
             scriptsBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
         }
 
-        // now, check for config based ones
-        Map<String, Settings> nativeSettings = settings.getGroups("script.native");
-        for (Map.Entry<String, Settings> entry : nativeSettings.entrySet()) {
-            String name = entry.getKey();
-            Class<? extends NativeScriptFactory> type = entry.getValue().getAsClass("type", NativeScriptFactory.class);
-            if (type == NativeScriptFactory.class) {
-                throw new IllegalArgumentException("type is missing for native script [" + name + "]");
-            }
-            scriptsBinder.addBinding(name).to(type).asEagerSingleton();
-        }
-
         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
         multibinder.addBinding().to(NativeScriptEngineService.class);
 
-        try {
-            settings.getClassLoader().loadClass("groovy.lang.GroovyClassLoader");
-            multibinder.addBinding().to(GroovyScriptEngineService.class).asEagerSingleton();
-        } catch (Throwable t) {
-            Loggers.getLogger(ScriptService.class, settings).debug("failed to load groovy", t);
-        }
-        
-        try {
-            settings.getClassLoader().loadClass("com.github.mustachejava.Mustache");
-            multibinder.addBinding().to(MustacheScriptEngineService.class).asEagerSingleton();
-        } catch (Throwable t) {
-            Loggers.getLogger(ScriptService.class, settings).debug("failed to load mustache", t);
+        for (ScriptEngineRegistry.ScriptEngineRegistration scriptEngineRegistration : scriptEngineRegistrations) {
+            multibinder.addBinding().to(scriptEngineRegistration.getScriptEngineService()).asEagerSingleton();
         }
 
-        try {
-            settings.getClassLoader().loadClass("org.apache.lucene.expressions.Expression");
-            multibinder.addBinding().to(ExpressionScriptEngineService.class).asEagerSingleton();
-        } catch (Throwable t) {
-            Loggers.getLogger(ScriptService.class, settings).debug("failed to load lucene expressions", t);
-        }
 
-        for (Class<? extends ScriptEngineService> scriptEngine : scriptEngines) {
-            multibinder.addBinding().to(scriptEngine).asEagerSingleton();
-        }
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineRegistrations);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
 
-        bind(ScriptContextRegistry.class).toInstance(new ScriptContextRegistry(customScriptContexts));
+        bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
+        bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
+        bind(ScriptSettings.class).toInstance(scriptSettings);
         bind(ScriptService.class).asEagerSingleton();
     }
 }

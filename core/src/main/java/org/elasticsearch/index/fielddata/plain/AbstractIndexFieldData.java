@@ -19,18 +19,17 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 
 import java.io.IOException;
 
@@ -38,41 +37,32 @@ import java.io.IOException;
  */
 public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
 
-    private final MappedFieldType.Names fieldNames;
-    protected final FieldDataType fieldDataType;
+    private final String fieldName;
     protected final IndexFieldDataCache cache;
 
-    public AbstractIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
-        super(index, indexSettings);
-        this.fieldNames = fieldNames;
-        this.fieldDataType = fieldDataType;
+    public AbstractIndexFieldData(IndexSettings indexSettings, String fieldName, IndexFieldDataCache cache) {
+        super(indexSettings);
+        this.fieldName = fieldName;
         this.cache = cache;
     }
 
     @Override
-    public MappedFieldType.Names getFieldNames() {
-        return this.fieldNames;
-    }
-
-    @Override
-    public FieldDataType getFieldDataType() {
-        return fieldDataType;
+    public String getFieldName() {
+        return this.fieldName;
     }
 
     @Override
     public void clear() {
-        cache.clear(fieldNames.indexName());
-    }
-
-    @Override
-    public void clear(IndexReader reader) {
-        cache.clear(reader);
+        cache.clear(fieldName);
     }
 
     @Override
     public FD load(LeafReaderContext context) {
-        if (context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
-            // If the field doesn't exist, then don't bother with loading and adding an empty instance to the field data cache
+        if (context.reader().getFieldInfos().fieldInfo(fieldName) == null) {
+            // Some leaf readers may be wrapped and report different set of fields and use the same cache key.
+            // If a field can't be found then it doesn't mean it isn't there,
+            // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
+            // The next time the field is found, we do cache.
             return empty(context.reader().maxDoc());
         }
 
@@ -83,7 +73,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }
@@ -99,7 +89,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
      * the memory overhead for loading the data. Each field data
      * implementation should implement its own {@code PerValueEstimator} if it
      * intends to take advantage of the MemoryCircuitBreaker.
-     * <p/>
+     * <p>
      * Note that the .beforeLoad(...) and .afterLoad(...) methods must be
      * manually called.
      */
@@ -118,7 +108,6 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
          *
          * @param terms terms to be estimated
          * @return A TermsEnum for the given terms
-         * @throws IOException
          */
         public TermsEnum beforeLoad(Terms terms) throws IOException;
 

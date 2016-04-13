@@ -28,6 +28,16 @@
       "max_value" : {
         "lt": 9
       }
+    },
+    "field1": {
+      "min_value" : {
+        "gte": "2014-01-01",
+        "format" : "date_optional_time"
+      },
+      "max_value" : {
+        "lt": "2015-01-01",
+        "format" : "date_optional_time"
+      }
     }
   }
 }

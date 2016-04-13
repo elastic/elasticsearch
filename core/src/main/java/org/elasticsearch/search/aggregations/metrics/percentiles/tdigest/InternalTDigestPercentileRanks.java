@@ -18,15 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
-import com.google.common.collect.UnmodifiableIterator;
-
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -55,7 +53,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
 
     InternalTDigestPercentileRanks() {} // for serialization
 
-    public InternalTDigestPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, ValueFormatter formatter,
+    public InternalTDigestPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
     }
@@ -83,7 +81,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     @Override
     protected AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalTDigestPercentileRanks(name, keys, merged, keyed, valueFormatter, pipelineAggregators, metaData);
+        return new InternalTDigestPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metaData);
     }
 
     @Override
@@ -102,7 +100,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         return percentileRank * 100;
     }
 
-    public static class Iter extends UnmodifiableIterator<Percentile> {
+    public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;
         private final TDigestState state;
@@ -124,6 +122,11 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
             final Percentile next = new InternalPercentile(percentileRank(state, values[i]), values[i]);
             ++i;
             return next;
+        }
+
+        @Override
+        public final void remove() {
+            throw new UnsupportedOperationException();
         }
     }
 }

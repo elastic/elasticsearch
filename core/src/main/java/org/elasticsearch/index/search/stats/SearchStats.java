@@ -51,6 +51,10 @@ public class SearchStats implements Streamable, ToXContent {
         private long scrollTimeInMillis;
         private long scrollCurrent;
 
+        private long suggestCount;
+        private long suggestTimeInMillis;
+        private long suggestCurrent;
+
         Stats() {
 
         }
@@ -58,7 +62,8 @@ public class SearchStats implements Streamable, ToXContent {
         public Stats(
                 long queryCount, long queryTimeInMillis, long queryCurrent,
                 long fetchCount, long fetchTimeInMillis, long fetchCurrent,
-                long scrollCount, long scrollTimeInMillis, long scrollCurrent
+                long scrollCount, long scrollTimeInMillis, long scrollCurrent,
+                long suggestCount, long suggestTimeInMillis, long suggestCurrent
         ) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
@@ -71,13 +76,19 @@ public class SearchStats implements Streamable, ToXContent {
             this.scrollCount = scrollCount;
             this.scrollTimeInMillis = scrollTimeInMillis;
             this.scrollCurrent = scrollCurrent;
+
+            this.suggestCount = suggestCount;
+            this.suggestTimeInMillis = suggestTimeInMillis;
+            this.suggestCurrent = suggestCurrent;
+
         }
 
         public Stats(Stats stats) {
             this(
                     stats.queryCount, stats.queryTimeInMillis, stats.queryCurrent,
                     stats.fetchCount, stats.fetchTimeInMillis, stats.fetchCurrent,
-                    stats.scrollCount, stats.scrollTimeInMillis, stats.scrollCurrent
+                    stats.scrollCount, stats.scrollTimeInMillis, stats.scrollCurrent,
+                    stats.suggestCount, stats.suggestTimeInMillis, stats.suggestCurrent
             );
         }
 
@@ -93,6 +104,10 @@ public class SearchStats implements Streamable, ToXContent {
             scrollCount += stats.scrollCount;
             scrollTimeInMillis += stats.scrollTimeInMillis;
             scrollCurrent += stats.scrollCurrent;
+
+            suggestCount += stats.suggestCount;
+            suggestTimeInMillis += stats.suggestTimeInMillis;
+            suggestCurrent += stats.suggestCurrent;
         }
 
         public long getQueryCount() {
@@ -143,6 +158,22 @@ public class SearchStats implements Streamable, ToXContent {
             return scrollCurrent;
         }
 
+        public long getSuggestCount() {
+            return suggestCount;
+        }
+
+        public long getSuggestTimeInMillis() {
+            return suggestTimeInMillis;
+        }
+
+        public TimeValue getSuggestTime() {
+            return new TimeValue(suggestTimeInMillis);
+        }
+
+        public long getSuggestCurrent() {
+            return suggestCurrent;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             Stats stats = new Stats();
             stats.readFrom(in);
@@ -162,6 +193,10 @@ public class SearchStats implements Streamable, ToXContent {
             scrollCount = in.readVLong();
             scrollTimeInMillis = in.readVLong();
             scrollCurrent = in.readVLong();
+
+            suggestCount = in.readVLong();
+            suggestTimeInMillis = in.readVLong();
+            suggestCurrent = in.readVLong();
         }
 
         @Override
@@ -177,6 +212,10 @@ public class SearchStats implements Streamable, ToXContent {
             out.writeVLong(scrollCount);
             out.writeVLong(scrollTimeInMillis);
             out.writeVLong(scrollCurrent);
+
+            out.writeVLong(suggestCount);
+            out.writeVLong(suggestTimeInMillis);
+            out.writeVLong(suggestCurrent);
         }
 
         @Override
@@ -192,6 +231,10 @@ public class SearchStats implements Streamable, ToXContent {
             builder.field(Fields.SCROLL_TOTAL, scrollCount);
             builder.timeValueField(Fields.SCROLL_TIME_IN_MILLIS, Fields.SCROLL_TIME, scrollTimeInMillis);
             builder.field(Fields.SCROLL_CURRENT, scrollCurrent);
+
+            builder.field(Fields.SUGGEST_TOTAL, suggestCount);
+            builder.timeValueField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, suggestTimeInMillis);
+            builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
             return builder;
         }
@@ -221,7 +264,7 @@ public class SearchStats implements Streamable, ToXContent {
         if (searchStats == null) {
             return;
         }
-        totalStats.add(searchStats.totalStats);
+        addTotals(searchStats);
         openContexts += searchStats.openContexts;
         if (includeTypes && searchStats.groupStats != null && !searchStats.groupStats.isEmpty()) {
             if (groupStats == null) {
@@ -236,6 +279,13 @@ public class SearchStats implements Streamable, ToXContent {
                 }
             }
         }
+    }
+
+    public void addTotals(SearchStats searchStats) {
+        if (searchStats == null) {
+            return;
+        }
+        totalStats.add(searchStats.totalStats);
     }
 
     public Stats getTotal() {
@@ -285,6 +335,10 @@ public class SearchStats implements Streamable, ToXContent {
         static final XContentBuilderString SCROLL_TIME = new XContentBuilderString("scroll_time");
         static final XContentBuilderString SCROLL_TIME_IN_MILLIS = new XContentBuilderString("scroll_time_in_millis");
         static final XContentBuilderString SCROLL_CURRENT = new XContentBuilderString("scroll_current");
+        static final XContentBuilderString SUGGEST_TOTAL = new XContentBuilderString("suggest_total");
+        static final XContentBuilderString SUGGEST_TIME = new XContentBuilderString("suggest_time");
+        static final XContentBuilderString SUGGEST_TIME_IN_MILLIS = new XContentBuilderString("suggest_time_in_millis");
+        static final XContentBuilderString SUGGEST_CURRENT = new XContentBuilderString("suggest_current");
     }
 
     public static SearchStats readSearchStats(StreamInput in) throws IOException {

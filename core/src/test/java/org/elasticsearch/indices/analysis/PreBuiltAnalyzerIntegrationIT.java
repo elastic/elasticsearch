@@ -19,17 +19,20 @@
 
 package org.elasticsearch.indices.analysis;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
-import java.lang.reflect.Field;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -40,21 +43,15 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
-@ESBackcompatTestCase.CompatibilityVersion(version = Version.V_1_2_0_ID) // we throw an exception if we create an index with _field_names that is 1.3
 public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
-
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", DummyAnalysisPlugin.class.getName())
-            .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(DummyAnalysisPlugin.class, InternalSettingsPlugin.class);
     }
 
-    @Test
     public void testThatPreBuiltAnalyzersAreNotClosedOnIndexClose() throws Exception {
-        Map<PreBuiltAnalyzers, List<Version>> loadedAnalyzers = Maps.newHashMap();
-        List<String> indexNames = Lists.newArrayList();
+        Map<PreBuiltAnalyzers, List<Version>> loadedAnalyzers = new HashMap<>();
+        List<String> indexNames = new ArrayList<>();
         final int numIndices = scaledRandomIntBetween(2, 4);
         for (int i = 0; i < numIndices; i++) {
             String indexName = randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
@@ -66,7 +63,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
 
             Version randomVersion = randomVersion(random());
             if (!loadedAnalyzers.containsKey(preBuiltAnalyzer)) {
-                 loadedAnalyzers.put(preBuiltAnalyzer, Lists.<Version>newArrayList());
+                 loadedAnalyzers.put(preBuiltAnalyzer, new ArrayList<Version>());
             }
             loadedAnalyzers.get(preBuiltAnalyzer).add(randomVersion);
 
@@ -74,7 +71,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
                 .startObject("type")
                     .startObject("properties")
                         .startObject("foo")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("analyzer", name)
                         .endObject()
                     .endObject()
@@ -93,7 +90,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
             String randomIndex = indexNames.get(randomInt(indexNames.size()-1));
             String randomId = randomInt() + "";
 
-            Map<String, Object> data = Maps.newHashMap();
+            Map<String, Object> data = new HashMap<>();
             data.put("foo", randomAsciiOfLength(scaledRandomIntBetween(5, 50)));
 
             index(randomIndex, "type", randomId, data);
@@ -113,25 +110,24 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         // check that all above configured analyzers have been loaded
         assertThatAnalyzersHaveBeenLoaded(loadedAnalyzers);
 
-        // check that all of the prebuiltanalyzers are still open
+        // check that all of the prebuilt analyzers are still open
         assertLuceneAnalyzersAreNotClosed(loadedAnalyzers);
     }
 
     /**
      * Test case for #5030: Upgrading analysis plugins fails
-     * See https://github.com/elasticsearch/elasticsearch/issues/5030
+     * See https://github.com/elastic/elasticsearch/issues/5030
      */
-    @Test
     public void testThatPluginAnalyzersCanBeUpdated() throws Exception {
         final XContentBuilder mapping = jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
                     .startObject("foo")
-                        .field("type", "string")
+                        .field("type", "text")
                         .field("analyzer", "dummy")
                     .endObject()
                     .startObject("bar")
-                        .field("type", "string")
+                        .field("type", "text")
                         .field("analyzer", "my_dummy")
                     .endObject()
                 .endObject()
@@ -162,44 +158,18 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    // the close() method of a lucene analyzer sets the storedValue field to null
-    // we simply check this via reflection - ugly but works
-    private void assertLuceneAnalyzersAreNotClosed(Map<PreBuiltAnalyzers, List<Version>> loadedAnalyzers) throws IllegalAccessException, NoSuchFieldException {
+    // ensure analyzers are still open by checking there is no ACE
+    private void assertLuceneAnalyzersAreNotClosed(Map<PreBuiltAnalyzers, List<Version>> loadedAnalyzers) throws IOException {
         for (Map.Entry<PreBuiltAnalyzers, List<Version>> preBuiltAnalyzerEntry : loadedAnalyzers.entrySet()) {
-            PreBuiltAnalyzers preBuiltAnalyzer = preBuiltAnalyzerEntry.getKey();
             for (Version version : preBuiltAnalyzerEntry.getValue()) {
                 Analyzer analyzer = preBuiltAnalyzerEntry.getKey().getCache().get(version);
-
-                Field field = getFieldFromClass("storedValue", analyzer);
-                boolean currentAccessible = field.isAccessible();
-                field.setAccessible(true);
-                Object storedValue = field.get(analyzer);
-                field.setAccessible(currentAccessible);
-
-                assertThat(String.format(Locale.ROOT, "Analyzer %s in version %s seems to be closed", preBuiltAnalyzer.name(), version), storedValue, is(notNullValue()));
+                try (TokenStream stream = analyzer.tokenStream("foo", "bar")) {
+                    stream.reset();
+                    while (stream.incrementToken()) {
+                    }
+                    stream.end();
+                }
             }
         }
     }
-
-    /**
-     * Searches for a field until it finds, loops through all superclasses
-     */
-    private Field getFieldFromClass(String fieldName, Object obj) {
-        Field field = null;
-        boolean storedValueFieldFound = false;
-        Class clazz = obj.getClass();
-        while (!storedValueFieldFound) {
-            try {
-                field = clazz.getDeclaredField(fieldName);
-                storedValueFieldFound = true;
-            } catch (NoSuchFieldException e) {
-                clazz = clazz.getSuperclass();
-            }
-
-            if (Object.class.equals(clazz)) throw new RuntimeException("Could not find storedValue field in class" + clazz);
-        }
-
-        return field;
-    }
-
 }

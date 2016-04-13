@@ -18,23 +18,25 @@
  */
 package org.elasticsearch.common.unit;
 
-import com.google.common.base.Preconditions;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 
 /**
  * A unit class that encapsulates all in-exact search
  * parsing and conversion from similarities to edit distances
  * etc.
  */
-public final class Fuzziness implements ToXContent {
+public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
 
     public static final XContentBuilderString X_FIELD_NAME = new XContentBuilderString("fuzziness");
     public static final Fuzziness ZERO = new Fuzziness(0);
@@ -46,16 +48,35 @@ public final class Fuzziness implements ToXContent {
     private final String fuzziness;
 
     private Fuzziness(int fuzziness) {
-        Preconditions.checkArgument(fuzziness >= 0 && fuzziness <= 2, "Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
+        if (fuzziness != 0 && fuzziness != 1 && fuzziness != 2) {
+            throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
+        }
         this.fuzziness = Integer.toString(fuzziness);
     }
 
     private Fuzziness(String fuzziness) {
-        this.fuzziness = fuzziness;
+        if (fuzziness == null) {
+            throw new IllegalArgumentException("fuzziness can't be null!");
+        }
+        this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public Fuzziness(StreamInput in) throws IOException {
+        fuzziness = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(fuzziness);
     }
 
     /**
      * Creates a {@link Fuzziness} instance from an edit distance. The value must be one of <tt>[0, 1, 2]</tt>
+     *
+     * Note: Using this method only makes sense if the field you are applying Fuzziness to is some sort of string.
      */
     public static Fuzziness fromEdits(int edits) {
         return new Fuzziness(edits);
@@ -121,7 +142,7 @@ public final class Fuzziness implements ToXContent {
     }
 
     public int asDistance(String text) {
-        if (this == AUTO) { //AUTO
+        if (this.equals(AUTO)) { //AUTO
             final int len = termLen(text);
             if (len <= 2) {
                 return 0;
@@ -135,7 +156,7 @@ public final class Fuzziness implements ToXContent {
     }
 
     public TimeValue asTimeValue() {
-        if (this == AUTO) {
+        if (this.equals(AUTO)) {
             return TimeValue.timeValueMillis(1);
         } else {
             return TimeValue.parseTimeValue(fuzziness.toString(), null, "fuzziness");
@@ -143,7 +164,7 @@ public final class Fuzziness implements ToXContent {
     }
 
     public long asLong() {
-        if (this == AUTO) {
+        if (this.equals(AUTO)) {
             return 1;
         }
         try {
@@ -154,7 +175,7 @@ public final class Fuzziness implements ToXContent {
     }
 
     public int asInt() {
-        if (this == AUTO) {
+        if (this.equals(AUTO)) {
             return 1;
         }
         try {
@@ -165,7 +186,7 @@ public final class Fuzziness implements ToXContent {
     }
 
     public short asShort() {
-        if (this == AUTO) {
+        if (this.equals(AUTO)) {
             return 1;
         }
         try {
@@ -176,7 +197,7 @@ public final class Fuzziness implements ToXContent {
     }
 
     public byte asByte() {
-        if (this == AUTO) {
+        if (this.equals(AUTO)) {
             return 1;
         }
         try {
@@ -187,14 +208,14 @@ public final class Fuzziness implements ToXContent {
     }
 
     public double asDouble() {
-        if (this == AUTO) {
+        if (this.equals(AUTO)) {
             return 1d;
         }
         return Double.parseDouble(fuzziness.toString());
     }
 
     public float asFloat() {
-        if (this == AUTO) {
+        if (this.equals(AUTO)) {
             return 1f;
         }
         return Float.parseFloat(fuzziness.toString());
@@ -206,5 +227,22 @@ public final class Fuzziness implements ToXContent {
 
     public String asString() {
         return fuzziness.toString();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        Fuzziness other = (Fuzziness) obj;
+        return Objects.equals(fuzziness, other.fuzziness);
+    }
+
+    @Override
+    public int hashCode() {
+        return fuzziness.hashCode();
     }
 }

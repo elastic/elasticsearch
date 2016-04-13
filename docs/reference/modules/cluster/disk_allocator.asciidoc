@@ -5,7 +5,7 @@ Elasticsearch factors in the available disk space on a node before deciding
 whether to allocate new shards to that node or to actively relocate shards
 away from that node.
 
-Below are the settings that can be configred in the `elasticsearch.yml` config
+Below are the settings that can be configured in the `elasticsearch.yml` config
 file or updated dynamically on a live cluster with the
 <<cluster-update-settings,cluster-update-settings>> API:
 
@@ -66,4 +66,11 @@ PUT /_cluster/settings
 }
 --------------------------------------------------
 // AUTOSENSE
+
+NOTE: Prior to 2.0.0, when using multiple data paths, the disk threshold
+decider only factored in the usage across all data paths (if you had two
+data paths, one with 50b out of 100b free (50% used) and another with
+40b out of 50b free (80% used) it would see the node's disk usage as 90b
+out of 150b). In 2.0.0, the minimum and maximum disk usages are tracked
+separately.
 

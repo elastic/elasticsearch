@@ -19,12 +19,9 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.base.Predicate;
-
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,18 +32,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.util.HashMap;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -57,21 +53,20 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@ESIntegTestCase.SuppressLocalMode
 public class NoMasterNodeIT extends ESIntegTestCase {
-
-    @Test
     public void testNoMasterActions() throws Exception {
         // note, sometimes, we want to check with the fact that an index gets created, sometimes not...
         boolean autoCreateIndex = randomBoolean();
         logger.info("auto_create_index set to {}", autoCreateIndex);
 
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", autoCreateIndex)
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(DiscoverySettings.NO_MASTER_BLOCK, "all")
+                .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all")
                 .build();
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
@@ -131,11 +126,11 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(client().prepareCount("test"),
+        assertThrows(client().prepareSearch("test").setSize(0),
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(client().prepareCount("no_index"),
+        assertThrows(client().prepareSearch("no_index").setSize(0),
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
@@ -216,15 +211,14 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testNoMasterActions_writeMasterBlock() throws Exception {
-        Settings settings = settingsBuilder()
+    public void testNoMasterActionsWriteMasterBlock() throws Exception {
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", false)
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(DiscoverySettings.NO_MASTER_BLOCK, "write")
+                .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "write")
                 .build();
 
         internalCluster().startNode(settings);
@@ -240,28 +234,25 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         ensureSearchable("test1", "test2");
 
         ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
-        logger.info("Cluster state:\n" + clusterState.getState().prettyPrint());
+        logger.info("Cluster state:\n{}", clusterState.getState().prettyPrint());
 
         internalCluster().stopRandomDataNode();
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
-                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
-            }
-        }), equalTo(true));
-
+        assertTrue(awaitBusy(() -> {
+                    ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+                    return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+                }
+        ));
 
         GetResponse getResponse = client().prepareGet("test1", "type1", "1").get();
         assertExists(getResponse);
 
-        CountResponse countResponse = client().prepareCount("test1").get();
-        assertHitCount(countResponse, 1l);
+        SearchResponse countResponse = client().prepareSearch("test1").setSize(0).get();
+        assertHitCount(countResponse, 1L);
 
         SearchResponse searchResponse = client().prepareSearch("test1").get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
-        countResponse = client().prepareCount("test2").get();
+        countResponse = client().prepareSearch("test2").setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(2));
         assertThat(countResponse.getSuccessfulShards(), equalTo(1));
 

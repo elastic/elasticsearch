@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -34,6 +33,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
+
 /**
  * The {@link RoutingAllocation} keep the state of the current allocation
  * of shards and holds the {@link AllocationDeciders} which are responsible
@@ -42,7 +44,7 @@ import java.util.Set;
 public class RoutingAllocation {
 
     /**
-     * this class is used to describe results of a {@link RoutingAllocation}  
+     * this class is used to describe results of a {@link RoutingAllocation}
      */
     public static class Result {
 
@@ -50,29 +52,33 @@ public class RoutingAllocation {
 
         private final RoutingTable routingTable;
 
+        private final MetaData metaData;
+
         private RoutingExplanations explanations = new RoutingExplanations();
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
-         *
          * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
          * @param routingTable the {@link RoutingTable} this Result references
+         * @param metaData the {@link MetaData} this Result references
          */
-        public Result(boolean changed, RoutingTable routingTable) {
+        public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
             this.changed = changed;
             this.routingTable = routingTable;
+            this.metaData = metaData;
         }
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
-         * 
          * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
          * @param routingTable the {@link RoutingTable} this Result references
+         * @param metaData the {@link MetaData} this Result references
          * @param explanations Explanation for the reroute actions
          */
-        public Result(boolean changed, RoutingTable routingTable, RoutingExplanations explanations) {
+        public Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
             this.changed = changed;
             this.routingTable = routingTable;
+            this.metaData = metaData;
             this.explanations = explanations;
         }
 
@@ -81,6 +87,14 @@ public class RoutingAllocation {
          */
         public boolean changed() {
             return this.changed;
+        }
+
+        /**
+         * Get the {@link MetaData} referenced by this result
+         * @return referenced {@link MetaData}
+         */
+        public MetaData metaData() {
+            return metaData;
         }
 
         /**
@@ -116,18 +130,29 @@ public class RoutingAllocation {
 
     private boolean debugDecision = false;
 
+    private boolean hasPendingAsyncFetch = false;
+
+    private final long currentNanoTime;
+
+
     /**
      * Creates a new {@link RoutingAllocation}
-     * 
-     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param routingNodes Routing nodes in the current cluster 
+     *  @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster
      * @param nodes TODO: Documentation
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ClusterInfo clusterInfo) {
+    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ClusterInfo clusterInfo, long currentNanoTime) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.nodes = nodes;
         this.clusterInfo = clusterInfo;
+        this.currentNanoTime = currentNanoTime;
+    }
+
+    /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
+    public long getCurrentNanoTime() {
+        return currentNanoTime;
     }
 
     /**
@@ -220,13 +245,13 @@ public class RoutingAllocation {
 
     public Set<String> getIgnoreNodes(ShardId shardId) {
         if (ignoredShardToNodes == null) {
-            return ImmutableSet.of();
+            return emptySet();
         }
         Set<String> ignore = ignoredShardToNodes.get(shardId);
         if (ignore == null) {
-            return ImmutableSet.of();
+            return emptySet();
         }
-        return ImmutableSet.copyOf(ignore);
+        return unmodifiableSet(new HashSet<>(ignore));
     }
 
     /**
@@ -243,5 +268,21 @@ public class RoutingAllocation {
         } else {
             return decision;
         }
+    }
+
+    /**
+     * Returns <code>true</code> iff the current allocation run has not processed all of the in-flight or available
+     * shard or store fetches. Otherwise <code>true</code>
+     */
+    public boolean hasPendingAsyncFetch() {
+        return hasPendingAsyncFetch;
+    }
+
+    /**
+     * Sets a flag that signals that current allocation run has not processed all of the in-flight or available shard or store fetches.
+     * This state is anti-viral and can be reset in on allocation run.
+     */
+    public void setHasPendingAsyncFetch() {
+        this.hasPendingAsyncFetch = true;
     }
 }

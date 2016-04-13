@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.percolate;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 
 /**
@@ -52,7 +52,7 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
 
     @Override
     public Iterator<Item> iterator() {
-        return Iterators.forArray(items);
+        return Arrays.stream(items).iterator();
     }
 
     /**

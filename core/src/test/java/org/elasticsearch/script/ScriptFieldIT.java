@@ -21,31 +21,30 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 3)
 public class ScriptFieldIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("plugin.types", CustomScriptPlugin.class.getName()).build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomScriptPlugin.class);
     }
 
     static int[] intArray = { Integer.MAX_VALUE, Integer.MIN_VALUE, 3 };
-    static long[] longArray = { Long.MAX_VALUE, Long.MIN_VALUE, 9223372036854775807l };
+    static long[] longArray = { Long.MAX_VALUE, Long.MIN_VALUE, 9223372036854775807L };
     static float[] floatArray = { Float.MAX_VALUE, Float.MIN_VALUE, 3.3f };
     static double[] doubleArray = { Double.MAX_VALUE, Double.MIN_VALUE, 3.3d };
 
@@ -76,10 +75,15 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class IntArrayScriptFactory implements NativeScriptFactory {
+    public static class IntArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new IntScript();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 
@@ -90,10 +94,15 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class LongArrayScriptFactory implements NativeScriptFactory {
+    public static class LongArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new LongScript();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 
@@ -104,10 +113,15 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class FloatArrayScriptFactory implements NativeScriptFactory {
+    public static class FloatArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new FloatScript();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 
@@ -118,10 +132,15 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class DoubleArrayScriptFactory implements NativeScriptFactory {
+    public static class DoubleArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new DoubleScript();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 
@@ -132,7 +151,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    public static class CustomScriptPlugin extends AbstractPlugin {
+    public static class CustomScriptPlugin extends Plugin {
 
         @Override
         public String name() {

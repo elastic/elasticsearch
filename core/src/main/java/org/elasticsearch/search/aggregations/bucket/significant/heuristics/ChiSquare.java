@@ -23,12 +23,13 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public class ChiSquare extends NXYSignificanceHeuristic {
+
+    static final ChiSquare PROTOTYPE = new ChiSquare(false, false);
 
     protected static final ParseField NAMES_FIELD = new ParseField("chi_square");
 
@@ -51,18 +52,6 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         return result;
     }
 
-    public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
-        @Override
-        public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new ChiSquare(in.readBoolean(), in.readBoolean());
-        }
-
-        @Override
-        public String getName() {
-            return NAMES_FIELD.getPreferredName();
-        }
-    };
-
     /**
      * Calculates Chi^2
      * see "Information Retrieval", Manning et al., Eq. 13.19
@@ -80,9 +69,21 @@ public class ChiSquare extends NXYSignificanceHeuristic {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
-        super.writeTo(out);
+    public String getWriteableName() {
+        return NAMES_FIELD.getPreferredName();
+    }
+
+    @Override
+    public SignificanceHeuristic readFrom(StreamInput in) throws IOException {
+        return new ChiSquare(in.readBoolean(), in.readBoolean());
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAMES_FIELD.getPreferredName());
+        super.build(builder);
+        builder.endObject();
+        return builder;
     }
 
     public static class ChiSquareParser extends NXYParser {
@@ -106,7 +107,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(STREAM.getName());
+            builder.startObject(NAMES_FIELD.getPreferredName());
             super.build(builder);
             builder.endObject();
             return builder;

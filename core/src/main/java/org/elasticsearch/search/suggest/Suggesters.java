@@ -18,31 +18,50 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.search.suggest.completion.CompletionSuggester;
+import org.elasticsearch.search.suggest.phrase.Laplace;
+import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.search.suggest.phrase.StupidBackoff;
+import org.elasticsearch.search.suggest.term.TermSuggester;
 
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *
  */
-public class Suggesters {
-    private final ImmutableMap<String, Suggester> parsers;
+public final class Suggesters {
+    private final Map<String, Suggester<?>> suggesters = new HashMap<>();
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
-    @Inject
-    public Suggesters(Set<Suggester> suggesters) {
-        MapBuilder<String, Suggester> builder = MapBuilder.newMapBuilder();
-        for (Suggester suggester : suggesters) {
-            for (String type : suggester.names()) {
-                builder.put(type, suggester);
-            }
+    public Suggesters(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        register("phrase", PhraseSuggester.INSTANCE);
+        register("term", TermSuggester.INSTANCE);
+        register("completion", CompletionSuggester.INSTANCE);
+
+        // Builtin smoothing models
+        namedWriteableRegistry.register(SmoothingModel.class, Laplace.NAME, Laplace::new);
+        namedWriteableRegistry.register(SmoothingModel.class, LinearInterpolation.NAME, LinearInterpolation::new);
+        namedWriteableRegistry.register(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new);
+    }
+
+    public void register(String key, Suggester<?> suggester) {
+        if (suggesters.containsKey(key)) {
+            throw new IllegalArgumentException("Can't register the same [suggester] more than once for [" + key + "]");
         }
-        this.parsers = builder.immutableMap();
+        suggesters.put(key, suggester);
+        namedWriteableRegistry.register(SuggestionBuilder.class, key, suggester);
     }
 
-    public Suggester get(String type) {
-        return parsers.get(type);
+    public Suggester<?> getSuggester(String suggesterName) {
+        Suggester<?> suggester = suggesters.get(suggesterName);
+        if (suggester == null) {
+            throw new IllegalArgumentException("suggester with name [" + suggesterName + "] not supported");
+        }
+        return suggester;
     }
-
 }

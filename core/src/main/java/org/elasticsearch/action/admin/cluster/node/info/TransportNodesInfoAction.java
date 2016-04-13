@@ -23,8 +23,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,7 +50,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
                                     ClusterService clusterService, TransportService transportService,
                                     NodeService nodeService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NodesInfoAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, NodesInfoRequest.class, NodeInfoRequest.class, ThreadPool.Names.MANAGEMENT);
+                indexNameExpressionResolver, NodesInfoRequest::new, NodeInfoRequest::new, ThreadPool.Names.MANAGEMENT);
         this.nodeService = nodeService;
     }
 
@@ -80,7 +80,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
         NodesInfoRequest request = nodeRequest.request;
         return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.network(), request.transport(), request.http(), request.plugins());
+                request.transport(), request.http(), request.plugins(), request.ingest());
     }
 
     @Override
@@ -88,15 +88,15 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
         return false;
     }
 
-    static class NodeInfoRequest extends BaseNodeRequest {
+    public static class NodeInfoRequest extends BaseNodeRequest {
 
         NodesInfoRequest request;
 
-        NodeInfoRequest() {
+        public NodeInfoRequest() {
         }
 
-        NodeInfoRequest(String nodeId, NodesInfoRequest request) {
-            super(request, nodeId);
+        public NodeInfoRequest(String nodeId, NodesInfoRequest request) {
+            super(nodeId);
             this.request = request;
         }
 

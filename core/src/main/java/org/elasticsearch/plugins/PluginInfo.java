@@ -36,26 +36,20 @@ import java.util.Properties;
 public class PluginInfo implements Streamable, ToXContent {
 
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
+    public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
     static final class Fields {
         static final XContentBuilderString NAME = new XContentBuilderString("name");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
         static final XContentBuilderString URL = new XContentBuilderString("url");
-        static final XContentBuilderString SITE = new XContentBuilderString("site");
         static final XContentBuilderString VERSION = new XContentBuilderString("version");
-        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
         static final XContentBuilderString CLASSNAME = new XContentBuilderString("classname");
-        static final XContentBuilderString ISOLATED = new XContentBuilderString("isolated");
     }
 
     private String name;
     private String description;
-    private boolean site;
     private String version;
-    
-    private boolean jvm;
     private String classname;
-    private boolean isolated;
 
     public PluginInfo() {
     }
@@ -65,18 +59,13 @@ public class PluginInfo implements Streamable, ToXContent {
      *
      * @param name        Its name
      * @param description Its description
-     * @param site        true if it's a site plugin
-     * @param jvm         true if it's a jvm plugin
      * @param version     Version number
      */
-    PluginInfo(String name, String description, boolean site, String version, boolean jvm, String classname, boolean isolated) {
+    PluginInfo(String name, String description, String version, String classname) {
         this.name = name;
         this.description = description;
-        this.site = site;
-        this.jvm = jvm;
         this.version = version;
         this.classname = classname;
-        this.isolated = isolated;
     }
 
     /** reads (and validates) plugin metadata descriptor file */
@@ -86,7 +75,10 @@ public class PluginInfo implements Streamable, ToXContent {
         try (InputStream stream = Files.newInputStream(descriptor)) {
             props.load(stream);
         }
-        String name = dir.getFileName().toString();
+        String name = props.getProperty("name");
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Property [name] is missing in [" + descriptor + "]");
+        }
         String description = props.getProperty("description");
         if (description == null) {
             throw new IllegalArgumentException("Property [description] is missing for plugin [" + name + "]");
@@ -95,41 +87,28 @@ public class PluginInfo implements Streamable, ToXContent {
         if (version == null) {
             throw new IllegalArgumentException("Property [version] is missing for plugin [" + name + "]");
         }
-        boolean jvm = Boolean.parseBoolean(props.getProperty("jvm"));
-        boolean site = Boolean.parseBoolean(props.getProperty("site"));
-        if (jvm == false && site == false) {
-            throw new IllegalArgumentException("Plugin [" + name + "] must be at least a jvm or site plugin");
+
+        String esVersionString = props.getProperty("elasticsearch.version");
+        if (esVersionString == null) {
+            throw new IllegalArgumentException("Property [elasticsearch.version] is missing for plugin [" + name + "]");
         }
-        boolean isolated = true;
-        String classname = "NA";
-        if (jvm) {
-            String esVersionString = props.getProperty("elasticsearch.version");
-            if (esVersionString == null) {
-                throw new IllegalArgumentException("Property [elasticsearch.version] is missing for jvm plugin [" + name + "]");
-            }
-            Version esVersion = Version.fromString(esVersionString);
-            if (esVersion.equals(Version.CURRENT) == false) {
-                throw new IllegalArgumentException("Elasticsearch version [" + esVersionString + "] is too old for plugin [" + name + "]");
-            }
-            String javaVersionString = props.getProperty("java.version");
-            if (javaVersionString == null) {
-                throw new IllegalArgumentException("Property [java.version] is missing for jvm plugin [" + name + "]");
-            }
-            JarHell.checkJavaVersion(name, javaVersionString);
-            isolated = Boolean.parseBoolean(props.getProperty("isolated", "true"));
-            classname = props.getProperty("classname");
-            if (classname == null) {
-                throw new IllegalArgumentException("Property [classname] is missing for jvm plugin [" + name + "]");
-            }
+        Version esVersion = Version.fromString(esVersionString);
+        if (esVersion.equals(Version.CURRENT) == false) {
+            throw new IllegalArgumentException("Plugin [" + name + "] is incompatible with Elasticsearch [" + Version.CURRENT.toString() +
+                    "]. Was designed for version [" + esVersionString + "]");
         }
-        
-        if (site) {
-            if (!Files.exists(dir.resolve("_site"))) {
-                throw new IllegalArgumentException("Plugin [" + name + "] is a site plugin but has no '_site/' directory");
-            }
+        String javaVersionString = props.getProperty("java.version");
+        if (javaVersionString == null) {
+            throw new IllegalArgumentException("Property [java.version] is missing for plugin [" + name + "]");
+        }
+        JarHell.checkVersionFormat(javaVersionString);
+        JarHell.checkJavaVersion(name, javaVersionString);
+        String classname = props.getProperty("classname");
+        if (classname == null) {
+            throw new IllegalArgumentException("Property [classname] is missing for plugin [" + name + "]");
         }
 
-        return new PluginInfo(name, description, site, version, jvm, classname, isolated);
+        return new PluginInfo(name, description, version, classname);
     }
 
     /**
@@ -147,44 +126,10 @@ public class PluginInfo implements Streamable, ToXContent {
     }
 
     /**
-     * @return true if it's a site plugin
-     */
-    public boolean isSite() {
-        return site;
-    }
-
-    /**
-     * @return true if it's a plugin running in the jvm
-     */
-    public boolean isJvm() {
-        return jvm;
-    }
-    
-    /**
-     * @return true if jvm plugin has isolated classloader
-     */
-    public boolean isIsolated() {
-        return isolated;
-    }
-    
-    /**
-     * @return jvm plugin's classname
+     * @return plugin's classname
      */
     public String getClassname() {
         return classname;
-    }
-
-    /**
-     * We compute the URL for sites: "/_plugin/" + name + "/"
-     *
-     * @return relative URL for site plugin
-     */
-    public String getUrl() {
-        if (site) {
-            return ("/_plugin/" + name + "/");
-        } else {
-            return null;
-        }
     }
 
     /**
@@ -204,22 +149,16 @@ public class PluginInfo implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         this.name = in.readString();
         this.description = in.readString();
-        this.site = in.readBoolean();
-        this.jvm = in.readBoolean();
         this.version = in.readString();
         this.classname = in.readString();
-        this.isolated = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(description);
-        out.writeBoolean(site);
-        out.writeBoolean(jvm);
         out.writeString(version);
         out.writeString(classname);
-        out.writeBoolean(isolated);
     }
 
     @Override
@@ -228,15 +167,7 @@ public class PluginInfo implements Streamable, ToXContent {
         builder.field(Fields.NAME, name);
         builder.field(Fields.VERSION, version);
         builder.field(Fields.DESCRIPTION, description);
-        if (site) {
-            builder.field(Fields.URL, getUrl());
-        }
-        builder.field(Fields.JVM, jvm);
-        if (jvm) {
-            builder.field(Fields.CLASSNAME, classname);
-            builder.field(Fields.ISOLATED, isolated);
-        }
-        builder.field(Fields.SITE, site);
+        builder.field(Fields.CLASSNAME, classname);
         builder.endObject();
 
         return builder;
@@ -262,17 +193,13 @@ public class PluginInfo implements Streamable, ToXContent {
 
     @Override
     public String toString() {
-        final StringBuffer sb = new StringBuffer("PluginInfo{");
-        sb.append("name='").append(name).append('\'');
-        sb.append(", description='").append(description).append('\'');
-        sb.append(", site=").append(site);
-        sb.append(", jvm=").append(jvm);
-        if (jvm) {
-            sb.append(", classname=").append(classname);
-            sb.append(", isolated=").append(isolated);
-        }
-        sb.append(", version='").append(version).append('\'');
-        sb.append('}');
-        return sb.toString();
+        final StringBuilder information = new StringBuilder()
+                .append("- Plugin information:\n")
+                .append("Name: ").append(name).append("\n")
+                .append("Description: ").append(description).append("\n")
+                .append("Version: ").append(version).append("\n")
+                .append(" * Classname: ").append(classname);
+
+        return information.toString();
     }
 }

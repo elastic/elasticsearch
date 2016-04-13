@@ -24,11 +24,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.PeriodType;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -60,7 +60,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testMinusOne() {
-        assertThat(new TimeValue(-1).nanos(), lessThan(0l));
+        assertThat(new TimeValue(-1).nanos(), lessThan(0L));
     }
 
     public void testParseTimeValue() {
@@ -136,18 +136,40 @@ public class TimeValueTests extends ESTestCase {
         assertEqualityAfterSerialize(new TimeValue(1, TimeUnit.NANOSECONDS));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnUnknownUnits() {
-        TimeValue.parseTimeValue("23tw", null, "test");
+        try {
+            TimeValue.parseTimeValue("23tw", null, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("Failed to parse"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnMissingUnits() {
-        TimeValue.parseTimeValue("42", null, "test");
+        try {
+            TimeValue.parseTimeValue("42", null, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("Failed to parse"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testNoDotsAllowed() {
-        TimeValue.parseTimeValue("42ms.", null, "test");
+        try {
+            TimeValue.parseTimeValue("42ms.", null, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("Failed to parse"));
+        }
+    }
+
+    public void testToStringRep() {
+        assertEquals("-1", new TimeValue(-1).getStringRep());
+        assertEquals("10ms", new TimeValue(10, TimeUnit.MILLISECONDS).getStringRep());
+        assertEquals("1533ms", new TimeValue(1533, TimeUnit.MILLISECONDS).getStringRep());
+        assertEquals("90s", new TimeValue(90, TimeUnit.SECONDS).getStringRep());
+        assertEquals("90m", new TimeValue(90, TimeUnit.MINUTES).getStringRep());
+        assertEquals("36h", new TimeValue(36, TimeUnit.HOURS).getStringRep());
+        assertEquals("1000d", new TimeValue(1000, TimeUnit.DAYS).getStringRep());
     }
 }

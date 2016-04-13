@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.bytes;
 
-import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +28,7 @@ import org.jboss.netty.buffer.ChannelBuffers;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public class BytesArray implements BytesReference {
@@ -151,7 +151,7 @@ public class BytesArray implements BytesReference {
         if (length == 0) {
             return "";
         }
-        return new String(bytes, offset, length, Charsets.UTF_8);
+        return new String(bytes, offset, length, StandardCharsets.UTF_8);
     }
 
     @Override

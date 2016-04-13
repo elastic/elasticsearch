@@ -19,21 +19,21 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import com.google.common.collect.ImmutableList;
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
-public class ShardSegments extends BroadcastShardResponse implements Iterable<Segment> {
+public class ShardSegments implements Streamable, Iterable<Segment> {
 
     private ShardRouting shardRouting;
 
@@ -43,7 +43,6 @@ public class ShardSegments extends BroadcastShardResponse implements Iterable<Se
     }
 
     ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
-        super(shardRouting.shardId());
         this.shardRouting = shardRouting;
         this.segments = segments;
     }
@@ -89,11 +88,10 @@ public class ShardSegments extends BroadcastShardResponse implements Iterable<Se
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
         shardRouting = readShardRoutingEntry(in);
         int size = in.readVInt();
         if (size == 0) {
-            segments = ImmutableList.of();
+            segments = Collections.emptyList();
         } else {
             segments = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
@@ -104,7 +102,6 @@ public class ShardSegments extends BroadcastShardResponse implements Iterable<Se
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         shardRouting.writeTo(out);
         out.writeVInt(segments.size());
         for (Segment segment : segments) {

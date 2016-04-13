@@ -20,6 +20,8 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -27,6 +29,8 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.jar.Attributes;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
@@ -67,18 +71,6 @@ public class JarHellTests extends ESTestCase {
             assertTrue(e.getMessage().contains("DuplicateClass"));
             assertTrue(e.getMessage().contains("foo.jar"));
             assertTrue(e.getMessage().contains("bar.jar"));
-        }
-    }
-
-    public void testBootclasspathLeniency() throws Exception {
-        Path dir = createTempDir();
-        String previousJavaHome = System.getProperty("java.home");
-        System.setProperty("java.home", dir.toString());
-        URL[] jars = {makeJar(dir, "foo.jar", null, "DuplicateClass.class"), makeJar(dir, "bar.jar", null, "DuplicateClass.class")};
-        try {
-            JarHell.checkJarHell(jars);
-        } finally {
-            System.setProperty("java.home", previousJavaHome);
         }
     }
 
@@ -153,56 +145,25 @@ public class JarHellTests extends ESTestCase {
 
     public void testRequiredJDKVersionTooOld() throws Exception {
         Path dir = createTempDir();
-        String previousJavaVersion = System.getProperty("java.specification.version");
-        System.setProperty("java.specification.version", "1.7");
+        List<Integer> current = JavaVersion.current().getVersion();
+        List<Integer> target = new ArrayList<>(current.size());
+        for (int i = 0; i < current.size(); i++) {
+            target.add(current.get(i) + 1);
+        }
+        JavaVersion targetVersion = JavaVersion.parse(Strings.collectionToDelimitedString(target, "."));
+
 
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
-        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.8");
+        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), targetVersion.toString());
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
         try {
             JarHell.checkJarHell(jars);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("requires Java 1.8"));
-            assertTrue(e.getMessage().contains("your system: 1.7"));
-        } finally {
-            System.setProperty("java.specification.version", previousJavaVersion);
-        }
-    }
-
-    public void testRequiredJDKVersionIsOK() throws Exception {
-        Path dir = createTempDir();
-        String previousJavaVersion = System.getProperty("java.specification.version");
-        System.setProperty("java.specification.version", "1.7");
-
-        Manifest manifest = new Manifest();
-        Attributes attributes = manifest.getMainAttributes();
-        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
-        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
-        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
-        try {
-            JarHell.checkJarHell(jars);
-        } finally {
-            System.setProperty("java.specification.version", previousJavaVersion);
-        }
-    }
-
-    public void testBadJDKVersionProperty() throws Exception {
-        Path dir = createTempDir();
-        String previousJavaVersion = System.getProperty("java.specification.version");
-        System.setProperty("java.specification.version", "bogus");
-
-        Manifest manifest = new Manifest();
-        Attributes attributes = manifest.getMainAttributes();
-        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
-        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
-        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
-        try {
-            JarHell.checkJarHell(jars);
-        } finally {
-            System.setProperty("java.specification.version", previousJavaVersion);
+            assertTrue(e.getMessage().contains("requires Java " + targetVersion.toString()));
+            assertTrue(e.getMessage().contains("your system: " + JavaVersion.current().toString()));
         }
     }
 
@@ -213,7 +174,12 @@ public class JarHellTests extends ESTestCase {
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "bogus");
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
-        JarHell.checkJarHell(jars);
+        try {
+            JarHell.checkJarHell(jars);
+            fail("did not get expected exception");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was bogus"));
+        }
     }
 
     /** make sure if a plugin is compiled against the same ES version, it works */
@@ -241,5 +207,105 @@ public class JarHellTests extends ESTestCase {
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("requires Elasticsearch 1.0-bogus"));
         }
+    }
+
+    public void testValidVersions() {
+        String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80"};
+        for (String version : versions) {
+            try {
+                JarHell.checkVersionFormat(version);
+            } catch (IllegalStateException e) {
+                fail(version + " should be accepted as a valid version format");
+            }
+        }
+    }
+
+    public void testInvalidVersions() {
+        String[] versions = new String[]{"", "1.7.0_80", "1.7."};
+        for (String version : versions) {
+            try {
+                JarHell.checkVersionFormat(version);
+                fail("\"" + version + "\"" + " should be rejected as an invalid version format");
+            } catch (IllegalStateException e) {
+            }
+        }
+    }
+
+    // classpath testing is system specific, so we just write separate tests for *nix and windows cases
+
+    /**
+     * Parse a simple classpath with two elements on unix
+     */
+    public void testParseClassPathUnix() throws Exception {
+        assumeTrue("test is designed for unix-like systems only", ":".equals(System.getProperty("path.separator")));
+        assumeTrue("test is designed for unix-like systems only", "/".equals(System.getProperty("file.separator")));
+
+        Path element1 = createTempDir();
+        Path element2 = createTempDir();
+
+        URL expected[] = { element1.toUri().toURL(), element2.toUri().toURL() };
+        assertArrayEquals(expected, JarHell.parseClassPath(element1.toString() + ":" + element2.toString()));
+    }
+
+    /**
+     * Make sure an old unix classpath with an empty element (implicitly CWD: i'm looking at you 1.x ES scripts) fails
+     */
+    public void testEmptyClassPathUnix() throws Exception {
+        assumeTrue("test is designed for unix-like systems only", ":".equals(System.getProperty("path.separator")));
+        assumeTrue("test is designed for unix-like systems only", "/".equals(System.getProperty("file.separator")));
+
+        try {
+            JarHell.parseClassPath(":/element1:/element2");
+            fail("should have hit exception");
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("should not contain empty elements"));
+        }
+    }
+
+    /**
+     * Parse a simple classpath with two elements on windows
+     */
+    public void testParseClassPathWindows() throws Exception {
+        assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
+        assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
+
+        Path element1 = createTempDir();
+        Path element2 = createTempDir();
+
+        URL expected[] = { element1.toUri().toURL(), element2.toUri().toURL() };
+        assertArrayEquals(expected, JarHell.parseClassPath(element1.toString() + ";" + element2.toString()));
+    }
+
+    /**
+     * Make sure an old windows classpath with an empty element (implicitly CWD: i'm looking at you 1.x ES scripts) fails
+     */
+    public void testEmptyClassPathWindows() throws Exception {
+        assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
+        assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
+
+        try {
+            JarHell.parseClassPath(";c:\\element1;c:\\element2");
+            fail("should have hit exception");
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("should not contain empty elements"));
+        }
+    }
+
+    /**
+     * Make sure a "bogus" windows classpath element is accepted, java's classpath parsing accepts it,
+     * therefore eclipse OSGI code does it :)
+     */
+    public void testCrazyEclipseClassPathWindows() throws Exception {
+        assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
+        assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
+
+        URL expected[] = {
+            PathUtils.get("c:\\element1").toUri().toURL(),
+            PathUtils.get("c:\\element2").toUri().toURL(),
+            PathUtils.get("c:\\element3").toUri().toURL(),
+            PathUtils.get("c:\\element 4").toUri().toURL(),
+        };
+        URL actual[] = JarHell.parseClassPath("c:\\element1;c:\\element2;/c:/element3;/c:/element 4");
+        assertArrayEquals(expected, actual);
     }
 }

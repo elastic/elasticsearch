@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,17 +16,15 @@
 
 package org.elasticsearch.common.inject.name;
 
-import java.io.Serializable;
 import java.lang.annotation.Annotation;
+import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
-class NamedImpl implements Named, Serializable {
+class NamedImpl implements Named {
 
     private final String value;
 
     public NamedImpl(String value) {
-        this.value = checkNotNull(value, "name");
+        this.value = Objects.requireNonNull(value, "name");
     }
 
     @Override
@@ -59,6 +57,4 @@ class NamedImpl implements Named, Serializable {
     public Class<? extends Annotation> annotationType() {
         return Named.class;
     }
-
-    private static final long serialVersionUID = 0;
 }

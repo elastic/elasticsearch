@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class ShortFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -27,8 +28,14 @@ public class ShortFieldTypeTests extends FieldTypeTestCase {
         return new ShortFieldMapper.ShortFieldType();
     }
 
-    @Override
-    protected Object dummyNullValue() {
-        return (short)10;
+    @Before
+    public void setupProperties() {
+        setDummyNullValue((short)10);
+    }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        // shorts are stored as ints
+        assertEquals(Short.valueOf((short) 3), ft.valueForSearch(Integer.valueOf(3)));
     }
 }

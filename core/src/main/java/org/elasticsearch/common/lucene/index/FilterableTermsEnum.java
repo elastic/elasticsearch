@@ -19,24 +19,24 @@
 
 package org.elasticsearch.common.lucene.index;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -75,11 +75,11 @@ public class FilterableTermsEnum extends TermsEnum {
         this.docsEnumFlag = docsEnumFlag;
         if (filter == null) {
             // Important - need to use the doc count that includes deleted docs
-            // or we have this issue: https://github.com/elasticsearch/elasticsearch/issues/7951
+            // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
             numDocs = reader.maxDoc();
         }
         List<LeafReaderContext> leaves = reader.leaves();
-        List<Holder> enums = Lists.newArrayListWithExpectedSize(leaves.size());
+        List<Holder> enums = new ArrayList<>(leaves.size());
         final Weight weight;
         if (filter == null) {
             weight = null;
@@ -97,25 +97,31 @@ public class FilterableTermsEnum extends TermsEnum {
             if (termsEnum == null) {
                 continue;
             }
-            Bits bits = null;
+            BitSet bits = null;
             if (weight != null) {
-                // we want to force apply deleted docs
-                Scorer docs = weight.scorer(context, context.reader().getLiveDocs());
-                if (docs == null) {
+                Scorer scorer = weight.scorer(context);
+                if (scorer == null) {
                     // fully filtered, none matching, no need to iterate on this
                     continue;
                 }
+                DocIdSetIterator docs = scorer.iterator();
 
-                BitDocIdSet.Builder builder = new BitDocIdSet.Builder(context.reader().maxDoc());
-                builder.or(docs);
-                bits = builder.build().bits();
+                // we want to force apply deleted docs
+                final Bits liveDocs = context.reader().getLiveDocs();
+                if (liveDocs != null) {
+                    docs = new FilteredDocIdSetIterator(docs) {
+                        @Override
+                        protected boolean match(int doc) {
+                            return liveDocs.get(doc);
+                        }
+                    };
+                }
+
+                bits = BitSet.of(docs, context.reader().maxDoc());
 
                 // Count how many docs are in our filtered set
                 // TODO make this lazy-loaded only for those that need it?
-                docs = weight.scorer(context, context.reader().getLiveDocs());
-                while (docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    numDocs++;
-                }
+                numDocs += bits.cardinality();
             }
             enums.add(new Holder(termsEnum, bits));
         }
@@ -148,10 +154,13 @@ public class FilterableTermsEnum extends TermsEnum {
                         totalTermFreq += leafTotalTermFreq;
                     }
                 } else {
-                    final PostingsEnum docsEnum = anEnum.docsEnum = anEnum.termsEnum.postings(anEnum.bits, anEnum.docsEnum, docsEnumFlag);
+                    final PostingsEnum docsEnum = anEnum.docsEnum = anEnum.termsEnum.postings(anEnum.docsEnum, docsEnumFlag);
                     // 2 choices for performing same heavy loop - one attempts to calculate totalTermFreq and other does not
                     if (docsEnumFlag == PostingsEnum.FREQS) {
                         for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                            if (anEnum.bits != null && anEnum.bits.get(docId) == false) {
+                                continue;
+                            }
                             docFreq++;
                             // docsEnum.freq() returns 1 if doc indexed with IndexOptions.DOCS_ONLY so no way of knowing if value
                             // is really 1 or unrecorded when filtering like this
@@ -159,6 +168,9 @@ public class FilterableTermsEnum extends TermsEnum {
                         }
                     } else {
                         for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                            if (anEnum.bits != null && anEnum.bits.get(docId) == false) {
+                                continue;
+                            }
                             // docsEnum.freq() behaviour is undefined if docsEnumFlag==PostingsEnum.FLAG_NONE so don't bother with call
                             docFreq++;
                         }
@@ -205,7 +217,7 @@ public class FilterableTermsEnum extends TermsEnum {
     }
 
     @Override
-    public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+    public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
         throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 

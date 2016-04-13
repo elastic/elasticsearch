@@ -36,13 +36,15 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean process;
     private boolean jvm;
     private boolean threadPool;
-    private boolean network;
     private boolean fs;
     private boolean transport;
     private boolean http;
     private boolean breaker;
+    private boolean script;
+    private boolean discovery;
+    private boolean ingest;
 
-    protected NodesStatsRequest() {
+    public NodesStatsRequest() {
     }
 
     /**
@@ -62,11 +64,13 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.process = true;
         this.jvm = true;
         this.threadPool = true;
-        this.network = true;
         this.fs = true;
         this.transport = true;
         this.http = true;
         this.breaker = true;
+        this.script = true;
+        this.discovery = true;
+        this.ingest = true;
         return this;
     }
 
@@ -79,11 +83,13 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.process = false;
         this.jvm = false;
         this.threadPool = false;
-        this.network = false;
         this.fs = false;
         this.transport = false;
         this.http = false;
         this.breaker = false;
+        this.script = false;
+        this.discovery = false;
+        this.ingest = false;
         return this;
     }
 
@@ -169,21 +175,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     /**
-     * Should the node Network be returned.
-     */
-    public boolean network() {
-        return this.network;
-    }
-
-    /**
-     * Should the node Network be returned.
-     */
-    public NodesStatsRequest network(boolean network) {
-        this.network = network;
-        return this;
-    }
-
-    /**
      * Should the node file system stats be returned.
      */
     public boolean fs() {
@@ -240,6 +231,40 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
+    public boolean script() {
+        return script;
+    }
+
+    public NodesStatsRequest script(boolean script) {
+        this.script = script;
+        return this;
+    }
+
+
+    public boolean discovery() {
+        return this.discovery;
+    }
+
+    /**
+     * Should the node's discovery stats be returned.
+     */
+    public NodesStatsRequest discovery(boolean discovery) {
+        this.discovery = discovery;
+        return this;
+    }
+
+    public boolean ingest() {
+        return ingest;
+    }
+
+    /**
+     * Should ingest statistics be returned.
+     */
+    public NodesStatsRequest ingest(boolean ingest) {
+        this.ingest = ingest;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -248,11 +273,13 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         process = in.readBoolean();
         jvm = in.readBoolean();
         threadPool = in.readBoolean();
-        network = in.readBoolean();
         fs = in.readBoolean();
         transport = in.readBoolean();
         http = in.readBoolean();
         breaker = in.readBoolean();
+        script = in.readBoolean();
+        discovery = in.readBoolean();
+        ingest = in.readBoolean();
     }
 
     @Override
@@ -263,11 +290,13 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(process);
         out.writeBoolean(jvm);
         out.writeBoolean(threadPool);
-        out.writeBoolean(network);
         out.writeBoolean(fs);
         out.writeBoolean(transport);
         out.writeBoolean(http);
         out.writeBoolean(breaker);
+        out.writeBoolean(script);
+        out.writeBoolean(discovery);
+        out.writeBoolean(ingest);
     }
 
 }

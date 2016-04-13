@@ -19,26 +19,22 @@
 
 package org.elasticsearch.cluster.routing.operation.hash.murmur3;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.test.ESTestCase;
 
 public class Murmur3HashFunctionTests extends ESTestCase {
 
-    public void test() {
-        // Make sure that we agree with guava
-        Murmur3HashFunction murmur3 = new Murmur3HashFunction();
-        HashFunction guavaMurmur3 = Hashing.murmur3_32();
-        for (int i = 0; i < 100; ++i) {
-            final String id = RandomStrings.randomRealisticUnicodeOfCodepointLength(getRandom(), RandomInts.randomIntBetween(getRandom(), 1, 20));
-            //final String id = "0";
-            final int hash1 = guavaMurmur3.newHasher().putUnencodedChars(id).hash().asInt();
-            final int hash2 = murmur3.hash(id);
-            assertEquals(hash1, hash2);
-        }
+    public void testKnownValues() {
+        assertHash(0x5a0cb7c3, "hell");
+        assertHash(0xd7c31989, "hello");
+        assertHash(0x22ab2984, "hello w");
+        assertHash(0xdf0ca123, "hello wo");
+        assertHash(0xe7744d61, "hello wor");
+        assertHash(0xe07db09c, "The quick brown fox jumps over the lazy dog");
+        assertHash(0x4e63d2ad, "The quick brown fox jumps over the lazy cog");
     }
 
+    private static void assertHash(int expected, String stringInput) {
+        assertEquals(expected, Murmur3HashFunction.hash(stringInput));
+    }
 }

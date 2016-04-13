@@ -22,7 +22,7 @@ import java.io.IOException;
 
 /**
  * Abstract resource watcher interface.
- * <p/>
+ * <p>
  * Different resource watchers can be registered with {@link ResourceWatcherService} to be called
  * periodically in order to check for changes in different external resources.
  */

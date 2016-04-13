@@ -141,7 +141,6 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
     '-Des.path.logs=logs',
     '-Des.cluster.name=%s' % cluster_name,
     '-Des.network.host=localhost',
-    '-Des.discovery.zen.ping.multicast.enabled=false',
     '-Des.transport.tcp.port=%s' % tcp_port,
     '-Des.http.port=%s' % http_port,
     '-Des.path.repo=%s' % repo_dir
@@ -150,12 +149,22 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
     cmd.append('-f') # version before 1.0 start in background automatically
   return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+def install_plugin(version, release_dir, plugin_name):
+  run_plugin(version, release_dir, 'install', [plugin_name])
+
+def remove_plugin(version, release_dir, plugin_name):
+  run_plugin(version, release_dir, 'remove', [plugin_name])
+
+def run_plugin(version, release_dir, plugin_cmd, args):
+  cmd = [os.path.join(release_dir, 'bin/elasticsearch-plugin'), plugin_cmd] + args
+  subprocess.check_call(cmd)
+
 def create_client(http_port=DEFAULT_HTTP_TCP_PORT, timeout=30):
   logging.info('Waiting for node to startup')
   for _ in range(0, timeout):
     # TODO: ask Honza if there is a better way to do this?
     try:
-      client = Elasticsearch([{'host': '127.0.0.1', 'port': http_port}])
+      client = Elasticsearch([{'host': 'localhost', 'port': http_port}])
       client.cluster.health(wait_for_nodes=1)
       client.count() # can we actually search or do we get a 503? -- anyway retry
       return client
@@ -238,16 +247,57 @@ def generate_index(client, version, index_name):
       }
     }
 
-  client.indices.create(index=index_name, body={
-      'settings': {
-          'number_of_shards': 1,
-          'number_of_replicas': 0,
-          # Same as ES default (60 seconds), but missing the units to make sure they are inserted on upgrade:
-          "gc_deletes": '60000',
-          # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
-          "merge.policy.max_merged_segment": '5368709120'
+  mappings['norms'] = {
+    'properties': {
+      'string_with_norms_disabled': {
+        'type': 'string',
+        'norms': {
+          'enabled': False
+        }
       },
-      'mappings': mappings
+      'string_with_norms_enabled': {
+        'type': 'string',
+        'index': 'not_analyzed',
+        'norms': {
+          'enabled': True,
+          'loading': 'eager'
+        }
+      }
+    }
+  }
+
+  mappings['doc'] = {
+    'properties': {
+      'string': {
+        'type': 'string',
+        'boost': 4
+      }
+    }
+  }
+
+  settings = {
+    'number_of_shards': 1,
+    'number_of_replicas': 0,
+  }
+  if version.startswith('0.') or version.startswith('1.'):
+    # Same as ES default (60 seconds), but missing the units to make sure they are inserted on upgrade:
+    settings['gc_deletes'] = '60000',
+    # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
+    settings['merge.policy.max_merged_segment'] = '5368709120'
+    
+  warmers = {}
+  warmers['warmer1'] = {
+    'source': {
+      'query': {
+        'match_all': {}
+      }
+    }
+  }
+
+  client.indices.create(index=index_name, body={
+      'settings': settings,
+      'mappings': mappings,
+      'warmers': warmers
   })
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
@@ -330,7 +380,7 @@ def parse_config():
                         help='Recreate all existing backwards compatibility indexes')
   parser.add_argument('--releases-dir', '-d', default='backwards', metavar='DIR',
                       help='The directory containing elasticsearch releases')
-  parser.add_argument('--output-dir', '-o', default='core/src/test/resources/org/elasticsearch/bwcompat',
+  parser.add_argument('--output-dir', '-o', default='core/src/test/resources/indices/bwc',
                       help='The directory to write the zipped index into')
   parser.add_argument('--tcp-port', default=DEFAULT_TRANSPORT_TCP_PORT, type=int,
                       help='The port to use as the minimum port for TCP communication')
@@ -375,7 +425,8 @@ def create_bwc_index(cfg, version):
     # 10067: get a delete-by-query into the translog on upgrade.  We must do
     # this after the snapshot, because it calls flush.  Otherwise the index
     # will already have the deletions applied on upgrade.
-    delete_by_query(client, version, index_name, 'doc')
+    if version.startswith('0.') or version.startswith('1.'):
+      delete_by_query(client, version, index_name, 'doc')
 
     shutdown_node(node)
     node = None

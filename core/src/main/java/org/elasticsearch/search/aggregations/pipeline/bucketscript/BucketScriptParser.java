@@ -20,16 +20,13 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,13 +46,14 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public PipelineAggregatorFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException {
+    public BucketScriptPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
+            QueryParseContext context) throws IOException {
         XContentParser.Token token;
         Script script = null;
         String currentFieldName = null;
         Map<String, String> bucketsPathsMap = null;
         String format = null;
-        GapPolicy gapPolicy = GapPolicy.SKIP;
+        GapPolicy gapPolicy = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -71,8 +69,8 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
                 } else if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
                     script = Script.parse(parser, context.parseFieldMatcher());
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
@@ -86,8 +84,8 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
                         bucketsPathsMap.put("_value" + i, paths.get(i));
                     }
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
@@ -99,33 +97,38 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
                         bucketsPathsMap.put(entry.getKey(), String.valueOf(entry.getValue()));
                     }
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + reducerName + "].",
-                        parser.getTokenLocation());
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + reducerName + "].");
             }
         }
 
         if (bucketsPathsMap == null) {
-            throw new SearchParseException(context, "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for series_arithmetic aggregation [" + reducerName + "]", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH.getPreferredName()
+                    + "] for series_arithmetic aggregation [" + reducerName + "]");
         }
 
         if (script == null) {
-            throw new SearchParseException(context, "Missing required field [" + ScriptField.SCRIPT.getPreferredName()
-                    + "] for series_arithmetic aggregation [" + reducerName + "]", parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + ScriptField.SCRIPT.getPreferredName()
+                    + "] for series_arithmetic aggregation [" + reducerName + "]");
         }
 
-        ValueFormatter formatter = null;
+        BucketScriptPipelineAggregatorBuilder factory =
+                new BucketScriptPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
         if (format != null) {
-            formatter = ValueFormat.Patternable.Number.format(format).formatter();
-        } else {
-            formatter = ValueFormatter.RAW;
+            factory.format(format);
         }
+        if (gapPolicy != null) {
+            factory.gapPolicy(gapPolicy);
+        }
+        return factory;
+    }
 
-        return new BucketScriptPipelineAggregator.Factory(reducerName, bucketsPathsMap, script, formatter, gapPolicy);
+    @Override
+    public BucketScriptPipelineAggregatorBuilder getFactoryPrototype() {
+        return BucketScriptPipelineAggregatorBuilder.PROTOTYPE;
     }
 
 }

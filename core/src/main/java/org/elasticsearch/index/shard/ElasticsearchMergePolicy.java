@@ -19,8 +19,12 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.collect.Lists;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MergeTrigger;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
@@ -28,6 +32,7 @@ import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -44,7 +49,7 @@ import java.util.Map;
  * be stored as payloads to numeric doc values.
  */
 public final class ElasticsearchMergePolicy extends MergePolicy {
-    
+
     private static ESLogger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
 
     private final MergePolicy delegate;
@@ -64,9 +69,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
     /** Return an "upgraded" view of the reader. */
     static CodecReader filter(CodecReader reader) throws IOException {
-        // convert 0.90.x _uid payloads to _version docvalues if needed
-        reader = VersionFieldUpgrader.wrap(reader);
-        // TODO: remove 0.90.x/1.x freqs/prox/payloads from _uid? 
+        // TODO: remove 0.90.x/1.x freqs/prox/payloads from _uid?
         // the previous code never did this, so some indexes carry around trash.
         return reader;
     }
@@ -152,22 +155,22 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
                     // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
                     // for now we just assume every minor upgrade has a new format.
-                    logger.debug("Adding segment " + info.info.name + " to be upgraded");
-                    spec.add(new OneMerge(Lists.newArrayList(info)));
+                    logger.debug("Adding segment {} to be upgraded", info.info.name);
+                    spec.add(new OneMerge(Collections.singletonList(info)));
                 }
 
                 // TODO: we could check IndexWriter.getMergingSegments and avoid adding merges that IW will just reject?
 
                 if (spec.merges.size() == MAX_CONCURRENT_UPGRADE_MERGES) {
                     // hit our max upgrades, so return the spec.  we will get a cascaded call to continue.
-                    logger.debug("Returning " + spec.merges.size() + " merges for upgrade");
+                    logger.debug("Returning {} merges for upgrade", spec.merges.size());
                     return spec;
                 }
             }
 
             // We must have less than our max upgrade merges, so the next return will be our last in upgrading mode.
             if (spec.merges.isEmpty() == false) {
-                logger.debug("Returning " + spec.merges.size() + " merges for end of upgrade");
+                logger.debug("Returning {} merges for end of upgrade", spec.merges.size());
                 return spec;
             }
 

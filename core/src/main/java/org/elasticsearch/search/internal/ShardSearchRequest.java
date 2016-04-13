@@ -20,12 +20,12 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.HasContext;
-import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
@@ -34,19 +34,15 @@ import java.io.IOException;
  * It provides all the methods that the {@link org.elasticsearch.search.internal.SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
  */
-public interface ShardSearchRequest extends HasContextAndHeaders {
+public interface ShardSearchRequest {
 
-    String index();
-
-    int shardId();
+    ShardId shardId();
 
     String[] types();
 
-    BytesReference source();
+    SearchSourceBuilder source();
 
-    void source(BytesReference source);
-
-    BytesReference extraSource();
+    void source(SearchSourceBuilder source);
 
     int numberOfShards();
 
@@ -58,14 +54,29 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
 
     Template template();
 
-    BytesReference templateSource();
-
     Boolean requestCache();
 
     Scroll scroll();
 
     /**
+     * Sets if this shard search needs to be profiled or not
+     * @param profile True if the shard should be profiled
+     */
+    void setProfile(boolean profile);
+
+    /**
+     * Returns true if this shard search is being profiled or not
+     */
+    boolean isProfile();
+
+    /**
      * Returns the cache key for this shard search request, based on its content
      */
     BytesReference cacheKey() throws IOException;
+
+    /**
+     * Rewrites this request into its primitive form. e.g. by rewriting the
+     * QueryBuilder.
+     */
+    void rewrite(QueryShardContext context) throws IOException;
 }

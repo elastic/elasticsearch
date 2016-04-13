@@ -2,8 +2,7 @@
 "Test cat indices output":
 
   - do:
-      cat.indices:
-        v: false
+      cat.indices: {}
 
   - match:
       $body: |
@@ -20,8 +19,7 @@
        cluster.health:
          wait_for_status: yellow
   - do:
-      cat.indices:
-        v: false
+      cat.indices: {}
 
   - match:
       $body: |

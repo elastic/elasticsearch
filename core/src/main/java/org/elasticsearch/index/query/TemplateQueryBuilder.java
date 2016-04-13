@@ -18,33 +18,57 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Facilitates creating template query requests.
  * */
-public class TemplateQueryBuilder extends QueryBuilder {
+public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuilder> {
+    /** Name to reference this type of query. */
+    public static final String NAME = "template";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
+    private final static Map<String, ScriptService.ScriptType> parametersToTypes = new HashMap<>();
+    static {
+        parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
+        parametersToTypes.put("file", ScriptService.ScriptType.FILE);
+        parametersToTypes.put("id", ScriptService.ScriptType.INDEXED);
+    }
 
     /** Template to fill. */
-    private Template template;
-    /** Parameters to fill the template with. */
-    private Map<String, Object> vars;
-    /** Template to fill.*/
-    private String templateString;
-
-    private ScriptService.ScriptType templateType;
+    private final Template template;
 
     /**
      * @param template
      *            the template to use for that query.
      * */
     public TemplateQueryBuilder(Template template) {
+        if (template == null) {
+            throw new IllegalArgumentException("query template cannot be null");
+        }
         this.template = template;
+    }
+
+    public Template template() {
+        return template;
     }
 
     /**
@@ -56,7 +80,7 @@ public class TemplateQueryBuilder extends QueryBuilder {
      * */
     @Deprecated
     public TemplateQueryBuilder(String template, Map<String, Object> vars) {
-        this(template, ScriptService.ScriptType.INLINE, vars);
+        this(new Template(template, ScriptService.ScriptType.INLINE, null, null, vars));
     }
 
     /**
@@ -70,18 +94,99 @@ public class TemplateQueryBuilder extends QueryBuilder {
      * */
     @Deprecated
     public TemplateQueryBuilder(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
-        this.templateString = template;
-        this.vars = vars;
-        this.templateType = templateType;
+        this(new Template(template, templateType, null, null, vars));
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public TemplateQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        template = Template.readTemplate(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        template.writeTo(out);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
-        builder.field(TemplateQueryParser.NAME);
-        if (template == null) {
-            new Template(templateString, templateType, null, null, this.vars).toXContent(builder, builderParams);
-        } else {
-            template.toXContent(builder, builderParams);
+        builder.field(TemplateQueryBuilder.NAME);
+        template.toXContent(builder, builderParams);
+    }
+
+    /**
+     * In the simplest case, parse template string and variables from the request,
+     * compile the template and execute the template against the given variables.
+     */
+    public static TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        Template template = parse(parser, parseContext.parseFieldMatcher());
+        return new TemplateQueryBuilder(template);
+    }
+
+    public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
+        Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
+        for (String parameter : parameters) {
+            parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
+        }
+        return parse(parser, parameterMap, parseFieldMatcher);
+    }
+
+    public static Template parse(String defaultLang, XContentParser parser,
+                                 ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
+        Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
+        for (String parameter : parameters) {
+            parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
+        }
+        return Template.parse(parser, parameterMap, defaultLang, parseFieldMatcher);
+    }
+
+    public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return parse(parser, parametersToTypes, parseFieldMatcher);
+    }
+
+    public static Template parse(XContentParser parser, Map<String, ScriptService.ScriptType> parameterMap,
+                                 ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return Template.parse(parser, parameterMap, parseFieldMatcher);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        throw new UnsupportedOperationException("this query must be rewritten first");
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(template);
+    }
+
+    @Override
+    protected boolean doEquals(TemplateQueryBuilder other) {
+        return Objects.equals(template, other.template);
+    }
+
+    @Override
+    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        ExecutableScript executable = queryRewriteContext.getScriptService().executable(template,
+            ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        BytesReference querySource = (BytesReference) executable.run();
+        final QueryParseContext queryParseContext = queryRewriteContext.newParseContext();
+        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
+            queryParseContext.reset(qSourceParser);
+            final QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
+            if (boost() != DEFAULT_BOOST || queryName() != null) {
+                final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+                boolQueryBuilder.must(queryBuilder);
+                return boolQueryBuilder;
+            }
+            return queryBuilder;
         }
     }
 }

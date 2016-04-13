@@ -19,9 +19,13 @@
 
 package org.elasticsearch.action.get;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.RealtimeRequest;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -39,6 +43,7 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -52,6 +57,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         private String type;
         private String id;
         private String routing;
+        private String parent;
         private String[] fields;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
@@ -119,10 +125,15 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         }
 
         public Item parent(String parent) {
-            if (routing == null) {
-                this.routing = parent;
-            }
+            this.parent = parent;
             return this;
+        }
+
+        /**
+         * @return The parent for this request.
+         */
+        public String parent() {
+            return parent;
         }
 
         public Item fields(String... fields) {
@@ -176,6 +187,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             type = in.readOptionalString();
             id = in.readString();
             routing = in.readOptionalString();
+            parent = in.readOptionalString();
             int size = in.readVInt();
             if (size > 0) {
                 fields = new String[size];
@@ -186,7 +198,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             version = in.readLong();
             versionType = VersionType.fromValue(in.readByte());
 
-            fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+            fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
         }
 
         @Override
@@ -195,6 +207,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             out.writeOptionalString(type);
             out.writeString(id);
             out.writeOptionalString(routing);
+            out.writeOptionalString(parent);
             if (fields == null) {
                 out.writeVInt(0);
             } else {
@@ -207,7 +220,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             out.writeLong(version);
             out.writeByte(versionType.getValue());
 
-            FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+            out.writeOptionalStreamable(fetchSourceContext);
         }
 
         @Override
@@ -224,6 +237,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             if (!id.equals(item.id)) return false;
             if (!index.equals(item.index)) return false;
             if (routing != null ? !routing.equals(item.routing) : item.routing != null) return false;
+            if (parent != null ? !parent.equals(item.parent) : item.parent != null) return false;
             if (type != null ? !type.equals(item.type) : item.type != null) return false;
             if (versionType != item.versionType) return false;
 
@@ -236,8 +250,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             result = 31 * result + (type != null ? type.hashCode() : 0);
             result = 31 * result + id.hashCode();
             result = 31 * result + (routing != null ? routing.hashCode() : 0);
+            result = 31 * result + (parent != null ? parent.hashCode() : 0);
             result = 31 * result + (fields != null ? Arrays.hashCode(fields) : 0);
-            result = 31 * result + (int) (version ^ (version >>> 32));
+            result = 31 * result + Long.hashCode(version);
             result = 31 * result + versionType.hashCode();
             result = 31 * result + (fetchSourceContext != null ? fetchSourceContext.hashCode() : 0);
             return result;
@@ -250,18 +265,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     public boolean ignoreErrorsOnGeneratedFields = false;
 
     List<Item> items = new ArrayList<>();
-
-    public MultiGetRequest() {
-
-    }
-
-    /**
-     * Creates a multi get request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public MultiGetRequest(ActionRequest request) {
-        super(request);
-    }
 
     public List<Item> getItems() {
         return this.items;
@@ -498,7 +501,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
     @Override
     public Iterator<Item> iterator() {
-        return Iterators.unmodifiableIterator(items.iterator());
+        return Collections.unmodifiableCollection(items).iterator();
     }
 
     @Override

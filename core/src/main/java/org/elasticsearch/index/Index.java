@@ -19,66 +19,81 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class Index implements Streamable {
+public class Index implements Writeable<Index> {
 
-    private String name;
+    public static final Index[] EMPTY_ARRAY = new Index[0];
 
-    private Index() {
+    private final String name;
+    private final String uuid;
 
-    }
-
-    public Index(String name) {
+    public Index(String name, String uuid) {
         this.name = name.intern();
+        this.uuid = uuid.intern();
     }
 
-    public String name() {
+    public Index(StreamInput in) throws IOException {
+        this.name = in.readString();
+        this.uuid = in.readString();
+    }
+
+
+    public String getName() {
         return this.name;
     }
 
-    public String getName() {
-        return name();
+    public String getUUID() {
+        return uuid;
     }
 
     @Override
     public String toString() {
-        return "[" + name + "]";
+        /*
+         * If we have a uuid we put it in the toString so it'll show up in logs which is useful as more and more things use the uuid rather
+         * than the name as the lookup key for the index.
+         */
+        if (ClusterState.UNKNOWN_UUID.equals(uuid)) {
+            return "[" + name + "]";
+        }
+        return "[" + name + "/" + uuid + "]";
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
         Index index1 = (Index) o;
-        return name.equals(index1.name);
+        return uuid.equals(index1.uuid) && name.equals(index1.name); // allow for _na_ uuid
     }
 
     @Override
     public int hashCode() {
-        return name.hashCode();
-    }
-
-    public static Index readIndexName(StreamInput in) throws IOException {
-        Index index = new Index();
-        index.readFrom(in);
-        return index;
+        int result = name.hashCode();
+        result = 31 * result + uuid.hashCode();
+        return result;
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString().intern();
+    public Index readFrom(StreamInput in) throws IOException {
+        return new Index(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeString(uuid);
     }
 }

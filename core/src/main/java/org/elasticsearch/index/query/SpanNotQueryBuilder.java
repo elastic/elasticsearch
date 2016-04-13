@@ -19,100 +19,251 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanNotQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public class SpanNotQueryBuilder extends SpanQueryBuilder implements BoostableQueryBuilder<SpanNotQueryBuilder> {
+public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilder> implements SpanQueryBuilder<SpanNotQueryBuilder> {
 
-    private SpanQueryBuilder include;
+    public static final String NAME = "span_not";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    private SpanQueryBuilder exclude;
+    /** the default pre parameter size */
+    public static final int DEFAULT_PRE = 0;
+    /** the default post parameter size */
+    public static final int DEFAULT_POST = 0;
 
-    private Integer dist;
+    private static final ParseField POST_FIELD = new ParseField("post");
+    private static final ParseField PRE_FIELD = new ParseField("pre");
+    private static final ParseField DIST_FIELD = new ParseField("dist");
+    private static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
+    private static final ParseField INCLUDE_FIELD = new ParseField("include");
 
-    private Integer pre;
+    private final SpanQueryBuilder<?> include;
 
-    private Integer post;
+    private final SpanQueryBuilder<?> exclude;
 
-    private Float boost;
+    private int pre = DEFAULT_PRE;
 
-    private String queryName;
+    private int post = DEFAULT_POST;
 
-    public SpanNotQueryBuilder include(SpanQueryBuilder include) {
+    /**
+     * Construct a span query matching spans from <code>include</code> which
+     * have no overlap with spans from <code>exclude</code>.
+     * @param include the span query whose matches are filtered
+     * @param exclude the span query whose matches must not overlap
+     */
+    public SpanNotQueryBuilder(SpanQueryBuilder<?> include, SpanQueryBuilder<?> exclude) {
+        if (include == null) {
+            throw new IllegalArgumentException("inner clause [include] cannot be null.");
+        }
+        if (exclude == null) {
+            throw new IllegalArgumentException("inner clause [exclude] cannot be null.");
+        }
         this.include = include;
-        return this;
-    }
-
-    public SpanNotQueryBuilder exclude(SpanQueryBuilder exclude) {
         this.exclude = exclude;
-        return this;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public SpanNotQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        include = (SpanQueryBuilder<?>) in.readQuery();
+        exclude = (SpanQueryBuilder<?>) in.readQuery();
+        pre = in.readVInt();
+        post = in.readVInt();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(include);
+        out.writeQuery(exclude);
+        out.writeVInt(pre);
+        out.writeVInt(post);
+    }
+
+    /**
+     * @return the span query whose matches are filtered
+     */
+    public SpanQueryBuilder includeQuery() {
+        return this.include;
+    }
+
+    /**
+     * @return the span query whose matches must not overlap
+     */
+    public SpanQueryBuilder excludeQuery() {
+        return this.exclude;
+    }
+
+    /**
+     * @param dist the amount of tokens from within the include span can’t have overlap with the exclude span.
+     * Equivalent to setting both pre and post parameter.
+     */
     public SpanNotQueryBuilder dist(int dist) {
-        this.dist = dist;
+        pre(dist);
+        post(dist);
         return this;
     }
 
+    /**
+     * @param pre the amount of tokens before the include span that can’t have overlap with the exclude span. Values
+     * smaller than 0 will be ignored and 0 used instead.
+     */
     public SpanNotQueryBuilder pre(int pre) {
-        this.pre = (pre >=0) ? pre : 0;
+        this.pre = (pre >= 0) ? pre : 0;
         return this;
     }
 
+    /**
+     * @return the amount of tokens before the include span that can’t have overlap with the exclude span.
+     * @see SpanNotQueryBuilder#pre(int)
+     */
+    public Integer pre() {
+        return this.pre;
+    }
+
+    /**
+     * @param post the amount of tokens after the include span that can’t have overlap with the exclude span.
+     */
     public SpanNotQueryBuilder post(int post) {
         this.post = (post >= 0) ? post : 0;
         return this;
     }
 
-    @Override
-    public SpanNotQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
     /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     * @param queryName The query name
-     * @return this
+     * @return the amount of tokens after the include span that can’t have overlap with the exclude span.
+     * @see SpanNotQueryBuilder#post(int)
      */
-    public SpanNotQueryBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
+    public Integer post() {
+        return this.post;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME);
+        builder.field(INCLUDE_FIELD.getPreferredName());
+        include.toXContent(builder, params);
+        builder.field(EXCLUDE_FIELD.getPreferredName());
+        exclude.toXContent(builder, params);
+        builder.field(PRE_FIELD.getPreferredName(), pre);
+        builder.field(POST_FIELD.getPreferredName(), post);
+        printBoostAndQueryName(builder);
+        builder.endObject();
+    }
+
+    public static SpanNotQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+
+        SpanQueryBuilder include = null;
+        SpanQueryBuilder exclude = null;
+
+        Integer dist = null;
+        Integer pre  = null;
+        Integer post = null;
+
+        String queryName = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, INCLUDE_FIELD)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (!(query instanceof SpanQueryBuilder)) {
+                        throw new ParsingException(parser.getTokenLocation(), "spanNot [include] must be of type span query");
+                    }
+                    include = (SpanQueryBuilder) query;
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, EXCLUDE_FIELD)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (!(query instanceof SpanQueryBuilder)) {
+                        throw new ParsingException(parser.getTokenLocation(), "spanNot [exclude] must be of type span query");
+                    }
+                    exclude = (SpanQueryBuilder) query;
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[span_not] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, DIST_FIELD)) {
+                    dist = parser.intValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PRE_FIELD)) {
+                    pre = parser.intValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, POST_FIELD)) {
+                    post = parser.intValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[span_not] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
         if (include == null) {
-            throw new IllegalArgumentException("Must specify include when using spanNot query");
+            throw new ParsingException(parser.getTokenLocation(), "spanNot must have [include] span query clause");
         }
         if (exclude == null) {
-            throw new IllegalArgumentException("Must specify exclude when using spanNot query");
+            throw new ParsingException(parser.getTokenLocation(), "spanNot must have [exclude] span query clause");
         }
-
         if (dist != null && (pre != null || post != null)) {
-             throw new IllegalArgumentException("spanNot can either use [dist] or [pre] & [post] (or none)");
+            throw new ParsingException(parser.getTokenLocation(), "spanNot can either use [dist] or [pre] & [post] (or none)");
         }
 
-        builder.startObject(SpanNotQueryParser.NAME);
-        builder.field("include");
-        include.toXContent(builder, params);
-        builder.field("exclude");
-        exclude.toXContent(builder, params);
+        SpanNotQueryBuilder spanNotQuery = new SpanNotQueryBuilder(include, exclude);
         if (dist != null) {
-            builder.field("dist", dist);
+            spanNotQuery.dist(dist);
         }
         if (pre != null) {
-            builder.field("pre", pre);
+            spanNotQuery.pre(pre);
         }
         if (post != null) {
-            builder.field("post", post);
+            spanNotQuery.post(post);
         }
-        if (boost != null) {
-            builder.field("boost", boost);
-        }
-        if (queryName != null) {
-            builder.field("_name", queryName);
-        }
-        builder.endObject();
+        spanNotQuery.boost(boost);
+        spanNotQuery.queryName(queryName);
+        return spanNotQuery;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+
+        Query includeQuery = this.include.toQuery(context);
+        assert includeQuery instanceof SpanQuery;
+        Query excludeQuery = this.exclude.toQuery(context);
+        assert excludeQuery instanceof SpanQuery;
+
+        return new SpanNotQuery((SpanQuery) includeQuery, (SpanQuery) excludeQuery, pre, post);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(include, exclude, pre, post);
+    }
+
+    @Override
+    protected boolean doEquals(SpanNotQueryBuilder other) {
+        return Objects.equals(include, other.include) &&
+               Objects.equals(exclude, other.exclude) &&
+               (pre == other.pre) &&
+               (post == other.post);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

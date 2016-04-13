@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,8 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class PathTests extends ESTestCase {
-
-    @Test
     public void testInvalidPaths() throws Exception {
         assertInvalidPath("[foo]", "brackets at the beginning of the token expression");
         assertInvalidPath("foo[bar", "open brackets without closing at the token expression");
@@ -44,7 +41,6 @@ public class PathTests extends ESTestCase {
         assertInvalidPath("foo.", "dot separator at the end of the token expression");
     }
 
-    @Test
     public void testValidPaths() throws Exception {
         assertValidPath("foo>bar", tokens().add("foo").add("bar"));
         assertValidPath("foo.bar", tokens().add("foo", "bar"));
@@ -81,7 +77,6 @@ public class PathTests extends ESTestCase {
     }
 
     private static class Tokens {
-
         private List<AggregationPath.PathElement> tokens = new ArrayList<>();
 
         Tokens add(String name) {
@@ -101,8 +96,5 @@ public class PathTests extends ESTestCase {
         AggregationPath.PathElement[] toArray() {
             return tokens.toArray(new AggregationPath.PathElement[tokens.size()]);
         }
-
-
     }
-
 }

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -110,7 +110,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             status = ClusterHealthStatus.fromValue(in.readByte());
         }
         clusterUUID = in.readString();
-        nodesStats = ClusterStatsNodes.readNodeStats(in);
+        nodesStats = new ClusterStatsNodes(in);
         indicesStats = ClusterStatsIndices.readIndicesStats(in);
     }
 

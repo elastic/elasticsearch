@@ -19,34 +19,131 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public abstract class ScoreFunctionBuilder implements ToXContent {
-
-    public ScoreFunctionBuilder setWeight(float weight) {
-        this.weight = weight;
-        return this;
-    }
+public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> implements ToXContent, NamedWriteable<FB> {
 
     private Float weight;
 
+    /**
+     * Standard empty constructor.
+     */
+    public ScoreFunctionBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ScoreFunctionBuilder(StreamInput in) throws IOException {
+        weight = in.readOptionalFloat();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalFloat(weight);
+        doWriteTo(out);
+    }
+
+    /**
+     * Write the subclass's components into the stream.
+     */
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    /**
+     * The name of this score function.
+     */
     public abstract String getName();
 
-    protected void buildWeight(XContentBuilder builder) throws IOException {
-        if (weight != null) {
-            builder.field(FunctionScoreQueryParser.WEIGHT_FIELD.getPreferredName(), weight);
-        }
+    /**
+     * Set the weight applied to the function before combining.
+     */
+    @SuppressWarnings("unchecked")
+    public final FB setWeight(float weight) {
+        this.weight = weight;
+        return (FB) this;
+    }
+
+    /**
+     * The weight applied to the function before combining.
+     */
+    public final Float getWeight() {
+        return weight;
     }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        buildWeight(builder);
+        if (weight != null) {
+            builder.field(FunctionScoreQueryBuilder.WEIGHT_FIELD.getPreferredName(), weight);
+        }
         doXContent(builder, params);
         return builder;
     }
 
+    /**
+     * Convert this subclass's data into XContent.
+     */
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
+
+    @Override
+    public final String getWriteableName() {
+        return getName();
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        @SuppressWarnings("unchecked")
+        FB other = (FB) obj;
+        return Objects.equals(weight, other.getWeight()) &&
+                doEquals(other);
+    }
+
+    /**
+     * Check that two instances of the same subclass of ScoreFunctionBuilder are equal. Implementers don't need to check any fields in
+     * ScoreFunctionBuilder, just fields that they define.
+     */
+    protected abstract boolean doEquals(FB functionBuilder);
+
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), weight, doHashCode());
+    }
+
+    /**
+     * Hashcode for fields defined in this subclass of ScoreFunctionBuilder. Implementers should ignore fields defined in
+     * ScoreFunctionBuilder because they will already be in the hashCode.
+     */
+    protected abstract int doHashCode();
+
+    /**
+     * Called on a data node, converts this ScoreFunctionBuilder into its corresponding Lucene function object.
+     */
+    public final ScoreFunction toFunction(QueryShardContext context) throws IOException {
+        ScoreFunction scoreFunction = doToFunction(context);
+        if (weight == null) {
+            return scoreFunction;
+        }
+        return new WeightFactorFunction(weight, scoreFunction);
+    }
+
+    /**
+     * Build the Lucene ScoreFunction for this builder. Implementers should ignore things defined in ScoreFunctionBuilder like weight as
+     * they will be handled by the function that calls this one.
+     */
+    protected abstract ScoreFunction doToFunction(QueryShardContext context) throws IOException;
 }

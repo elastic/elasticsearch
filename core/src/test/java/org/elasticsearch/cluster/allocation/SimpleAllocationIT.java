@@ -20,11 +20,10 @@ package org.elasticsearch.cluster.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,27 +40,26 @@ public class SimpleAllocationIT extends ESIntegTestCase {
     }
 
     /**
-     * Test for 
+     * Test for
      * https://groups.google.com/d/msg/elasticsearch/y-SY_HyoB-8/EZdfNt9VO44J
      */
-    @Test
     public void testSaneAllocation() {
         assertAcked(prepareCreate("test", 3));
         ensureGreen();
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(0));
-        for (RoutingNode node : state.routingNodes()) {
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
+        for (RoutingNode node : state.getRoutingNodes()) {
             if (!node.isEmpty()) {
                 assertThat(node.size(), equalTo(2));
             }
         }
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, 0)).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0)).execute().actionGet();
         ensureGreen();
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 
-        assertThat(state.routingNodes().unassigned().size(), equalTo(0));
-        for (RoutingNode node : state.routingNodes()) {
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
+        for (RoutingNode node : state.getRoutingNodes()) {
             if (!node.isEmpty()) {
                 assertThat(node.size(), equalTo(1));
             }
@@ -71,12 +69,12 @@ public class SimpleAllocationIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2", 3));
         ensureGreen();
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, 1)).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1)).execute().actionGet();
         ensureGreen();
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 
-        assertThat(state.routingNodes().unassigned().size(), equalTo(0));
-        for (RoutingNode node : state.routingNodes()) {
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
+        for (RoutingNode node : state.getRoutingNodes()) {
             if (!node.isEmpty()) {
                 assertThat(node.size(), equalTo(4));
             }

@@ -20,6 +20,7 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,11 +28,13 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,8 +50,6 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FlushIT extends ESIntegTestCase {
-
-    @Test
     public void testWaitIfOngoing() throws InterruptedException {
         createIndex("test");
         ensureGreen("test");
@@ -64,7 +65,7 @@ public class FlushIT extends ESIntegTestCase {
                     @Override
                     public void onResponse(FlushResponse flushResponse) {
                         try {
-                            // dont' use assertAllSuccesssful it uses a randomized context that belongs to a different thread
+                            // don't use assertAllSuccessful it uses a randomized context that belongs to a different thread
                             assertThat("Unexpected ShardFailures: " + Arrays.toString(flushResponse.getShardFailures()), flushResponse.getFailedShards(), equalTo(0));
                             latch.countDown();
                         } catch (Throwable ex) {
@@ -85,11 +86,12 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("indices:TRACE")
     public void testSyncedFlush() throws ExecutionException, InterruptedException, IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).get();
         ensureGreen();
+
+        final Index index = client().admin().cluster().prepareState().get().getState().metaData().index("test").getIndex();
 
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
@@ -99,10 +101,10 @@ public class FlushIT extends ESIntegTestCase {
         ShardsSyncedFlushResult result;
         if (randomBoolean()) {
             logger.info("--> sync flushing shard 0");
-            result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId("test", 0));
+            result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), new ShardId(index, 0));
         } else {
             logger.info("--> sync flushing index [test]");
-            IndicesSyncedFlushResult indicesResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
+            SyncedFlushResponse indicesResult = client().admin().indices().prepareSyncedFlush("test").get();
             result = indicesResult.getShardsResultPerIndex().get("test").get(0);
         }
         assertFalse(result.failed());
@@ -120,9 +122,9 @@ public class FlushIT extends ESIntegTestCase {
         String newNodeName = internalCluster().startNode();
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         ShardRouting shardRouting = clusterState.getRoutingTable().index("test").shard(0).iterator().next();
-        String currentNodeName = clusterState.nodes().resolveNode(shardRouting.currentNodeId()).name();
+        String currentNodeName = clusterState.nodes().resolveNode(shardRouting.currentNodeId()).getName();
         assertFalse(currentNodeName.equals(newNodeName));
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), currentNodeName, newNodeName)).get();
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, currentNodeName, newNodeName)).get();
 
         client().admin().cluster().prepareHealth()
                 .setWaitForRelocatingShards(0)
@@ -146,14 +148,13 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("indices:TRACE")
     public void testSyncedFlushWithConcurrentIndexing() throws Exception {
 
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex("test");
 
         client().admin().indices().prepareUpdateSettings("test").setSettings(
-                Settings.builder().put("index.translog.disable_flush", true).put("index.refresh_interval", -1).put("index.number_of_replicas", internalCluster().numDataNodes() - 1))
+                Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).put("index.refresh_interval", -1).put("index.number_of_replicas", internalCluster().numDataNodes() - 1))
                 .get();
         ensureGreen();
         final AtomicBoolean stop = new AtomicBoolean(false);
@@ -174,19 +175,19 @@ public class FlushIT extends ESIntegTestCase {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         logger.info("--> trying sync flush");
-        IndicesSyncedFlushResult syncedFlushResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test");
+        SyncedFlushResponse syncedFlushResult = client().admin().indices().prepareSyncedFlush("test").get();
         logger.info("--> sync flush done");
         stop.set(true);
         indexingThread.join();
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertFlushResponseEqualsShardStats(indexStats.getShards(), syncedFlushResult.getShardsResultPerIndex().get("test"));
         refresh();
-        assertThat(client().prepareCount().get().getCount(), equalTo((long) numDocs.get()));
-        logger.info("indexed {} docs", client().prepareCount().get().getCount());
+        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo((long) numDocs.get()));
+        logger.info("indexed {} docs", client().prepareSearch().setSize(0).get().getHits().totalHits());
         logClusterState();
         internalCluster().fullRestart();
         ensureGreen();
-        assertThat(client().prepareCount().get().getCount(), equalTo((long) numDocs.get()));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo((long) numDocs.get()));
     }
 
     private void assertFlushResponseEqualsShardStats(ShardStats[] shardsStats, List<ShardsSyncedFlushResult> syncedFlushResults) {
@@ -194,7 +195,7 @@ public class FlushIT extends ESIntegTestCase {
         for (final ShardStats shardStats : shardsStats) {
             for (final ShardsSyncedFlushResult shardResult : syncedFlushResults) {
                 if (shardStats.getShardRouting().getId() == shardResult.shardId().getId()) {
-                    for (Map.Entry<ShardRouting, SyncedFlushService.SyncedFlushResponse> singleResponse : shardResult.shardResponses().entrySet()) {
+                    for (Map.Entry<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> singleResponse : shardResult.shardResponses().entrySet()) {
                         if (singleResponse.getKey().currentNodeId().equals(shardStats.getShardRouting().currentNodeId())) {
                             if (singleResponse.getValue().success()) {
                                 logger.info("{} sync flushed on node {}", singleResponse.getKey().shardId(), singleResponse.getKey().currentNodeId());
@@ -210,17 +211,15 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testUnallocatedShardsDoesNotHang() throws InterruptedException {
         //  create an index but disallow allocation
         prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.include._name", "nonexistent")).get();
 
         // this should not hang but instead immediately return with empty result set
-        List<ShardsSyncedFlushResult> shardsResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), "test").getShardsResultPerIndex().get("test");
+        List<ShardsSyncedFlushResult> shardsResult = client().admin().indices().prepareSyncedFlush("test").get().getShardsResultPerIndex().get("test");
         // just to make sure the test actually tests the right thing
         int numShards = client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test").getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1);
         assertThat(shardsResult.size(), equalTo(numShards));
         assertThat(shardsResult.get(0).failureReason(), equalTo("no active shards"));
     }
-
 }

@@ -19,6 +19,12 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.util.BitUtil;
+
+import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonUnhashLat;
+import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonUnhashLon;
 
 /**
  *
@@ -34,7 +40,7 @@ public final class GeoPoint {
     /**
      * Create a new Geopointform a string. This String must either be a geohash
      * or a lat-lon tuple.
-     *   
+     *
      * @param value String to create the point from
      */
     public GeoPoint(String value) {
@@ -44,6 +50,10 @@ public final class GeoPoint {
     public GeoPoint(double lat, double lon) {
         this.lat = lat;
         this.lon = lon;
+    }
+
+    public GeoPoint(GeoPoint template) {
+        this(template.getLat(), template.getLon());
     }
 
     public GeoPoint reset(double lat, double lon) {
@@ -73,9 +83,20 @@ public final class GeoPoint {
         return this;
     }
 
-    public GeoPoint resetFromGeoHash(String hash) {
-        GeoHashUtils.decode(hash, this);
+    public GeoPoint resetFromIndexHash(long hash) {
+        lon = mortonUnhashLon(hash);
+        lat = mortonUnhashLat(hash);
         return this;
+    }
+
+    public GeoPoint resetFromGeoHash(String geohash) {
+        final long hash = mortonEncode(geohash);
+        return this.reset(mortonUnhashLat(hash), mortonUnhashLon(hash));
+    }
+
+    public GeoPoint resetFromGeoHash(long geohashLong) {
+        final int level = (int)(12 - (geohashLong&15));
+        return this.resetFromIndexHash(BitUtil.flipFlop((geohashLong >>> 4) << ((level * 5) + 2)));
     }
 
     public final double lat() {
@@ -95,11 +116,11 @@ public final class GeoPoint {
     }
 
     public final String geohash() {
-        return GeoHashUtils.encode(lat, lon);
+        return stringEncode(lon, lat);
     }
 
     public final String getGeohash() {
-        return GeoHashUtils.encode(lat, lon);
+        return stringEncode(lon, lat);
     }
 
     @Override
@@ -120,20 +141,31 @@ public final class GeoPoint {
         int result;
         long temp;
         temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
-        result = (int) (temp ^ (temp >>> 32));
+        result = Long.hashCode(temp);
         temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         return result;
     }
 
     @Override
     public String toString() {
-        return "[" + lat + ", " + lon + "]";
+        return lat + ", " + lon;
     }
 
     public static GeoPoint parseFromLatLon(String latLon) {
-        GeoPoint point = new GeoPoint();
-        point.resetFromString(latLon);
+        GeoPoint point = new GeoPoint(latLon);
         return point;
+    }
+
+    public static GeoPoint fromGeohash(String geohash) {
+        return new GeoPoint().resetFromGeoHash(geohash);
+    }
+
+    public static GeoPoint fromGeohash(long geohashLong) {
+        return new GeoPoint().resetFromGeoHash(geohashLong);
+    }
+
+    public static GeoPoint fromIndexLong(long indexLong) {
+        return new GeoPoint().resetFromIndexHash(indexLong);
     }
 }

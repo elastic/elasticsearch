@@ -19,9 +19,13 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -55,7 +59,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     private final AllocationService allocationService;
 
     private AtomicBoolean rerouting = new AtomicBoolean();
-    private volatile long registeredNextDelaySetting = Long.MAX_VALUE;
+    private volatile long minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
     private volatile ScheduledFuture registeredNextDelayFuture;
 
     @Inject
@@ -96,41 +100,44 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.source().startsWith(CLUSTER_UPDATE_TASK_SOURCE)) {
-            // that's us, ignore this event
-            return;
-        }
-        if (event.state().nodes().localNodeMaster()) {
-            // figure out when the next unassigned allocation need to happen from now. If this is larger or equal
-            // then the last time we checked and scheduled, we are guaranteed to have a reroute until then, so no need
-            // to schedule again
-            long nextDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSetting(settings, event.state());
-            if (nextDelaySetting > 0 && nextDelaySetting < registeredNextDelaySetting) {
+        if (event.state().nodes().isLocalNodeElectedMaster()) {
+            // Figure out if an existing scheduled reroute is good enough or whether we need to cancel and reschedule.
+            // If the minimum of the currently relevant delay settings is larger than something we scheduled in the past,
+            // we are guaranteed that the planned schedule will happen before any of the current shard delays are expired.
+            long minDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSettingNanos(settings, event.state());
+            if (minDelaySetting <= 0) {
+                logger.trace("no need to schedule reroute - no delayed unassigned shards, minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastSchedulingNanos);
+                minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
                 FutureUtils.cancel(registeredNextDelayFuture);
-                registeredNextDelaySetting = nextDelaySetting;
-                TimeValue nextDelay = TimeValue.timeValueMillis(UnassignedInfo.findNextDelayedAllocationIn(settings, event.state()));
-                logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]", UnassignedInfo.getNumberOfDelayedUnassigned(settings, event.state()), nextDelay);
+            } else if (minDelaySetting < minDelaySettingAtLastSchedulingNanos) {
+                FutureUtils.cancel(registeredNextDelayFuture);
+                minDelaySettingAtLastSchedulingNanos = minDelaySetting;
+                TimeValue nextDelay = TimeValue.timeValueNanos(UnassignedInfo.findNextDelayedAllocationIn(event.state()));
+                assert nextDelay.nanos() > 0 : "next delay must be non 0 as minDelaySetting is [" + minDelaySetting + "]";
+                logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]",
+                        UnassignedInfo.getNumberOfDelayedUnassigned(event.state()), nextDelay);
                 registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
-                        registeredNextDelaySetting = Long.MAX_VALUE;
+                        minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
                         reroute("assign delayed unassigned shards");
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
                         logger.warn("failed to schedule/execute reroute post unassigned shard", t);
+                        minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
                     }
                 });
             } else {
-                logger.trace("no need to schedule reroute due to delayed unassigned, next_delay_setting [{}], registered [{}]", nextDelaySetting, registeredNextDelaySetting);
+                logger.trace("no need to schedule reroute - current schedule reroute is enough. minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastSchedulingNanos);
             }
         }
     }
 
     // visible for testing
-    long getRegisteredNextDelaySetting() {
-        return this.registeredNextDelaySetting;
+    long getMinDelaySettingAtLastSchedulingNanos() {
+        return this.minDelaySettingAtLastSchedulingNanos;
     }
 
     // visible for testing
@@ -144,11 +151,11 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 return;
             }
             logger.trace("rerouting {}", reason);
-            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")", Priority.HIGH, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")", new ClusterStateUpdateTask(Priority.HIGH) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     rerouting.set(false);
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
+                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState, reason);
                     if (!routingResult.changed()) {
                         // no state changed
                         return currentState;

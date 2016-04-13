@@ -18,53 +18,64 @@
  */
 package org.elasticsearch.percolator;
 
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.percolator.PercolatorIT.convertFromTextArray;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
 public class MultiPercolatorIT extends ESIntegTestCase {
-
-    @Test
     public void testBasics() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text"));
         ensureGreen();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                         .must(matchQuery("field1", "b"))
                         .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
+        refresh();
 
         MultiPercolateResponse response = client().prepareMultiPercolate()
                 .add(client().preparePercolate()
@@ -85,7 +96,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         MultiPercolateResponse.Item item = response.getItems()[0];
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(item.getErrorMessage(), nullValue());
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
@@ -93,52 +104,52 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         item = response.getItems()[1];
         assertThat(item.getErrorMessage(), nullValue());
 
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
         item = response.getItems()[2];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 4l);
+        assertMatchCount(item.getResponse(), 4L);
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         item = response.getItems()[3];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 1l);
+        assertMatchCount(item.getResponse(), 1L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContaining("4"));
 
         item = response.getItems()[4];
         assertThat(item.getResponse(), nullValue());
         assertThat(item.getErrorMessage(), notNullValue());
-        assertThat(item.getErrorMessage(), containsString("document missing"));
+        assertThat(item.getErrorMessage(), containsString("[test/type/5] doesn't exist"));
     }
 
-    @Test
     public void testWithRouting() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text"));
         ensureGreen();
 
         logger.info("--> register a queries");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "1")
                 .setRouting("a")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "2")
                 .setRouting("a")
                 .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "3")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "3")
                 .setRouting("a")
                 .setSource(jsonBuilder().startObject().field("query", boolQuery()
                                 .must(matchQuery("field1", "b"))
                                 .must(matchQuery("field1", "c"))
                 ).endObject())
                 .execute().actionGet();
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "4")
+        client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, "4")
                 .setRouting("a")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
+        refresh();
 
         MultiPercolateResponse response = client().prepareMultiPercolate()
                 .add(client().preparePercolate()
@@ -164,7 +175,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         MultiPercolateResponse.Item item = response.getItems()[0];
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(item.getErrorMessage(), nullValue());
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "4"));
@@ -172,35 +183,34 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         item = response.getItems()[1];
         assertThat(item.getErrorMessage(), nullValue());
 
-        assertMatchCount(item.getResponse(), 2l);
+        assertMatchCount(item.getResponse(), 2L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("2", "4"));
 
         item = response.getItems()[2];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 4l);
+        assertMatchCount(item.getResponse(), 4L);
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContainingInAnyOrder("1", "2", "3", "4"));
 
         item = response.getItems()[3];
         assertThat(item.getErrorMessage(), nullValue());
-        assertMatchCount(item.getResponse(), 1l);
+        assertMatchCount(item.getResponse(), 1L);
         assertThat(item.getResponse().getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(item.getResponse().getMatches(), "test"), arrayContaining("4"));
 
         item = response.getItems()[4];
         assertThat(item.getResponse(), nullValue());
         assertThat(item.getErrorMessage(), notNullValue());
-        assertThat(item.getErrorMessage(), containsString("document missing"));
+        assertThat(item.getErrorMessage(), containsString("[test/type/5] doesn't exist"));
     }
 
-    @Test
     public void testExistingDocsOnly() throws Exception {
         createIndex("test");
 
         int numQueries = randomIntBetween(50, 100);
         logger.info("--> register a queries");
         for (int i = 0; i < numQueries; i++) {
-            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
@@ -208,6 +218,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("field", "a"))
                 .execute().actionGet();
+        refresh();
 
         MultiPercolateRequestBuilder builder = client().prepareMultiPercolate();
         int numPercolateRequest = randomIntBetween(50, 100);
@@ -215,7 +226,9 @@ public class MultiPercolatorIT extends ESIntegTestCase {
             builder.add(
                     client().preparePercolate()
                             .setGetRequest(Requests.getRequest("test").type("type").id("1"))
-                            .setIndices("test").setDocumentType("type"));
+                            .setIndices("test").setDocumentType("type")
+                            .setSize(numQueries)
+            );
         }
 
         MultiPercolateResponse response = builder.execute().actionGet();
@@ -232,14 +245,15 @@ public class MultiPercolatorIT extends ESIntegTestCase {
             builder.add(
                     client().preparePercolate()
                             .setGetRequest(Requests.getRequest("test").type("type").id("2"))
-                            .setIndices("test").setDocumentType("type"));
+                            .setIndices("test").setDocumentType("type").setSize(numQueries)
+            );
         }
 
         response = builder.execute().actionGet();
         assertThat(response.items().length, equalTo(numPercolateRequest));
         for (MultiPercolateResponse.Item item : response) {
             assertThat(item.isFailure(), equalTo(true));
-            assertThat(item.getErrorMessage(), containsString("document missing"));
+            assertThat(item.getErrorMessage(), containsString("doesn't exist"));
             assertThat(item.getResponse(), nullValue());
         }
 
@@ -249,12 +263,14 @@ public class MultiPercolatorIT extends ESIntegTestCase {
             builder.add(
                     client().preparePercolate()
                             .setGetRequest(Requests.getRequest("test").type("type").id("2"))
-                            .setIndices("test").setDocumentType("type"));
+                            .setIndices("test").setDocumentType("type").setSize(numQueries)
+            );
         }
         builder.add(
                 client().preparePercolate()
                         .setGetRequest(Requests.getRequest("test").type("type").id("1"))
-                        .setIndices("test").setDocumentType("type"));
+                        .setIndices("test").setDocumentType("type").setSize(numQueries)
+        );
 
         response = builder.execute().actionGet();
         assertThat(response.items().length, equalTo(numPercolateRequest + 1));
@@ -263,20 +279,18 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         assertThat(response.items()[numPercolateRequest].getResponse().getMatches().length, equalTo(numQueries));
     }
 
-    @Test
     public void testWithDocsOnly() throws Exception {
         createIndex("test");
         ensureGreen();
 
-        NumShards test = getNumShards("test");
-
         int numQueries = randomIntBetween(50, 100);
         logger.info("--> register a queries");
         for (int i = 0; i < numQueries; i++) {
-            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex("test", PercolatorFieldMapper.TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
                     .execute().actionGet();
         }
+        refresh();
 
         MultiPercolateRequestBuilder builder = client().prepareMultiPercolate();
         int numPercolateRequest = randomIntBetween(50, 100);
@@ -284,6 +298,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
             builder.add(
                     client().preparePercolate()
                             .setIndices("test").setDocumentType("type")
+                            .setSize(numQueries)
                             .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field", "a").endObject())));
         }
 
@@ -307,13 +322,8 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         response = builder.execute().actionGet();
         assertThat(response.items().length, equalTo(numPercolateRequest));
         for (MultiPercolateResponse.Item item : response) {
-            assertThat(item.isFailure(), equalTo(false));
-            assertThat(item.getResponse().getSuccessfulShards(), equalTo(0));
-            assertThat(item.getResponse().getShardFailures().length, equalTo(test.numPrimaries));
-            for (ShardOperationFailedException shardFailure : item.getResponse().getShardFailures()) {
-                assertThat(shardFailure.reason(), containsString("Failed to derive xcontent"));
-                assertThat(shardFailure.status().getStatus(), equalTo(500));
-            }
+            assertThat(item.isFailure(), equalTo(true));
+            assertThat(item.getFailure(), notNullValue());
         }
 
         // one valid request
@@ -326,6 +336,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         }
         builder.add(
                 client().preparePercolate()
+                        .setSize(numQueries)
                         .setIndices("test").setDocumentType("type")
                         .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field", "a").endObject())));
 
@@ -336,8 +347,6 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         assertThat(response.items()[numPercolateRequest].getResponse().getMatches().length, equalTo(numQueries));
     }
 
-
-    @Test
     public void testNestedMultiPercolation() throws IOException {
         initNestedIndexAndPercolation();
         MultiPercolateRequestBuilder mpercolate= client().prepareMultiPercolate();
@@ -349,18 +358,45 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         assertEquals(response.getItems()[1].getResponse().getMatches()[0].getId().string(), "Q");
     }
 
+    public void testStartTimeIsPropagatedToShardRequests() throws Exception {
+        // See: https://github.com/elastic/elasticsearch/issues/15908
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+            )
+            .addMapping("type", "date_field", "type=date,format=strict_date_optional_time||epoch_millis")
+            .get();
+        ensureGreen();
+
+        client().prepareIndex("test", ".percolator", "1")
+            .setSource(jsonBuilder().startObject().field("query", rangeQuery("date_field").lt("now+90d")).endObject())
+            .setRefresh(true)
+            .get();
+
+        for (int i = 0; i < 32; i++) {
+            MultiPercolateResponse response = client().prepareMultiPercolate()
+                .add(client().preparePercolate().setDocumentType("type").setIndices("test")
+                    .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("date_field", "2015-07-21T10:28:01-07:00")))
+                .get();
+            assertThat(response.getItems()[0].getResponse().getCount(), equalTo(1L));
+            assertThat(response.getItems()[0].getResponse().getMatches()[0].getId().string(), equalTo("1"));
+        }
+    }
+
     void initNestedIndexAndPercolation() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject().startObject("properties").startObject("companyname").field("type", "string").endObject()
+        mapping.startObject().startObject("properties").startObject("companyname").field("type", "text").endObject()
                 .startObject("employee").field("type", "nested").startObject("properties")
-                .startObject("name").field("type", "string").endObject().endObject().endObject().endObject()
+                .startObject("name").field("type", "text").endObject().endObject().endObject().endObject()
                 .endObject();
 
         assertAcked(client().admin().indices().prepareCreate("nestedindex").addMapping("company", mapping));
         ensureGreen("nestedindex");
 
-        client().prepareIndex("nestedindex", PercolatorService.TYPE_NAME, "Q").setSource(jsonBuilder().startObject()
-                .field("query", QueryBuilders.nestedQuery("employee", QueryBuilders.matchQuery("employee.name", "virginia potts").operator(MatchQueryBuilder.Operator.AND)).scoreMode("avg")).endObject()).get();
+        client().prepareIndex("nestedindex", PercolatorFieldMapper.TYPE_NAME, "Q").setSource(jsonBuilder().startObject()
+                .field("query", QueryBuilders.nestedQuery("employee", QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND)).scoreMode(ScoreMode.Avg)).endObject()).get();
 
         refresh();
 

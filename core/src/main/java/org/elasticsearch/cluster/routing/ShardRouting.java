@@ -19,12 +19,15 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -37,39 +40,40 @@ import java.util.List;
  */
 public final class ShardRouting implements Streamable, ToXContent {
 
-    private String index;
+    /**
+     * Used if shard size is not available
+     */
+    public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
+
+    private Index index;
     private int shardId;
     private String currentNodeId;
     private String relocatingNodeId;
     private boolean primary;
     private ShardRoutingState state;
-    private long version;
     private RestoreSource restoreSource;
     private UnassignedInfo unassignedInfo;
     private AllocationId allocationId;
     private final transient List<ShardRouting> asList;
     private transient ShardId shardIdentifier;
     private boolean frozen = false;
+    private long expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
 
     private ShardRouting() {
         this.asList = Collections.singletonList(this);
     }
 
     public ShardRouting(ShardRouting copy) {
-        this(copy, copy.version());
-    }
-
-    public ShardRouting(ShardRouting copy, long version) {
-        this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), copy.primary(), copy.state(), version, copy.unassignedInfo(), copy.allocationId(), true);
+        this(copy.index(), copy.id(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(), copy.primary(), copy.state(), copy.unassignedInfo(), copy.allocationId(), true, copy.getExpectedShardSize());
     }
 
     /**
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
      * by either this class or tests. Visible for testing.
      */
-    ShardRouting(String index, int shardId, String currentNodeId,
-                 String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
-                 UnassignedInfo unassignedInfo, AllocationId allocationId, boolean internal) {
+    ShardRouting(Index index, int shardId, String currentNodeId,
+                 String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state,
+                 UnassignedInfo unassignedInfo, AllocationId allocationId, boolean internal, long expectedShardSize) {
         this.index = index;
         this.shardId = shardId;
         this.currentNodeId = currentNodeId;
@@ -77,10 +81,12 @@ public final class ShardRouting implements Streamable, ToXContent {
         this.primary = primary;
         this.state = state;
         this.asList = Collections.singletonList(this);
-        this.version = version;
         this.restoreSource = restoreSource;
         this.unassignedInfo = unassignedInfo;
         this.allocationId = allocationId;
+        this.expectedShardSize = expectedShardSize;
+        assert expectedShardSize == UNAVAILABLE_EXPECTED_SHARD_SIZE || state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;
+        assert expectedShardSize >= 0 || state != ShardRoutingState.INITIALIZING || state != ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;
         assert !(state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) : "unassigned shard must be created with meta";
         if (!internal) {
             assert state == ShardRoutingState.UNASSIGNED;
@@ -88,27 +94,25 @@ public final class ShardRouting implements Streamable, ToXContent {
             assert relocatingNodeId == null;
             assert allocationId == null;
         }
+
     }
 
     /**
      * Creates a new unassigned shard.
      */
-    public static ShardRouting newUnassigned(String index, int shardId, RestoreSource restoreSource, boolean primary, UnassignedInfo unassignedInfo) {
-        return new ShardRouting(index, shardId, null, null, restoreSource, primary, ShardRoutingState.UNASSIGNED, 0, unassignedInfo, null, true);
+    public static ShardRouting newUnassigned(Index index, int shardId, RestoreSource restoreSource, boolean primary, UnassignedInfo unassignedInfo) {
+        return new ShardRouting(index, shardId, null, null, restoreSource, primary, ShardRoutingState.UNASSIGNED, unassignedInfo, null, true, UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
-    /**
-     * The index name.
-     */
-    public String index() {
+    public Index index() {
         return this.index;
     }
 
     /**
      * The index name.
      */
-    public String getIndex() {
-        return index();
+    public String getIndexName() {
+        return index().getName();
     }
 
     /**
@@ -125,13 +129,6 @@ public final class ShardRouting implements Streamable, ToXContent {
         return id();
     }
 
-
-    /**
-     * The routing version associated with the shard.
-     */
-    public long version() {
-        return this.version;
-    }
 
     /**
      * The shard is unassigned (not allocated to any node).
@@ -204,8 +201,8 @@ public final class ShardRouting implements Streamable, ToXContent {
      */
     public ShardRouting buildTargetRelocatingShard() {
         assert relocating();
-        return new ShardRouting(index, shardId, relocatingNodeId, currentNodeId, restoreSource, primary, ShardRoutingState.INITIALIZING, version, unassignedInfo,
-                AllocationId.newTargetRelocation(allocationId), true);
+        return new ShardRouting(index, shardId, relocatingNodeId, currentNodeId, restoreSource, primary, ShardRoutingState.INITIALIZING, unassignedInfo,
+            AllocationId.newTargetRelocation(allocationId), true, expectedShardSize);
     }
 
     /**
@@ -257,7 +254,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         return shardIdentifier;
     }
 
-    public boolean allocatedPostIndexCreate() {
+    public boolean allocatedPostIndexCreate(IndexMetaData indexMetaData) {
         if (active()) {
             return true;
         }
@@ -266,6 +263,11 @@ public final class ShardRouting implements Streamable, ToXContent {
         // for unassigned and initializing (we checked for active() before),
         // we can safely assume it is there
         if (unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+            return false;
+        }
+
+        if (indexMetaData.activeAllocationIds(id()).isEmpty() && indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
+            // when no shards with this id have ever been active for this index
             return false;
         }
 
@@ -285,20 +287,19 @@ public final class ShardRouting implements Streamable, ToXContent {
         return entry;
     }
 
-    public static ShardRouting readShardRoutingEntry(StreamInput in, String index, int shardId) throws IOException {
+    public static ShardRouting readShardRoutingEntry(StreamInput in, Index index, int shardId) throws IOException {
         ShardRouting entry = new ShardRouting();
         entry.readFrom(in, index, shardId);
         return entry;
     }
 
-    public void readFrom(StreamInput in, String index, int shardId) throws IOException {
+    public void readFrom(StreamInput in, Index index, int shardId) throws IOException {
         this.index = index;
         this.shardId = shardId;
         readFromThin(in);
     }
 
     public void readFromThin(StreamInput in) throws IOException {
-        version = in.readLong();
         if (in.readBoolean()) {
             currentNodeId = in.readString();
         }
@@ -317,12 +318,17 @@ public final class ShardRouting implements Streamable, ToXContent {
         if (in.readBoolean()) {
             allocationId = new AllocationId(in);
         }
+        if (relocating() || initializing()) {
+            expectedShardSize = in.readLong();
+        } else {
+            expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
+        }
         freeze();
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, in.readString(), in.readVInt());
+        readFrom(in, new Index(in), in.readVInt());
     }
 
     /**
@@ -332,7 +338,6 @@ public final class ShardRouting implements Streamable, ToXContent {
      * @throws IOException if something happens during write
      */
     public void writeToThin(StreamOutput out) throws IOException {
-        out.writeLong(version);
         if (currentNodeId != null) {
             out.writeBoolean(true);
             out.writeString(currentNodeId);
@@ -368,11 +373,15 @@ public final class ShardRouting implements Streamable, ToXContent {
         } else {
             out.writeBoolean(false);
         }
+        if (relocating() || initializing()) {
+            out.writeLong(expectedShardSize);
+        }
+
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
+        index.writeTo(out);
         out.writeVInt(shardId);
         writeToThin(out);
     }
@@ -390,26 +399,32 @@ public final class ShardRouting implements Streamable, ToXContent {
      */
     void moveToUnassigned(UnassignedInfo unassignedInfo) {
         ensureNotFrozen();
-        version++;
         assert state != ShardRoutingState.UNASSIGNED : this;
         state = ShardRoutingState.UNASSIGNED;
         currentNodeId = null;
         relocatingNodeId = null;
         this.unassignedInfo = unassignedInfo;
         allocationId = null;
+        expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
     }
 
     /**
      * Initializes an unassigned shard on a node.
+     *
+     * @param existingAllocationId allocation id to use. If null, a fresh allocation id is generated.
      */
-    void initialize(String nodeId) {
+    void initialize(String nodeId, @Nullable String existingAllocationId, long expectedShardSize) {
         ensureNotFrozen();
-        version++;
         assert state == ShardRoutingState.UNASSIGNED : this;
         assert relocatingNodeId == null : this;
         state = ShardRoutingState.INITIALIZING;
         currentNodeId = nodeId;
-        allocationId = AllocationId.newInitializing();
+        if (existingAllocationId == null) {
+            allocationId = AllocationId.newInitializing();
+        } else {
+            allocationId = AllocationId.newInitializing(existingAllocationId);
+        }
+        this.expectedShardSize = expectedShardSize;
     }
 
     /**
@@ -417,13 +432,13 @@ public final class ShardRouting implements Streamable, ToXContent {
      *
      * @param relocatingNodeId id of the node to relocate the shard
      */
-    void relocate(String relocatingNodeId) {
+    void relocate(String relocatingNodeId, long expectedShardSize) {
         ensureNotFrozen();
-        version++;
         assert state == ShardRoutingState.STARTED : "current shard has to be started in order to be relocated " + this;
         state = ShardRoutingState.RELOCATING;
         this.relocatingNodeId = relocatingNodeId;
         this.allocationId = AllocationId.newRelocation(allocationId);
+        this.expectedShardSize = expectedShardSize;
     }
 
     /**
@@ -432,23 +447,21 @@ public final class ShardRouting implements Streamable, ToXContent {
      */
     void cancelRelocation() {
         ensureNotFrozen();
-        version++;
         assert state == ShardRoutingState.RELOCATING : this;
         assert assignedToNode() : this;
         assert relocatingNodeId != null : this;
-
+        expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         state = ShardRoutingState.STARTED;
         relocatingNodeId = null;
         allocationId = AllocationId.cancelRelocation(allocationId);
     }
 
     /**
-     * Moves the shard from started to initializing and bumps the version
+     * Moves the shard from started to initializing
      */
     void reinitializeShard() {
         ensureNotFrozen();
         assert state == ShardRoutingState.STARTED;
-        version++;
         state = ShardRoutingState.INITIALIZING;
         allocationId = AllocationId.newInitializing();
         this.unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null);
@@ -461,7 +474,6 @@ public final class ShardRouting implements Streamable, ToXContent {
      */
     void moveToStarted() {
         ensureNotFrozen();
-        version++;
         assert state == ShardRoutingState.INITIALIZING : "expected an initializing shard " + this;
         relocatingNodeId = null;
         restoreSource = null;
@@ -470,6 +482,7 @@ public final class ShardRouting implements Streamable, ToXContent {
             // relocation target
             allocationId = AllocationId.finishRelocation(allocationId);
         }
+        expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         state = ShardRoutingState.STARTED;
     }
 
@@ -479,7 +492,6 @@ public final class ShardRouting implements Streamable, ToXContent {
      */
     void moveToPrimary() {
         ensureNotFrozen();
-        version++;
         if (primary) {
             throw new IllegalShardRoutingStateException(this, "Already primary, can't move to primary");
         }
@@ -491,7 +503,6 @@ public final class ShardRouting implements Streamable, ToXContent {
      */
     void moveFromPrimary() {
         ensureNotFrozen();
-        version++;
         if (!primary) {
             throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");
         }
@@ -505,7 +516,7 @@ public final class ShardRouting implements Streamable, ToXContent {
 
     /**
      * returns true if this routing has the same allocation ID as another.
-     * <p/>
+     * <p>
      * Note: if both shard routing has a null as their {@link #allocationId()}, this method returns false as the routing describe
      * no allocation at all..
      **/
@@ -515,29 +526,36 @@ public final class ShardRouting implements Streamable, ToXContent {
         return b;
     }
 
+    /**
+     * Returns <code>true</code> if this shard is a relocation target for another shard (i.e., was created with {@link #buildTargetRelocatingShard()}
+     */
+    public boolean isRelocationTarget() {
+        return state == ShardRoutingState.INITIALIZING && relocatingNodeId != null;
+    }
+
     /** returns true if the routing is the relocation target of the given routing */
     public boolean isRelocationTargetOf(ShardRouting other) {
         boolean b = this.allocationId != null && other.allocationId != null && this.state == ShardRoutingState.INITIALIZING &&
-                this.allocationId.getId().equals(other.allocationId.getRelocationId());
+            this.allocationId.getId().equals(other.allocationId.getRelocationId());
 
         assert b == false || other.state == ShardRoutingState.RELOCATING :
-                "ShardRouting is a relocation target but the source shard state isn't relocating. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but the source shard state isn't relocating. This [" + this + "], other [" + other + "]";
 
 
         assert b == false || other.allocationId.getId().equals(this.allocationId.getRelocationId()) :
-                "ShardRouting is a relocation target but the source id isn't equal to source's allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but the source id isn't equal to source's allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
 
         assert b == false || other.currentNodeId().equals(this.relocatingNodeId) :
-                "ShardRouting is a relocation target but source current node id isn't equal to target relocating node. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but source current node id isn't equal to target relocating node. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.currentNodeId().equals(other.relocatingNodeId) :
-                "ShardRouting is a relocation target but current node id isn't equal to source relocating node. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but current node id isn't equal to source relocating node. This [" + this + "], other [" + other + "]";
 
         assert b == false || isSameShard(other) :
-                "ShardRouting is a relocation target but both routings are not of the same shard. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but both routings are not of the same shard. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.primary == other.primary :
-                "ShardRouting is a relocation target but primary flag is different. This [" + this + "], target [" + other + "]";
+            "ShardRouting is a relocation target but primary flag is different. This [" + this + "], target [" + other + "]";
 
         return b;
     }
@@ -545,26 +563,26 @@ public final class ShardRouting implements Streamable, ToXContent {
     /** returns true if the routing is the relocation source for the given routing */
     public boolean isRelocationSourceOf(ShardRouting other) {
         boolean b = this.allocationId != null && other.allocationId != null && other.state == ShardRoutingState.INITIALIZING &&
-                other.allocationId.getId().equals(this.allocationId.getRelocationId());
+            other.allocationId.getId().equals(this.allocationId.getRelocationId());
 
         assert b == false || this.state == ShardRoutingState.RELOCATING :
-                "ShardRouting is a relocation source but shard state isn't relocating. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation source but shard state isn't relocating. This [" + this + "], other [" + other + "]";
 
 
         assert b == false || this.allocationId.getId().equals(other.allocationId.getRelocationId()) :
-                "ShardRouting is a relocation source but the allocation id isn't equal to other.allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation source but the allocation id isn't equal to other.allocationId.getRelocationId. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.currentNodeId().equals(other.relocatingNodeId) :
-                "ShardRouting is a relocation source but current node isn't equal to other's relocating node. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation source but current node isn't equal to other's relocating node. This [" + this + "], other [" + other + "]";
 
         assert b == false || other.currentNodeId().equals(this.relocatingNodeId) :
-                "ShardRouting is a relocation source but relocating node isn't equal to other's current node. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation source but relocating node isn't equal to other's current node. This [" + this + "], other [" + other + "]";
 
         assert b == false || isSameShard(other) :
-                "ShardRouting is a relocation source but both routings are not of the same shard. This [" + this + "], target [" + other + "]";
+            "ShardRouting is a relocation source but both routings are not of the same shard. This [" + this + "], target [" + other + "]";
 
         assert b == false || this.primary == other.primary :
-                "ShardRouting is a relocation source but primary flag is different. This [" + this + "], target [" + other + "]";
+            "ShardRouting is a relocation source but primary flag is different. This [" + this + "], target [" + other + "]";
 
         return b;
     }
@@ -603,21 +621,22 @@ public final class ShardRouting implements Streamable, ToXContent {
         if (this == o) {
             return true;
         }
-        // we check on instanceof so we also handle the ImmutableShardRouting case as well
         if (o == null || !(o instanceof ShardRouting)) {
             return false;
         }
         ShardRouting that = (ShardRouting) o;
-        // TODO: add version + unassigned info check. see #12387
+        if (unassignedInfo != null ? !unassignedInfo.equals(that.unassignedInfo) : that.unassignedInfo != null) {
+            return false;
+        }
         return equalsIgnoringMetaData(that);
     }
 
-    private long hashVersion = version - 1;
+    private boolean usePreComputedHashCode = false;
     private int hashCode = 0;
 
     @Override
     public int hashCode() {
-        if (hashVersion == version) {
+        if (frozen && usePreComputedHashCode) {
             return hashCode;
         }
         int result = index != null ? index.hashCode() : 0;
@@ -628,6 +647,10 @@ public final class ShardRouting implements Streamable, ToXContent {
         result = 31 * result + (state != null ? state.hashCode() : 0);
         result = 31 * result + (restoreSource != null ? restoreSource.hashCode() : 0);
         result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
+        result = 31 * result + (unassignedInfo != null ? unassignedInfo.hashCode() : 0);
+        if (frozen) {
+            usePreComputedHashCode = true;
+        }
         return hashCode = result;
     }
 
@@ -651,7 +674,6 @@ public final class ShardRouting implements Streamable, ToXContent {
         } else {
             sb.append("[R]");
         }
-        sb.append(", v[").append(version).append("]");
         if (this.restoreSource != null) {
             sb.append(", restoring[" + restoreSource + "]");
         }
@@ -662,25 +684,30 @@ public final class ShardRouting implements Streamable, ToXContent {
         if (this.unassignedInfo != null) {
             sb.append(", ").append(unassignedInfo.toString());
         }
+        if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
+            sb.append(", expected_shard_size[").append(expectedShardSize).append("]");
+        }
         return sb.toString();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-                .field("state", state())
-                .field("primary", primary())
-                .field("node", currentNodeId())
-                .field("relocating_node", relocatingNodeId())
-                .field("shard", shardId().id())
-                .field("index", shardId().index().name())
-                .field("version", version);
-
+            .field("state", state())
+            .field("primary", primary())
+            .field("node", currentNodeId())
+            .field("relocating_node", relocatingNodeId())
+            .field("shard", shardId().id())
+            .field("index", shardId().getIndex().getName());
+        if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
+            builder.field("expected_shard_size_in_bytes", expectedShardSize);
+        }
         if (restoreSource() != null) {
             builder.field("restore_source");
             restoreSource().toXContent(builder, params);
         }
         if (allocationId != null) {
+            builder.field("allocation_id");
             allocationId.toXContent(builder, params);
         }
         if (unassignedInfo != null) {
@@ -701,5 +728,13 @@ public final class ShardRouting implements Streamable, ToXContent {
 
     boolean isFrozen() {
         return frozen;
+    }
+
+    /**
+     * Returns the expected shard size for {@link ShardRoutingState#RELOCATING} and {@link ShardRoutingState#INITIALIZING}
+     * shards. If it's size is not available {@value #UNAVAILABLE_EXPECTED_SHARD_SIZE} will be returned.
+     */
+    public long getExpectedShardSize() {
+        return expectedShardSize;
     }
 }

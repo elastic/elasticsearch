@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 
 /**
@@ -50,25 +49,12 @@ public enum SearchType {
      * and return the results. Each shard returns size results. Since each shard already returns size hits, this
      * type actually returns size times number of shards results back to the caller.
      */
-    QUERY_AND_FETCH((byte) 3),
-    /**
-     * Performs scanning of the results which executes the search without any sorting.
-     * It will automatically start scrolling the result set.
-     */
-    SCAN((byte) 4),
-    /**
-     * Only counts the results, will still execute aggregations and the like.
-     * @deprecated does not any improvements compared to {@link #QUERY_THEN_FETCH} with a `size` of {@code 0}
-     */
-    @Deprecated
-    COUNT((byte) 5);
+    QUERY_AND_FETCH((byte) 3);
 
     /**
      * The default search type ({@link #QUERY_THEN_FETCH}.
      */
     public static final SearchType DEFAULT = QUERY_THEN_FETCH;
-
-    private static final ParseField COUNT_VALUE = new ParseField("count").withAllDeprecated("query_then_fetch");
 
     private byte id;
 
@@ -95,10 +81,6 @@ public enum SearchType {
             return DFS_QUERY_AND_FETCH;
         } else if (id == 3) {
             return QUERY_AND_FETCH;
-        } else if (id == 4) {
-            return SCAN;
-        } else if (id == 5) {
-            return COUNT;
         } else {
             throw new IllegalArgumentException("No search type for [" + id + "]");
         }
@@ -107,7 +89,7 @@ public enum SearchType {
     /**
      * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
-     * "query_then_fetch"/"queryThenFetch", "query_and_fetch"/"queryAndFetch", and "scan".
+     * "query_then_fetch"/"queryThenFetch" and "query_and_fetch"/"queryAndFetch".
      */
     public static SearchType fromString(String searchType, ParseFieldMatcher parseFieldMatcher) {
         if (searchType == null) {
@@ -121,10 +103,6 @@ public enum SearchType {
             return SearchType.QUERY_THEN_FETCH;
         } else if ("query_and_fetch".equals(searchType)) {
             return SearchType.QUERY_AND_FETCH;
-        } else if ("scan".equals(searchType)) {
-            return SearchType.SCAN;
-        } else if (parseFieldMatcher.match(searchType, COUNT_VALUE)) {
-            return SearchType.COUNT;
         } else {
             throw new IllegalArgumentException("No search type for [" + searchType + "]");
         }

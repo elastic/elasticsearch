@@ -22,6 +22,8 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 
+import java.util.Objects;
+
 /**
  * Named analyzer is an analyzer wrapper around an actual analyzer ({@link #analyzer} that is associated
  * with a name ({@link #name()}.
@@ -31,10 +33,10 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     private final String name;
     private final AnalyzerScope scope;
     private final Analyzer analyzer;
-    private final int positionOffsetGap;
+    private final int positionIncrementGap;
 
-    public NamedAnalyzer(NamedAnalyzer analyzer, int positionOffsetGap) {
-        this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionOffsetGap);
+    public NamedAnalyzer(NamedAnalyzer analyzer, int positionIncrementGap) {
+        this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap);
     }
 
     public NamedAnalyzer(String name, Analyzer analyzer) {
@@ -45,12 +47,12 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this(name, scope, analyzer, Integer.MIN_VALUE);
     }
 
-    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionOffsetGap) {
+    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap) {
         super(ERROR_STRATEGY);
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;
-        this.positionOffsetGap = positionOffsetGap;
+        this.positionIncrementGap = positionIncrementGap;
     }
 
     /**
@@ -81,8 +83,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
 
     @Override
     public int getPositionIncrementGap(String fieldName) {
-        if (positionOffsetGap != Integer.MIN_VALUE) {
-            return positionOffsetGap;
+        if (positionIncrementGap != Integer.MIN_VALUE) {
+            return positionIncrementGap;
         }
         return super.getPositionIncrementGap(fieldName);
     }
@@ -91,7 +93,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     public String toString() {
         return "analyzer name[" + name + "], analyzer [" + analyzer + "]";
     }
-    
+
     /** It is an error if this is ever used, it means we screwed up! */
     static final ReuseStrategy ERROR_STRATEGY = new Analyzer.ReuseStrategy() {
         @Override
@@ -104,4 +106,17 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
             throw new IllegalStateException("NamedAnalyzer cannot be wrapped with a wrapper, only a delegator");
         }
     };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof NamedAnalyzer)) return false;
+        NamedAnalyzer that = (NamedAnalyzer) o;
+        return Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name);
+    }
 }

@@ -19,25 +19,32 @@
 
 package org.elasticsearch.action.support;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class TransportActionFilterChainTests extends ESTestCase {
 
@@ -48,9 +55,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
          counter = new AtomicInteger();
     }
 
-    @Test
     public void testActionFiltersRequest() throws ExecutionException, InterruptedException {
-
         int numFilters = randomInt(10);
         Set<Integer> orders = new HashSet<>(numFilters);
         while (orders.size() < numFilters) {
@@ -64,14 +69,14 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
             }
         };
 
-        ArrayList<ActionFilter> actionFiltersByOrder = Lists.newArrayList(filters);
+        ArrayList<ActionFilter> actionFiltersByOrder = new ArrayList<>(filters);
         Collections.sort(actionFiltersByOrder, new Comparator<ActionFilter>() {
             @Override
             public int compare(ActionFilter o1, ActionFilter o2) {
@@ -79,7 +84,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
         });
 
-        List<ActionFilter> expectedActionFilters = Lists.newArrayList();
+        List<ActionFilter> expectedActionFilters = new ArrayList<>();
         boolean errorExpected = false;
         for (ActionFilter filter : actionFiltersByOrder) {
             RequestTestFilter testFilter = (RequestTestFilter) filter;
@@ -101,7 +106,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             assertThat("shouldn't get here if an error is not expected " + t.getMessage(), errorExpected, equalTo(true));
         }
 
-        List<RequestTestFilter> testFiltersByLastExecution = Lists.newArrayList();
+        List<RequestTestFilter> testFiltersByLastExecution = new ArrayList<>();
         for (ActionFilter actionFilter : actionFilters.filters()) {
             testFiltersByLastExecution.add((RequestTestFilter) actionFilter);
         }
@@ -112,7 +117,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
         });
 
-        ArrayList<RequestTestFilter> finalTestFilters = Lists.newArrayList();
+        ArrayList<RequestTestFilter> finalTestFilters = new ArrayList<>();
         for (ActionFilter filter : testFiltersByLastExecution) {
             RequestTestFilter testFilter = (RequestTestFilter) filter;
             finalTestFilters.add(testFilter);
@@ -130,9 +135,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testActionFiltersResponse() throws ExecutionException, InterruptedException {
-
         int numFilters = randomInt(10);
         Set<Integer> orders = new HashSet<>(numFilters);
         while (orders.size() < numFilters) {
@@ -146,14 +149,14 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
             }
         };
 
-        ArrayList<ActionFilter> actionFiltersByOrder = Lists.newArrayList(filters);
+        ArrayList<ActionFilter> actionFiltersByOrder = new ArrayList<>(filters);
         Collections.sort(actionFiltersByOrder, new Comparator<ActionFilter>() {
             @Override
             public int compare(ActionFilter o1, ActionFilter o2) {
@@ -161,7 +164,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
         });
 
-        List<ActionFilter> expectedActionFilters = Lists.newArrayList();
+        List<ActionFilter> expectedActionFilters = new ArrayList<>();
         boolean errorExpected = false;
         for (ActionFilter filter : actionFiltersByOrder) {
             ResponseTestFilter testFilter = (ResponseTestFilter) filter;
@@ -183,7 +186,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             assertThat("shouldn't get here if an error is not expected " + t.getMessage(), errorExpected, equalTo(true));
         }
 
-        List<ResponseTestFilter> testFiltersByLastExecution = Lists.newArrayList();
+        List<ResponseTestFilter> testFiltersByLastExecution = new ArrayList<>();
         for (ActionFilter actionFilter : actionFilters.filters()) {
             testFiltersByLastExecution.add((ResponseTestFilter) actionFilter);
         }
@@ -194,7 +197,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
         });
 
-        ArrayList<ResponseTestFilter> finalTestFilters = Lists.newArrayList();
+        ArrayList<ResponseTestFilter> finalTestFilters = new ArrayList<>();
         for (ActionFilter filter : testFiltersByLastExecution) {
             ResponseTestFilter testFilter = (ResponseTestFilter) filter;
             finalTestFilters.add(testFilter);
@@ -212,16 +215,15 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testTooManyContinueProcessingRequest() throws ExecutionException, InterruptedException {
-
         final int additionalContinueCount = randomInt(10);
 
         RequestTestFilter testFilter = new RequestTestFilter(randomInt(), new RequestCallback() {
             @Override
-            public void execute(final String action, final ActionRequest actionRequest, final ActionListener actionListener, final ActionFilterChain actionFilterChain) {
+            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                    ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
                 for (int i = 0; i <= additionalContinueCount; i++) {
-                    actionFilterChain.proceed(action, actionRequest, actionListener);
+                    actionFilterChain.proceed(task, action, request, listener);
                 }
             }
         });
@@ -231,7 +233,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -270,14 +272,13 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testTooManyContinueProcessingResponse() throws ExecutionException, InterruptedException {
-
         final int additionalContinueCount = randomInt(10);
 
         ResponseTestFilter testFilter = new ResponseTestFilter(randomInt(), new ResponseCallback() {
             @Override
-            public void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+            public <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                    ActionFilterChain<?, Response> chain) {
                 for (int i = 0; i <= additionalContinueCount; i++) {
                     chain.proceed(action, response, listener);
                 }
@@ -289,7 +290,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -345,17 +346,18 @@ public class TransportActionFilterChainTests extends ESTestCase {
             return order;
         }
 
-        @SuppressWarnings("unchecked")
         @Override
-        public void apply(String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
+        public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+                ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
             this.runs.incrementAndGet();
             this.lastActionName = action;
             this.executionToken = counter.incrementAndGet();
-            this.callback.execute(action, actionRequest, actionListener, actionFilterChain);
+            this.callback.execute(task, action, request, listener, chain);
         }
 
         @Override
-        public void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+        public <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener,
+                ActionFilterChain<?, Response> chain) {
             chain.proceed(action, response, listener);
         }
     }
@@ -378,12 +380,14 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
 
         @Override
-        public void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
-            chain.proceed(action, request, listener);
+        public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action, Request request,
+                ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
+            chain.proceed(task, action, request, listener);
         }
 
         @Override
-        public void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+        public <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener,
+                ActionFilterChain<?, Response> chain) {
             this.runs.incrementAndGet();
             this.lastActionName = action;
             this.executionToken = counter.incrementAndGet();
@@ -394,21 +398,24 @@ public class TransportActionFilterChainTests extends ESTestCase {
     private static enum RequestOperation implements RequestCallback {
         CONTINUE_PROCESSING {
             @Override
-            public void execute(String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
-                actionFilterChain.proceed(action, actionRequest, actionListener);
+            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                    ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
+                actionFilterChain.proceed(task, action, request, listener);
             }
         },
         LISTENER_RESPONSE {
             @Override
-            @SuppressWarnings("unchecked")
-            public void execute(String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
-                actionListener.onResponse(new TestResponse());
+            @SuppressWarnings("unchecked")  // Safe because its all we test with
+            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                    ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
+                ((ActionListener<TestResponse>) listener).onResponse(new TestResponse());
             }
         },
         LISTENER_FAILURE {
             @Override
-            public void execute(String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
-                actionListener.onFailure(new ElasticsearchTimeoutException(""));
+            public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                    ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain) {
+                listener.onFailure(new ElasticsearchTimeoutException(""));
             }
         }
     }
@@ -416,34 +423,39 @@ public class TransportActionFilterChainTests extends ESTestCase {
     private static enum ResponseOperation implements ResponseCallback {
         CONTINUE_PROCESSING {
             @Override
-            public void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+            public <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                    ActionFilterChain<?, Response> chain) {
                 chain.proceed(action, response, listener);
             }
         },
         LISTENER_RESPONSE {
             @Override
-            @SuppressWarnings("unchecked")
-            public void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
-                listener.onResponse(new TestResponse());
+            @SuppressWarnings("unchecked") // Safe because its all we test with
+            public <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                    ActionFilterChain<?, Response> chain) {
+                ((ActionListener<TestResponse>) listener).onResponse(new TestResponse());
             }
         },
         LISTENER_FAILURE {
             @Override
-            public void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+            public <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                    ActionFilterChain<?, Response> chain) {
                 listener.onFailure(new ElasticsearchTimeoutException(""));
             }
         }
     }
 
     private static interface RequestCallback {
-        void execute(String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain);
+        <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
+                ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain);
     }
 
     private static interface ResponseCallback {
-        void execute(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain);
+        <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
+                ActionFilterChain<?, Response> chain);
     }
 
-    private static class TestRequest extends ActionRequest {
+    public static class TestRequest extends ActionRequest<TestRequest> {
         @Override
         public ActionRequestValidationException validate() {
             return null;

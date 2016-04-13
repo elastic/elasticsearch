@@ -16,22 +16,21 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
-
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * Utility for joining pieces of text separated by a delimiter. It can handle
  * iterators, collections, arrays, and varargs, and can append to any
  * {@link Appendable} or just return a {@link String}. For example,
  * {@code join(":", "a", "b", "c")} returns {@code "a:b:c"}.
- * <p/>
- * <p>All methods of this class throw {@link NullPointerException} when a value
+ * <p>
+ * All methods of this class throw {@link NullPointerException} when a value
  * of {@code null} is supplied for any parameter. The elements within the
  * collection, iterator, array, or varargs parameter list <i>may</i> be null --
  * these will be represented in the output by the string {@code "null"}.
@@ -46,8 +45,8 @@ public final class Join {
      * Returns a string containing the {@code tokens}, converted to strings if
      * necessary, separated by {@code delimiter}. If {@code tokens} is empty, it
      * returns an empty string.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -65,8 +64,8 @@ public final class Join {
      * Returns a string containing the {@code tokens}, converted to strings if
      * necessary, separated by {@code delimiter}. If {@code tokens} is empty, it
      * returns an empty string.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -83,8 +82,8 @@ public final class Join {
     /**
      * Returns a string containing the {@code tokens}, converted to strings if
      * necessary, separated by {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -97,16 +96,16 @@ public final class Join {
      */
     public static String join(
             String delimiter, @Nullable Object firstToken, Object... otherTokens) {
-        checkNotNull(otherTokens);
-        return join(delimiter, Lists.newArrayList(firstToken, otherTokens));
+        Objects.requireNonNull(otherTokens);
+        return join(delimiter, CollectionUtils.asArrayList(firstToken, otherTokens));
     }
 
     /**
      * Returns a string containing the {@code tokens}, converted to strings if
      * necessary, separated by {@code delimiter}. If {@code tokens} is empty, it
      * returns an empty string.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -126,8 +125,8 @@ public final class Join {
      * Returns a string containing the contents of {@code map}, with entries
      * separated by {@code entryDelimiter}, and keys and values separated with
      * {@code keyValueSeparator}.
-     * <p/>
-     * <p>Each key and value will be converted to a {@link CharSequence} using
+     * <p>
+     * Each key and value will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -149,8 +148,8 @@ public final class Join {
     /**
      * Appends each of the {@code tokens} to {@code appendable}, separated by
      * {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -170,8 +169,8 @@ public final class Join {
     /**
      * Appends each of the {@code tokens} to {@code appendable}, separated by
      * {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -191,8 +190,8 @@ public final class Join {
     /**
      * Appends each of the {@code tokens} to {@code appendable}, separated by
      * {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -207,15 +206,15 @@ public final class Join {
      */
     public static <T extends Appendable> T join(T appendable, String delimiter,
                                                 @Nullable Object firstToken, Object... otherTokens) {
-        checkNotNull(otherTokens);
-        return join(appendable, delimiter, Lists.newArrayList(firstToken, otherTokens));
+        Objects.requireNonNull(otherTokens);
+        return join(appendable, delimiter, CollectionUtils.asArrayList(firstToken, otherTokens));
     }
 
     /**
      * Appends each of the {@code tokens} to {@code appendable}, separated by
      * {@code delimiter}.
-     * <p/>
-     * <p>Each token will be converted to a {@link CharSequence} using
+     * <p>
+     * Each token will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -232,8 +231,8 @@ public final class Join {
 
         /* This method is the workhorse of the class */
 
-        checkNotNull(appendable);
-        checkNotNull(delimiter);
+        Objects.requireNonNull(appendable);
+        Objects.requireNonNull(delimiter);
         if (tokens.hasNext()) {
             try {
                 appendOneToken(appendable, tokens.next());
@@ -252,8 +251,8 @@ public final class Join {
      * Appends the contents of {@code map} to {@code appendable}, with entries
      * separated by {@code entryDelimiter}, and keys and values separated with
      * {@code keyValueSeparator}.
-     * <p/>
-     * <p>Each key and value will be converted to a {@link CharSequence} using
+     * <p>
+     * Each key and value will be converted to a {@link CharSequence} using
      * {@link String#valueOf(Object)}, if it isn't a {@link CharSequence} already.
      * Note that this implies that null tokens will be appended as the
      * four-character string {@code "null"}.
@@ -268,9 +267,9 @@ public final class Join {
      */
     public static <T extends Appendable> T join(T appendable,
                                                 String keyValueSeparator, String entryDelimiter, Map<?, ?> map) {
-        checkNotNull(appendable);
-        checkNotNull(keyValueSeparator);
-        checkNotNull(entryDelimiter);
+        Objects.requireNonNull(appendable);
+        Objects.requireNonNull(keyValueSeparator);
+        Objects.requireNonNull(entryDelimiter);
         Iterator<? extends Map.Entry<?, ?>> entries = map.entrySet().iterator();
         if (entries.hasNext()) {
             try {
@@ -314,7 +313,5 @@ public final class Join {
         private JoinException(IOException cause) {
             super(cause);
         }
-
-        private static final long serialVersionUID = 1L;
     }
 }

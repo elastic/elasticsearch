@@ -64,7 +64,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
      *
      *  NUM_BYTES_OBJECT_HEADER + 2*NUM_BYTES_INT + NUM_BYTES_OBJECT_REF + NUM_BYTES_ARRAY_HEADER [ + bytes.length] */
     private static final int BASE_BYTES_PER_BYTESREF = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
-        2*RamUsageEstimator.NUM_BYTES_INT +
+        2*Integer.BYTES +
         RamUsageEstimator.NUM_BYTES_OBJECT_REF + 
         RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 
@@ -76,7 +76,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
      *  CHM's pointer to CHM.Entry, double for approx load factor:
      *     + 2*NUM_BYTES_OBJECT_REF */
     private static final int BASE_BYTES_PER_CHM_ENTRY = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
-        RamUsageEstimator.NUM_BYTES_INT +
+        Integer.BYTES +
         5*RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
     /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones, we only account

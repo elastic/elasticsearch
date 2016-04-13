@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-public abstract class SpanQueryBuilder extends QueryBuilder {
+/**
+ * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries
+ */
+public interface SpanQueryBuilder<QB extends SpanQueryBuilder<QB>> extends QueryBuilder<QB> {
 
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -36,14 +35,21 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -56,12 +62,10 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.GET,
             ThreadPool.Names.INDEX,
             ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.OPTIMIZE,
-            ThreadPool.Names.PERCOLATE,
+            ThreadPool.Names.FORCE_MERGE,
             ThreadPool.Names.REFRESH,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SNAPSHOT,
-            ThreadPool.Names.SUGGEST,
             ThreadPool.Names.WARMER
     };
 
@@ -72,12 +76,10 @@ public class RestThreadPoolAction extends AbstractCatAction {
             "g",
             "i",
             "ma",
-            "o",
-            "p",
+            "fm",
             "r",
             "s",
             "sn",
-            "su",
             "w"
     };
 
@@ -95,11 +97,11 @@ public class RestThreadPoolAction extends AbstractCatAction {
     private final static Map<String, String> THREAD_POOL_TO_ALIAS;
 
     static {
-        ALIAS_TO_THREAD_POOL = Maps.newHashMapWithExpectedSize(SUPPORTED_NAMES.length);
+        ALIAS_TO_THREAD_POOL = new HashMap<>(SUPPORTED_NAMES.length);
         for (String supportedThreadPool : SUPPORTED_NAMES) {
             ALIAS_TO_THREAD_POOL.put(supportedThreadPool.substring(0, 3), supportedThreadPool);
         }
-        THREAD_POOL_TO_ALIAS = Maps.newHashMapWithExpectedSize(SUPPORTED_NAMES.length);
+        THREAD_POOL_TO_ALIAS = new HashMap<>(SUPPORTED_NAMES.length);
         for (int i = 0; i < SUPPORTED_NAMES.length; i++) {
             THREAD_POOL_TO_ALIAS.put(SUPPORTED_NAMES[i], SUPPORTED_ALIASES[i]);
         }
@@ -112,7 +114,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/thread_pool\n");
     }
 
@@ -146,7 +148,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("id", "default:false;alias:nodeId;desc:unique node id");
@@ -224,16 +226,16 @@ public class RestThreadPoolAction extends AbstractCatAction {
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {
-            NodeInfo info = nodesInfo.getNodesMap().get(node.id());
-            NodeStats stats = nodesStats.getNodesMap().get(node.id());
+            NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
+            NodeStats stats = nodesStats.getNodesMap().get(node.getId());
             table.startRow();
 
-            table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
+            table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
-            if (node.address() instanceof InetSocketTransportAddress) {
-                table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+            if (node.getAddress() instanceof InetSocketTransportAddress) {
+                table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
             } else {
                 table.addCell("-");
             }
@@ -282,7 +284,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     }
                 }
 
-                table.addCell(poolInfo == null  ? null : poolInfo.getType());
+                table.addCell(poolInfo == null  ? null : poolInfo.getThreadPoolType().getType());
                 table.addCell(poolStats == null ? null : poolStats.getActive());
                 table.addCell(poolStats == null ? null : poolStats.getThreads());
                 table.addCell(poolStats == null ? null : poolStats.getQueue());

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
@@ -177,12 +178,6 @@ public interface XContentParser extends Releasable {
 
     NumberType numberType() throws IOException;
 
-    /**
-     * Is the number type estimated or not (i.e. an int might actually be a long, its just low enough
-     * to be an int).
-     */
-    boolean estimatedNumberType();
-
     short shortValue(boolean coerce) throws IOException;
 
     int intValue(boolean coerce) throws IOException;
@@ -217,28 +212,28 @@ public interface XContentParser extends Releasable {
     /**
      * Reads a plain binary value that was written via one of the following methods:
      *
-     * <li>
-     *     <ul>{@link XContentBuilder#field(String, org.apache.lucene.util.BytesRef)}</ul>
-     *     <ul>{@link XContentBuilder#field(String, org.elasticsearch.common.bytes.BytesReference)}</ul>
-     *     <ul>{@link XContentBuilder#field(String, byte[], int, int)}}</ul>
-     *     <ul>{@link XContentBuilder#field(String, byte[])}}</ul>
-     * </li>
+     * <ul>
+     *     <li>{@link XContentBuilder#field(String, org.apache.lucene.util.BytesRef)}</li>
+     *     <li>{@link XContentBuilder#field(String, org.elasticsearch.common.bytes.BytesReference)}</li>
+     *     <li>{@link XContentBuilder#field(String, byte[], int, int)}}</li>
+     *     <li>{@link XContentBuilder#field(String, byte[])}}</li>
+     * </ul>
      *
      * as well as via their <code>XContentBuilderString</code> variants of the separated value methods.
      * Note: Do not use this method to read values written with:
-     * <li>
-     *     <ul>{@link XContentBuilder#utf8Field(XContentBuilderString, org.apache.lucene.util.BytesRef)}</ul>
-     *     <ul>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</ul>
-     * </li>
+     * <ul>
+     *     <li>{@link XContentBuilder#utf8Field(XContentBuilderString, org.apache.lucene.util.BytesRef)}</li>
+     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
+     * </ul>
      *
      * these methods write UTF-8 encoded strings and must be read through:
-     * <li>
-     *     <ul>{@link XContentParser#utf8Bytes()}</ul>
-     *     <ul>{@link XContentParser#utf8BytesOrNull()}}</ul>
-     *     <ul>{@link XContentParser#text()} ()}</ul>
-     *     <ul>{@link XContentParser#textOrNull()} ()}</ul>
-     *     <ul>{@link XContentParser#textCharacters()} ()}}</ul>
-     * </li>
+     * <ul>
+     *     <li>{@link XContentParser#utf8Bytes()}</li>
+     *     <li>{@link XContentParser#utf8BytesOrNull()}}</li>
+     *     <li>{@link XContentParser#text()} ()}</li>
+     *     <li>{@link XContentParser#textOrNull()} ()}</li>
+     *     <li>{@link XContentParser#textCharacters()} ()}}</li>
+     * </ul>
      *
      */
     byte[] binaryValue() throws IOException;
@@ -252,4 +247,15 @@ public interface XContentParser extends Releasable {
     XContentLocation getTokenLocation();
 
     boolean isClosed();
+
+    /**
+     * Returns this parsers {@link ParseFieldMatcher}
+     */
+    ParseFieldMatcher getParseFieldMatcher();
+
+
+    /**
+     * Sets this parsers {@link ParseFieldMatcher}
+     */
+    void setParseFieldMatcher(ParseFieldMatcher matcher) ;
 }

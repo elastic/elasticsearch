@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,23 +16,41 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import org.elasticsearch.bootstrap.Bootstrap;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.Binding;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.MembersInjector;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.PrivateBinder;
+import org.elasticsearch.common.inject.PrivateModule;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.Scope;
+import org.elasticsearch.common.inject.Stage;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
 import org.elasticsearch.common.inject.binder.AnnotatedElementBuilder;
-import org.elasticsearch.common.inject.internal.*;
+import org.elasticsearch.common.inject.internal.AbstractBindingBuilder;
+import org.elasticsearch.common.inject.internal.BindingBuilder;
+import org.elasticsearch.common.inject.internal.ConstantBindingBuilderImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ExposureBuilder;
+import org.elasticsearch.common.inject.internal.PrivateElementsImpl;
+import org.elasticsearch.common.inject.internal.ProviderMethodsModule;
+import org.elasticsearch.common.inject.internal.SourceProvider;
 import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.lang.annotation.Annotation;
-import java.util.*;
-
-import static com.google.common.base.Preconditions.checkArgument;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Exposes elements of a module so they can be inspected, validated or {@link
@@ -121,8 +139,8 @@ public final class Elements {
 
         private RecordingBinder(Stage stage) {
             this.stage = stage;
-            this.modules = Sets.newHashSet();
-            this.elements = Lists.newArrayList();
+            this.modules = new HashSet<>();
+            this.elements = new ArrayList<>();
             this.source = null;
             this.sourceProvider = new SourceProvider().plusSkippedClasses(
                     Elements.class, RecordingBinder.class, AbstractModule.class,
@@ -136,7 +154,9 @@ public final class Elements {
          */
         private RecordingBinder(
                 RecordingBinder prototype, Object source, SourceProvider sourceProvider) {
-            checkArgument(source == null ^ sourceProvider == null);
+            if (!(source == null ^ sourceProvider == null)) {
+                throw new IllegalArgumentException();
+            }
 
             this.stage = prototype.stage;
             this.modules = prototype.modules;
@@ -152,7 +172,7 @@ public final class Elements {
          */
         private RecordingBinder(RecordingBinder parent, PrivateElementsImpl privateElements) {
             this.stage = parent.stage;
-            this.modules = Sets.newHashSet();
+            this.modules = new HashSet<>();
             this.elements = privateElements.getElementsMutable();
             this.source = parent.source;
             this.sourceProvider = parent.sourceProvider;
@@ -211,6 +231,9 @@ public final class Elements {
 
                 try {
                     module.configure(binder);
+                } catch (IllegalArgumentException e) {
+                    // NOTE: This is not in the original guice. We rethrow here to expose any explicit errors in configure()
+                    throw e;
                 } catch (RuntimeException e) {
                     Collection<Message> messages = Errors.getMessagesFromThrowable(e);
                     if (!messages.isEmpty()) {
@@ -236,7 +259,7 @@ public final class Elements {
         @Override
         public void addError(Throwable t) {
             String message = "An exception was caught and reported. Message: " + t.getMessage();
-            elements.add(new Message(ImmutableList.of(getSource()), message, t));
+            elements.add(new Message(Collections.singletonList(getSource()), message, t));
         }
 
         @Override
@@ -340,7 +363,7 @@ public final class Elements {
             return builder;
         }
 
-        private static ESLogger logger = Loggers.getLogger(Bootstrap.class);
+        private static ESLogger logger = Loggers.getLogger(Elements.class);
 
         protected Object getSource() {
             Object ret;

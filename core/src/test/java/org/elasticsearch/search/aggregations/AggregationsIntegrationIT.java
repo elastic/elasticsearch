@@ -19,15 +19,13 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -42,23 +40,14 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", "f", "type=string").get());
+        assertAcked(prepareCreate("index").addMapping("type", "f", "type=keyword").get());
         ensureYellow("index");
         numDocs = randomIntBetween(1, 20);
-        List<IndexRequestBuilder> docs = Lists.newArrayList();
+        List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             docs.add(client().prepareIndex("index", "type").setSource("f", Integer.toString(i / 3)));
         }
         indexRandom(true, docs);
-    }
-
-    public void testScan() {
-        try {
-            client().prepareSearch("index").setSearchType(SearchType.SCAN).setScroll(new TimeValue(500)).addAggregation(terms("f").field("f")).get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.toString(), e.toString().contains("aggregations are not supported with search_type=scan"));
-        }
     }
 
     public void testScroll() {

@@ -22,8 +22,8 @@ package org.elasticsearch.discovery;
 /**
  * A listener that should be called by the {@link org.elasticsearch.discovery.Discovery} component
  * when the first valid initial cluster state has been submitted and processed by the cluster service.
- * <p/>
- * <p>Note, this listener should be registered with the discovery service before it has started.
+ * <p>
+ * Note, this listener should be registered with the discovery service before it has started.
  *
  *
  */

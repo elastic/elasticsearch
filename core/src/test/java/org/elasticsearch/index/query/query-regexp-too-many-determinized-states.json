@@ -1,6 +1,0 @@
-{
-    query_string: {
-        default_field: "content",
-        query: "/[ac]*a[ac]{50,200}/"
-    }
-}

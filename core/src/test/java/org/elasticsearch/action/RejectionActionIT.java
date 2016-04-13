@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -57,15 +55,14 @@ public class RejectionActionIT extends ESIntegTestCase {
     }
 
 
-    @Test
-    public void simulateSearchRejectionLoad() throws Throwable {
+    public void testSimulatedSearchRejectionLoad() throws Throwable {
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "1").get();
         }
 
         int numberOfAsyncOps = randomIntBetween(200, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
-        final CopyOnWriteArrayList<Object> responses = Lists.newCopyOnWriteArrayList();
+        final CopyOnWriteArrayList<Object> responses = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numberOfAsyncOps; i++) {
             client().prepareSearch("test")
                     .setSearchType(SearchType.QUERY_THEN_FETCH)

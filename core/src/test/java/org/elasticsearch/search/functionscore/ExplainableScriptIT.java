@@ -24,8 +24,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.AbstractDoubleSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
@@ -38,16 +39,15 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -58,18 +58,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class ExplainableScriptIT extends ESIntegTestCase {
-
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", ExplainableScriptPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(ExplainableScriptPlugin.class);
     }
 
-    @Test
     public void testNativeExplainScript() throws InterruptedException, IOException, ExecutionException {
-
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             indexRequests.add(client().prepareIndex("test", "type").setId(Integer.toString(i)).setSource(
@@ -80,27 +74,32 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         ensureYellow();
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("text", "text")).add(
+                                functionScoreQuery(termQuery("text", "text"),
                                         scriptFunction(new Script("native_explainable_script", ScriptType.INLINE, "native", null)))
-                                        .boostMode("replace")))).actionGet();
+                                        .boostMode(CombineFunction.REPLACE)))).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits(), equalTo(20l));
+        assertThat(hits.getTotalHits(), equalTo(20L));
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.explanation().toString(), containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
+            assertThat(hit.explanation().toString(),
+                    containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
             assertThat(hit.explanation().toString(), containsString("1.0 = tf(freq=1.0), with freq of"));
             assertThat(hit.explanation().getDetails().length, equalTo(2));
             idCounter--;
         }
     }
 
-    static class MyNativeScriptFactory implements NativeScriptFactory {
+    public static class MyNativeScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new MyScript();
+        }
+        @Override
+        public boolean needsScores() {
+            return true;
         }
     }
 

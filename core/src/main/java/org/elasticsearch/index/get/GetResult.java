@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.get;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -34,12 +32,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
 /**
@@ -68,7 +68,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         this.source = source;
         this.fields = fields;
         if (this.fields == null) {
-            this.fields = ImmutableMap.of();
+            this.fields = emptyMap();
         }
     }
 
@@ -208,8 +208,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
-        List<GetField> metaFields = Lists.newArrayList();
-        List<GetField> otherFields = Lists.newArrayList();
+        List<GetField> metaFields = new ArrayList<>();
+        List<GetField> otherFields = new ArrayList<>();
         if (fields != null && !fields.isEmpty()) {
             for (GetField field : fields.values()) {
                 if (field.getValues().isEmpty()) {
@@ -286,9 +286,9 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             }
             int size = in.readVInt();
             if (size == 0) {
-                fields = ImmutableMap.of();
+                fields = emptyMap();
             } else {
-                fields = newHashMapWithExpectedSize(size);
+                fields = new HashMap<>(size);
                 for (int i = 0; i < size; i++) {
                     GetField field = readGetField(in);
                     fields.put(field.getName(), field);

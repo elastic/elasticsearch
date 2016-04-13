@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,8 +20,7 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import java.util.Objects;
 
 /**
  * A lookup of the provider for a type. Lookups are created explicitly in a module using
@@ -34,13 +33,39 @@ import static com.google.common.base.Preconditions.checkState;
  * @since 2.0
  */
 public final class ProviderLookup<T> implements Element {
+
+    // NOTE: this class is not part of guice and was added so the provider lookup's key can be accessible for tests
+    public static class ProviderImpl<T> implements Provider<T> {
+        private ProviderLookup<T> lookup;
+
+        private ProviderImpl(ProviderLookup<T> lookup) {
+            this.lookup = lookup;
+        }
+
+        @Override
+        public T get() {
+            if (lookup.delegate == null) {
+                throw new IllegalStateException( "This Provider cannot be used until the Injector has been created.");
+            }
+            return lookup.delegate.get();
+        }
+
+        @Override
+        public String toString() {
+            return "Provider<" + lookup.key.getTypeLiteral() + ">";
+        }
+
+        public Key<T> getKey() {
+            return lookup.getKey();
+        }
+    }
     private final Object source;
     private final Key<T> key;
     private Provider<T> delegate;
 
     public ProviderLookup(Object source, Key<T> key) {
-        this.source = checkNotNull(source, "source");
-        this.key = checkNotNull(key, "key");
+        this.source = Objects.requireNonNull(source, "source");
+        this.key = Objects.requireNonNull(key, "key");
     }
 
     @Override
@@ -63,8 +88,10 @@ public final class ProviderLookup<T> implements Element {
      * @throws IllegalStateException if the delegate is already set
      */
     public void initializeDelegate(Provider<T> delegate) {
-        checkState(this.delegate == null, "delegate already initialized");
-        this.delegate = checkNotNull(delegate, "delegate");
+        if (this.delegate != null) {
+            throw new IllegalStateException("delegate already initialized");
+        }
+        this.delegate = Objects.requireNonNull(delegate, "delegate");
     }
 
     @Override
@@ -86,18 +113,6 @@ public final class ProviderLookup<T> implements Element {
      * IllegalStateException} if you try to use it beforehand.
      */
     public Provider<T> getProvider() {
-        return new Provider<T>() {
-            @Override
-            public T get() {
-                checkState(delegate != null,
-                        "This Provider cannot be used until the Injector has been created.");
-                return delegate.get();
-            }
-
-            @Override
-            public String toString() {
-                return "Provider<" + key.getTypeLiteral() + ">";
-            }
-        };
+        return new ProviderImpl<>(this);
     }
 }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.rest.action.admin.indices.template.get;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
@@ -28,9 +27,16 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -44,7 +50,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Inject
     public RestGetIndexTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
 
         controller.registerHandler(GET, "/_template", this);
         controller.registerHandler(GET, "/_template/{name}", this);
@@ -65,7 +71,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
             public RestResponse buildResponse(GetIndexTemplatesResponse getIndexTemplatesResponse, XContentBuilder builder) throws Exception {
                 boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
 
-                Map<String, String> paramsMap = Maps.newHashMap();
+                Map<String, String> paramsMap = new HashMap<>();
                 paramsMap.put("reduce_mappings", "true");
                 ToXContent.Params params = new ToXContent.DelegatingMapParams(paramsMap, request);
 

@@ -21,31 +21,51 @@ package org.elasticsearch.index.mapper.geo;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        GeoShapeFieldMapper.GeoShapeFieldType gft = new GeoShapeFieldMapper.GeoShapeFieldType();
-        gft.setNames(new MappedFieldType.Names("testgeoshape"));
-        return gft;
+        return new GeoShapeFieldMapper.GeoShapeFieldType();
     }
 
-    @Override
-    protected int numProperties() {
-        return 6 + super.numProperties();
-    }
-
-    @Override
-    protected void modifyProperty(MappedFieldType ft, int propNum) {
-        GeoShapeFieldMapper.GeoShapeFieldType gft = (GeoShapeFieldMapper.GeoShapeFieldType)ft;
-        switch (propNum) {
-            case 0: gft.setTree("quadtree"); break;
-            case 1: gft.setStrategyName("term"); break;
-            case 2: gft.setTreeLevels(10); break;
-            case 3: gft.setPrecisionInMeters(20); break;
-            case 4: gft.setDefaultDistanceErrorPct(0.5); break;
-            case 5: gft.setOrientation(ShapeBuilder.Orientation.LEFT); break;
-            default: super.modifyProperty(ft, propNum - 6);
-        }
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("tree", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setTree("quadtree");
+            }
+        });
+        addModifier(new Modifier("strategy", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setStrategyName("term");
+            }
+        });
+        addModifier(new Modifier("tree_levels", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setTreeLevels(10);
+            }
+        });
+        addModifier(new Modifier("precision", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setPrecisionInMeters(20);
+            }
+        });
+        addModifier(new Modifier("distance_error_pct", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setDefaultDistanceErrorPct(0.5);
+            }
+        });
+        addModifier(new Modifier("orientation", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
+            }
+        });
     }
 }

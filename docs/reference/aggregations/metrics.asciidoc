@@ -19,6 +19,8 @@ include::metrics/extendedstats-aggregation.asciidoc[]
 
 include::metrics/geobounds-aggregation.asciidoc[]
 
+include::metrics/geocentroid-aggregation.asciidoc[]
+
 include::metrics/max-aggregation.asciidoc[]
 
 include::metrics/min-aggregation.asciidoc[]

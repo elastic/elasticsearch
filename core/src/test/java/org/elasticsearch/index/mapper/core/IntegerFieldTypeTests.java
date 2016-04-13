@@ -20,6 +20,11 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.mapper.core.IntegerFieldMapper.IntegerFieldType;
+import org.junit.Before;
+
+import java.io.IOException;
 
 public class IntegerFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -27,8 +32,20 @@ public class IntegerFieldTypeTests extends FieldTypeTestCase {
         return new IntegerFieldMapper.IntegerFieldType();
     }
 
-    @Override
-    protected Object dummyNullValue() {
-        return 10;
+    @Before
+    public void setupProperties() {
+        setDummyNullValue(10);
+    }
+
+    public void testIsFieldWithinQuery() throws IOException {
+        IntegerFieldType ft = new IntegerFieldType();
+        // current impl ignores args and shourd always return INTERSECTS
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomInt(), randomInt(),
+                randomBoolean(), randomBoolean(), null, null));
+    }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals(Integer.valueOf(3), ft.valueForSearch(Integer.valueOf(3)));
     }
 }

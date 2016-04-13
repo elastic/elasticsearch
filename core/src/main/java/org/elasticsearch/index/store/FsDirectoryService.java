@@ -19,14 +19,27 @@
 
 package org.elasticsearch.index.store;
 
-import com.google.common.collect.Sets;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FileSwitchDirectory;
+import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.RateLimitedFSDirectory;
+import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.SimpleFSLockFactory;
+import org.apache.lucene.store.SleepingLockWrapper;
+import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
@@ -40,12 +53,22 @@ import java.util.Set;
 public class FsDirectoryService extends DirectoryService implements StoreRateLimiting.Listener, StoreRateLimiting.Provider {
 
     protected final IndexStore indexStore;
+    public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
+        switch (s) {
+            case "native":
+                return NativeFSLockFactory.INSTANCE;
+            case "simple":
+                return SimpleFSLockFactory.INSTANCE;
+            default:
+                throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
+        } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
+    }, Property.IndexScope, Property.NodeScope);
 
     private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
     private final ShardPath path;
 
     @Inject
-    public FsDirectoryService(@IndexSettings Settings indexSettings, IndexStore indexStore, ShardPath path) {
+    public FsDirectoryService(IndexSettings indexSettings, IndexStore indexStore, ShardPath path) {
         super(path.getShardId(), indexSettings);
         this.path = path;
         this.indexStore = indexStore;
@@ -61,31 +84,16 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         return indexStore.rateLimiting();
     }
 
-    public static LockFactory buildLockFactory(@IndexSettings Settings indexSettings) {
-        String fsLock = indexSettings.get("index.store.fs.lock", indexSettings.get("index.store.fs.fs_lock", "native"));
-        LockFactory lockFactory;
-        if (fsLock.equals("native")) {
-            lockFactory = NativeFSLockFactory.INSTANCE;
-        } else if (fsLock.equals("simple")) {
-            lockFactory = SimpleFSLockFactory.INSTANCE;
-        } else {
-            throw new IllegalArgumentException("unrecognized fs_lock \"" + fsLock + "\": must be native or simple");
-        }
-        return lockFactory;
-    }
-
-    protected final LockFactory buildLockFactory() throws IOException {
-        return buildLockFactory(indexSettings);
-    }
-
     @Override
     public Directory newDirectory() throws IOException {
         final Path location = path.resolveIndex();
         Files.createDirectories(location);
-        Directory wrapped = newFSDirectory(location, buildLockFactory());
+        Directory wrapped = newFSDirectory(location, indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING));
+        if (IndexMetaData.isOnSharedFilesystem(indexSettings.getSettings())) {
+            wrapped = new SleepingLockWrapper(wrapped, 5000);
+        }
         return new RateLimitedFSDirectory(wrapped, this, this) ;
     }
-
 
     @Override
     public void onPause(long nanos) {
@@ -93,29 +101,37 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
     }
 
     /*
-    * We are mmapping docvalues as well as term dictionaries, all other files are served through NIOFS
+    * We are mmapping norms, docvalues as well as term dictionaries, all other files are served through NIOFS
     * this provides good random access performance while not creating unnecessary mmaps for files like stored
     * fields etc.
     */
-    private static final Set<String> PRIMARY_EXTENSIONS = Collections.unmodifiableSet(Sets.newHashSet("dvd", "tim"));
+    private static final Set<String> PRIMARY_EXTENSIONS = Collections.unmodifiableSet(Sets.newHashSet("nvd", "dvd", "tim"));
 
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
-        final String storeType = indexSettings.get(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.DEFAULT.name());
-        if (IndexStoreModule.Type.FS.match(storeType) || IndexStoreModule.Type.DEFAULT.match(storeType)) {
+        final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
+            IndexModule.Type.FS.getSettingsKey());
+        if (IndexModule.Type.FS.match(storeType) || isDefault(storeType)) {
             final FSDirectory open = FSDirectory.open(location, lockFactory); // use lucene defaults
-            if (open instanceof MMapDirectory && Constants.WINDOWS == false) {
+            if (open instanceof MMapDirectory
+                    && isDefault(storeType)
+                    && Constants.WINDOWS == false) {
                 return newDefaultDir(location, (MMapDirectory) open, lockFactory);
             }
             return open;
-        } else if (IndexStoreModule.Type.SIMPLEFS.match(storeType)) {
+        } else if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new SimpleFSDirectory(location, lockFactory);
-        } else if (IndexStoreModule.Type.NIOFS.match(storeType)) {
+        } else if (IndexModule.Type.NIOFS.match(storeType)) {
             return new NIOFSDirectory(location, lockFactory);
-        } else if (IndexStoreModule.Type.MMAPFS.match(storeType)) {
+        } else if (IndexModule.Type.MMAPFS.match(storeType)) {
             return new MMapDirectory(location, lockFactory);
         }
         throw new IllegalArgumentException("No directory found for type [" + storeType + "]");
+    }
+
+    @SuppressWarnings("deprecation")
+    private static boolean isDefault(String storeType) {
+        return IndexModule.Type.DEFAULT.match(storeType);
     }
 
     private Directory newDefaultDir(Path location, final MMapDirectory mmapDir, LockFactory lockFactory) throws IOException {

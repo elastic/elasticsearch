@@ -18,14 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
-
 import java.io.IOException;
 
 /**
@@ -39,10 +36,20 @@ public class FilterParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        ParsedQuery filter = context.queryParserService().parseInnerFilter(parser);
+    public FilterAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+            throws IOException {
+        QueryBuilder<?> filter = context.parseInnerQueryBuilder();
 
-        return new FilterAggregator.Factory(aggregationName, filter == null ? new MatchAllDocsQuery() : filter.query());
+        if (filter == null) {
+            throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
+        }
+
+        return new FilterAggregatorBuilder(aggregationName, filter);
+    }
+
+    @Override
+    public FilterAggregatorBuilder getFactoryPrototypes() {
+        return FilterAggregatorBuilder.PROTOTYPE;
     }
 
 }

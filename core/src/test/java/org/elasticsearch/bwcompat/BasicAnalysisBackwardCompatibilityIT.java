@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,19 +47,17 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
      * Simple upgrade test for analyzers to make sure they analyze to the same tokens after upgrade
      * TODO we need this for random tokenizers / tokenfilters as well
      */
-    @Test
     public void testAnalyzerTokensAfterUpgrade() throws IOException, ExecutionException, InterruptedException {
         int numFields = randomIntBetween(PreBuiltAnalyzers.values().length, PreBuiltAnalyzers.values().length * 10);
-        StringBuilder builder = new StringBuilder();
         String[] fields = new String[numFields * 2];
         int fieldId = 0;
         for (int i = 0; i < fields.length; i++) {
             fields[i++] = "field_" + fieldId++;
             String analyzer = randomAnalyzer();
-            fields[i] = "type=string,analyzer=" + analyzer;
+            fields[i] = "type=text,analyzer=" + analyzer;
         }
         assertAcked(prepareCreate("test")
-                .addMapping("type", fields)
+                .addMapping("type", (Object[])fields)
                 .setSettings(indexSettings()));
         ensureYellow();
         InputOutput[] inout = new InputOutput[numFields];
@@ -73,7 +70,7 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
                 // cause differences when the random string generated contains these complex characters. To mitigate
                 // the problem, we skip any strings containing these characters.
                 // TODO: only skip strings containing complex chars when comparing against ES <= 1.3.x
-                input = TestUtil.randomAnalysisString(getRandom(), 100, false);
+                input = TestUtil.randomAnalysisString(random(), 100, false);
                 matcher = complexUnicodeChars.matcher(input);
             } while (matcher.find());
 
@@ -107,14 +104,8 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
     }
 
     private String randomAnalyzer() {
-        while(true) {
-            PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(getRandom(), PreBuiltAnalyzers.values());
-            if (preBuiltAnalyzers == PreBuiltAnalyzers.SORANI && compatibilityVersion().before(Version.V_1_3_0)) {
-                continue; // SORANI was added in 1.3.0
-            }
-            return preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
-        }
-
+        PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(random(), PreBuiltAnalyzers.values());
+        return preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
     }
 
     private static final class InputOutput {
@@ -127,7 +118,5 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
             this.input = input;
             this.field = field;
         }
-
-
     }
 }

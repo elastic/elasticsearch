@@ -6,8 +6,8 @@ are scored. Similarity is per field, meaning that via the mapping one
 can define a different similarity per field.
 
 Configuring a custom similarity is considered a expert feature and the
-builtin similarities are most likely sufficient as is described in the
-<<mapping-core-types,mapping section>>
+builtin similarities are most likely sufficient as is described in
+<<similarity>>.
 
 [float]
 [[configuration]]
@@ -39,27 +39,27 @@ Here we configure the DFRSimilarity so it can be referenced as
 {
   "book" : {
     "properties" : {
-      "title" : { "type" : "string", "similarity" : "my_similarity" }
+      "title" : { "type" : "text", "similarity" : "my_similarity" }
     }
-} 
+}
 --------------------------------------------------
 
 [float]
 === Available similarities
 
 [float]
-[[default-similarity]]
-==== Default similarity
+[[classic-similarity]]
+==== Classic similarity
 
-The default similarity that is based on the TF/IDF model. This
-similarity has the following option: 
+The classic similarity that is based on the TF/IDF model. This
+similarity has the following option:
 
-`discount_overlaps`:: 
+`discount_overlaps`::
     Determines whether overlap tokens (Tokens with
     0 position increment) are ignored when computing norm. By default this
     is true, meaning overlap tokens do not count when computing norms.
 
-Type name: `default`
+Type name: `classic`
 
 [float]
 [[bm25]]
@@ -71,14 +71,14 @@ http://en.wikipedia.org/wiki/Okapi_BM25[Okapi_BM25] for more details.
 This similarity has the following options:
 
 [horizontal]
-`k1`:: 
+`k1`::
     Controls non-linear term frequency normalization
-    (saturation). 
+    (saturation).
 
-`b`:: 
-    Controls to what degree document length normalizes tf values. 
+`b`::
+    Controls to what degree document length normalizes tf values.
 
-`discount_overlaps`:: 
+`discount_overlaps`::
     Determines whether overlap tokens (Tokens with
     0 position increment) are ignored when computing norm. By default this
     is true, meaning overlap tokens do not count when computing norms.
@@ -90,17 +90,17 @@ Type name: `BM25`
 ==== DFR similarity
 
 Similarity that implements the
-http://lucene.apache.org/core/4_1_0/core/org/apache/lucene/search/similarities/DFRSimilarity.html[divergence
+http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/DFRSimilarity.html[divergence
 from randomness] framework. This similarity has the following options:
 
 [horizontal]
-`basic_model`:: 
-    Possible values: `be`, `d`, `g`, `if`, `in`, `ine` and `p`. 
+`basic_model`::
+    Possible values: `be`, `d`, `g`, `if`, `in`, `ine` and `p`.
 
 `after_effect`::
-    Possible values: `no`, `b` and `l`. 
+    Possible values: `no`, `b` and `l`.
 
-`normalization`:: 
+`normalization`::
     Possible values: `no`, `h1`, `h2`, `h3` and `z`.
 
 All options but the first option need a normalization value.
@@ -108,15 +108,29 @@ All options but the first option need a normalization value.
 Type name: `DFR`
 
 [float]
+[[dfi]]
+==== DFI similarity
+
+Similarity that implements the http://trec.nist.gov/pubs/trec21/papers/irra.web.nb.pdf[divergence from independence] 
+model.
+This similarity has the following options:
+
+[horizontal]
+`independence_measure`:: Possible values `standardized`, `saturated`, `chisquared`.
+
+[float]
 [[ib]]
 ==== IB similarity.
 
-http://lucene.apache.org/core/4_1_0/core/org/apache/lucene/search/similarities/IBSimilarity.html[Information
-based model] . This similarity has the following options:
+http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/IBSimilarity.html[Information
+based model] . The algorithm is based on the concept that the information content in any symbolic 'distribution'
+sequence is primarily determined by the repetitive usage of its basic elements.
+For written texts this challenge would correspond to comparing the writing styles of different authors.
+This similarity has the following options:
 
 [horizontal]
-`distribution`::  Possible values: `ll` and `spl`. 
-`lambda`::        Possible values: `df` and `ttf`. 
+`distribution`::  Possible values: `ll` and `spl`.
+`lambda`::        Possible values: `df` and `ttf`.
 `normalization`:: Same as in `DFR` similarity.
 
 Type name: `IB`
@@ -125,7 +139,7 @@ Type name: `IB`
 [[lm_dirichlet]]
 ==== LM Dirichlet similarity.
 
-http://lucene.apache.org/core/4_7_1/core/org/apache/lucene/search/similarities/LMDirichletSimilarity.html[LM
+http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/LMDirichletSimilarity.html[LM
 Dirichlet similarity] . This similarity has the following options:
 
 [horizontal]
@@ -137,12 +151,12 @@ Type name: `LMDirichlet`
 [[lm_jelinek_mercer]]
 ==== LM Jelinek Mercer similarity.
 
-http://lucene.apache.org/core/4_7_1/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
-Jelinek Mercer similarity] . This similarity has the following options:
+http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
+Jelinek Mercer similarity] . The algorithm attempts to capture important patterns in the text, while leaving out noise. This similarity has the following options:
 
 [horizontal]
 `lambda`::  The optimal value depends on both the collection and the query. The optimal value is around `0.1`
-for title queries and `0.7` for long queries. Default to `0.1`.
+for title queries and `0.7` for long queries. Default to `0.1`. When value approaches `0`, documents that match more query terms will be ranked higher than those that match fewer terms.
 
 Type name: `LMJelinekMercer`
 
@@ -157,7 +171,7 @@ implementation used for these two methods, while not changing the
 `default`, it is possible to configure a similarity with the name
 `base`. This similarity will then be used for the two methods.
 
-You can change the default similarity for all fields like this:
+You can change the default similarity for all fields by putting the following setting into `elasticsearch.yml`:
 
 [source,js]
 --------------------------------------------------

@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -31,9 +32,10 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -59,10 +61,8 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(AssertingLocalTransport.ASSERTING_TRANSPORT_MIN_VERSION_KEY, Version.V_1_4_0_Beta1).build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(AssertingLocalTransport.TestPlugin.class);
     }
 
     @Before
@@ -84,8 +84,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         indexRandom(true, reqs);
     }
 
-    @Test
-    public void singleValue_WithPositiveOffset() throws Exception {
+    public void testSingleValueWithPositiveOffset() throws Exception {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, 1, 0);
 
         SearchResponse response = client().prepareSearch("idx2")
@@ -94,21 +93,20 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .field("date")
                         .offset("2h")
                         .format(DATE_FORMAT)
-                        .interval(DateHistogramInterval.DAY))
+                        .dateHistogramInterval(DateHistogramInterval.DAY))
                 .execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits(), equalTo(5l));
+        assertThat(response.getHits().getTotalHits(), equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(2));
 
-        checkBucketFor(buckets.get(0), new DateTime(2014, 3, 10, 2, 0, DateTimeZone.UTC), 2l);
-        checkBucketFor(buckets.get(1), new DateTime(2014, 3, 11, 2, 0, DateTimeZone.UTC), 3l);
+        checkBucketFor(buckets.get(0), new DateTime(2014, 3, 10, 2, 0, DateTimeZone.UTC), 2L);
+        checkBucketFor(buckets.get(1), new DateTime(2014, 3, 11, 2, 0, DateTimeZone.UTC), 3L);
     }
 
-    @Test
-    public void singleValue_WithNegativeOffset() throws Exception {
+    public void testSingleValueWithNegativeOffset() throws Exception {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 5, -1, 0);
 
         SearchResponse response = client().prepareSearch("idx2")
@@ -117,25 +115,23 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .field("date")
                         .offset("-2h")
                         .format(DATE_FORMAT)
-                        .interval(DateHistogramInterval.DAY))
+                        .dateHistogramInterval(DateHistogramInterval.DAY))
                 .execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits(), equalTo(5l));
+        assertThat(response.getHits().getTotalHits(), equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(2));
 
-        checkBucketFor(buckets.get(0), new DateTime(2014, 3, 9, 22, 0, DateTimeZone.UTC), 2l);
-        checkBucketFor(buckets.get(1), new DateTime(2014, 3, 10, 22, 0, DateTimeZone.UTC), 3l);
+        checkBucketFor(buckets.get(0), new DateTime(2014, 3, 9, 22, 0, DateTimeZone.UTC), 2L);
+        checkBucketFor(buckets.get(1), new DateTime(2014, 3, 10, 22, 0, DateTimeZone.UTC), 3L);
     }
 
     /**
      * Set offset so day buckets start at 6am. Index first 12 hours for two days, with one day gap.
-     * @throws Exception
      */
-    @Test
-    public void singleValue_WithOffset_MinDocCount() throws Exception {
+    public void testSingleValueWithOffsetMinDocCount() throws Exception {
         prepareIndex(date("2014-03-11T00:00:00+00:00"), 12, 1, 0);
         prepareIndex(date("2014-03-14T00:00:00+00:00"), 12, 1, 13);
 
@@ -146,10 +142,10 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .offset("6h")
                         .minDocCount(0)
                         .format(DATE_FORMAT)
-                        .interval(DateHistogramInterval.DAY))
+                        .dateHistogramInterval(DateHistogramInterval.DAY))
                 .execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits(), equalTo(24l));
+        assertThat(response.getHits().getTotalHits(), equalTo(24L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -163,7 +159,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
     }
 
     /**
-     * @param bucket the bucket to check asssertions for
+     * @param bucket the bucket to check assertions for
      * @param key the expected key
      * @param expectedSize the expected size of the bucket
      */

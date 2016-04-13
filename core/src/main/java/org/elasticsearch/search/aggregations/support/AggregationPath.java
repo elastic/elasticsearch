@@ -33,18 +33,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A path that can be used to sort/order buckets (in some multi-bucket aggregations, eg terms & histogram) based on
+ * A path that can be used to sort/order buckets (in some multi-bucket aggregations, eg terms &amp; histogram) based on
  * sub-aggregations. The path may point to either a single-bucket aggregation or a metrics aggregation. If the path
  * points to a single-bucket aggregation, the sort will be applied based on the {@code doc_count} of the bucket. If this
  * path points to a metrics aggregation, if it's a single-value metrics (eg. avg, max, min, etc..) the sort will be
  * applied on that single value. If it points to a multi-value metrics, the path should point out what metric should be
  * the sort-by value.
- * <p/>
+ * <p>
  * The path has the following form:
- * <p/>
  * <center>{@code <aggregation_name>['>'<aggregation_name>*]['.'<metric_name>]}</center>
- * <p/>
- * <p/>
+ * <p>
  * Examples:
  *
  * <ul>
@@ -186,9 +184,8 @@ public class AggregationPath {
     }
 
     public AggregationPath subPath(int offset, int length) {
-        PathElement[] subTokens = new PathElement[length];
-        System.arraycopy(pathElements, offset, subTokens, 0, length);
-        return new AggregationPath(pathElements);
+        List<PathElement> subTokens = new ArrayList<>(pathElements.subList(offset, offset + length));
+        return new AggregationPath(subTokens);
     }
 
     /**
@@ -266,12 +263,12 @@ public class AggregationPath {
         }
         return aggregator;
     }
-    
+
     /**
      * Resolves the topmost aggregator pointed by this path using the given root as a point of reference.
      *
      * @param root      The point of reference of this path
-     * @return          The first child aggregator of the root pointed by this path 
+     * @return          The first child aggregator of the root pointed by this path
      */
     public Aggregator resolveTopmostAggregator(Aggregator root) {
         AggregationPath.PathElement token = pathElements.get(0);
@@ -279,7 +276,7 @@ public class AggregationPath {
         assert (aggregator instanceof SingleBucketAggregator )
                 || (aggregator instanceof NumericMetricsAggregator) : "this should be picked up before aggregation execution - on validate";
         return aggregator;
-    }    
+    }
 
     /**
      * Validates this path over the given aggregator as a point of reference.

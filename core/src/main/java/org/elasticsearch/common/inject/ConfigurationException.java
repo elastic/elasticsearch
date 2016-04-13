@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,13 +16,15 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
+import java.util.Locale;
+import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkState;
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * Thrown when a programming error such as a misplaced annotation, illegal binding, or unsupported
@@ -32,15 +34,14 @@ import static com.google.common.base.Preconditions.checkState;
  * @since 2.0
  */
 public final class ConfigurationException extends RuntimeException {
-
-    private final ImmutableSet<Message> messages;
+    private final Set<Message> messages;
     private Object partialValue = null;
 
     /**
      * Creates a ConfigurationException containing {@code messages}.
      */
     public ConfigurationException(Iterable<Message> messages) {
-        this.messages = ImmutableSet.copyOf(messages);
+        this.messages = unmodifiableSet(newHashSet(messages));
         initCause(Errors.getOnlyCause(this.messages));
     }
 
@@ -48,8 +49,10 @@ public final class ConfigurationException extends RuntimeException {
      * Returns a copy of this configuration exception with the specified partial value.
      */
     public ConfigurationException withPartialValue(Object partialValue) {
-        checkState(this.partialValue == null,
-                "Can't clobber existing partial value %s with %s", this.partialValue, partialValue);
+        if (this.partialValue != null) {
+            String message = String.format(Locale.ROOT, "Can't clobber existing partial value %s with %s", this.partialValue, partialValue);
+            throw new IllegalStateException(message);
+        }
         ConfigurationException result = new ConfigurationException(messages);
         result.partialValue = partialValue;
         return result;
@@ -78,6 +81,4 @@ public final class ConfigurationException extends RuntimeException {
     public String getMessage() {
         return Errors.format("Guice configuration errors", messages);
     }
-
-    private static final long serialVersionUID = 0;
 }

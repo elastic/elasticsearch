@@ -31,17 +31,19 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 /**
- * Checking simple filtering capabilites of the cluster state
+ * Checking simple filtering capabilities of the cluster state
  *
  */
 public class SimpleClusterStateIT extends ESIntegTestCase {
@@ -54,7 +56,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         refresh();
     }
 
-    @Test
     public void testRoutingTable() throws Exception {
         ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().clear().setRoutingTable(true).get();
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("foo"), is(true));
@@ -69,16 +70,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().routingTable().hasIndex("non-existent"), is(false));
     }
 
-    @Test
     public void testNodes() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
-        assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(cluster().size()));
+        assertThat(clusterStateResponse.getState().nodes().getNodes().size(), is(cluster().size()));
 
         ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear().get();
-        assertThat(clusterStateResponseFiltered.getState().nodes().nodes().size(), is(0));
+        assertThat(clusterStateResponseFiltered.getState().nodes().getNodes().size(), is(0));
     }
 
-    @Test
     public void testMetadata() throws Exception {
         ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().clear().setMetaData(true).get();
         assertThat(clusterStateResponseUnfiltered.getState().metaData().indices().size(), is(3));
@@ -87,14 +86,13 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(0));
     }
 
-    @Test
     public void testIndexTemplates() throws Exception {
         client().admin().indices().preparePutTemplate("foo_template")
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .get();
 
@@ -102,7 +100,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .setTemplate("test*")
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("store", "no").endObject()
+                        .startObject("field2").field("type", "text").field("store", "no").endObject()
                         .endObject().endObject().endObject())
                 .get();
 
@@ -113,7 +111,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertIndexTemplateExists(getIndexTemplatesResponse, "foo_template");
     }
 
-    @Test
     public void testThatFilteringByIndexWorksForMetadataAndRoutingTable() throws Exception {
         ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear()
                 .setMetaData(true).setRoutingTable(true).setIndices("foo", "fuu", "non-existent").get();
@@ -129,7 +126,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponseFiltered.getState().routingTable().hasIndex("baz"), is(false));
     }
 
-    @Test
     public void testLargeClusterStatePublishing() throws Exception {
         int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
                                                         ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt());
@@ -137,7 +133,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int counter = 0;
         int numberOfFields = 0;
         while (true) {
-            mapping.startObject(Strings.randomBase64UUID()).field("type", "string").endObject();
+            mapping.startObject(Strings.randomBase64UUID()).field("type", "text").endObject();
             counter += 10; // each field is about 10 bytes, assuming compression in place
             numberOfFields++;
             if (counter > estimatedBytesSize) {
@@ -150,7 +146,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int numberOfShards = scaledRandomIntBetween(1, cluster().numDataNodes());
         // if the create index is ack'ed, then all nodes have successfully processed the cluster state
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards,
+                        IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0,
+                        MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 .addMapping("type", mapping)
                 .setTimeout("60s").get());
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
@@ -162,7 +160,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testIndicesOptions() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
                 .get();
@@ -172,14 +169,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         client().admin().indices().close(Requests.closeIndexRequest("fuu")).get();
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(1));
-        assertThat(clusterStateResponse.getState().metaData().index("foo").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(clusterStateResponse.getState().metaData().index("foo").getState(), equalTo(IndexMetaData.State.OPEN));
 
         // expand_wildcards_closed should toggle return only closed index fuu
         IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
                 .setIndicesOptions(expandCloseOptions).get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(1));
-        assertThat(clusterStateResponse.getState().metaData().index("fuu").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(clusterStateResponse.getState().metaData().index("fuu").getState(), equalTo(IndexMetaData.State.CLOSE));
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
         IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
@@ -195,17 +192,25 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().indices().isEmpty(), is(true));
     }
 
-    @Test(expected=IndexNotFoundException.class)
     public void testIndicesOptionsOnAllowNoIndicesFalse() throws Exception {
         // empty wildcard expansion throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, false, true, false);
-        client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
+        try {
+            client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test(expected=IndexNotFoundException.class)
     public void testIndicesIgnoreUnavailableFalse() throws Exception {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
-        client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
+        try {
+            client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 }

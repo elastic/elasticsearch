@@ -27,9 +27,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
@@ -39,7 +39,7 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
 
     private Map<String, Tuple<Version, String>> versions;
 
-    UpgradeSettingsRequest() {
+    public UpgradeSettingsRequest() {
     }
 
     /**
@@ -79,7 +79,7 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        versions = newHashMap();
+        versions = new HashMap<>();
         for (int i=0; i<size; i++) {
             String index = in.readString();
             Version upgradeVersion = Version.readVersion(in);

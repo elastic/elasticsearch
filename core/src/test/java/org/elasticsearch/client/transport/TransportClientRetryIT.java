@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
@@ -28,29 +27,23 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0)
-@TestLogging("discovery.zen:TRACE")
 public class TransportClientRetryIT extends ESIntegTestCase {
-
-    @Test
     public void testRetry() throws IOException, ExecutionException, InterruptedException {
-
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);
         TransportAddress[] addresses = new TransportAddress[internalCluster().size()];
         int i = 0;
@@ -58,12 +51,12 @@ public class TransportClientRetryIT extends ESIntegTestCase {
             addresses[i++] = instance.boundAddress().publishAddress();
         }
 
-        Settings.Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
-                .put("name", "transport_client_retry_test")
-                .put("node.mode", InternalTestCluster.nodeMode())
-                .put(ClusterName.SETTING, internalCluster().getClusterName())
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
-                .put("path.home", createTempDir());
+        Settings.Builder builder = Settings.builder().put("client.transport.nodes_sampler_interval", "1s")
+                .put("node.name", "transport_client_retry_test")
+                .put(Node.NODE_MODE_SETTING.getKey(), internalCluster().getNodeMode())
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), internalCluster().getClusterName())
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
         try (TransportClient transportClient = TransportClient.builder().settings(builder.build()).build()) {
             transportClient.addTransportAddresses(addresses);
@@ -72,12 +65,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
             int size = cluster().size();
             //kill all nodes one by one, leaving a single master/data node at the end of the loop
             for (int j = 1; j < size; j++) {
-                internalCluster().stopRandomNode(new Predicate<Settings>() {
-                    @Override
-                    public boolean apply(Settings input) {
-                        return true;
-                    }
-                });
+                internalCluster().stopRandomNode(input -> true);
 
                 ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().local(true);
                 ClusterState clusterState;
@@ -89,7 +77,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
                     transportClient.admin().cluster().state(clusterStateRequest, future);
                     clusterState = future.get().getState();
                 }
-                assertThat(clusterState.nodes().size(), greaterThanOrEqualTo(size - j));
+                assertThat(clusterState.nodes().getSize(), greaterThanOrEqualTo(size - j));
                 assertThat(transportClient.connectedNodes().size(), greaterThanOrEqualTo(size - j));
             }
         }

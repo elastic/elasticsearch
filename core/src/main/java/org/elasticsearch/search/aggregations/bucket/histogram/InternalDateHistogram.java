@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -30,22 +31,23 @@ import org.joda.time.DateTimeZone;
  */
 public class InternalDateHistogram {
 
+    public static final Factory HISTOGRAM_FACTORY = new Factory();
     final static Type TYPE = new Type("date_histogram", "dhisto");
 
     static class Bucket extends InternalHistogram.Bucket {
 
-        Bucket(boolean keyed, ValueFormatter formatter, InternalHistogram.Factory<Bucket> factory) {
+        Bucket(boolean keyed, DocValueFormat formatter, InternalHistogram.Factory<Bucket> factory) {
             super(keyed, formatter, factory);
         }
 
-        Bucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, ValueFormatter formatter,
+        Bucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, DocValueFormat formatter,
                 InternalHistogram.Factory<Bucket> factory) {
             super(key, docCount, keyed, formatter, factory, aggregations);
         }
 
         @Override
         public String getKeyAsString() {
-            return formatter != null ? formatter.format(key) : ValueFormatter.DateTime.DEFAULT.format(key);
+            return format.format(key);
         }
 
         @Override
@@ -65,18 +67,23 @@ public class InternalDateHistogram {
         }
 
         @Override
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
+        }
+
+        @Override
+        public ValueType valueType() {
+            return ValueType.DATE;
         }
 
         @Override
         public InternalDateHistogram.Bucket createBucket(InternalAggregations aggregations, InternalDateHistogram.Bucket prototype) {
-            return new Bucket(prototype.key, prototype.docCount, aggregations, prototype.getKeyed(), prototype.formatter, this);
+            return new Bucket(prototype.key, prototype.docCount, aggregations, prototype.getKeyed(), prototype.format, this);
         }
 
         @Override
         public InternalDateHistogram.Bucket createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
-                ValueFormatter formatter) {
+                DocValueFormat formatter) {
             if (key instanceof Number) {
                 return new Bucket(((Number) key).longValue(), docCount, aggregations, keyed, formatter, this);
             } else if (key instanceof DateTime) {
@@ -87,7 +94,7 @@ public class InternalDateHistogram {
         }
 
         @Override
-        protected InternalDateHistogram.Bucket createEmptyBucket(boolean keyed, ValueFormatter formatter) {
+        protected InternalDateHistogram.Bucket createEmptyBucket(boolean keyed, DocValueFormat formatter) {
             return new Bucket(keyed, formatter, this);
         }
     }

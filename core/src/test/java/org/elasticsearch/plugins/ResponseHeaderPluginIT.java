@@ -22,12 +22,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
+
+import java.util.Collection;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,17 +37,19 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class ResponseHeaderPluginIT extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", TestResponseHeaderPlugin.class.getName())
                 .put("force.http.enabled", true)
                 .build();
     }
 
-    @Test
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(TestResponseHeaderPlugin.class);
+    }
+
     public void testThatSettingHeadersWorks() throws Exception {
         ensureGreen();
         HttpResponse response = httpClient().method("GET").path("/_protected").execute();
@@ -57,5 +60,4 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
         assertThat(authResponse, hasStatus(OK));
         assertThat(authResponse.getHeaders().get("Secret"), equalTo("granted"));
     }
-    
 }

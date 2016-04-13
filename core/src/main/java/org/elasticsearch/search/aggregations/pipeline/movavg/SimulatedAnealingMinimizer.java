@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg;
 
-import com.google.common.collect.EvictingQueue;
+import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 
 /**

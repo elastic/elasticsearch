@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2007 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,26 +16,37 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.ConfigurationException;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.HasDependencies;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableSet;
+
 /**
  * Provides a factory that combines the caller's arguments with injector-supplied values to
  * construct objects.
- * <p/>
  * <h3>Defining a factory</h3>
  * Create an interface whose methods return the constructed type, or any of its supertypes. The
  * method's parameters are the arguments required to build the constructed type.
@@ -44,7 +55,6 @@ import java.util.Set;
  * }</pre>
  * You can name your factory methods whatever you like, such as <i>create</i>, <i>createPayment</i>
  * or <i>newPayment</i>.
- * <p/>
  * <h3>Creating a type that accepts factory parameters</h3>
  * {@code constructedType} is a concrete class with an {@literal @}{@link Inject}-annotated
  * constructor. In addition to injector-supplied parameters, the constructor should have
@@ -62,7 +72,6 @@ import java.util.Set;
  *   }
  * }</pre>
  * Any parameter that permits a null value should also be annotated {@code @Nullable}.
- * <p/>
  * <h3>Configuring factories</h3>
  * In your {@link org.elasticsearch.common.inject.Module module}, bind the factory interface to the returned
  * factory:
@@ -70,24 +79,20 @@ import java.util.Set;
  *     FactoryProvider.newFactory(PaymentFactory.class, RealPayment.class));</pre>
  * As a side-effect of this binding, Guice will inject the factory to initialize it for use. The
  * factory cannot be used until the injector has been initialized.
- * <p/>
  * <h3>Using the factory</h3>
  * Inject your factory into your application classes. When you use the factory, your arguments
  * will be combined with values from the injector to construct an instance.
  * <pre>public class PaymentAction {
  *   {@literal @}Inject private PaymentFactory paymentFactory;
- * <p/>
  *   public void doPayment(Money amount) {
  *     Payment payment = paymentFactory.create(new Date(), amount);
  *     payment.apply();
  *   }
  * }</pre>
- * <p/>
  * <h3>Making parameter types distinct</h3>
  * The types of the factory method's parameters must be distinct. To use multiple parameters of
  * the same type, use a named {@literal @}{@link Assisted} annotation to disambiguate the
  * parameters. The names must be applied to the factory method's parameters:
- * <p/>
  * <pre>public interface PaymentFactory {
  *   Payment create(
  *       <strong>{@literal @}Assisted("startDate")</strong> Date startDate,
@@ -106,21 +111,17 @@ import java.util.Set;
  *     ...
  *   }
  * }</pre>
- * <p/>
  * <h3>Values are created by Guice</h3>
  * Returned factories use child injectors to create values. The values are eligible for method
  * interception. In addition, {@literal @}{@literal Inject} members will be injected before they are
  * returned.
- * <p/>
  * <h3>Backwards compatibility using {@literal @}AssistedInject</h3>
  * Instead of the {@literal @}Inject annotation, you may annotate the constructed classes with
  * {@literal @}{@link AssistedInject}. This triggers a limited backwards-compatibility mode.
- * <p/>
  * <p>Instead of matching factory method arguments to constructor parameters using their names, the
  * <strong>parameters are matched by their order</strong>. The first factory method argument is
  * used for the first {@literal @}Assisted constructor parameter, etc.. Annotation names have no
  * effect.
- * <p/>
  * <p>Returned values are <strong>not created by Guice</strong>. These types are not eligible for
  * method interception. They do receive post-construction member injection.
  *
@@ -209,9 +210,9 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
 
     private static Map<Method, AssistedConstructor<?>> createMethodMapping(
             TypeLiteral<?> factoryType, TypeLiteral<?> implementationType) {
-        List<AssistedConstructor<?>> constructors = Lists.newArrayList();
+        List<AssistedConstructor<?>> constructors = new ArrayList<>();
 
-        for (Constructor<?> constructor : implementationType.getRawType().getDeclaredConstructors()) {
+        for (Constructor<?> constructor : implementationType.getRawType().getConstructors()) {
             if (constructor.getAnnotation(AssistedInject.class) != null) {
                 @SuppressWarnings("unchecked") // the constructor type and implementation type agree
                         AssistedConstructor assistedConstructor = new AssistedConstructor(
@@ -221,7 +222,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         }
 
         if (constructors.isEmpty()) {
-            return ImmutableMap.of();
+            return emptyMap();
         }
 
         Method[] factoryMethods = factoryType.getRawType().getMethods();
@@ -232,7 +233,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
                     constructors.size(), factoryType, factoryMethods.length);
         }
 
-        Map<ParameterListKey, AssistedConstructor> paramsToConstructor = Maps.newHashMap();
+        Map<ParameterListKey, AssistedConstructor> paramsToConstructor = new HashMap<>();
 
         for (AssistedConstructor c : constructors) {
             if (paramsToConstructor.containsKey(c.getAssistedParameters())) {
@@ -241,14 +242,14 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
             paramsToConstructor.put(c.getAssistedParameters(), c);
         }
 
-        Map<Method, AssistedConstructor<?>> result = Maps.newHashMap();
+        Map<Method, AssistedConstructor<?>> result = new HashMap<>();
         for (Method method : factoryMethods) {
             if (!method.getReturnType().isAssignableFrom(implementationType.getRawType())) {
                 throw newConfigurationException("Return type of method %s is not assignable from %s",
                         method, implementationType);
             }
 
-            List<Type> parameterTypes = Lists.newArrayList();
+            List<Type> parameterTypes = new ArrayList<>();
             for (TypeLiteral<?> parameterType : factoryType.getParameterTypes(method)) {
                 parameterTypes.add(parameterType.getType());
             }
@@ -281,7 +282,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
 
     @Override
     public Set<Dependency<?>> getDependencies() {
-        List<Dependency<?>> dependencies = Lists.newArrayList();
+        Set<Dependency<?>> dependencies = new HashSet<>();
         for (AssistedConstructor<?> constructor : factoryMethodToConstructor.values()) {
             for (Parameter parameter : constructor.getAllParameters()) {
                 if (!parameter.isProvidedByFactory()) {
@@ -289,7 +290,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
                 }
             }
         }
-        return ImmutableSet.copyOf(dependencies);
+        return unmodifiableSet(dependencies);
     }
 
     @Override
@@ -336,6 +337,6 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
     }
 
     private static ConfigurationException newConfigurationException(String format, Object... args) {
-        return new ConfigurationException(ImmutableSet.of(new Message(Errors.format(format, args))));
+        return new ConfigurationException(singleton(new Message(Errors.format(format, args))));
     }
 }

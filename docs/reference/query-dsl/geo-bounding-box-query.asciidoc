@@ -22,8 +22,8 @@ Then the following simple query can be executed with a
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -45,6 +45,22 @@ Then the following simple query can be executed with a
 --------------------------------------------------
 
 [float]
+==== Query Options
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Option |Description
+|`_name` |Optional name field to identify the filter
+
+|`ignore_malformed` |Set to `true` to
+accept geo points with invalid latitude or longitude (default is `false`).
+
+|`type` |Set to one of `indexed` or `memory` to defines whether this filter will
+be executed in memory or indexed. See <<geo-bbox-type,Type>> below for further details
+Default is `memory`.
+|=======================================================================
+
+[float]
 ==== Accepted Formats
 
 In much the same way the geo_point type can accept different
@@ -56,8 +72,8 @@ representation of the geo point, the filter can accept it as well:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -87,8 +103,8 @@ conform with http://geojson.org/[GeoJSON].
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -111,8 +127,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -133,8 +149,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -162,17 +178,17 @@ values separately.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
             "geo_bounding_box" : {
                 "pin.location" : {
-                    "top" : -74.1,
-                    "left" : 40.73,
-                    "bottom" : -71.12,
-                    "right" : 40.01
+                    "top" : 40.73,
+                    "left" : -74.1,
+                    "bottom" : 40.01,
+                    "right" : -71.12
                 }
             }
         }
@@ -195,6 +211,7 @@ a single location / point matches the filter, the document will be
 included in the filter
 
 [float]
+[[geo-bbox-type]]
 ==== Type
 
 The type of the bounding box execution by default is set to `memory`,
@@ -207,8 +224,8 @@ are not supported. Here is an example:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {

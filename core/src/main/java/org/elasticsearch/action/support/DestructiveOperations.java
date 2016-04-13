@@ -19,30 +19,34 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
  * Helper for dealing with destructive operations and wildcard usage.
  */
-public final class DestructiveOperations implements NodeSettingsService.Listener {
+public final class DestructiveOperations extends AbstractComponent {
 
     /**
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
-    public static final String REQUIRES_NAME = "action.destructive_requires_name";
-
-    private final ESLogger logger;
+    public static final Setting<Boolean> REQUIRES_NAME_SETTING =
+        Setting.boolSetting("action.destructive_requires_name", false, Property.Dynamic, Property.NodeScope);
     private volatile boolean destructiveRequiresName;
 
-    // TODO: Turn into a component that can be reused and wired up into all the transport actions where
-    // this helper logic is required. Note: also added the logger as argument, otherwise the same log
-    // statement is printed several times, this can removed once this becomes a component.
-    public DestructiveOperations(ESLogger logger, Settings settings, NodeSettingsService nodeSettingsService) {
-        this.logger = logger;
-        destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
-        nodeSettingsService.addListener(this);
+    @Inject
+    public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {
+        super(settings);
+        destructiveRequiresName = REQUIRES_NAME_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(REQUIRES_NAME_SETTING, this::setDestructiveRequiresName);
+    }
+
+    private void setDestructiveRequiresName(boolean destructiveRequiresName) {
+        this.destructiveRequiresName = destructiveRequiresName;
     }
 
     /**
@@ -65,15 +69,6 @@ public final class DestructiveOperations implements NodeSettingsService.Listener
                     throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
                 }
             }
-        }
-    }
-
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
-        if (destructiveRequiresName != newValue) {
-            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
-            this.destructiveRequiresName = newValue;
         }
     }
 

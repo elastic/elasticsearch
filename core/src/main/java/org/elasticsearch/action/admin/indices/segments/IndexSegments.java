@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -35,16 +34,16 @@ public class IndexSegments implements Iterable<IndexShardSegments> {
     IndexSegments(String index, ShardSegments[] shards) {
         this.index = index;
 
-        Map<Integer, List<ShardSegments>> tmpIndexShards = Maps.newHashMap();
+        Map<Integer, List<ShardSegments>> tmpIndexShards = new HashMap<>();
         for (ShardSegments shard : shards) {
             List<ShardSegments> lst = tmpIndexShards.get(shard.getShardRouting().id());
             if (lst == null) {
-                lst = Lists.newArrayList();
+                lst = new ArrayList<>();
                 tmpIndexShards.put(shard.getShardRouting().id(), lst);
             }
             lst.add(shard);
         }
-        indexShards = Maps.newHashMap();
+        indexShards = new HashMap<>();
         for (Map.Entry<Integer, List<ShardSegments>> entry : tmpIndexShards.entrySet()) {
             indexShards.put(entry.getKey(), new IndexShardSegments(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardSegments[entry.getValue().size()])));
         }

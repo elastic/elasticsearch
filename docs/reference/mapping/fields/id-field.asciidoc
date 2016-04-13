@@ -2,8 +2,8 @@
 === `_id` field
 
 Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
-<<all-mapping-types,Mapping Types>>) and an <<mapping-id-field,`_id`>>.  The
-`_id` field is not indexed as its value can be derived automatically from the
+<<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_id` field is not
+indexed as its value can be derived automatically from the
 <<mapping-uid-field,`_uid`>> field.
 
 The value of the `_id` field is accessible in queries and scripts, but _not_

@@ -21,33 +21,29 @@ package org.elasticsearch.index.mapper.externalvalues;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
-
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", ExternalMapperPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(ExternalMapperPlugin.class);
     }
 
-    @Test
     public void testExternalValues() throws Exception {
         prepareCreate("test-idx").addMapping("type",
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
                 .startObject("properties")
-                    .startObject("field").field("type", RegisterExternalTypes.EXTERNAL).endObject()
+                    .startObject("field").field("type", ExternalMapperPlugin.EXTERNAL).endObject()
                 .endObject()
             .endObject().endObject()).execute().get();
         ensureYellow("test-idx");
@@ -67,13 +63,13 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoDistanceRangeQuery("field.point").point(42.0, 51.0).to("1km"))
+                .setPostFilter(QueryBuilders.geoDistanceRangeQuery("field.point", 42.0, 51.0).to("1km"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilder.newPoint(-100, 45), ShapeRelation.WITHIN))
+                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilders.newPoint(-100, 45)).relation(ShapeRelation.WITHIN))
                         .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
@@ -85,21 +81,19 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
     }
 
-    @Test
     public void testExternalValuesWithMultifield() throws Exception {
         prepareCreate("test-idx").addMapping("doc",
                 XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
                 .startObject("f")
-                    .field("type", RegisterExternalTypes.EXTERNAL_UPPER)
+                    .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
-                        .startObject("f")
-                            .field("type", "string")
-                            .field("store", "yes")
+                        .startObject("g")
+                            .field("type", "text")
+                            .field("store", true)
                             .startObject("fields")
                                 .startObject("raw")
-                                    .field("type", "string")
-                                    .field("index", "not_analyzed")
-                                    .field("store", "yes")
+                                    .field("type", "keyword")
+                                    .field("store", true)
                                 .endObject()
                             .endObject()
                         .endObject()
@@ -112,7 +106,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test-idx")
-                .setQuery(QueryBuilders.termQuery("f.f.raw", "FOO BAR"))
+                .setQuery(QueryBuilders.termQuery("f.g.raw", "FOO BAR"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));

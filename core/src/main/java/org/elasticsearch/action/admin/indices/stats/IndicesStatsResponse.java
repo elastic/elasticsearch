@@ -19,13 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,9 +30,14 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  */
@@ -45,27 +45,26 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
 
     private ShardStats[] shards;
 
-    private ImmutableMap<ShardRouting, CommonStats> shardStatsMap;
+    private Map<ShardRouting, ShardStats> shardStatsMap;
 
     IndicesStatsResponse() {
 
     }
 
-    IndicesStatsResponse(ShardStats[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    IndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
     }
 
-    public ImmutableMap<ShardRouting, CommonStats> asMap() {
-        if (shardStatsMap == null) {
-            ImmutableMap.Builder<ShardRouting, CommonStats> mb = ImmutableMap.builder();
+    public Map<ShardRouting, ShardStats> asMap() {
+        if (this.shardStatsMap == null) {
+            Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
             for (ShardStats ss : shards) {
-                mb.put(ss.getShardRouting(), ss.getStats());
+                shardStatsMap.put(ss.getShardRouting(), ss);
             }
-
-            shardStatsMap = mb.build();
+            this.shardStatsMap = unmodifiableMap(shardStatsMap);
         }
-        return shardStatsMap;
+        return this.shardStatsMap;
     }
 
     public ShardStats[] getShards() {
@@ -86,21 +85,21 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         if (indicesStats != null) {
             return indicesStats;
         }
-        Map<String, IndexStats> indicesStats = Maps.newHashMap();
+        Map<String, IndexStats> indicesStats = new HashMap<>();
 
-        Set<String> indices = Sets.newHashSet();
+        Set<String> indices = new HashSet<>();
         for (ShardStats shard : shards) {
-            indices.add(shard.getIndex());
+            indices.add(shard.getShardRouting().getIndexName());
         }
 
-        for (String index : indices) {
-            List<ShardStats> shards = Lists.newArrayList();
+        for (String indexName : indices) {
+            List<ShardStats> shards = new ArrayList<>();
             for (ShardStats shard : this.shards) {
-                if (shard.getShardRouting().index().equals(index)) {
+                if (shard.getShardRouting().getIndexName().equals(indexName)) {
                     shards.add(shard);
                 }
             }
-            indicesStats.put(index, new IndexStats(index, shards.toArray(new ShardStats[shards.size()])));
+            indicesStats.put(indexName, new IndexStats(indexName, shards.toArray(new ShardStats[shards.size()])));
         }
         this.indicesStats = indicesStats;
         return indicesStats;

@@ -19,17 +19,18 @@
 
 package org.elasticsearch.repositories;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
@@ -43,10 +44,14 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-import static com.google.common.collect.Maps.newHashMap;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -62,7 +67,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     private final VerifyNodeRepositoryAction verifyAction;
 
-    private volatile ImmutableMap<String, RepositoryHolder> repositories = ImmutableMap.of();
+    private volatile Map<String, RepositoryHolder> repositories = emptyMap();
 
     @Inject
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService, RepositoryTypesRegistry typesRegistry, Injector injector) {
@@ -72,7 +77,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         this.clusterService = clusterService;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
-        if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
             clusterService.add(this);
         }
         this.verifyAction = new VerifyNodeRepositoryAction(settings, transportService, clusterService, this);
@@ -80,7 +85,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     /**
      * Registers new repository in the cluster
-     * <p/>
+     * <p>
      * This method can be only called on the master node. It tries to create a new repository on the master
      * and if it was successful it adds new repository to cluster metadata.
      *
@@ -149,13 +154,13 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
-                return discoveryNode.masterNode();
+                return discoveryNode.isMasterNode();
             }
         });
     }
     /**
      * Unregisters repository in the cluster
-     * <p/>
+     * <p>
      * This method can be only called on the master node. It removes repository information from cluster metadata.
      *
      * @param request  unregister repository request
@@ -200,7 +205,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 // Since operation occurs only on masters, it's enough that only master-eligible nodes acked
-                return discoveryNode.masterNode();
+                return discoveryNode.isMasterNode();
             }
         });
     }
@@ -265,7 +270,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
             logger.trace("processing new index repositories for state version [{}]", event.state().version());
 
-            Map<String, RepositoryHolder> survivors = newHashMap();
+            Map<String, RepositoryHolder> survivors = new HashMap<>();
             // First, remove repositories that are no longer there
             for (Map.Entry<String, RepositoryHolder> entry : repositories.entrySet()) {
                 if (newMetaData == null || newMetaData.repository(entry.getKey()) == null) {
@@ -276,7 +281,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                 }
             }
 
-            ImmutableMap.Builder<String, RepositoryHolder> builder = ImmutableMap.builder();
+            Map<String, RepositoryHolder> builder = new HashMap<>();
             if (newMetaData != null) {
                 // Now go through all repositories and update existing or create missing
                 for (RepositoryMetaData repositoryMetaData : newMetaData.repositories()) {
@@ -307,7 +312,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                     }
                 }
             }
-            repositories = builder.build();
+            repositories = unmodifiableMap(builder);
         } catch (Throwable ex) {
             logger.warn("failure updating cluster state ", ex);
         }
@@ -315,7 +320,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     /**
      * Returns registered repository
-     * <p/>
+     * <p>
      * This method is called only on the master node
      *
      * @param repository repository name
@@ -332,7 +337,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     /**
      * Returns registered index shard repository
-     * <p/>
+     * <p>
      * This method is called only on data nodes
      *
      * @param repository repository name
@@ -349,7 +354,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     /**
      * Creates a new repository and adds it to the list of registered repositories.
-     * <p/>
+     * <p>
      * If a repository with the same name but different types or settings already exists, it will be closed and
      * replaced with the new repository. If a repository with the same name exists but it has the same type and settings
      * the new repository is ignored.
@@ -370,9 +375,8 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             // Closing previous version
             closeRepository(repositoryMetaData.name(), previous);
         }
-        Map<String, RepositoryHolder> newRepositories = newHashMap(repositories);
+        Map<String, RepositoryHolder> newRepositories = new HashMap<>(repositories);
         newRepositories.put(repositoryMetaData.name(), holder);
-        repositories = ImmutableMap.copyOf(newRepositories);
         return true;
     }
 
@@ -568,9 +572,10 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         }
 
         public String failureDescription() {
-            StringBuilder builder = new StringBuilder('[');
-            Joiner.on(", ").appendTo(builder, failures);
-            return builder.append(']').toString();
+            return Arrays
+                    .stream(failures)
+                    .map(failure -> failure.toString())
+                    .collect(Collectors.joining(", ", "[", "]"));
         }
 
     }

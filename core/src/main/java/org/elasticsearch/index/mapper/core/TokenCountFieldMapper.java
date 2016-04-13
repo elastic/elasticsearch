@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
@@ -27,13 +28,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.ValueAndBoost;
 
@@ -44,7 +42,6 @@ import java.util.Map;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.tokenCountField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
@@ -81,13 +78,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(name, fieldType, defaultFieldType,
                     ignoreMalformed(context), coerce(context), context.indexSettings(),
                     analyzer, multiFieldsBuilder.build(this, context), copyTo);
-            fieldMapper.includeInAll(includeInAll);
-            return fieldMapper;
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            return NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep);
+            return (TokenCountFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override
@@ -100,7 +91,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         @Override
         @SuppressWarnings("unchecked")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            TokenCountFieldMapper.Builder builder = tokenCountField(name);
+            TokenCountFieldMapper.Builder builder = new TokenCountFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -145,23 +136,22 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             if (valueAndBoost.value() == null) {
                 count = fieldType().nullValue();
             } else {
-                count = countPositions(analyzer.analyzer().tokenStream(simpleName(), valueAndBoost.value()));
+                count = countPositions(analyzer, simpleName(), valueAndBoost.value());
             }
             addIntegerFields(context, fields, count, valueAndBoost.boost());
-        }
-        if (fields.isEmpty()) {
-            context.ignoredValue(fieldType().names().indexName(), valueAndBoost.value());
         }
     }
 
     /**
      * Count position increments in a token stream.  Package private for testing.
-     * @param tokenStream token stream to count
+     * @param analyzer analyzer to create token stream
+     * @param fieldName field name to pass to analyzer
+     * @param fieldValue field value to pass to analyzer
      * @return number of position increments in a token stream
      * @throws IOException if tokenStream throws it
      */
-    static int countPositions(TokenStream tokenStream) throws IOException {
-        try {
+    static int countPositions(Analyzer analyzer, String fieldName, String fieldValue) throws IOException {
+        try (TokenStream tokenStream = analyzer.tokenStream(fieldName, fieldValue)) {
             int count = 0;
             PositionIncrementAttribute position = tokenStream.addAttribute(PositionIncrementAttribute.class);
             tokenStream.reset();
@@ -171,8 +161,6 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             tokenStream.end();
             count += position.getPositionIncrement();
             return count;
-        } finally {
-            tokenStream.close();
         }
     }
 
@@ -190,14 +178,9 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
-        if (!mergeResult.simulate()) {
-            this.analyzer = ((TokenCountFieldMapper) mergeWith).analyzer;
-        }
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
+        this.analyzer = ((TokenCountFieldMapper) mergeWith).analyzer;
     }
 
     @Override

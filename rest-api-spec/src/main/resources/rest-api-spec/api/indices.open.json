@@ -7,9 +7,9 @@
       "paths": ["/{index}/_open"],
       "parts": {
         "index": {
-          "type" : "string",
+          "type" : "list",
           "required" : true,
-          "description" : "The name of the index"
+          "description" : "A comma separated list of indices to open"
         }
       },
       "params": {

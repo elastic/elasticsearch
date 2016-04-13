@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2009 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,12 +16,12 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.MembersInjectorLookup;
 import org.elasticsearch.common.inject.spi.ProviderLookup;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -32,7 +32,7 @@ import java.util.List;
  */
 class DeferredLookups implements Lookups {
     private final InjectorImpl injector;
-    private final List<Element> lookups = Lists.newArrayList();
+    private final List<Element> lookups = new ArrayList<>();
 
     public DeferredLookups(InjectorImpl injector) {
         this.injector = injector;

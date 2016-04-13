@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.search.fetch.matchedqueries;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -33,8 +30,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 /**
  *
@@ -43,7 +43,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of();
+        return emptyMap();
     }
 
     @Override
@@ -63,7 +63,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
-        List<String> matchedQueries = Lists.newArrayListWithCapacity(2);
+        List<String> matchedQueries = new ArrayList<>(2);
 
         try {
             addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedQueries);
@@ -80,19 +80,19 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
         hitContext.hit().matchedQueries(matchedQueries.toArray(new String[matchedQueries.size()]));
     }
 
-    private void addMatchedQueries(HitContext hitContext, ImmutableMap<String, Query> namedQueries, List<String> matchedQueries) throws IOException {
+    private void addMatchedQueries(HitContext hitContext, Map<String, Query> namedQueries, List<String> matchedQueries) throws IOException {
         for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
             String name = entry.getKey();
             Query filter = entry.getValue();
 
             final Weight weight = hitContext.topLevelSearcher().createNormalizedWeight(filter, false);
-            final Scorer scorer = weight.scorer(hitContext.readerContext(), null);
+            final Scorer scorer = weight.scorer(hitContext.readerContext());
             if (scorer == null) {
                 continue;
             }
-            final TwoPhaseIterator twoPhase = scorer.asTwoPhaseIterator();
+            final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
             if (twoPhase == null) {
-                if (scorer.advance(hitContext.docId()) == hitContext.docId()) {
+                if (scorer.iterator().advance(hitContext.docId()) == hitContext.docId()) {
                     matchedQueries.add(name);
                 }
             } else {

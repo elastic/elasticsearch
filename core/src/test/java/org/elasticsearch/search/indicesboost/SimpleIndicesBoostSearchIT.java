@@ -22,7 +22,6 @@ package org.elasticsearch.search.indicesboost;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -36,8 +35,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class SimpleIndicesBoostSearchIT extends ESIntegTestCase {
-
-    @Test
     public void testIndicesBoost() throws Exception {
         assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);
 
@@ -66,7 +63,7 @@ public class SimpleIndicesBoostSearchIT extends ESIntegTestCase {
                 .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().totalHits(), equalTo(2L));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
         logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
         assertThat(response.getHits().getAt(0).index(), equalTo("test1"));
@@ -78,7 +75,7 @@ public class SimpleIndicesBoostSearchIT extends ESIntegTestCase {
                 .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().totalHits(), equalTo(2L));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
         logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
         assertThat(response.getHits().getAt(0).index(), equalTo("test2"));
@@ -92,7 +89,7 @@ public class SimpleIndicesBoostSearchIT extends ESIntegTestCase {
                 .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().totalHits(), equalTo(2L));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
         logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
         assertThat(response.getHits().getAt(0).index(), equalTo("test1"));
@@ -104,7 +101,7 @@ public class SimpleIndicesBoostSearchIT extends ESIntegTestCase {
                 .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().totalHits(), equalTo(2L));
         logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
         logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
         assertThat(response.getHits().getAt(0).index(), equalTo("test2"));

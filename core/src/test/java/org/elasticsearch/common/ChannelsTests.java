@@ -29,7 +29,6 @@ import org.jboss.netty.buffer.ByteBufferBackedChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -41,6 +40,8 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class ChannelsTests extends ESTestCase {
 
@@ -64,7 +65,6 @@ public class ChannelsTests extends ESTestCase {
         super.tearDown();
     }
 
-    @Test
     public void testReadWriteThoughArrays() throws Exception {
         Channels.writeToChannel(randomBytes, fileChannel);
         byte[] readBytes = Channels.readFromFileChannel(fileChannel, 0, randomBytes.length);
@@ -72,7 +72,6 @@ public class ChannelsTests extends ESTestCase {
     }
 
 
-    @Test
     public void testPartialReadWriteThroughArrays() throws Exception {
         int length = randomIntBetween(1, randomBytes.length / 2);
         int offset = randomIntBetween(0, randomBytes.length - length);
@@ -89,14 +88,17 @@ public class ChannelsTests extends ESTestCase {
         assertThat("read bytes didn't match written bytes", source.toBytes(), Matchers.equalTo(read.toBytes()));
     }
 
-    @Test(expected = EOFException.class)
     public void testBufferReadPastEOFWithException() throws Exception {
         int bytesToWrite = randomIntBetween(0, randomBytes.length - 1);
         Channels.writeToChannel(randomBytes, 0, bytesToWrite, fileChannel);
-        Channels.readFromFileChannel(fileChannel, 0, bytesToWrite + 1 + randomInt(1000));
+        try {
+            Channels.readFromFileChannel(fileChannel, 0, bytesToWrite + 1 + randomInt(1000));
+            fail("Expected an EOFException");
+        } catch (EOFException e) {
+            assertThat(e.getMessage(), containsString("read past EOF"));
+        }
     }
 
-    @Test
     public void testBufferReadPastEOFWithoutException() throws Exception {
         int bytesToWrite = randomIntBetween(0, randomBytes.length - 1);
         Channels.writeToChannel(randomBytes, 0, bytesToWrite, fileChannel);
@@ -105,7 +107,6 @@ public class ChannelsTests extends ESTestCase {
         assertThat(read, Matchers.lessThan(0));
     }
 
-    @Test
     public void testReadWriteThroughBuffers() throws IOException {
         ByteBuffer source;
         if (randomBoolean()) {
@@ -130,7 +131,6 @@ public class ChannelsTests extends ESTestCase {
         assertThat("read bytes didn't match written bytes", randomBytes, Matchers.equalTo(copyBytes));
     }
 
-    @Test
     public void testPartialReadWriteThroughBuffers() throws IOException {
         int length = randomIntBetween(1, randomBytes.length / 2);
         int offset = randomIntBetween(0, randomBytes.length - length);
@@ -163,7 +163,6 @@ public class ChannelsTests extends ESTestCase {
     }
 
 
-    @Test
     public void testWriteFromChannel() throws IOException {
         int length = randomIntBetween(1, randomBytes.length / 2);
         int offset = randomIntBetween(0, randomBytes.length - length);

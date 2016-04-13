@@ -18,16 +18,13 @@
  */
 package org.elasticsearch.search.fetch.fielddata;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
@@ -35,6 +32,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Query sub phase which pulls data from field data (using the cache if
@@ -64,10 +63,10 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("fielddata_fields", new FieldDataFieldsParseElement())
-                .put("fielddataFields", new FieldDataFieldsParseElement());
-        return parseElements.build();
+        Map<String, SearchParseElement> parseElements = new HashMap<>();
+        parseElements.put("fielddata_fields", new FieldDataFieldsParseElement());
+        parseElements.put("fielddataFields", new FieldDataFieldsParseElement());
+        return unmodifiableMap(parseElements);
     }
 
     @Override
@@ -95,7 +94,7 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
                 hitField = new InternalSearchHitField(field.name(), new ArrayList<>(2));
                 hitContext.hit().fields().put(field.name(), hitField);
             }
-            MappedFieldType fieldType = context.mapperService().smartNameFieldType(field.name());
+            MappedFieldType fieldType = context.mapperService().fullName(field.name());
             if (fieldType != null) {
                 AtomicFieldData data = context.fieldData().getForField(fieldType).load(hitContext.readerContext());
                 ScriptDocValues values = data.getScriptValues();

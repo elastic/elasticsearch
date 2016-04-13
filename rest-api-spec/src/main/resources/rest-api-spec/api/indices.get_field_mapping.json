@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-field-mapping.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_mapping/field/{field}",
-      "paths": ["/_mapping/field/{field}", "/{index}/_mapping/field/{field}", "/_mapping/{type}/field/{field}", "/{index}/_mapping/{type}/field/{field}"],
+      "path": "/_mapping/field/{fields}",
+      "paths": ["/_mapping/field/{fields}", "/{index}/_mapping/field/{fields}", "/_mapping/{type}/field/{fields}", "/{index}/_mapping/{type}/field/{fields}"],
       "parts": {
         "index": {
           "type" : "list",
@@ -14,7 +14,7 @@
           "type" : "list",
           "description" : "A comma-separated list of document types"
         },
-        "field": {
+        "fields": {
           "type" : "list",
           "description" : "A comma-separated list of fields",
           "required" : true

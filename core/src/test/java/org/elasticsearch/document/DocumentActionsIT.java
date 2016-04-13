@@ -19,25 +19,26 @@
 
 package org.elasticsearch.document;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.clearIndicesCacheRequest;
+import static org.elasticsearch.client.Requests.getRequest;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,17 +48,14 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class DocumentActionsIT extends ESIntegTestCase {
-
     protected void createIndex() {
         createIndex(getConcreteIndexName());
     }
-
 
     protected String getConcreteIndexName() {
         return "test";
     }
 
-    @Test
     public void testIndexActions() throws Exception {
         createIndex();
         NumShards numShards = getNumShards(getConcreteIndexName());
@@ -82,10 +80,10 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
-        logger.info("Optimizing");
+        logger.info("Force Merging");
         waitForRelocation(ClusterHealthStatus.GREEN);
-        OptimizeResponse optimizeResponse = optimize();
-        assertThat(optimizeResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
+        ForceMergeResponse mergeResponse = forceMerge();
+        assertThat(mergeResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         GetResponse getResult;
 
@@ -157,29 +155,21 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client().prepareCount("test").setQuery(termQuery("_type", "type1")).execute().actionGet();
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "type1")).execute().actionGet();
             assertNoFailures(countResponse);
-            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getHits().totalHits(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
-            // test failed (simply query that can't be parsed)
-            try {
-                client().count(countRequest("test").source("{ term : { _type : \"type1 } }")).actionGet();
-            } catch(SearchPhaseExecutionException e) {
-                assertThat(e.shardFailures().length, equalTo(numShards.numPrimaries));
-            }
-
             // count with no query is a match all one
-            countResponse = client().prepareCount("test").execute().actionGet();
+            countResponse = client().prepareSearch("test").setSize(0).execute().actionGet();
             assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length, equalTo(0));
-            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getHits().totalHits(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
     }
 
-    @Test
     public void testBulk() throws Exception {
         createIndex();
         NumShards numShards = getNumShards(getConcreteIndexName());
@@ -210,7 +200,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[1].getId(), equalTo("2"));
 
         assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo("index"));
         assertThat(bulkResponse.getItems()[2].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[2].getType(), equalTo("type1"));
         String generatedId3 = bulkResponse.getItems()[2].getId();
@@ -222,7 +212,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[3].getId(), equalTo("1"));
 
         assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("index"));
         assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
 

@@ -25,9 +25,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Class used to encapsulate a number of {@link RerouteExplanation}
@@ -37,7 +36,7 @@ public class RoutingExplanations implements ToXContent {
     private final List<RerouteExplanation> explanations;
 
     public RoutingExplanations() {
-        this.explanations = newArrayList();
+        this.explanations = new ArrayList<>();
     }
 
     public RoutingExplanations add(RerouteExplanation explanation) {

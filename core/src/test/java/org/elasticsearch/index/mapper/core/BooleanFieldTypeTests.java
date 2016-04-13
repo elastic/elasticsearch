@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -27,8 +28,23 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         return new BooleanFieldMapper.BooleanFieldType();
     }
 
-    @Override
-    protected Object dummyNullValue() {
-        return true;
+    @Before
+    public void setupProperties() {
+        setDummyNullValue(true);
+    }
+
+    public void testValueFormat() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals("false", ft.docValueFormat(null, null).format(0));
+        assertEquals("true", ft.docValueFormat(null, null).format(1));
+    }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals(true, ft.valueForSearch("T"));
+        assertEquals(false, ft.valueForSearch("F"));
+        expectThrows(IllegalArgumentException.class, () -> ft.valueForSearch(0));
+        expectThrows(IllegalArgumentException.class, () -> ft.valueForSearch("true"));
+        expectThrows(IllegalArgumentException.class, () -> ft.valueForSearch("G"));
     }
 }

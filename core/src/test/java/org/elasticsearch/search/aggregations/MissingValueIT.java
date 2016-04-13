@@ -24,8 +24,10 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,12 +35,14 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geoBounds;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.geoCentroid;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.closeTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class MissingValueIT extends ESIntegTestCase {
@@ -50,7 +54,7 @@ public class MissingValueIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "date", "type=date", "location", "type=geo_point").get());
+        assertAcked(prepareCreate("idx").addMapping("type", "date", "type=date", "location", "type=geo_point", "str", "type=keyword").get());
         indexRandom(true,
                 client().prepareIndex("idx", "type", "1").setSource(),
                 client().prepareIndex("idx", "type", "2").setSource("str", "foo", "long", 3L, "double", 5.5, "date", "2015-05-07", "location", "1,2"));
@@ -65,18 +69,24 @@ public class MissingValueIT extends ESIntegTestCase {
     }
 
     public void testStringTerms() {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("str").missing("bar")).get();
-        assertSearchResponse(response);
-        Terms terms = response.getAggregations().get("my_terms");
-        assertEquals(2, terms.getBuckets().size());
-        assertEquals(1, terms.getBucketByKey("foo").getDocCount());
-        assertEquals(1, terms.getBucketByKey("bar").getDocCount());
+        for (ExecutionMode mode : ExecutionMode.values()) {
+            SearchResponse response = client().prepareSearch("idx").addAggregation(
+                    terms("my_terms")
+                        .field("str")
+                        .executionHint(mode.toString())
+                        .missing("bar")).get();
+            assertSearchResponse(response);
+            Terms terms = response.getAggregations().get("my_terms");
+            assertEquals(2, terms.getBuckets().size());
+            assertEquals(1, terms.getBucketByKey("foo").getDocCount());
+            assertEquals(1, terms.getBucketByKey("bar").getDocCount());
 
-        response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("str").missing("foo")).get();
-        assertSearchResponse(response);
-        terms = response.getAggregations().get("my_terms");
-        assertEquals(1, terms.getBuckets().size());
-        assertEquals(2, terms.getBucketByKey("foo").getDocCount());
+            response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("str").missing("foo")).get();
+            assertSearchResponse(response);
+            terms = response.getAggregations().get("my_terms");
+            assertEquals(1, terms.getBuckets().size());
+            assertEquals(2, terms.getBucketByKey("foo").getDocCount());
+        }
     }
 
     public void testLongTerms() {
@@ -137,7 +147,10 @@ public class MissingValueIT extends ESIntegTestCase {
     }
 
     public void testDateHistogram() {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(dateHistogram("my_histogram").field("date").interval(DateHistogramInterval.YEAR).missing("2014-05-07")).get();
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(
+                        dateHistogram("my_histogram").field("date").dateHistogramInterval(DateHistogramInterval.YEAR).missing("2014-05-07"))
+                .get();
         assertSearchResponse(response);
         Histogram histogram = response.getAggregations().get("my_histogram");
         assertEquals(2, histogram.getBuckets().size());
@@ -146,7 +159,10 @@ public class MissingValueIT extends ESIntegTestCase {
         assertEquals("2015-01-01T00:00:00.000Z", histogram.getBuckets().get(1).getKeyAsString());
         assertEquals(1, histogram.getBuckets().get(1).getDocCount());
 
-        response = client().prepareSearch("idx").addAggregation(dateHistogram("my_histogram").field("date").interval(DateHistogramInterval.YEAR).missing("2015-05-07")).get();
+        response = client().prepareSearch("idx")
+                .addAggregation(
+                        dateHistogram("my_histogram").field("date").dateHistogramInterval(DateHistogramInterval.YEAR).missing("2015-05-07"))
+                .get();
         assertSearchResponse(response);
         histogram = response.getAggregations().get("my_histogram");
         assertEquals(1, histogram.getBuckets().size());
@@ -180,16 +196,28 @@ public class MissingValueIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx").addAggregation(geoBounds("bounds").field("non_existing_field").missing("2,1")).get();
         assertSearchResponse(response);
         GeoBounds bounds = response.getAggregations().get("bounds");
-        assertEquals(new GeoPoint(2,1), bounds.bottomRight());
-        assertEquals(new GeoPoint(2,1), bounds.topLeft());
+        assertThat(bounds.bottomRight().lat(), closeTo(2.0, 1E-5));
+        assertThat(bounds.bottomRight().lon(), closeTo(1.0, 1E-5));
+        assertThat(bounds.topLeft().lat(), closeTo(2.0, 1E-5));
+        assertThat(bounds.topLeft().lon(), closeTo(1.0, 1E-5));
     }
 
     public void testGeoBounds() {
         SearchResponse response = client().prepareSearch("idx").addAggregation(geoBounds("bounds").field("location").missing("2,1")).get();
         assertSearchResponse(response);
         GeoBounds bounds = response.getAggregations().get("bounds");
-        assertEquals(new GeoPoint(1,2), bounds.bottomRight());
-        assertEquals(new GeoPoint(2,1), bounds.topLeft());
+        assertThat(bounds.bottomRight().lat(), closeTo(1.0, 1E-5));
+        assertThat(bounds.bottomRight().lon(), closeTo(2.0, 1E-5));
+        assertThat(bounds.topLeft().lat(), closeTo(2.0, 1E-5));
+        assertThat(bounds.topLeft().lon(), closeTo(1.0, 1E-5));
     }
 
+    public void testGeoCentroid() {
+        SearchResponse response = client().prepareSearch("idx").addAggregation(geoCentroid("centroid").field("location").missing("2,1")).get();
+        assertSearchResponse(response);
+        GeoCentroid centroid = response.getAggregations().get("centroid");
+        GeoPoint point = new GeoPoint(1.5, 1.5);
+        assertThat(point.lat(), closeTo(centroid.centroid().lat(), 1E-5));
+        assertThat(point.lon(), closeTo(centroid.centroid().lon(), 1E-5));
+    }
 }

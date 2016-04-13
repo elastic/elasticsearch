@@ -17,7 +17,7 @@
  * under the License.
  */
 
-/**
+/*
  * Copyright 2004-2005 The Apache Software Foundation.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,9 +38,21 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
@@ -50,18 +62,22 @@ import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 
 /**
  * Generate "more like this" similarity queries.
  * Based on this mail:
- * <code><pre>
+ * <pre>
  * Lucene does let you access the document frequency of terms, with IndexReader.docFreq().
  * Term frequencies can be computed by re-tokenizing the text, which, for a single document,
  * is usually fast enough.  But looking up the docFreq() of every term in the document is
  * probably too slow.
- * <p/>
  * You can use some heuristics to prune the set of terms, to avoid calling docFreq() too much,
  * or at all.  Since you're trying to maximize a tf*idf score, you're probably most interested
  * in terms with a high tf. Choosing a tf threshold even as low as two or three will radically
@@ -70,44 +86,36 @@ import java.util.*;
  * number of characters, not selecting anything less than, e.g., six or seven characters.
  * With these sorts of heuristics you can usually find small set of, e.g., ten or fewer terms
  * that do a pretty good job of characterizing a document.
- * <p/>
  * It all depends on what you're trying to do.  If you're trying to eek out that last percent
  * of precision and recall regardless of computational difficulty so that you can win a TREC
  * competition, then the techniques I mention above are useless.  But if you're trying to
  * provide a "more like this" button on a search results page that does a decent job and has
  * good performance, such techniques might be useful.
- * <p/>
  * An efficient, effective "more-like-this" query generator would be a great contribution, if
  * anyone's interested.  I'd imagine that it would take a Reader or a String (the document's
  * text), analyzer Analyzer, and return a set of representative terms using heuristics like those
  * above.  The frequency and length thresholds could be parameters, etc.
- * <p/>
  * Doug
- * </pre></code>
- * <p/>
- * <p/>
- * <p/>
+ * </pre>
  * <h3>Initial Usage</h3>
- * <p/>
+ * <p>
  * This class has lots of options to try to make it efficient and flexible.
  * The simplest possible usage is as follows. The bold
  * fragment is specific to this class.
- * <p/>
  * <pre class="prettyprint">
- * <p/>
  * IndexReader ir = ...
  * IndexSearcher is = ...
- * <p/>
+
  * MoreLikeThis mlt = new MoreLikeThis(ir);
  * Reader target = ... // orig source of doc you want to find similarities to
  * Query query = mlt.like( target);
- * <p/>
+
  * Hits hits = is.search(query);
  * // now the usual iteration thru 'hits' - the only thing to watch for is to make sure
  * //you ignore the doc if it matches your 'target' document, as it should be similar to itself
- * <p/>
+
  * </pre>
- * <p/>
+ * <p>
  * Thus you:
  * <ol>
  * <li> do your normal, Lucene setup for searching,
@@ -116,13 +124,11 @@ import java.util.*;
  * <li> then call one of the like() calls to generate a similarity query
  * <li> call the searcher to find the similar docs
  * </ol>
- * <p/>
  * <h3>More Advanced Usage</h3>
- * <p/>
+ * <p>
  * You may want to use {@link #setFieldNames setFieldNames(...)} so you can examine
  * multiple fields (e.g. body and title) for similarity.
- * <p/>
- * <p/>
+ * <p>
  * Depending on the size of your index and the size and makeup of your documents you
  * may want to call the other set methods to control how the similarity queries are
  * generated:
@@ -137,7 +143,6 @@ import java.util.*;
  * <li> {@link #setMaxNumTokensParsed setMaxNumTokensParsed(...)}
  * <li> {@link #setStopWords setStopWord(...)}
  * </ul>
- * <p/>
  * <hr>
  * <pre>
  * Changes: Mark Harwood 29/02/04
@@ -299,7 +304,7 @@ public final class XMoreLikeThis {
     /**
      * For idf() calculations.
      */
-    private TFIDFSimilarity similarity;// = new DefaultSimilarity();
+    private TFIDFSimilarity similarity;// = new ClassicSimilarity();
 
     /**
      * IndexReader to use
@@ -341,7 +346,7 @@ public final class XMoreLikeThis {
      * Constructor requiring an IndexReader.
      */
     public XMoreLikeThis(IndexReader ir) {
-        this(ir, new DefaultSimilarity());
+        this(ir, new ClassicSimilarity());
     }
 
     public XMoreLikeThis(IndexReader ir, TFIDFSimilarity sim) {
@@ -651,7 +656,7 @@ public final class XMoreLikeThis {
             }
         }
         // term selection is per field, then appended to a single boolean query
-        BooleanQuery bq = new BooleanQuery();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
         for (String fieldName : fieldNames) {
             Map<String, Int> termFreqMap = new HashMap<>();
             for (Fields fields : likeFields) {
@@ -662,34 +667,34 @@ public final class XMoreLikeThis {
             }
             addToQuery(createQueue(termFreqMap, fieldName), bq);
         }
-        return bq;
+        return bq.build();
     }
 
     /**
      * Create the More like query from a PriorityQueue
      */
     private Query createQuery(PriorityQueue<ScoreTerm> q) {
-        BooleanQuery query = new BooleanQuery();
+        BooleanQuery.Builder query = new BooleanQuery.Builder();
         addToQuery(q, query);
-        return query;
+        return query.build();
     }
 
     /**
      * Add to an existing boolean query the More Like This query from this PriorityQueue
      */
-    private void addToQuery(PriorityQueue<ScoreTerm> q, BooleanQuery query) {
+    private void addToQuery(PriorityQueue<ScoreTerm> q, BooleanQuery.Builder query) {
         ScoreTerm scoreTerm;
         float bestScore = -1;
 
         while ((scoreTerm = q.pop()) != null) {
-            TermQuery tq = new TermQuery(new Term(scoreTerm.topField, scoreTerm.word));
+            Query tq = new TermQuery(new Term(scoreTerm.topField, scoreTerm.word));
 
             if (boost) {
                 if (bestScore == -1) {
                     bestScore = (scoreTerm.score);
                 }
                 float myScore = (scoreTerm.score);
-                tq.setBoost(boostFactor * myScore / bestScore);
+                tq = new BoostQuery(tq, boostFactor * myScore / bestScore);
             }
 
             try {
@@ -702,7 +707,7 @@ public final class XMoreLikeThis {
     }
 
     /**
-     * Create a PriorityQueue from a word->tf map.
+     * Create a PriorityQueue from a word-&gt;tf map.
      *
      * @param words a map of words keyed on the word(String) with Int objects as the values.
      */
@@ -711,7 +716,7 @@ public final class XMoreLikeThis {
     }
 
     /**
-     * Create a PriorityQueue from a word->tf map.
+     * Create a PriorityQueue from a word-&gt;tf map.
      *
      * @param words a map of words keyed on the word(String) with Int objects as the values.
      * @param fieldNames an array of field names to override defaults.
@@ -852,12 +857,12 @@ public final class XMoreLikeThis {
                 continue;
             }
 
-            final PostingsEnum docs = termsEnum.postings(null, null);
+            final PostingsEnum docs = termsEnum.postings(null);
             int freq = 0;
             while(docs != null && docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 freq += docs.freq();
             }
-            
+
             // increment frequency
             Int cnt = termFreqMap.get(term);
             if (cnt == null) {

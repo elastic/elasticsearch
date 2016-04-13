@@ -19,10 +19,6 @@
 
 package org.elasticsearch.common.lucene.index;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -36,9 +32,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -47,15 +41,16 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -69,7 +64,7 @@ public class FreqTermsEnumTests extends ESTestCase {
     private Map<String, FreqHolder> referenceAll;
     private Map<String, FreqHolder> referenceNotDeleted;
     private Map<String, FreqHolder> referenceFilter;
-    private Filter filter;
+    private Query filter;
 
     static class FreqHolder {
         int docFreq;
@@ -81,9 +76,9 @@ public class FreqTermsEnumTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        referenceAll = Maps.newHashMap();
-        referenceNotDeleted = Maps.newHashMap();
-        referenceFilter = Maps.newHashMap();
+        referenceAll = new HashMap<>();
+        referenceNotDeleted = new HashMap<>();
+        referenceFilter = new HashMap<>();
 
         Directory dir = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(new KeywordAnalyzer()); // use keyword analyzer we rely on the stored field holding the exact term.
@@ -125,7 +120,7 @@ public class FreqTermsEnumTests extends ESTestCase {
             }
         }
 
-        Set<String> deletedIds = Sets.newHashSet();
+        Set<String> deletedIds = new HashSet<>();
         for (int i = 0; i < docs.length; i++) {
             Document doc = docs[i];
             if (randomInt(5) == 2) {
@@ -142,8 +137,8 @@ public class FreqTermsEnumTests extends ESTestCase {
         }
 
         // now go over each doc, build the relevant references and filter
-        reader = DirectoryReader.open(iw, true);
-        List<Term> filterTerms = Lists.newArrayList();
+        reader = DirectoryReader.open(iw);
+        List<Term> filterTerms = new ArrayList<>();
         for (int docId = 0; docId < reader.maxDoc(); docId++) {
             Document doc = reader.document(docId);
             addFreqs(doc, referenceAll);
@@ -155,11 +150,11 @@ public class FreqTermsEnumTests extends ESTestCase {
                 }
             }
         }
-        filter = new QueryWrapperFilter(new TermsQuery(filterTerms));
+        filter = new TermsQuery(filterTerms);
     }
 
     private void addFreqs(Document doc, Map<String, FreqHolder> reference) {
-        Set<String> addedDocFreq = Sets.newHashSet();
+        Set<String> addedDocFreq = new HashSet<>();
         for (IndexableField field : doc.getFields("field")) {
             String term = field.stringValue();
             FreqHolder freqHolder = reference.get(term);
@@ -178,21 +173,18 @@ public class FreqTermsEnumTests extends ESTestCase {
         super.tearDown();
     }
 
-    @Test
     public void testAllFreqs() throws Exception {
         assertAgainstReference(true, true, null, referenceAll);
         assertAgainstReference(true, false, null, referenceAll);
         assertAgainstReference(false, true, null, referenceAll);
     }
 
-    @Test
     public void testNonDeletedFreqs() throws Exception {
         assertAgainstReference(true, true, Queries.newMatchAllQuery(), referenceNotDeleted);
         assertAgainstReference(true, false, Queries.newMatchAllQuery(), referenceNotDeleted);
         assertAgainstReference(false, true, Queries.newMatchAllQuery(), referenceNotDeleted);
     }
 
-    @Test
     public void testFilterFreqs() throws Exception {
         assertAgainstReference(true, true, filter, referenceFilter);
         assertAgainstReference(true, false, filter, referenceFilter);
@@ -207,9 +199,9 @@ public class FreqTermsEnumTests extends ESTestCase {
     private void assertAgainstReference(FreqTermsEnum termsEnum, Map<String, FreqHolder> reference, boolean docFreq, boolean totalTermFreq) throws Exception {
         int cycles = randomIntBetween(1, 5);
         for (int i = 0; i < cycles; i++) {
-            List<String> terms = Lists.newArrayList(Arrays.asList(this.terms));
+            List<String> terms = new ArrayList<>(Arrays.asList(this.terms));
 
-           Collections.shuffle(terms, getRandom());
+           Collections.shuffle(terms, random());
             for (String term : terms) {
                 if (!termsEnum.seekExact(new BytesRef(term))) {
                     assertThat("term : " + term, reference.get(term).docFreq, is(0));

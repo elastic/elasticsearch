@@ -2,8 +2,7 @@
 "Test cat recovery output":
 
   - do:
-      cat.recovery:
-        v: false
+      cat.recovery: {}
 
   - match:
       $body: |
@@ -20,8 +19,7 @@
        cluster.health:
          wait_for_status: yellow
   - do:
-      cat.recovery:
-        v: false
+      cat.recovery: {}
 
   - match:
       $body: |
@@ -29,22 +27,24 @@
               (
                 index1      \s+
                 \d          \s+                                 # shard
-                \d+         \s+                                 # time
-                (store|replica|snapshot|relocating)     \s+   # type
-                (init|index|start|translog|finalize|done) \s+   # stage
+                (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
+                (store|replica|snapshot|relocating)     \s+     # type
+                (init|index|verify_index|translog|finalize|done) \s+ # stage
                 [-\w./]+    \s+                                 # source_host
                 [-\w./]+    \s+                                 # target_host
                 [-\w./]+    \s+                                 # repository
                 [-\w./]+    \s+                                 # snapshot
                 \d+         \s+                                 # files
+                \d+         \s+                                 # files_recovered
                 \d+\.\d+%   \s+                                 # files_percent
+                \d+         \s+                                 # files_total
                 \d+         \s+                                 # bytes
+                \d+         \s+                                 # bytes_recovered
                 \d+\.\d+%   \s+                                 # bytes_percent
-                \d+         \s+                                 # total_files
-                \d+         \s+                                 # total_bytes
-                \d+         \s+                                 # translog
-                -?\d+\.\d+% \s+                                 # translog_percent
-                -?\d+       \s+                                 # total_translog
+                \d+         \s+                                 # bytes_total
+                -?\d+       \s+                                 # translog_ops
+                \d+         \s+                                 # translog_ops_recovered
+                -?\d+\.\d+%                                     # translog_ops_percent
                 \n
               )+
               $/

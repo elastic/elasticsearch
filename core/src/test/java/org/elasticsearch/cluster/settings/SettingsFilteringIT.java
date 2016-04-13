@@ -19,20 +19,19 @@
 
 package org.elasticsearch.cluster.settings;
 
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.Collection;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,14 +41,16 @@ import static org.hamcrest.Matchers.nullValue;
 public class SettingsFilteringIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", SettingsFilteringPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(SettingsFilteringPlugin.class);
     }
 
-    public static class SettingsFilteringPlugin extends AbstractPlugin {
+    public static class SettingsFilteringPlugin extends Plugin {
+        public static final Setting<Boolean> SOME_NODE_SETTING =
+            Setting.boolSetting("some.node.setting", false, Property.NodeScope, Property.Filtered);
+        public static final Setting<Boolean> SOME_OTHER_NODE_SETTING =
+            Setting.boolSetting("some.other.node.setting", false, Property.NodeScope);
+
         /**
          * The name of the plugin.
          */
@@ -67,33 +68,20 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Class<? extends Module>> indexModules() {
-            Collection<Class<? extends Module>> modules = newArrayList();
-            modules.add(SettingsFilteringModule.class);
-            return modules;
+        public Settings additionalSettings() {
+            return Settings.builder().put("some.node.setting", true).put("some.other.node.setting", true).build();
+        }
+
+        public void onModule(SettingsModule module) {
+            module.registerSetting(SOME_NODE_SETTING);
+            module.registerSetting(SOME_OTHER_NODE_SETTING);
+            module.registerSetting(Setting.groupSetting("index.filter_test.", Property.IndexScope));
+            module.registerSettingsFilter("index.filter_test.foo");
+            module.registerSettingsFilter("index.filter_test.bar*");
         }
     }
 
-    public static class SettingsFilteringModule extends AbstractModule {
-
-        @Override
-        protected void configure() {
-            bind(SettingsFilteringService.class).asEagerSingleton();
-        }
-    }
-
-    public static class SettingsFilteringService {
-        @Inject
-        public SettingsFilteringService(SettingsFilter settingsFilter) {
-            settingsFilter.addFilter("index.filter_test.foo");
-            settingsFilter.addFilter("index.filter_test.bar*");
-        }
-    }
-
-
-    @Test
     public void testSettingsFiltering() {
-
         assertAcked(client().admin().indices().prepareCreate("test-idx").setSettings(Settings.builder()
                 .put("filter_test.foo", "test")
                 .put("filter_test.bar1", "test")
@@ -111,4 +99,14 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         assertThat(settings.get("index.filter_test.notfoo"), equalTo("test"));
     }
 
+    public void testNodeInfoIsFiltered() {
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setSettings(true).get();
+        for(NodeInfo info : nodeInfos.getNodes()) {
+            Settings settings = info.getSettings();
+            assertNotNull(settings);
+            assertNull(settings.get(SettingsFilteringPlugin.SOME_NODE_SETTING.getKey()));
+            assertTrue(settings.getAsBoolean(SettingsFilteringPlugin.SOME_OTHER_NODE_SETTING.getKey(), false));
+            assertEquals(settings.get("node.name"), info.getNode().getName());
+        }
+    }
 }

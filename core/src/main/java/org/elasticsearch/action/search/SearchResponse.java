@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,9 +33,12 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.search.internal.InternalSearchResponse.readInternalSearchResponse;
@@ -158,6 +162,16 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     public void scrollId(String scrollId) {
         this.scrollId = scrollId;
+    }
+
+    /**
+     * If profiling was enabled, this returns an object containing the profile results from
+     * each shard.  If profiling was not enabled, this will return null
+     *
+     * @return The profile results or null
+     */
+    public @Nullable Map<String, List<ProfileShardResult>> getProfileResults() {
+        return internalResponse.profile();
     }
 
     static final class Fields {

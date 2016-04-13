@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,15 +16,22 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.internal.MoreTypes;
 import org.elasticsearch.common.inject.util.Types;
 
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
 
 /**
@@ -32,28 +39,27 @@ import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
  * represent generic types, so this class does. Forces clients to create a
  * subclass of this class which enables retrieval the type information even at
  * runtime.
- * <p/>
- * <p>For example, to create a type literal for {@code List<String>}, you can
+ * <p>
+ * For example, to create a type literal for {@code List<String>}, you can
  * create an empty anonymous inner class:
- * <p/>
- * <p/>
+ * <p>
  * {@code TypeLiteral<List<String>> list = new TypeLiteral<List<String>>() {};}
- * <p/>
- * <p>This syntax cannot be used to create type literals that have wildcard
+ * <p>
+ * This syntax cannot be used to create type literals that have wildcard
  * parameters, such as {@code Class<?>} or {@code List<? extends CharSequence>}.
  * Such type literals must be constructed programatically, either by {@link
  * Method#getGenericReturnType extracting types from members} or by using the
  * {@link Types} factory class.
- * <p/>
- * <p>Along with modeling generic types, this class can resolve type parameters.
+ * <p>
+ * Along with modeling generic types, this class can resolve type parameters.
  * For example, to figure out what type {@code keySet()} returns on a {@code
- * Map<Integer, String>}, use this code:<pre>   {@code
- * <p/>
+ * Map<Integer, String>}, use this code:{@code
+ * <p>
  *   TypeLiteral<Map<Integer, String>> mapType
  *       = new TypeLiteral<Map<Integer, String>>() {};
  *   TypeLiteral<?> keySetType
  *       = mapType.getReturnType(Map.class.getMethod("keySet"));
- *   System.out.println(keySetType); // prints "Set<Integer>"}</pre>
+ *   System.out.println(keySetType); // prints "Set<Integer>"}
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
@@ -67,8 +73,8 @@ public class TypeLiteral<T> {
     /**
      * Constructs a new type literal. Derives represented class from type
      * parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     * <p>
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
      */
@@ -84,7 +90,7 @@ public class TypeLiteral<T> {
      */
     @SuppressWarnings("unchecked")
     TypeLiteral(Type type) {
-        this.type = canonicalize(checkNotNull(type, "type"));
+        this.type = canonicalize(Objects.requireNonNull(type, "type"));
         this.rawType = (Class<? super T>) MoreTypes.getRawType(this.type);
         this.hashCode = MoreTypes.hashCode(this.type);
     }
@@ -174,7 +180,7 @@ public class TypeLiteral<T> {
         for (int t = 0; t < types.length; t++) {
             result[t] = resolve(types[t]);
         }
-        return ImmutableList.copyOf(result);
+        return Arrays.asList(result);
     }
 
     /**
@@ -257,8 +263,9 @@ public class TypeLiteral<T> {
      * @since 2.0
      */
     public TypeLiteral<?> getSupertype(Class<?> supertype) {
-        checkArgument(supertype.isAssignableFrom(rawType),
-                "%s is not a supertype of %s", supertype, this.type);
+        if (!supertype.isAssignableFrom(rawType)) {
+            throw new IllegalArgumentException(supertype + " is not a supertype of " + type);
+        }
         return resolve(MoreTypes.getGenericSupertype(type, rawType, supertype));
     }
 
@@ -269,8 +276,9 @@ public class TypeLiteral<T> {
      * @since 2.0
      */
     public TypeLiteral<?> getFieldType(Field field) {
-        checkArgument(field.getDeclaringClass().isAssignableFrom(rawType),
-                "%s is not defined by a supertype of %s", field, type);
+        if (!field.getDeclaringClass().isAssignableFrom(rawType)) {
+            throw new IllegalArgumentException(field + " is not defined by a supertype of " + type);
+        }
         return resolve(field.getGenericType());
     }
 
@@ -285,14 +293,17 @@ public class TypeLiteral<T> {
 
         if (methodOrConstructor instanceof Method) {
             Method method = (Method) methodOrConstructor;
-            checkArgument(method.getDeclaringClass().isAssignableFrom(rawType),
-                    "%s is not defined by a supertype of %s", method, type);
+            if (!method.getDeclaringClass().isAssignableFrom(rawType)) {
+                throw new IllegalArgumentException(method + " is not defined by a supertype of " + type);
+            }
             genericParameterTypes = method.getGenericParameterTypes();
 
         } else if (methodOrConstructor instanceof Constructor) {
             Constructor constructor = (Constructor) methodOrConstructor;
-            checkArgument(constructor.getDeclaringClass().isAssignableFrom(rawType),
-                    "%s does not construct a supertype of %s", constructor, type);
+            if (!constructor.getDeclaringClass().isAssignableFrom(rawType)) {
+                throw new IllegalArgumentException(constructor + " does not construct a supertype of " + type);
+            }
+
             genericParameterTypes = constructor.getGenericParameterTypes();
 
         } else {
@@ -313,14 +324,17 @@ public class TypeLiteral<T> {
 
         if (methodOrConstructor instanceof Method) {
             Method method = (Method) methodOrConstructor;
-            checkArgument(method.getDeclaringClass().isAssignableFrom(rawType),
-                    "%s is not defined by a supertype of %s", method, type);
+            if (!method.getDeclaringClass().isAssignableFrom(rawType)) {
+                throw new IllegalArgumentException(method + " is not defined by a supertype of " + type);
+            }
+
             genericExceptionTypes = method.getGenericExceptionTypes();
 
         } else if (methodOrConstructor instanceof Constructor) {
             Constructor<?> constructor = (Constructor<?>) methodOrConstructor;
-            checkArgument(constructor.getDeclaringClass().isAssignableFrom(rawType),
-                    "%s does not construct a supertype of %s", constructor, type);
+            if (!constructor.getDeclaringClass().isAssignableFrom(rawType)) {
+                throw new IllegalArgumentException(constructor + " does not construct a supertype of " + type);
+            }
             genericExceptionTypes = constructor.getGenericExceptionTypes();
 
         } else {
@@ -337,8 +351,10 @@ public class TypeLiteral<T> {
      * @since 2.0
      */
     public TypeLiteral<?> getReturnType(Method method) {
-        checkArgument(method.getDeclaringClass().isAssignableFrom(rawType),
-                "%s is not defined by a supertype of %s", method, type);
+        if (!method.getDeclaringClass().isAssignableFrom(rawType)) {
+            throw new IllegalArgumentException(method + " is not defined by a supertype of " + type);
+        }
+
         return resolve(method.getGenericReturnType());
     }
 }

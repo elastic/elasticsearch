@@ -18,25 +18,23 @@
  */
 package org.elasticsearch.bwcompat;
 
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class RecoveryWithUnsupportedIndicesIT extends StaticIndexBackwardCompatibilityIT {
-
-    @Test
     public void testUpgradeStartClusterOn_0_20_6() throws Exception {
         String indexName = "unsupported-0.20.6";
 
-        logger.info("Checking static index " + indexName);
-        Settings nodeSettings = prepareBackwardsDataDir(getDataPath(indexName + ".zip"), Node.HTTP_ENABLED, true);
+        logger.info("Checking static index {}", indexName);
+        Settings nodeSettings = prepareBackwardsDataDir(getBwcIndicesPath().resolve(indexName + ".zip"), NetworkModule.HTTP_ENABLED.getKey(), true);
         try {
             internalCluster().startNode(nodeSettings);
             fail();
         } catch (Exception ex) {
-            assertThat(ex.getMessage(), containsString(" was created before v0.90.0 and wasn't upgraded"));
+            assertThat(ex.getMessage(), containsString(" was created before v2.0.0.beta1 and wasn't upgraded"));
         }
     }
 }

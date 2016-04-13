@@ -19,105 +19,91 @@
 
 package org.elasticsearch.action.percolate;
 
-import com.carrotsearch.hppc.IntArrayList;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.get.*;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-/**
- */
 public class TransportMultiPercolateAction extends HandledTransportAction<MultiPercolateRequest, MultiPercolateResponse> {
 
-    private final ClusterService clusterService;
-    private final PercolatorService percolatorService;
-
-    private final TransportMultiGetAction multiGetAction;
-    private final TransportShardMultiPercolateAction shardMultiPercolateAction;
+    private final Client client;
+    private final ParseFieldMatcher parseFieldMatcher;
+    private final IndicesQueriesRegistry queryRegistry;
+    private final AggregatorParsers aggParsers;
 
     @Inject
-    public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportShardMultiPercolateAction shardMultiPercolateAction,
-                                         ClusterService clusterService, TransportService transportService, PercolatorService percolatorService,
-                                         TransportMultiGetAction multiGetAction, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiPercolateRequest.class);
-        this.shardMultiPercolateAction = shardMultiPercolateAction;
-        this.clusterService = clusterService;
-        this.percolatorService = percolatorService;
-        this.multiGetAction = multiGetAction;
+    public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Client client, IndicesQueriesRegistry queryRegistry,
+                                         AggregatorParsers aggParsers) {
+        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiPercolateRequest::new);
+        this.client = client;
+        this.aggParsers = aggParsers;
+        this.parseFieldMatcher = new ParseFieldMatcher(settings);
+        this.queryRegistry = queryRegistry;
     }
 
     @Override
-    protected void doExecute(final MultiPercolateRequest request, final ActionListener<MultiPercolateResponse> listener) {
-        final ClusterState clusterState = clusterService.state();
-        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
-
-        final List<Object> percolateRequests = new ArrayList<>(request.requests().size());
-        // Can have a mixture of percolate requests. (normal percolate requests & percolate existing doc),
-        // so we need to keep track for what percolate request we had a get request
-        final IntArrayList getRequestSlots = new IntArrayList();
-        List<GetRequest> existingDocsRequests = new ArrayList<>();
-        for (int slot = 0;  slot < request.requests().size(); slot++) {
-            PercolateRequest percolateRequest = request.requests().get(slot);
-            percolateRequest.startTime = System.currentTimeMillis();
-            percolateRequests.add(percolateRequest);
-            if (percolateRequest.getRequest() != null) {
-                existingDocsRequests.add(percolateRequest.getRequest());
-                getRequestSlots.add(slot);
+    protected void doExecute(MultiPercolateRequest request, ActionListener<MultiPercolateResponse> listener) {
+        List<Tuple<Integer, GetRequest>> getRequests = new ArrayList<>();
+        for (int i = 0; i < request.requests().size(); i++) {
+            GetRequest getRequest = request.requests().get(i).getRequest();
+            if (getRequest != null) {
+                getRequests.add(new Tuple<>(i, getRequest));
             }
         }
-
-        if (!existingDocsRequests.isEmpty()) {
-            final MultiGetRequest multiGetRequest = new MultiGetRequest(request);
-            for (GetRequest getRequest : existingDocsRequests) {
-                multiGetRequest.add(
-                        new MultiGetRequest.Item(getRequest.index(), getRequest.type(), getRequest.id())
-                        .routing(getRequest.routing())
-                );
+        if (getRequests.isEmpty()) {
+            innerDoExecute(request, listener, Collections.emptyMap(), new HashMap<>());
+        } else {
+            MultiGetRequest multiGetRequest = new MultiGetRequest();
+            for (Tuple<Integer, GetRequest> tuple : getRequests) {
+                GetRequest getRequest = tuple.v2();
+                multiGetRequest.add(new MultiGetRequest.Item(getRequest.index(), getRequest.type(), getRequest.id()));
             }
-
-            multiGetAction.execute(multiGetRequest, new ActionListener<MultiGetResponse>() {
-
+            client.multiGet(multiGetRequest, new ActionListener<MultiGetResponse>() {
                 @Override
-                public void onResponse(MultiGetResponse multiGetItemResponses) {
-                    for (int i = 0; i < multiGetItemResponses.getResponses().length; i++) {
-                        MultiGetItemResponse itemResponse = multiGetItemResponses.getResponses()[i];
-                        int slot = getRequestSlots.get(i);
-                        if (!itemResponse.isFailed()) {
-                            GetResponse getResponse = itemResponse.getResponse();
-                            if (getResponse.isExists()) {
-                                PercolateRequest originalRequest = (PercolateRequest) percolateRequests.get(slot);
-                                percolateRequests.set(slot, new PercolateRequest(originalRequest, getResponse.getSourceAsBytesRef()));
-                            } else {
-                                logger.trace("mpercolate existing doc, item[{}] doesn't exist", slot);
-                                percolateRequests.set(slot, new DocumentMissingException(null, getResponse.getType(), getResponse.getId()));
-                            }
+                public void onResponse(MultiGetResponse response) {
+                    Map<Integer, BytesReference> getResponseSources = new HashMap<>(response.getResponses().length);
+                    Map<Integer, MultiPercolateResponse.Item> preFailures = new HashMap<>();
+                    for (int i = 0; i < response.getResponses().length; i++) {
+                        MultiGetItemResponse itemResponse = response.getResponses()[i];
+                        int originalSlot = getRequests.get(i).v1();
+                        if (itemResponse.isFailed()) {
+                            preFailures.put(originalSlot, new MultiPercolateResponse.Item(itemResponse.getFailure().getFailure()));
                         } else {
-                            logger.trace("mpercolate existing doc, item[{}] failure {}", slot, itemResponse.getFailure());
-                            percolateRequests.set(slot, itemResponse.getFailure());
+                            if (itemResponse.getResponse().isExists()) {
+                                getResponseSources.put(originalSlot, itemResponse.getResponse().getSourceAsBytesRef());
+                            } else {
+                                GetRequest getRequest = getRequests.get(i).v2();
+                                preFailures.put(originalSlot, new MultiPercolateResponse.Item(new ResourceNotFoundException("percolate document [{}/{}/{}] doesn't exist", getRequest.index(), getRequest.type(), getRequest.id())));
+                            }
                         }
                     }
-                    new ASyncAction(request, percolateRequests, listener, clusterState).run();
+                    innerDoExecute(request, listener, getResponseSources, preFailures);
                 }
 
                 @Override
@@ -125,200 +111,81 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                     listener.onFailure(e);
                 }
             });
-        } else {
-            new ASyncAction(request, percolateRequests, listener, clusterState).run();
         }
-
     }
 
-    private final class ASyncAction {
-
-        final ActionListener<MultiPercolateResponse> finalListener;
-        final Map<ShardId, TransportShardMultiPercolateAction.Request> requestsByShard;
-        final MultiPercolateRequest multiPercolateRequest;
-        final List<Object> percolateRequests;
-
-        final Map<ShardId, IntArrayList> shardToSlots;
-        final AtomicInteger expectedOperations;
-        final AtomicArray<Object> reducedResponses;
-        final AtomicReferenceArray<AtomicInteger> expectedOperationsPerItem;
-        final AtomicReferenceArray<AtomicReferenceArray> responsesByItemAndShard;
-
-        ASyncAction(MultiPercolateRequest multiPercolateRequest, List<Object> percolateRequests, ActionListener<MultiPercolateResponse> finalListener, ClusterState clusterState) {
-            this.finalListener = finalListener;
-            this.multiPercolateRequest = multiPercolateRequest;
-            this.percolateRequests = percolateRequests;
-            responsesByItemAndShard = new AtomicReferenceArray<>(percolateRequests.size());
-            expectedOperationsPerItem = new AtomicReferenceArray<>(percolateRequests.size());
-            reducedResponses = new AtomicArray<>(percolateRequests.size());
-
-            // Resolving concrete indices and routing and grouping the requests by shard
-            requestsByShard = new HashMap<>();
-            // Keep track what slots belong to what shard, in case a request to a shard fails on all copies
-            shardToSlots = new HashMap<>();
-            int expectedResults = 0;
-            for (int slot = 0;  slot < percolateRequests.size(); slot++) {
-                Object element = percolateRequests.get(slot);
-                assert element != null;
-                if (element instanceof PercolateRequest) {
-                    PercolateRequest percolateRequest = (PercolateRequest) element;
-                    String[] concreteIndices;
-                    try {
-                         concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, percolateRequest);
-                    } catch (IndexNotFoundException e) {
-                        reducedResponses.set(slot, e);
-                        responsesByItemAndShard.set(slot, new AtomicReferenceArray(0));
-                        expectedOperationsPerItem.set(slot, new AtomicInteger(0));
-                        continue;
-                    }
-                    Map<String, Set<String>> routing = indexNameExpressionResolver.resolveSearchRouting(clusterState, percolateRequest.routing(), percolateRequest.indices());
-                    // TODO: I only need shardIds, ShardIterator(ShardRouting) is only needed in TransportShardMultiPercolateAction
-                    GroupShardsIterator shards = clusterService.operationRouting().searchShards(
-                            clusterState, concreteIndices, routing, percolateRequest.preference()
-                    );
-                    if (shards.size() == 0) {
-                        reducedResponses.set(slot, new UnavailableShardsException(null, "No shards available"));
-                        responsesByItemAndShard.set(slot, new AtomicReferenceArray(0));
-                        expectedOperationsPerItem.set(slot, new AtomicInteger(0));
-                        continue;
-                    }
-
-                    // The shard id is used as index in the atomic ref array, so we need to find out how many shards there are regardless of routing:
-                    int numShards = clusterService.operationRouting().searchShardsCount(clusterState, concreteIndices, null);
-                    responsesByItemAndShard.set(slot, new AtomicReferenceArray(numShards));
-                    expectedOperationsPerItem.set(slot, new AtomicInteger(shards.size()));
-                    for (ShardIterator shard : shards) {
-                        ShardId shardId = shard.shardId();
-                        TransportShardMultiPercolateAction.Request requests = requestsByShard.get(shardId);
-                        if (requests == null) {
-                            requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(multiPercolateRequest, shardId.getIndex(), shardId.getId(), percolateRequest.preference()));
-                        }
-                        logger.trace("Adding shard[{}] percolate request for item[{}]", shardId, slot);
-                        requests.add(new TransportShardMultiPercolateAction.Request.Item(slot, new PercolateShardRequest(shardId, percolateRequest)));
-
-                        IntArrayList items = shardToSlots.get(shardId);
-                        if (items == null) {
-                            shardToSlots.put(shardId, items = new IntArrayList());
-                        }
-                        items.add(slot);
-                    }
-                    expectedResults++;
-                } else if (element instanceof Throwable || element instanceof MultiGetResponse.Failure) {
-                    logger.trace("item[{}] won't be executed, reason: {}", slot, element);
-                    reducedResponses.set(slot, element);
-                    responsesByItemAndShard.set(slot, new AtomicReferenceArray(0));
-                    expectedOperationsPerItem.set(slot, new AtomicInteger(0));
-                }
-            }
-            expectedOperations = new AtomicInteger(expectedResults);
-        }
-
-        void run() {
-            if (expectedOperations.get() == 0) {
-                finish();
-                return;
-            }
-
-            logger.trace("mpercolate executing for shards {}", requestsByShard.keySet());
-            for (Map.Entry<ShardId, TransportShardMultiPercolateAction.Request> entry : requestsByShard.entrySet()) {
-                final ShardId shardId = entry.getKey();
-                TransportShardMultiPercolateAction.Request shardRequest = entry.getValue();
-                shardMultiPercolateAction.execute(shardRequest, new ActionListener<TransportShardMultiPercolateAction.Response>() {
-
+    private void innerDoExecute(MultiPercolateRequest request, ActionListener<MultiPercolateResponse> listener, Map<Integer, BytesReference> getResponseSources, Map<Integer, MultiPercolateResponse.Item> preFailures) {
+        try {
+            MultiSearchRequest multiSearchRequest = createMultiSearchRequest(request, getResponseSources, preFailures);
+            if (multiSearchRequest.requests().isEmpty()) {
+                // we may failed to turn all percolate requests into search requests,
+                // in that case just return the response...
+                listener.onResponse(
+                        createMultiPercolateResponse(new MultiSearchResponse(new MultiSearchResponse.Item[0]), request, preFailures)
+                );
+            } else {
+                client.multiSearch(multiSearchRequest, new ActionListener<MultiSearchResponse>() {
                     @Override
-                    public void onResponse(TransportShardMultiPercolateAction.Response response) {
-                        onShardResponse(shardId, response);
+                    public void onResponse(MultiSearchResponse response) {
+                        try {
+                            listener.onResponse(createMultiPercolateResponse(response, request, preFailures));
+                        } catch (Exception e) {
+                            onFailure(e);
+                        }
                     }
 
                     @Override
                     public void onFailure(Throwable e) {
-                        onShardFailure(shardId, e);
+                        listener.onFailure(e);
                     }
-
                 });
             }
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
+    }
 
-        @SuppressWarnings("unchecked")
-        void onShardResponse(ShardId shardId, TransportShardMultiPercolateAction.Response response) {
-            logger.trace("{} Percolate shard response", shardId);
+    private MultiSearchRequest createMultiSearchRequest(MultiPercolateRequest multiPercolateRequest, Map<Integer, BytesReference> getResponseSources, Map<Integer, MultiPercolateResponse.Item> preFailures) throws IOException {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        multiSearchRequest.indicesOptions(multiPercolateRequest.indicesOptions());
+
+        for (int i  = 0; i < multiPercolateRequest.requests().size(); i++) {
+            if (preFailures.keySet().contains(i)) {
+                continue;
+            }
+
+            PercolateRequest percolateRequest = multiPercolateRequest.requests().get(i);
+            BytesReference docSource = getResponseSources.get(i);
             try {
-                for (TransportShardMultiPercolateAction.Response.Item item : response.items()) {
-                    AtomicReferenceArray shardResults = responsesByItemAndShard.get(item.slot());
-                    if (shardResults == null) {
-                        assert false : "shardResults can't be null";
-                        continue;
-                    }
-
-                    if (item.failed()) {
-                        shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, item.error().string()));
-                    } else {
-                        shardResults.set(shardId.id(), item.response());
-                    }
-
-                    assert expectedOperationsPerItem.get(item.slot()).get() >= 1 : "slot[" + item.slot() + "] can't be lower than one";
-                    if (expectedOperationsPerItem.get(item.slot()).decrementAndGet() == 0) {
-                        // Failure won't bubble up, since we fail the whole request now via the catch clause below,
-                        // so expectedOperationsPerItem will not be decremented twice.
-                        reduce(item.slot());
-                    }
-                }
-            } catch (Throwable e) {
-                logger.error("{} Percolate original reduce error", e, shardId);
-                finalListener.onFailure(e);
+                SearchRequest searchRequest = TransportPercolateAction.createSearchRequest(
+                        percolateRequest, docSource, queryRegistry, aggParsers, parseFieldMatcher
+                );
+                multiSearchRequest.add(searchRequest);
+            } catch (Exception e) {
+                preFailures.put(i, new MultiPercolateResponse.Item(e));
             }
         }
 
-        @SuppressWarnings("unchecked")
-        void onShardFailure(ShardId shardId, Throwable e) {
-            logger.debug("{} Shard multi percolate failure", e, shardId);
-            try {
-                IntArrayList slots = shardToSlots.get(shardId);
-                for (int i = 0; i < slots.size(); i++) {
-                    int slot = slots.get(i);
-                    AtomicReferenceArray shardResults = responsesByItemAndShard.get(slot);
-                    if (shardResults == null) {
-                        continue;
-                    }
+        return multiSearchRequest;
+    }
 
-                    shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, e));
-                    assert expectedOperationsPerItem.get(slot).get() >= 1 : "slot[" + slot + "] can't be lower than one. Caused by: " + e.getMessage();
-                    if (expectedOperationsPerItem.get(slot).decrementAndGet() == 0) {
-                        reduce(slot);
-                    }
-                }
-            } catch (Throwable t) {
-                logger.error("{} Percolate original reduce error, original error {}", t, shardId, e);
-                finalListener.onFailure(t);
-            }
-        }
-
-        void reduce(int slot) {
-            AtomicReferenceArray shardResponses = responsesByItemAndShard.get(slot);
-            PercolateResponse reducedResponse = TransportPercolateAction.reduce((PercolateRequest) percolateRequests.get(slot), shardResponses, percolatorService);
-            reducedResponses.set(slot, reducedResponse);
-            assert expectedOperations.get() >= 1 : "slot[" + slot + "] expected options should be >= 1 but is " + expectedOperations.get();
-            if (expectedOperations.decrementAndGet() == 0) {
-                finish();
-            }
-        }
-
-        void finish() {
-            MultiPercolateResponse.Item[] finalResponse = new MultiPercolateResponse.Item[reducedResponses.length()];
-            for (int slot = 0; slot < reducedResponses.length(); slot++) {
-                Object element = reducedResponses.get(slot);
-                assert element != null : "Element[" + slot + "] shouldn't be null";
-                if (element instanceof PercolateResponse) {
-                    finalResponse[slot] = new MultiPercolateResponse.Item((PercolateResponse) element);
-                } else if (element instanceof Throwable) {
-                    finalResponse[slot] = new MultiPercolateResponse.Item((Throwable)element);
-                } else if (element instanceof MultiGetResponse.Failure) {
-                    finalResponse[slot] = new MultiPercolateResponse.Item(((MultiGetResponse.Failure)element).getFailure());
+    private MultiPercolateResponse createMultiPercolateResponse(MultiSearchResponse multiSearchResponse, MultiPercolateRequest request, Map<Integer, MultiPercolateResponse.Item> preFailures) {
+        int searchResponseIndex = 0;
+        MultiPercolateResponse.Item[] percolateItems = new MultiPercolateResponse.Item[request.requests().size()];
+        for (int i = 0; i < percolateItems.length; i++) {
+            if (preFailures.keySet().contains(i)) {
+                percolateItems[i] = preFailures.get(i);
+            } else {
+                MultiSearchResponse.Item searchItem = multiSearchResponse.getResponses()[searchResponseIndex++];
+                if (searchItem.isFailure()) {
+                    percolateItems[i] = new MultiPercolateResponse.Item(searchItem.getFailure());
+                } else {
+                    PercolateRequest percolateRequest = request.requests().get(i);
+                    percolateItems[i] = new MultiPercolateResponse.Item(TransportPercolateAction.createPercolateResponse(searchItem.getResponse(), percolateRequest.onlyCount()));
                 }
             }
-            finalListener.onResponse(new MultiPercolateResponse(finalResponse));
         }
-
+        return new MultiPercolateResponse(percolateItems);
     }
 
 }

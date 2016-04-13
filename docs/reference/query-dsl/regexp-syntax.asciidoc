@@ -220,12 +220,20 @@ Complement::
 --
 
 The complement is probably the most useful option. The shortest pattern that
-follows a tilde `"~"` is negated.  For the string `"abcdef"`:
+follows a tilde `"~"` is negated.  For instance, `"ab~cd" means:
+
+* Starts with `a`
+* Followed by `b`
+* Followed by a string of any length that it anything but `c`
+* Ends with `d`
+
+For the string `"abcdef"`:
 
     ab~df     # match
-    ab~cf     # no match
-    a~(cd)f   # match
-    a~(bc)f   # no match
+    ab~cf     # match
+    ab~cdef   # no match
+    a~(cb)def # match
+    a~(bc)def # no match
 
 Enabled with the `COMPLEMENT` or `ALL` flags.
 

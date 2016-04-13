@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -33,34 +34,46 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for indices that use shadow replicas and a shared filesystem
@@ -68,12 +81,37 @@ import static org.hamcrest.Matchers.*;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
-    private Settings nodeSettings() {
+    private Settings nodeSettings(Path dataPath) {
+        return nodeSettings(dataPath.toString());
+    }
+
+    private Settings nodeSettings(String dataPath) {
         return Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
+                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
+    }
+
+    public void testCannotCreateWithBadPath() throws Exception {
+        Settings nodeSettings = nodeSettings("/badpath");
+        internalCluster().startNodesAsync(1, nodeSettings).get();
+        Settings idxSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_DATA_PATH, "/etc/foo")
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        try {
+            assertAcked(prepareCreate("foo").setSettings(idxSettings));
+            fail("should have failed");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage(),
+                    e.getMessage().contains("custom path [/etc/foo] is not a sub-path of path.shared_data"));
+        }
     }
 
     /**
@@ -81,10 +119,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
      * an index with shadow replicas enabled.
      */
     public void testRestoreToShadow() throws ExecutionException, InterruptedException {
-        Settings nodeSettings = nodeSettings();
+        final Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
-        final Path dataPath = createTempDir();
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
@@ -97,7 +135,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertNoFailures(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())));
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("foo").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
@@ -118,10 +156,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
         refresh();
-
+        Index index = resolveIndex("foo-copy");
         for (IndicesService service : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            if (service.hasIndex("foo-copy")) {
-                IndexShard shard = service.indexServiceSafe("foo-copy").shard(0);
+
+            if (service.hasIndex(index)) {
+                IndexShard shard = service.indexServiceSafe(index).getShardOrNull(0);
                 if (shard.routingEntry().primary()) {
                     assertFalse(shard instanceof ShadowIndexShard);
                 } else {
@@ -135,29 +174,46 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     }
 
-    @Test
+    @TestLogging("gateway:TRACE")
     public void testIndexWithFewDocuments() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        final Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
         final String IDX = "test";
-        final Path dataPath = createTempDir();
 
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureGreen(IDX);
 
         // So basically, the primary should fail and the replica will need to
         // replay the translog, this is what this tests
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
+
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(IDX).clear().setTranslog(true).get();
+        assertEquals(2, indicesStatsResponse.getIndex(IDX).getPrimaries().getTranslog().estimatedNumberOfOperations());
+        assertEquals(2, indicesStatsResponse.getIndex(IDX).getTotal().getTranslog().estimatedNumberOfOperations());
+        Index index = resolveIndex(IDX);
+        for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = service.indexService(index);
+            if (indexService != null) {
+                IndexShard shard = indexService.getShard(0);
+                TranslogStats translogStats = shard.translogStats();
+                assertTrue(translogStats != null || shard instanceof ShadowIndexShard);
+                if (translogStats != null) {
+                    assertEquals(2, translogStats.estimatedNumberOfOperations());
+                }
+            }
+        }
 
         // Check that we can get doc 1 and 2, because we are doing realtime
         // gets and getting from the primary
@@ -198,12 +254,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(IDX));
     }
 
-    @Test
     public void testReplicaToPrimaryPromotion() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -214,7 +269,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
@@ -257,12 +312,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("foobar"));
     }
 
-    @Test
     public void testPrimaryRelocation() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -273,7 +327,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
@@ -318,12 +372,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
     }
 
-    @Test
     public void testPrimaryRelocationWithConcurrentIndexing() throws Throwable {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = createTempDir();
         final String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -334,7 +387,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
@@ -391,16 +444,14 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, numPhase1Docs + numPhase2Docs);
     }
 
-    @Test
     public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
+        Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = createTempDir();
         final String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -411,7 +462,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
@@ -431,14 +482,14 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         final AtomicBoolean keepFailing = new AtomicBoolean(true);
 
         MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, node1));
-        mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, node3).localNode(),
+        mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, node3),
                 new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                     @Override
                     public void sendRequest(DiscoveryNode node, long requestId, String action,
                                             TransportRequest request, TransportRequestOptions options)
                             throws IOException, TransportException {
-                        if (keepFailing.get() && action.equals(RecoveryTarget.Actions.TRANSLOG_OPS)) {
+                        if (keepFailing.get() && action.equals(RecoveryTargetService.Actions.TRANSLOG_OPS)) {
                             logger.info("--> failing translog ops");
                             throw new ElasticsearchException("failing on purpose");
                         }
@@ -488,13 +539,12 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, counter.get());
     }
 
-    @Test
     public void testIndexWithShadowReplicasCleansUp() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         int nodeCount = randomIntBetween(2, 5);
         internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -505,7 +555,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureGreen(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
@@ -528,14 +578,12 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     /**
      * Tests that shadow replicas can be "naturally" rebalanced and relocated
      * around the cluster. By "naturally" I mean without using the reroute API
-     * @throws Exception
      */
-    @Test
     public void testShadowReplicaNaturalRelocation() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         internalCluster().startNodesAsync(2, nodeSettings).get();
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -546,11 +594,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
         ensureGreen(IDX);
 
         int docCount = randomIntBetween(10, 100);
-        List<IndexRequestBuilder> builders = newArrayList();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             builders.add(client().prepareIndex(IDX, "doc", i + "").setSource("foo", "bar"));
         }
@@ -584,12 +632,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertPathHasBeenCleared(dataPath);
     }
 
-    @Test
     public void testShadowReplicasUsingFieldData() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -600,7 +647,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=keyword").get();
         ensureGreen(IDX);
 
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "foo").get();
@@ -653,17 +700,16 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         });
     }
 
-    @Test
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
-        Settings nodeSettings = nodeSettings();
-        Settings fooSettings = Settings.builder().put(nodeSettings).put("node.affinity", "foo").build();
-        Settings barSettings = Settings.builder().put(nodeSettings).put("node.affinity", "bar").build();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
+        Settings fooSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "foo").build();
+        Settings barSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "bar").build();
 
-        final Future<List<String>> fooNodes = internalCluster().startNodesAsync(2, fooSettings);
-        final Future<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);
+        final InternalTestCluster.Async<List<String>> fooNodes = internalCluster().startNodesAsync(2, fooSettings);
+        final InternalTestCluster.Async<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);
         fooNodes.get();
         barNodes.get();
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings includeFoo = Settings.builder()
@@ -683,7 +729,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         // only one node, so all primaries will end up on node1
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=keyword").get();
         ensureGreen(IDX);
 
         // Index some documents
@@ -729,5 +775,53 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         assertShardCountOn(newFooNode, 5);
         assertNoShardsOn(barNodes.get());
+    }
+
+    public void testDeletingClosedIndexRemovesFiles() throws Exception {
+        Path dataPath = createTempDir();
+        Path dataPath2 = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath.getParent());
+
+        internalCluster().startNodesAsync(2, nodeSettings).get();
+        String IDX = "test";
+        String IDX2 = "test2";
+
+        Settings idxSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .build();
+        Settings idx2Settings = Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath2.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .build();
+
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
+        prepareCreate(IDX2).setSettings(idx2Settings).addMapping("doc", "foo", "type=text").get();
+        ensureGreen(IDX, IDX2);
+
+        int docCount = randomIntBetween(10, 100);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < docCount; i++) {
+            builders.add(client().prepareIndex(IDX, "doc", i + "").setSource("foo", "bar"));
+            builders.add(client().prepareIndex(IDX2, "doc", i + "").setSource("foo", "bar"));
+        }
+        indexRandom(true, true, true, builders);
+        flushAndRefresh(IDX, IDX2);
+
+        logger.info("--> closing index {}", IDX);
+        client().admin().indices().prepareClose(IDX).get();
+
+        logger.info("--> deleting non-closed index");
+        client().admin().indices().prepareDelete(IDX2).get();
+        assertPathHasBeenCleared(dataPath2);
+        logger.info("--> deleting closed index");
+        client().admin().indices().prepareDelete(IDX).get();
+        assertPathHasBeenCleared(dataPath);
     }
 }

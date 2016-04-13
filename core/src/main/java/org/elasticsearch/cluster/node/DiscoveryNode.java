@@ -19,41 +19,39 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.*;
-import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.TransportAddressSerializers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.Node;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;
 
 /**
  * A discovery node represents a node that is part of the cluster.
  */
-public class DiscoveryNode implements Streamable, ToXContent {
+public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
-    /**
-     * Minimum version of a node to communicate with. This version corresponds to the minimum compatibility version
-     * of the current elasticsearch major version.
-     */
-    public static final Version MINIMUM_DISCOVERY_NODE_VERSION = Version.CURRENT.minimumCompatibilityVersion();
-
-    public static boolean localNode(Settings settings) {
-        if (settings.get("node.local") != null) {
-            return settings.getAsBoolean("node.local", false);
+    public static boolean isLocalNode(Settings settings) {
+        if (Node.NODE_LOCAL_SETTING.exists(settings)) {
+            return Node.NODE_LOCAL_SETTING.get(settings);
         }
-        if (settings.get("node.mode") != null) {
-            String nodeMode = settings.get("node.mode");
+        if (Node.NODE_MODE_SETTING.exists(settings)) {
+            String nodeMode = Node.NODE_MODE_SETTING.get(settings);
             if ("local".equals(nodeMode)) {
                 return true;
             } else if ("network".equals(nodeMode)) {
@@ -66,65 +64,82 @@ public class DiscoveryNode implements Streamable, ToXContent {
     }
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
-        return !(settings.getAsBoolean("node.client", false) || (!settings.getAsBoolean("node.data", true) && !settings.getAsBoolean("node.master", true)));
+        return Node.NODE_DATA_SETTING.get(settings) || Node.NODE_MASTER_SETTING.get(settings);
     }
 
-    public static boolean clientNode(Settings settings) {
-        String client = settings.get("node.client");
-        return Booleans.isExplicitTrue(client);
+    public static boolean isMasterNode(Settings settings) {
+        return Node.NODE_MASTER_SETTING.get(settings);
     }
 
-    public static boolean masterNode(Settings settings) {
-        String master = settings.get("node.master");
-        if (master == null) {
-            return !clientNode(settings);
+    public static boolean isDataNode(Settings settings) {
+        return Node.NODE_DATA_SETTING.get(settings);
+    }
+
+    public static boolean isIngestNode(Settings settings) {
+        return Node.NODE_INGEST_SETTING.get(settings);
+    }
+
+    private final String nodeName;
+    private final String nodeId;
+    private final String hostName;
+    private final String hostAddress;
+    private final TransportAddress address;
+    private final Map<String, String> attributes;
+    private final Version version;
+    private final Set<Role> roles;
+
+    /**
+     * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
+     * @param in the stream
+     * @throws IOException if there is an error while reading from the stream
+     */
+    public DiscoveryNode(StreamInput in) throws IOException {
+        this.nodeName = in.readString().intern();
+        this.nodeId = in.readString().intern();
+        this.hostName = in.readString().intern();
+        this.hostAddress = in.readString().intern();
+        this.address = TransportAddressSerializers.addressFromStream(in);
+        int size = in.readVInt();
+        this.attributes = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            this.attributes.put(in.readString(), in.readString());
         }
-        return Booleans.isExplicitTrue(master);
-    }
-
-    public static boolean dataNode(Settings settings) {
-        String data = settings.get("node.data");
-        if (data == null) {
-            return !clientNode(settings);
+        int rolesSize = in.readVInt();
+        this.roles = EnumSet.noneOf(Role.class);
+        for (int i = 0; i < rolesSize; i++) {
+            int ordinal = in.readVInt();
+            if (ordinal < 0 || ordinal >= Role.values().length) {
+                throw new IOException("Unknown Role ordinal [" + ordinal + "]");
+            }
+            this.roles.add(Role.values()[ordinal]);
         }
-        return Booleans.isExplicitTrue(data);
-    }
-
-    public static final ImmutableList<DiscoveryNode> EMPTY_LIST = ImmutableList.of();
-
-    private String nodeName = "";
-    private String nodeId;
-    private String hostName;
-    private String hostAddress;
-    private TransportAddress address;
-    private ImmutableMap<String, String> attributes;
-    private Version version = Version.CURRENT;
-
-    DiscoveryNode() {
+        this.version = Version.readVersion(in);
     }
 
     /**
      * Creates a new {@link DiscoveryNode}
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
-     * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
      *
-     * @param nodeId  the nodes unique id.
-     * @param address the nodes transport address
-     * @param version the version of the node.
+     * @param nodeId     the nodes unique id.
+     * @param address    the nodes transport address
+     * @param attributes node attributes
+     * @param roles      node roles
+     * @param version    the version of the node.
      */
-    public DiscoveryNode(String nodeId, TransportAddress address, Version version) {
-        this("", nodeId, address, ImmutableMap.<String, String>of(), version);
+    public DiscoveryNode(String nodeId, TransportAddress address, Map<String, String> attributes, Set<Role> roles, Version version) {
+        this("", nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
     }
 
     /**
      * Creates a new {@link DiscoveryNode}
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
-     * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
@@ -133,17 +148,19 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * @param nodeId     the nodes unique id.
      * @param address    the nodes transport address
      * @param attributes node attributes
+     * @param roles      node roles
      * @param version    the version of the node.
      */
-    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes, Version version) {
-        this(nodeName, nodeId, NetworkUtils.getLocalHostName(""), NetworkUtils.getLocalHostAddress(""), address, attributes, version);
+    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes,
+                         Set<Role> roles, Version version) {
+        this(nodeName, nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
     }
 
     /**
-     * Creates a new {@link DiscoveryNode}
+     * Creates a new {@link DiscoveryNode}.
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
-     * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
@@ -154,139 +171,97 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * @param hostAddress the nodes host address
      * @param address     the nodes transport address
      * @param attributes  node attributes
+     * @param roles       node roles
      * @param version     the version of the node.
      */
-    public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address, Map<String, String> attributes, Version version) {
+    public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address,
+                         Map<String, String> attributes, Set<Role> roles, Version version) {
         if (nodeName != null) {
             this.nodeName = nodeName.intern();
+        } else {
+            this.nodeName = "";
         }
-        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            builder.put(entry.getKey().intern(), entry.getValue().intern());
-        }
-        this.attributes = builder.build();
         this.nodeId = nodeId.intern();
         this.hostName = hostName.intern();
         this.hostAddress = hostAddress.intern();
         this.address = address;
-        this.version = version;
-    }
-
-    /**
-     * Should this node form a connection to the provided node.
-     */
-    public boolean shouldConnectTo(DiscoveryNode otherNode) {
-        if (clientNode() && otherNode.clientNode()) {
-            return false;
+        if (version == null) {
+            this.version = Version.CURRENT;
+        } else {
+            this.version = version;
         }
-        return true;
-    }
-
-    /**
-     * The address that the node can be communicated with.
-     */
-    public TransportAddress address() {
-        return address;
+        this.attributes = Collections.unmodifiableMap(attributes);
+        //verify that no node roles are being provided as attributes
+        Predicate<Map<String, String>> predicate =  (attrs) -> {
+            for (Role role : Role.values()) {
+                assert attrs.containsKey(role.getRoleName()) == false;
+            }
+            return true;
+        };
+        assert predicate.test(attributes);
+        Set<Role> rolesSet = EnumSet.noneOf(Role.class);
+        rolesSet.addAll(roles);
+        this.roles = Collections.unmodifiableSet(rolesSet);
     }
 
     /**
      * The address that the node can be communicated with.
      */
     public TransportAddress getAddress() {
-        return address();
-    }
-
-    /**
-     * The unique id of the node.
-     */
-    public String id() {
-        return nodeId;
+        return address;
     }
 
     /**
      * The unique id of the node.
      */
     public String getId() {
-        return id();
-    }
-
-    /**
-     * The name of the node.
-     */
-    public String name() {
-        return this.nodeName;
+        return nodeId;
     }
 
     /**
      * The name of the node.
      */
     public String getName() {
-        return name();
+        return this.nodeName;
     }
 
     /**
      * The node attributes.
      */
-    public ImmutableMap<String, String> attributes() {
+    public Map<String, String> getAttributes() {
         return this.attributes;
-    }
-
-    /**
-     * The node attributes.
-     */
-    public ImmutableMap<String, String> getAttributes() {
-        return attributes();
-    }
-
-    /**
-     * Should this node hold data (shards) or not.
-     */
-    public boolean dataNode() {
-        String data = attributes.get("data");
-        if (data == null) {
-            return !clientNode();
-        }
-        return Booleans.parseBooleanExact(data);
     }
 
     /**
      * Should this node hold data (shards) or not.
      */
     public boolean isDataNode() {
-        return dataNode();
-    }
-
-    /**
-     * Is the node a client node or not.
-     */
-    public boolean clientNode() {
-        String client = attributes.get("client");
-        return client != null && Booleans.parseBooleanExact(client);
-    }
-
-    public boolean isClientNode() {
-        return clientNode();
-    }
-
-    /**
-     * Can this node become master or not.
-     */
-    public boolean masterNode() {
-        String master = attributes.get("master");
-        if (master == null) {
-            return !clientNode();
-        }
-        return Booleans.parseBooleanExact(master);
+        return roles.contains(Role.DATA);
     }
 
     /**
      * Can this node become master or not.
      */
     public boolean isMasterNode() {
-        return masterNode();
+        return roles.contains(Role.MASTER);
     }
 
-    public Version version() {
+    /**
+     * Returns a boolean that tells whether this an ingest node or not
+     */
+    public boolean isIngestNode() {
+        return roles.contains(Role.INGEST);
+    }
+
+    /**
+     * Returns a set of all the roles that the node fulfills.
+     * If the node doesn't have any specific role, the set is returned empty, which means that the node is a coordinating only node.
+     */
+    public Set<Role> getRoles() {
+        return roles;
+    }
+
+    public Version getVersion() {
         return this.version;
     }
 
@@ -298,30 +273,9 @@ public class DiscoveryNode implements Streamable, ToXContent {
         return this.hostAddress;
     }
 
-    public Version getVersion() {
-        return this.version;
-    }
-
-    public static DiscoveryNode readNode(StreamInput in) throws IOException {
-        DiscoveryNode node = new DiscoveryNode();
-        node.readFrom(in);
-        return node;
-    }
-
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        nodeName = in.readString().intern();
-        nodeId = in.readString().intern();
-        hostName = in.readString().intern();
-        hostAddress = in.readString().intern();
-        address = TransportAddressSerializers.addressFromStream(in);
-        int size = in.readVInt();
-        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-        for (int i = 0; i < size; i++) {
-            builder.put(in.readString().intern(), in.readString().intern());
-        }
-        attributes = builder.build();
-        version = Version.readVersion(in);
+    public DiscoveryNode readFrom(StreamInput in) throws IOException {
+        return new DiscoveryNode(in);
     }
 
     @Override
@@ -335,6 +289,10 @@ public class DiscoveryNode implements Streamable, ToXContent {
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
+        }
+        out.writeVInt(roles.size());
+        for (Role role : roles) {
+            out.writeVInt(role.ordinal());
         }
         Version.writeVersion(version, out);
     }
@@ -358,16 +316,16 @@ public class DiscoveryNode implements Streamable, ToXContent {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         if (nodeName.length() > 0) {
-            sb.append('[').append(nodeName).append(']');
+            sb.append('{').append(nodeName).append('}');
         }
         if (nodeId != null) {
-            sb.append('[').append(nodeId).append(']');
+            sb.append('{').append(nodeId).append('}');
         }
         if (Strings.hasLength(hostName)) {
-            sb.append('[').append(hostName).append(']');
+            sb.append('{').append(hostName).append('}');
         }
         if (address != null) {
-            sb.append('[').append(address).append(']');
+            sb.append('{').append(address).append('}');
         }
         if (!attributes.isEmpty()) {
             sb.append(attributes);
@@ -377,17 +335,43 @@ public class DiscoveryNode implements Streamable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(id(), XContentBuilder.FieldCaseConversion.NONE);
-        builder.field("name", name());
-        builder.field("transport_address", address().toString());
+        builder.startObject(getId(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.field("name", getName());
+        builder.field("transport_address", getAddress().toString());
 
         builder.startObject("attributes");
-        for (Map.Entry<String, String> attr : attributes().entrySet()) {
-            builder.field(attr.getKey(), attr.getValue());
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
 
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * Enum that holds all the possible roles that that a node can fulfill in a cluster.
+     * Each role has its name and a corresponding abbreviation used by cat apis.
+     */
+    public enum Role {
+        MASTER("master", "m"),
+        DATA("data", "d"),
+        INGEST("ingest", "i");
+
+        private final String roleName;
+        private final String abbreviation;
+
+        Role(String roleName, String abbreviation) {
+            this.roleName = roleName;
+            this.abbreviation = abbreviation;
+        }
+
+        public String getRoleName() {
+            return roleName;
+        }
+
+        public String getAbbreviation() {
+            return abbreviation;
+        }
     }
 }

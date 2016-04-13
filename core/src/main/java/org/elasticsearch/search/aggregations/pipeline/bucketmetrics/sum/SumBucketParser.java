@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum;
 
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+
+import java.util.Map;
 
 public class SumBucketParser extends BucketMetricsParser {
     @Override
@@ -31,8 +30,13 @@ public class SumBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-            ValueFormatter formatter) {
-        return new SumBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter);
+    protected SumBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
+            Map<String, Object> unparsedParams) {
+        return new SumBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+    }
+
+    @Override
+    public SumBucketPipelineAggregatorBuilder getFactoryPrototype() {
+        return SumBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

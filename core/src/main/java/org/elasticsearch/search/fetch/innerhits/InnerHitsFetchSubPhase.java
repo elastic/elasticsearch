@@ -19,11 +19,9 @@
 
 package org.elasticsearch.search.fetch.innerhits;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchParseElement;
@@ -33,13 +31,12 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
 import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
 import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
-import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -47,33 +44,22 @@ import java.util.Map;
  */
 public class InnerHitsFetchSubPhase implements FetchSubPhase {
 
-    private final SortParseElement sortParseElement;
-    private final FetchSourceParseElement sourceParseElement;
-    private final HighlighterParseElement highlighterParseElement;
-    private final FieldDataFieldsParseElement fieldDataFieldsParseElement;
-    private final ScriptFieldsParseElement scriptFieldsParseElement;
-
     private FetchPhase fetchPhase;
 
     @Inject
-    public InnerHitsFetchSubPhase(SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement, ScriptFieldsParseElement scriptFieldsParseElement) {
-        this.sortParseElement = sortParseElement;
-        this.sourceParseElement = sourceParseElement;
-        this.highlighterParseElement = highlighterParseElement;
-        this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
-        this.scriptFieldsParseElement = scriptFieldsParseElement;
+    public InnerHitsFetchSubPhase() {
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("inner_hits", new InnerHitsParseElement(
-                sortParseElement, sourceParseElement, highlighterParseElement, fieldDataFieldsParseElement, scriptFieldsParseElement
-        ));
+        // SearchParse elements needed because everything is parsed by InnerHitBuilder and eventually put
+        // into the search context.
+        return Collections.emptyMap();
     }
 
     @Override
     public boolean hitExecutionNeeded(SearchContext context) {
-        return context.innerHits() != null;
+        return context.innerHits() != null && context.innerHits().getInnerHits().size() > 0;
     }
 
     @Override

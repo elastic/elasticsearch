@@ -53,7 +53,7 @@ Response:
 }
 --------------------------------------------------
 
-The specified field must be of type `geo_point` (which can only be set explicitly in the mappings). And it can also hold an array of `geo_point` fields, in which case all will be taken into account during aggregation. The origin point can accept all formats supported by the `geo_point` <<mapping-geo-point-type,type>>:
+The specified field must be of type `geo_point` (which can only be set explicitly in the mappings). And it can also hold an array of `geo_point` fields, in which case all will be taken into account during aggregation. The origin point can accept all formats supported by the <<geo-point,`geo_point` type>>:
 
 * Object format: `{ "lat" : 52.3760, "lon" : 4.894 }` - this is the safest format as it is the most explicit about the `lat` & `lon` values
 * String format: `"52.3760, 4.894"` - where the first number is the `lat` and the second is the `lon`

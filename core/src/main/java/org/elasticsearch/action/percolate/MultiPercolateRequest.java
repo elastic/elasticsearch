@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.percolate;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -50,7 +50,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     private String[] indices;
     private String documentType;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
-    private List<PercolateRequest> requests = Lists.newArrayList();
+    private List<PercolateRequest> requests = new ArrayList<>();
 
     /**
      * Embeds a percolate request to this multi percolate request
@@ -163,11 +163,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
 
     @Override
     public List<? extends IndicesRequest> subRequests() {
-        List<IndicesRequest> indicesRequests = Lists.newArrayList();
-        for (PercolateRequest percolateRequest : this.requests) {
-            indicesRequests.addAll(percolateRequest.subRequests());
-        }
-        return indicesRequests;
+        return requests;
     }
 
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {

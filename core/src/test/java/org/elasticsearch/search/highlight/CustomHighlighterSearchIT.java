@@ -18,20 +18,19 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,11 +41,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", CustomHighlighterPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomHighlighterPlugin.class);
     }
 
     @Before
@@ -59,58 +55,49 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         ensureYellow();
     }
 
-    @Test
     public void testThatCustomHighlightersAreSupported() throws IOException {
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .addHighlightedField("name").setHighlighterType("test-custom")
+                .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom"))
                 .execute().actionGet();
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
     }
 
-    @Test
     public void testThatCustomHighlighterCanBeConfiguredPerField() throws Exception {
         HighlightBuilder.Field highlightConfig = new HighlightBuilder.Field("name");
         highlightConfig.highlighterType("test-custom");
-        Map<String, Object> options = Maps.newHashMap();
+        Map<String, Object> options = new HashMap<>();
         options.put("myFieldOption", "someValue");
         highlightConfig.options(options);
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .addHighlightedField(highlightConfig)
+                .highlighter(new HighlightBuilder().field(highlightConfig))
                 .execute().actionGet();
 
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
         assertHighlight(searchResponse, 0, "name", 1, equalTo("field:myFieldOption:someValue"));
     }
 
-    @Test
     public void testThatCustomHighlighterCanBeConfiguredGlobally() throws Exception {
-        Map<String, Object> options = Maps.newHashMap();
+        Map<String, Object> options = new HashMap<>();
         options.put("myGlobalOption", "someValue");
 
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setHighlighterOptions(options)
-                .setHighlighterType("test-custom")
-                .addHighlightedField("name")
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())
+                .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom").options(options))
                 .execute().actionGet();
 
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
         assertHighlight(searchResponse, 0, "name", 1, equalTo("field:myGlobalOption:someValue"));
     }
 
-    @Test
     public void testThatCustomHighlighterReceivesFieldsInOrder() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).should(QueryBuilders
                         .termQuery("name", "arbitrary")))
-                .setHighlighterType("test-custom")
-                .addHighlightedField("name")
-                .addHighlightedField("other_name")
-                .addHighlightedField("other_other_name")
-                .setHighlighterExplicitFieldOrder(true)
+                .highlighter(
+                        new HighlightBuilder().highlighterType("test-custom").field("name").field("other_name").field("other_other_name")
+                                .useExplicitFieldOrder(true))
                 .get();
 
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -27,35 +26,35 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class GetIndexIT extends ESIntegTestCase {
-
-    private static final String[] allFeatures = { "_alias", "_aliases", "_mapping", "_mappings", "_settings", "_warmer", "_warmers" };
-
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx").addAlias(new Alias("alias_idx")).addMapping("type1", "{\"type1\":{}}")
                 .setSettings(Settings.builder().put("number_of_shards", 1)).get());
         ensureSearchable("idx");
-        assertAcked(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch("idx")).get());
         createIndex("empty_idx");
         ensureSearchable("idx", "empty_idx");
     }
 
-    @Test
     public void testSimple() {
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").get();
         String[] indices = response.indices();
@@ -65,15 +64,17 @@ public class GetIndexIT extends ESIntegTestCase {
         assertAliases(response, "idx");
         assertMappings(response, "idx");
         assertSettings(response, "idx");
-        assertWarmers(response, "idx");
     }
 
-    @Test(expected=IndexNotFoundException.class)
     public void testSimpleUnknownIndex() {
-        client().admin().indices().prepareGetIndex().addIndices("missing_idx").get();
+        try {
+            client().admin().indices().prepareGetIndex().addIndices("missing_idx").get();
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
     public void testEmpty() {
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("empty_idx").get();
         String[] indices = response.indices();
@@ -83,10 +84,8 @@ public class GetIndexIT extends ESIntegTestCase {
         assertEmptyAliases(response);
         assertEmptyOrOnlyDefaultMappings(response, "empty_idx");
         assertNonEmptySettings(response, "empty_idx");
-        assertEmptyWarmers(response);
     }
 
-    @Test
     public void testSimpleMapping() {
         GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
                 Feature.MAPPINGS);
@@ -97,10 +96,8 @@ public class GetIndexIT extends ESIntegTestCase {
         assertMappings(response, "idx");
         assertEmptyAliases(response);
         assertEmptySettings(response);
-        assertEmptyWarmers(response);
     }
 
-    @Test
     public void testSimpleAlias() {
         GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
                 Feature.ALIASES);
@@ -111,10 +108,8 @@ public class GetIndexIT extends ESIntegTestCase {
         assertAliases(response, "idx");
         assertEmptyMappings(response);
         assertEmptySettings(response);
-        assertEmptyWarmers(response);
     }
 
-    @Test
     public void testSimpleSettings() {
         GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
                 Feature.SETTINGS);
@@ -125,24 +120,8 @@ public class GetIndexIT extends ESIntegTestCase {
         assertSettings(response, "idx");
         assertEmptyAliases(response);
         assertEmptyMappings(response);
-        assertEmptyWarmers(response);
     }
 
-    @Test
-    public void testSimpleWarmer() {
-        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
-                Feature.WARMERS);
-        String[] indices = response.indices();
-        assertThat(indices, notNullValue());
-        assertThat(indices.length, equalTo(1));
-        assertThat(indices[0], equalTo("idx"));
-        assertWarmers(response, "idx");
-        assertEmptyAliases(response);
-        assertEmptyMappings(response);
-        assertEmptySettings(response);
-    }
-
-    @Test
     public void testSimpleMixedFeatures() {
         int numFeatures = randomIntBetween(1, Feature.values().length);
         List<Feature> features = new ArrayList<Feature>(numFeatures);
@@ -170,14 +149,8 @@ public class GetIndexIT extends ESIntegTestCase {
         } else {
             assertEmptySettings(response);
         }
-        if (features.contains(Feature.WARMERS)) {
-            assertWarmers(response, "idx");
-        } else {
-            assertEmptyWarmers(response);
-        }
     }
 
-    @Test
     public void testEmptyMixedFeatures() {
         int numFeatures = randomIntBetween(1, Feature.values().length);
         List<Feature> features = new ArrayList<Feature>(numFeatures);
@@ -201,10 +174,8 @@ public class GetIndexIT extends ESIntegTestCase {
         } else {
             assertEmptySettings(response);
         }
-        assertEmptyWarmers(response);
     }
 
-    @Test
     public void testGetIndexWithBlocks() {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {
@@ -236,18 +207,6 @@ public class GetIndexIT extends ESIntegTestCase {
         } else {
             return requestBuilder.setFeatures(features).get();
         }
-    }
-
-    private void assertWarmers(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableList<Entry>> warmers = response.warmers();
-        assertThat(warmers, notNullValue());
-        assertThat(warmers.size(), equalTo(1));
-        ImmutableList<Entry> indexWarmers = warmers.get(indexName);
-        assertThat(indexWarmers, notNullValue());
-        assertThat(indexWarmers.size(), equalTo(1));
-        Entry warmer = indexWarmers.get(0);
-        assertThat(warmer, notNullValue());
-        assertThat(warmer.name(), equalTo("warmer1"));
     }
 
     private void assertSettings(GetIndexResponse response, String indexName) {
@@ -297,20 +256,15 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliases = response.aliases();
+        ImmutableOpenMap<String, List<AliasMetaData>> aliases = response.aliases();
         assertThat(aliases, notNullValue());
         assertThat(aliases.size(), equalTo(1));
-        ImmutableList<AliasMetaData> indexAliases = aliases.get(indexName);
+        List<AliasMetaData> indexAliases = aliases.get(indexName);
         assertThat(indexAliases, notNullValue());
         assertThat(indexAliases.size(), equalTo(1));
         AliasMetaData alias = indexAliases.get(0);
         assertThat(alias, notNullValue());
         assertThat(alias.alias(), equalTo("alias_idx"));
-    }
-
-    private void assertEmptyWarmers(GetIndexResponse response) {
-        assertThat(response.warmers(), notNullValue());
-        assertThat(response.warmers().isEmpty(), equalTo(true));
     }
 
     private void assertEmptySettings(GetIndexResponse response) {

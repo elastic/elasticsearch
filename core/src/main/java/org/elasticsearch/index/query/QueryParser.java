@@ -19,27 +19,31 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
-
 import java.io.IOException;
 
 /**
- *
+ * Defines a query parser that is able to read and parse a query object in {@link org.elasticsearch.common.xcontent.XContent}
+ * format and create an internal object representing the query, implementing {@link QueryBuilder}, which can be streamed to other nodes.
  */
-public interface QueryParser {
+@FunctionalInterface
+public interface QueryParser<QB extends QueryBuilder<QB>> {
 
     /**
-     * The names this query parser is registered under.
+     * Creates a new {@link QueryBuilder} from the query held by the {@link QueryParseContext}
+     * in {@link org.elasticsearch.common.xcontent.XContent} format
+     *
+     * @param parseContext
+     *            the input parse context. The state on the parser contained in
+     *            this context will be changed as a side effect of this method
+     *            call
+     * @return the new QueryBuilder
      */
-    String[] names();
+    QB fromXContent(QueryParseContext parseContext) throws IOException;
 
     /**
-     * Parses the into a query from the current parser location. Will be at "START_OBJECT" location,
-     * and should end when the token is at the matching "END_OBJECT".
-     * <p/>
-     * Returns <tt>null</tt> if this query should be ignored in the context of the DSL.
+     * @return an empty {@link QueryBuilder} instance for this parser that can be used for deserialization
      */
-    @Nullable
-    Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
+    default QB getBuilderPrototype() { // TODO remove this when nothing implements it
+        throw new UnsupportedOperationException();
+    }
 }

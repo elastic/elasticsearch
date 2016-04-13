@@ -21,13 +21,9 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
-import org.apache.lucene.analysis.ngram.Lucene43NGramTokenFilter;
-import org.apache.lucene.util.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 
 /**
@@ -40,21 +36,14 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     private final int maxGram;
 
 
-    @Inject
-    public NGramTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public NGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenFilter.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenFilter.DEFAULT_MAX_NGRAM_SIZE);
     }
 
-    @SuppressWarnings("deprecation")
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version version = this.version == Version.LUCENE_4_3 ? Version.LUCENE_4_4 : this.version; // we supported it since 4.3
-        if (version.onOrAfter(Version.LUCENE_4_3)) {
-            return new NGramTokenFilter(tokenStream, minGram, maxGram);
-        } else {
-            return new Lucene43NGramTokenFilter(tokenStream, minGram, maxGram);
-        }
+        return new NGramTokenFilter(tokenStream, minGram, maxGram);
     }
 }

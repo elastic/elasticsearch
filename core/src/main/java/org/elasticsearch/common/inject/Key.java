@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,29 +22,26 @@ import org.elasticsearch.common.inject.internal.ToStringBuilder;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * Binding key consisting of an injection type and an optional annotation.
  * Matches the type and annotation at a point of injection.
- * <p/>
- * <p>For example, {@code Key.get(Service.class, Transactional.class)} will
+ * <p>
+ * For example, {@code Key.get(Service.class, Transactional.class)} will
  * match:
- * <p/>
  * <pre>
  *   {@literal @}Inject
  *   public void setService({@literal @}Transactional Service service) {
  *     ...
  *   }
  * </pre>
- * <p/>
- * <p>{@code Key} supports generic types via subclassing just like {@link
+ * <p>
+ * {@code Key} supports generic types via subclassing just like {@link
  * TypeLiteral}.
- * <p/>
- * <p>Keys do not differentiate between primitive types (int, char, etc.) and
- * their correpsonding wrapper types (Integer, Character, etc.). Primitive
+ * <p>
+ * Keys do not differentiate between primitive types (int, char, etc.) and
+ * their corresponding wrapper types (Integer, Character, etc.). Primitive
  * types will be replaced with their wrapper types when keys are created.
  *
  * @author crazybob@google.com (Bob Lee)
@@ -58,15 +55,15 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     * <p>
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     * <p/>
-     * <p>Example usage for a binding of type {@code Foo} annotated with
+     * <p>
+     * Example usage for a binding of type {@code Foo} annotated with
      * {@code @Bar}:
-     * <p/>
-     * <p>{@code new Key<Foo>(Bar.class) {}}.
+     * <p>
+     * {@code new Key<Foo>(Bar.class) {}}.
      */
     @SuppressWarnings("unchecked")
     protected Key(Class<? extends Annotation> annotationType) {
@@ -77,15 +74,15 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     * <p>
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     * <p/>
-     * <p>Example usage for a binding of type {@code Foo} annotated with
+     * <p>
+     * Example usage for a binding of type {@code Foo} annotated with
      * {@code @Bar}:
-     * <p/>
-     * <p>{@code new Key<Foo>(new Bar()) {}}.
+     * <p>
+     * {@code new Key<Foo>(new Bar()) {}}.
      */
     @SuppressWarnings("unchecked")
     protected Key(Annotation annotation) {
@@ -97,14 +94,14 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     * <p>
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     * <p/>
-     * <p>Example usage for a binding of type {@code Foo}:
-     * <p/>
-     * <p>{@code new Key<Foo>() {}}.
+     * <p>
+     * Example usage for a binding of type {@code Foo}:
+     * <p>
+     * {@code new Key<Foo>() {}}.
      */
     @SuppressWarnings("unchecked")
     protected Key() {
@@ -336,19 +333,19 @@ public class Key<T> {
      * Returns {@code true} if the given annotation type has no attributes.
      */
     static boolean isMarker(Class<? extends Annotation> annotationType) {
-        return annotationType.getDeclaredMethods().length == 0;
+        return annotationType.getMethods().length == 0;
     }
 
     /**
      * Gets the strategy for an annotation.
      */
     static AnnotationStrategy strategyFor(Annotation annotation) {
-        checkNotNull(annotation, "annotation");
+        Objects.requireNonNull(annotation, "annotation");
         Class<? extends Annotation> annotationType = annotation.annotationType();
         ensureRetainedAtRuntime(annotationType);
         ensureIsBindingAnnotation(annotationType);
 
-        if (annotationType.getDeclaredMethods().length == 0) {
+        if (annotationType.getMethods().length == 0) {
             return new AnnotationTypeStrategy(annotationType, annotation);
         }
 
@@ -359,7 +356,7 @@ public class Key<T> {
      * Gets the strategy for an annotation type.
      */
     static AnnotationStrategy strategyFor(Class<? extends Annotation> annotationType) {
-        checkNotNull(annotationType, "annotation type");
+        Objects.requireNonNull(annotationType, "annotation type");
         ensureRetainedAtRuntime(annotationType);
         ensureIsBindingAnnotation(annotationType);
         return new AnnotationTypeStrategy(annotationType, null);
@@ -367,16 +364,20 @@ public class Key<T> {
 
     private static void ensureRetainedAtRuntime(
             Class<? extends Annotation> annotationType) {
-        checkArgument(Annotations.isRetainedAtRuntime(annotationType),
-                "%s is not retained at runtime. Please annotate it with @Retention(RUNTIME).",
-                annotationType.getName());
+        if (!Annotations.isRetainedAtRuntime(annotationType)) {
+            throw new IllegalArgumentException(
+                    annotationType.getName() + " is not retained at runtime. Please annotate it with @Retention(RUNTIME)."
+            );
+        }
     }
 
     private static void ensureIsBindingAnnotation(
             Class<? extends Annotation> annotationType) {
-        checkArgument(isBindingAnnotation(annotationType),
-                "%s is not a binding annotation. Please annotate it with @BindingAnnotation.",
-                annotationType.getName());
+        if (!isBindingAnnotation(annotationType)) {
+            throw new IllegalArgumentException(
+                    annotationType.getName() + " is not a binding annotation. Please annotate it with @BindingAnnotation."
+            );
+        }
     }
 
     static enum NullAnnotationStrategy implements AnnotationStrategy {
@@ -414,7 +415,7 @@ public class Key<T> {
         final Annotation annotation;
 
         AnnotationInstanceStrategy(Annotation annotation) {
-            this.annotation = checkNotNull(annotation, "annotation");
+            this.annotation = Objects.requireNonNull(annotation, "annotation");
         }
 
         @Override
@@ -467,7 +468,7 @@ public class Key<T> {
 
         AnnotationTypeStrategy(Class<? extends Annotation> annotationType,
                                Annotation annotation) {
-            this.annotationType = checkNotNull(annotationType, "annotation type");
+            this.annotationType = Objects.requireNonNull(annotationType, "annotation type");
             this.annotation = annotation;
         }
 

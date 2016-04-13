@@ -18,19 +18,26 @@
  */
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
-public class ValueCountParser implements Aggregator.Parser {
+public class ValueCountParser extends AnyValuesSourceParser {
+
+    public ValueCountParser() {
+        super(true, true);
+    }
 
     @Override
     public String type() {
@@ -38,22 +45,19 @@ public class ValueCountParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        return false;
+    }
 
-        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, InternalValueCount.TYPE, context)
-                .build();
+    @Override
+    protected ValuesSourceAggregatorBuilder<ValuesSource, ValueCountAggregatorBuilder> createFactory(
+            String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new ValueCountAggregatorBuilder(aggregationName, targetValueType);
+    }
 
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (!vsParser.token(currentFieldName, token, parser)) {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
-            }
-        }
-
-        return new ValueCountAggregator.Factory(aggregationName, vsParser.config());
+    @Override
+    public ValueCountAggregatorBuilder getFactoryPrototypes() {
+        return ValueCountAggregatorBuilder.PROTOTYPE;
     }
 }

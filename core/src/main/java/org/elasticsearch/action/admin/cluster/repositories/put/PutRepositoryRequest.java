@@ -41,7 +41,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * Register repository request.
- * <p/>
+ * <p>
  * Registers a repository with given name, type and settings. If the repository with the same name already
  * exists in the cluster, the new repository will replace the existing repository.
  */
@@ -55,7 +55,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     private Settings settings = EMPTY_SETTINGS;
 
-    PutRepositoryRequest() {
+    public PutRepositoryRequest() {
     }
 
     /**
@@ -98,7 +98,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     /**
      * The type of the repository
-     * <p/>
      * <ul>
      * <li>"fs" - shared filesystem repository</li>
      * </ul>
@@ -149,7 +148,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      * @return this request
      */
     public PutRepositoryRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 

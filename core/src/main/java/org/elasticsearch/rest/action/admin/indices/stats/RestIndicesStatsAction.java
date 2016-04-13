@@ -27,7 +27,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.util.Set;
@@ -42,7 +47,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
     @Inject
     public RestIndicesStatsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_stats", this);
         controller.registerHandler(GET, "/_stats/{metric}", this);
         controller.registerHandler(GET, "/_stats/{metric}/{indexMetric}", this);
@@ -66,18 +71,17 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.docs(metrics.contains("docs"));
             indicesStatsRequest.store(metrics.contains("store"));
             indicesStatsRequest.indexing(metrics.contains("indexing"));
-            indicesStatsRequest.search(metrics.contains("search"));
+            indicesStatsRequest.search(metrics.contains("search") || metrics.contains("suggest"));
             indicesStatsRequest.get(metrics.contains("get"));
             indicesStatsRequest.merge(metrics.contains("merge"));
             indicesStatsRequest.refresh(metrics.contains("refresh"));
             indicesStatsRequest.flush(metrics.contains("flush"));
             indicesStatsRequest.warmer(metrics.contains("warmer"));
             indicesStatsRequest.queryCache(metrics.contains("query_cache"));
-            indicesStatsRequest.percolate(metrics.contains("percolate"));
+            indicesStatsRequest.percolate(metrics.contains("percolator_cache"));
             indicesStatsRequest.segments(metrics.contains("segments"));
             indicesStatsRequest.fieldData(metrics.contains("fielddata"));
             indicesStatsRequest.completion(metrics.contains("completion"));
-            indicesStatsRequest.suggest(metrics.contains("suggest"));
             indicesStatsRequest.requestCache(metrics.contains("request_cache"));
             indicesStatsRequest.recovery(metrics.contains("recovery"));
             indicesStatsRequest.translog(metrics.contains("translog"));
@@ -97,6 +101,10 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         if (indicesStatsRequest.fieldData() && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
             indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY)));
+        }
+
+        if (indicesStatsRequest.segments() && request.hasParam("include_segment_file_sizes")) {
+            indicesStatsRequest.includeSegmentFileSizes(true);
         }
 
         client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {

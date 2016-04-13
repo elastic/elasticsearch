@@ -22,13 +22,13 @@ package org.elasticsearch.rest.action.cat;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -51,14 +51,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestRecoveryAction extends AbstractCatAction {
 
     @Inject
-    protected RestRecoveryAction(Settings settings, RestController restController, RestController controller, Client client) {
+    public RestRecoveryAction(Settings settings, RestController restController, RestController controller, Client client) {
         super(settings, controller, client);
         restController.registerHandler(GET, "/_cat/recovery", this);
         restController.registerHandler(GET, "/_cat/recovery/{index}", this);
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/recovery\n");
         sb.append("/_cat/recovery/{index}\n");
     }
@@ -79,7 +79,7 @@ public class RestRecoveryAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(RestRequest request) {
+    protected Table getTableWithHeader(RestRequest request) {
         Table t = new Table();
         t.startHeaders()
                 .addCell("index", "alias:i,idx;desc:index name")
@@ -92,14 +92,16 @@ public class RestRecoveryAction extends AbstractCatAction {
                 .addCell("repository", "alias:rep;desc:repository")
                 .addCell("snapshot", "alias:snap;desc:snapshot")
                 .addCell("files", "alias:f;desc:number of files to recover")
+                .addCell("files_recovered", "alias:fr;desc:files recovered")
                 .addCell("files_percent", "alias:fp;desc:percent of files recovered")
-                .addCell("bytes", "alias:b;desc:size to recover in bytes")
+                .addCell("files_total", "alias:tf;desc:total number of files")
+                .addCell("bytes", "alias:b;desc:number of bytes to recover")
+                .addCell("bytes_recovered", "alias:br;desc:bytes recovered")
                 .addCell("bytes_percent", "alias:bp;desc:percent of bytes recovered")
-                .addCell("total_files", "alias:tf;desc:total number of files")
-                .addCell("total_bytes", "alias:tb;desc:total number of bytes")
-                .addCell("translog", "alias:tr;desc:translog operations recovered")
-                .addCell("translog_percent", "alias:trp;desc:percent of translog recovery")
-                .addCell("total_translog", "alias:trt;desc:current total translog operations")
+                .addCell("bytes_total", "alias:tb;desc:total number of bytes")
+                .addCell("translog_ops", "alias:to;desc:number of translog ops to recover")
+                .addCell("translog_ops_recovered", "alias:tor;desc:translog ops recovered")
+                .addCell("translog_ops_percent", "alias:top;desc:percent of translog ops recovered")
                 .endHeaders();
         return t;
     }
@@ -116,19 +118,19 @@ public class RestRecoveryAction extends AbstractCatAction {
 
         Table t = getTableWithHeader(request);
 
-        for (String index : response.shardResponses().keySet()) {
+        for (String index : response.shardRecoveryStates().keySet()) {
 
-            List<ShardRecoveryResponse> shardRecoveryResponses = response.shardResponses().get(index);
-            if (shardRecoveryResponses.size() == 0) {
+            List<RecoveryState> shardRecoveryStates = response.shardRecoveryStates().get(index);
+            if (shardRecoveryStates.size() == 0) {
                 continue;
             }
 
             // Sort ascending by shard id for readability
-            CollectionUtil.introSort(shardRecoveryResponses, new Comparator<ShardRecoveryResponse>() {
+            CollectionUtil.introSort(shardRecoveryStates, new Comparator<RecoveryState>() {
                 @Override
-                public int compare(ShardRecoveryResponse o1, ShardRecoveryResponse o2) {
-                    int id1 = o1.recoveryState().getShardId().id();
-                    int id2 = o2.recoveryState().getShardId().id();
+                public int compare(RecoveryState o1, RecoveryState o2) {
+                    int id1 = o1.getShardId().id();
+                    int id2 = o2.getShardId().id();
                     if (id1 < id2) {
                         return -1;
                     } else if (id1 > id2) {
@@ -139,13 +141,11 @@ public class RestRecoveryAction extends AbstractCatAction {
                 }
             });
 
-            for (ShardRecoveryResponse shardResponse : shardRecoveryResponses) {
-
-                RecoveryState state = shardResponse.recoveryState();
+            for (RecoveryState state: shardRecoveryStates) {
                 t.startRow();
                 t.addCell(index);
-                t.addCell(shardResponse.getShardId());
-                t.addCell(state.getTimer().time());
+                t.addCell(state.getShardId().id());
+                t.addCell(new TimeValue(state.getTimer().time()));
                 t.addCell(state.getType().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
@@ -153,14 +153,16 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getRepository());
                 t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getSnapshot());
                 t.addCell(state.getIndex().totalRecoverFiles());
+                t.addCell(state.getIndex().recoveredFileCount());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
-                t.addCell(state.getIndex().totalRecoverBytes());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
                 t.addCell(state.getIndex().totalFileCount());
+                t.addCell(state.getIndex().totalRecoverBytes());
+                t.addCell(state.getIndex().recoveredBytes());
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
                 t.addCell(state.getIndex().totalBytes());
+                t.addCell(state.getTranslog().totalOperations());
                 t.addCell(state.getTranslog().recoveredOperations());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getTranslog().recoveredPercent()));
-                t.addCell(state.getTranslog().totalOperations());
                 t.endRow();
             }
         }

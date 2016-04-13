@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,39 +16,56 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.inject.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.ConfigurationException;
+import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.MembersInjector;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.ProvisionException;
+import org.elasticsearch.common.inject.Scope;
+import org.elasticsearch.common.inject.TypeLiteral;
+import org.elasticsearch.common.inject.spi.Dependency;
+import org.elasticsearch.common.inject.spi.InjectionListener;
+import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.io.PrintWriter;
-import java.io.Serializable;
 import java.io.StringWriter;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Type;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Formatter;
+import java.util.List;
+import java.util.Locale;
+
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableList;
 
 /**
  * A collection of error messages. If this type is passed as a method parameter, the method is
  * considered to have executed successfully only if new errors were not added to this collection.
- * <p/>
- * <p>Errors can be chained to provide additional context. To add context, call {@link #withSource}
+ * <p>
+ * Errors can be chained to provide additional context. To add context, call {@link #withSource}
  * to create a new Errors instance that contains additional context. All messages added to the
  * returned instance will contain full context.
- * <p/>
- * <p>To avoid messages with redundant context, {@link #withSource} should be added sparingly. A
+ * <p>
+ * To avoid messages with redundant context, {@link #withSource} should be added sparingly. A
  * good rule of thumb is to assume a ethod's caller has already specified enough context to
  * identify that method. When calling a method that's defined in a different context, call that
  * method with an errors object that includes its context.
  *
  * @author jessewilson@google.com (Jesse Wilson)
  */
-public final class Errors implements Serializable {
+public final class Errors {
 
     /**
      * The root errors object. Used to access the list of error messages.
@@ -300,7 +317,7 @@ public final class Errors implements Serializable {
         } else if (throwable instanceof CreationException) {
             return ((CreationException) throwable).getErrorMessages();
         } else {
-            return ImmutableSet.of();
+            return emptySet();
         }
     }
 
@@ -361,7 +378,7 @@ public final class Errors implements Serializable {
     }
 
     private Message merge(Message message) {
-        List<Object> sources = Lists.newArrayList();
+        List<Object> sources = new ArrayList<>();
         sources.addAll(getSources());
         sources.addAll(message.getSources());
         return new Message(sources, message.getMessage(), message.getCause());
@@ -384,7 +401,7 @@ public final class Errors implements Serializable {
     }
 
     public List<Object> getSources() {
-        List<Object> sources = Lists.newArrayList();
+        List<Object> sources = new ArrayList<>();
         for (Errors e = this; e != null; e = e.parent) {
             if (e.source != SourceProvider.UNKNOWN_SOURCE) {
                 sources.add(0, e.source);
@@ -421,7 +438,7 @@ public final class Errors implements Serializable {
 
     public Errors addMessage(Message message) {
         if (root.errors == null) {
-            root.errors = Lists.newArrayList();
+            root.errors = new ArrayList<>();
         }
         root.errors.add(message);
         return this;
@@ -436,10 +453,10 @@ public final class Errors implements Serializable {
 
     public List<Message> getMessages() {
         if (root.errors == null) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
 
-        List<Message> result = Lists.newArrayList(root.errors);
+        List<Message> result = new ArrayList<>(root.errors);
         CollectionUtil.timSort(result, new Comparator<Message>() {
             @Override
             public int compare(Message a, Message b) {
@@ -447,7 +464,7 @@ public final class Errors implements Serializable {
             }
         });
 
-        return result;
+        return unmodifiableList(result);
     }
 
     /**
@@ -553,7 +570,7 @@ public final class Errors implements Serializable {
         abstract String toString(T t);
     }
 
-    private static final Collection<Converter<?>> converters = ImmutableList.of(
+    private static final Collection<Converter<?>> converters = Arrays.asList(
             new Converter<Class>(Class.class) {
                 @Override
                 public String toString(Class c) {

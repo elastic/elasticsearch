@@ -19,15 +19,12 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -38,12 +35,19 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
  * the cluster update thread.
- * <p/>
+ * <p>
  * The async fetch logic maintains a map of which nodes are being fetched from in an async manner,
  * and once the results are back, it makes sure to schedule a reroute to make sure those results will
  * be taken into account.
@@ -54,7 +58,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * An action that lists the relevant shard data that needs to be fetched.
      */
     public interface List<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
-        void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesResponse> listener);
+        void list(ShardId shardId, String[] nodesIds, ActionListener<NodesResponse> listener);
     }
 
     protected final ESLogger logger;
@@ -73,6 +77,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.action = (List<BaseNodesResponse<T>, T>) action;
     }
 
+    @Override
     public synchronized void close() {
         this.closed = true;
     }
@@ -93,11 +98,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Fetches the data for the relevant shard. If there any ongoing async fetches going on, or new ones have
      * been initiated by this call, the result will have no data.
-     * <p/>
+     * <p>
      * The ignoreNodes are nodes that are supposed to be ignored for this round, since fetching is async, we need
      * to keep them around and make sure we add them back when all the responses are fetched and returned.
      */
-    public synchronized FetchResult<T> fetchData(DiscoveryNodes nodes, MetaData metaData, Set<String> ignoreNodes) {
+    public synchronized FetchResult<T> fetchData(DiscoveryNodes nodes, Set<String> ignoreNodes) {
         if (closed) {
             throw new IllegalStateException(shardId + ": can't fetch data on closed async fetch");
         }
@@ -114,12 +119,12 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             for (NodeEntry<T> nodeEntry : nodesToFetch) {
                 nodesIds[index++] = nodeEntry.getNodeId();
             }
-            asyncFetch(shardId, nodesIds, metaData);
+            asyncFetch(shardId, nodesIds);
         }
 
         // if we are still fetching, return null to indicate it
         if (hasAnyNodeFetching(cache) == true) {
-            return new FetchResult<>(shardId, null, ImmutableSet.<String>of(), ImmutableSet.<String>of());
+            return new FetchResult<>(shardId, null, emptySet(), emptySet());
         } else {
             // nothing to fetch, yay, build the return value
             Map<DiscoveryNode, T> fetchData = new HashMap<>();
@@ -143,7 +148,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                     }
                 }
             }
-            Set<String> allIgnoreNodes = ImmutableSet.copyOf(nodesToIgnore);
+            Set<String> allIgnoreNodes = unmodifiableSet(new HashSet<>(nodesToIgnore));
             // clear the nodes to ignore, we had a successful run in fetching everything we can
             // we need to try them if another full run is needed
             nodesToIgnore.clear();
@@ -159,7 +164,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Called by the response handler of the async action to fetch data. Verifies that its still working
      * on the same cache generation, otherwise the results are discarded. It then goes and fills the relevant data for
-     * the shard (response + failures), issueing a reroute at the end of it to make sure there will be another round
+     * the shard (response + failures), issuing a reroute at the end of it to make sure there will be another round
      * of allocations taking this new data into account.
      */
     protected synchronized void processAsyncFetch(ShardId shardId, T[] responses, FailedNodeException[] failures) {
@@ -216,7 +221,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     private void fillShardCacheWithDataNodes(Map<String, NodeEntry<T>> shardCache, DiscoveryNodes nodes) {
         // verify that all current data nodes are there
-        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.dataNodes()) {
+        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getDataNodes()) {
             DiscoveryNode node = cursor.value;
             if (shardCache.containsKey(node.getId()) == false) {
                 shardCache.put(node.getId(), new NodeEntry<T>(node.getId()));
@@ -261,10 +266,9 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Async fetches data for the provided shard with the set of nodes that need to be fetched from.
      */
     // visible for testing
-    void asyncFetch(final ShardId shardId, final String[] nodesIds, final MetaData metaData) {
-        IndexMetaData indexMetaData = metaData.index(shardId.getIndex());
+    void asyncFetch(final ShardId shardId, final String[] nodesIds) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodesIds);
-        action.list(shardId, indexMetaData, nodesIds, new ActionListener<BaseNodesResponse<T>>() {
+        action.list(shardId, nodesIds, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
                 processAsyncFetch(shardId, response.getNodes(), response.failures());

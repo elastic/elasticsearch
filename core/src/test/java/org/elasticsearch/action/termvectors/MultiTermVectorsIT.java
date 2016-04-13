@@ -26,16 +26,18 @@ import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.junit.Test;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
-
-    @Test
     public void testDuelESLucene() throws Exception {
         AbstractTermVectorsTestCase.TestFieldSetting[] testFieldSettings = getFieldSettings();
         createIndexBasedOnFieldSettings("test", "alias", testFieldSettings);
@@ -60,7 +62,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
                     assertTrue(item.isFailed());
                     continue;
                 } else if (item.isFailed()) {
-                    fail(item.getFailure().getMessage());
+                    fail(item.getFailure().getCause().getMessage());
                 }
                 Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
                 validateResponse(item.getResponse(), luceneTermVectors, test);
@@ -71,20 +73,19 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
 
     }
 
-    @Test
     public void testMissingIndexThrowsMissingIndex() throws Exception {
         TermVectorsRequestBuilder requestBuilder = client().prepareTermVectors("testX", "typeX", Integer.toString(1));
         MultiTermVectorsRequestBuilder mtvBuilder = client().prepareMultiTermVectors();
         mtvBuilder.add(requestBuilder.request());
         MultiTermVectorsResponse response = mtvBuilder.execute().actionGet();
         assertThat(response.getResponses().length, equalTo(1));
-        assertThat(response.getResponses()[0].getFailure().getMessage(), equalTo("[" + response.getResponses()[0].getIndex() + "] missing"));
+        assertThat(response.getResponses()[0].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
+        assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index"));
     }
 
-    @Test
     public void testMultiTermVectorsWithVersion() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         MultiTermVectorsResponse response = client().prepareMultiTermVectors().add(indexOrAlias(), "type1", "1").get();
@@ -115,7 +116,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         checkTermTexts(response.getResponses()[1].getResponse().getFields().terms("field"), new String[]{"value1"});
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[2].getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
 
         //Version from Lucene index
         refresh();
@@ -136,7 +137,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         checkTermTexts(response.getResponses()[1].getResponse().getFields().terms("field"), new String[]{"value1"});
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[2].getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
 
 
         for (int i = 0; i < 3; i++) {
@@ -159,7 +160,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[1].getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
@@ -184,7 +185,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
+        assertThat(response.getResponses()[1].getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());

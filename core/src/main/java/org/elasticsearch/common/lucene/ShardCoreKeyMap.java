@@ -19,16 +19,16 @@
 
 package org.elasticsearch.common.lucene;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Multimap;
-
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReader.CoreClosedListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -47,16 +47,16 @@ import java.util.Set;
 public final class ShardCoreKeyMap {
 
     private final Map<Object, ShardId> coreKeyToShard;
-    private final Multimap<String, Object> indexToCoreKey;
+    private final Map<String, Set<Object>> indexToCoreKey;
 
     public ShardCoreKeyMap() {
         coreKeyToShard = new IdentityHashMap<>();
-        indexToCoreKey = HashMultimap.create();
+        indexToCoreKey = new HashMap<>();
     }
 
     /**
      * Register a {@link LeafReader}. This is necessary so that the core cache
-     * key of this reader can be found later using {@link #getCoreCacheKeys(ShardId)}.
+     * key of this reader can be found later using {@link #getCoreKeysForIndex(String)}.
      */
     public void add(LeafReader reader) {
         final ShardId shardId = ShardUtils.extractShardId(reader);
@@ -64,21 +64,41 @@ public final class ShardCoreKeyMap {
             throw new IllegalArgumentException("Could not extract shard id from " + reader);
         }
         final Object coreKey = reader.getCoreCacheKey();
-        final String index = shardId.getIndex();
+        final String index = shardId.getIndexName();
         synchronized (this) {
             if (coreKeyToShard.put(coreKey, shardId) == null) {
-                final boolean added = indexToCoreKey.put(index, coreKey);
+                Set<Object> objects = indexToCoreKey.get(index);
+                if (objects == null) {
+                    objects = new HashSet<>();
+                    indexToCoreKey.put(index, objects);
+                }
+                final boolean added = objects.add(coreKey);
                 assert added;
-                reader.addCoreClosedListener(new CoreClosedListener() {
-                    @Override
-                    public void onClose(Object ownerCoreCacheKey) throws IOException {
-                        assert coreKey == ownerCoreCacheKey;
-                        synchronized (ShardCoreKeyMap.this) {
-                            coreKeyToShard.remove(ownerCoreCacheKey);
-                            indexToCoreKey.remove(index, coreKey);
+                CoreClosedListener listener = ownerCoreCacheKey -> {
+                    assert coreKey == ownerCoreCacheKey;
+                    synchronized (ShardCoreKeyMap.this) {
+                        coreKeyToShard.remove(ownerCoreCacheKey);
+                        final Set<Object> coreKeys = indexToCoreKey.get(index);
+                        final boolean removed = coreKeys.remove(coreKey);
+                        assert removed;
+                        if (coreKeys.isEmpty()) {
+                            indexToCoreKey.remove(index);
                         }
                     }
-                });
+                };
+                boolean addedListener = false;
+                try {
+                    reader.addCoreClosedListener(listener);
+                    addedListener = true;
+                } finally {
+                    if (false == addedListener) {
+                        try {
+                            listener.onClose(coreKey);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Blow up trying to recover from failure to add listener", e);
+                        }
+                    }
+                }
             }
         }
     }
@@ -95,15 +115,35 @@ public final class ShardCoreKeyMap {
      * Get the set of core cache keys associated with the given index.
      */
     public synchronized Set<Object> getCoreKeysForIndex(String index) {
-        return ImmutableSet.copyOf(indexToCoreKey.get(index));
+        final Set<Object> objects = indexToCoreKey.get(index);
+        if (objects == null) {
+            return Collections.emptySet();
+        }
+        // we have to copy otherwise we risk ConcurrentModificationException
+        return Collections.unmodifiableSet(new HashSet<>(objects));
     }
 
     /**
      * Return the number of tracked segments.
      */
     public synchronized int size() {
-        assert indexToCoreKey.size() == coreKeyToShard.size();
+        assert assertSize();
         return coreKeyToShard.size();
+    }
+
+    private synchronized boolean assertSize() {
+        // this is heavy and should only used in assertions
+        boolean assertionsEnabled = false;
+        assert assertionsEnabled = true;
+        if (assertionsEnabled == false) {
+            throw new AssertionError("only run this if assertions are enabled");
+        }
+        Collection<Set<Object>> values = indexToCoreKey.values();
+        int size = 0;
+        for (Set<Object> value : values) {
+            size += value.size();
+        }
+        return size == coreKeyToShard.size();
     }
 
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -29,7 +29,10 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
@@ -53,7 +56,7 @@ public class RestFielddataAction extends AbstractCatAction {
     }
 
     @Override
-    void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
 
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
         nodesStatsRequest.clear();
@@ -70,13 +73,13 @@ public class RestFielddataAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/fielddata\n");
         sb.append("/_cat/fielddata/{fields}\n");
     }
 
     @Override
-    Table getTableWithHeader(RestRequest request) {
+    protected Table getTableWithHeader(RestRequest request) {
         Table table = new Table();
         table.startHeaders()
                 .addCell("id", "desc:node id")
@@ -121,7 +124,7 @@ public class RestFielddataAction extends AbstractCatAction {
             table.startRow();
             // add the node info and field data total before each individual field
             NodeStats ns = statsEntry.getKey();
-            table.addCell(ns.getNode().id());
+            table.addCell(ns.getNode().getId());
             table.addCell(ns.getNode().getHostName());
             table.addCell(ns.getNode().getHostAddress());
             table.addCell(ns.getNode().getName());

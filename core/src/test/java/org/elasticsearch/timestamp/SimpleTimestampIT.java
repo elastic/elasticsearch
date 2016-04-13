@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Locale;
 
@@ -40,11 +39,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-public class SimpleTimestampIT  extends ESIntegTestCase {
-
-    @Test
+public class SimpleTimestampIT extends ESIntegTestCase {
     public void testSimpleTimestamp() throws Exception {
-
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("_timestamp").field("enabled", true).endObject().endObject().endObject())
                 .execute().actionGet();
@@ -78,7 +74,7 @@ public class SimpleTimestampIT  extends ESIntegTestCase {
 
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
-        assertThat(timestamp, equalTo(10l));
+        assertThat(timestamp, equalTo(10L));
         // verify its the same timestamp when going the replica
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
@@ -88,13 +84,13 @@ public class SimpleTimestampIT  extends ESIntegTestCase {
 
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
-        assertThat(timestamp, equalTo(20l));
+        assertThat(timestamp, equalTo(20L));
         // verify its the same timestamp when going the replica
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
     }
 
-    @Test // issue 5053
+    // issue #5053
     public void testThatUpdatingMappingShouldNotRemoveTimestampConfiguration() throws Exception {
         String index = "foo";
         String type = "mytype";
@@ -106,7 +102,7 @@ public class SimpleTimestampIT  extends ESIntegTestCase {
         assertTimestampMappingEnabled(index, type, true);
 
         // update some field in the mapping
-        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "string").endObject().endObject();
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "text").endObject().endObject();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
@@ -114,7 +110,6 @@ public class SimpleTimestampIT  extends ESIntegTestCase {
         assertTimestampMappingEnabled(index, type, true);
     }
 
-    @Test
     public void testThatTimestampCanBeSwitchedOnAndOff() throws Exception {
         String index = "foo";
         String type = "mytype";

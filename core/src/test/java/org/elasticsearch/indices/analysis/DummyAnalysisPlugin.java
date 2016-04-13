@@ -19,14 +19,9 @@
 
 package org.elasticsearch.indices.analysis;
 
-import com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collection;
-
-public class DummyAnalysisPlugin extends AbstractPlugin {
+public class DummyAnalysisPlugin extends Plugin {
     /**
      * The name of the plugin.
      */
@@ -43,13 +38,12 @@ public class DummyAnalysisPlugin extends AbstractPlugin {
         return "Analysis Dummy Plugin";
     }
 
-    @Override
-    public Collection<Class<? extends Module>> modules() {
-        return ImmutableList.<Class<? extends Module>>of(DummyIndicesAnalysisModule.class);
-    }
 
     public void onModule(AnalysisModule module) {
-        module.addProcessor(new DummyAnalysisBinderProcessor());
+        module.registerAnalyzer("dummy", (a, b, c, d) -> new DummyAnalyzerProvider());
+        module.registerTokenFilter("dummy_token_filter", (a, b, c, d) -> new DummyTokenFilterFactory());
+        module.registerTokenizer("dummy_tokenizer", (a, b, c, d) -> new DummyTokenizerFactory());
+        module.registerCharFilter("dummy_char_filter", (a, b, c, d) -> new DummyCharFilterFactory());
     }
 
 }

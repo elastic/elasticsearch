@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.upgrade;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
@@ -62,10 +61,15 @@ public class UpgradeIT extends ESBackcompatTestCase {
         return 2;
     }
 
+    @Override
+    protected int maximumNumberOfReplicas() {
+        return Math.max(0, Math.min(backwardsCluster().numBackwardsDataNodes(), backwardsCluster().numNewDataNodes()) - 1);
+    }
+
     public void testUpgrade() throws Exception {
         // allow the cluster to rebalance quickly - 2 concurrent rebalance are default we can do higher
         Settings.Builder builder = Settings.builder();
-        builder.put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 100);
+        builder.put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), 100);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
 
         int numIndexes = randomIntBetween(2, 4);
@@ -73,7 +77,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         for (int i = 0; i < numIndexes; ++i) {
             final String indexName = "test" + i;
             indexNames[i] = indexName;
-            
+
             Settings settings = Settings.builder()
                 .put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern())
                 // don't allow any merges so that we can check segments are upgraded
@@ -94,19 +98,8 @@ public class UpgradeIT extends ESBackcompatTestCase {
             }
             indexRandom(true, docs);
             ensureGreen(indexName);
-            if (globalCompatibilityVersion().before(Version.V_1_4_0_Beta1)) {
-                // before 1.4 and the wait_if_ongoing flag, flushes could fail randomly, so we
-                // need to continue to try flushing until all shards succeed
-                assertTrue(awaitBusy(new Predicate<Object>() {
-                    @Override
-                    public boolean apply(Object o) {
-                        return flush(indexName).getFailedShards() == 0;
-                    }
-                }));
-            } else {
-                assertEquals(0, flush(indexName).getFailedShards());
-            }
-            
+            assertEquals(0, flush(indexName).getFailedShards());
+
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);
             docs = new ArrayList<>();
@@ -122,35 +115,32 @@ public class UpgradeIT extends ESBackcompatTestCase {
         ensureGreen();
         // disable allocation entirely until all nodes are upgraded
         builder = Settings.builder();
-        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE);
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         backwardsCluster().upgradeAllNodes();
         builder = Settings.builder();
         // disable rebalanceing entirely for the time being otherwise we might get relocations / rebalance from nodes with old segments
-        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE);
-        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.ALL);
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE);
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.ALL);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         ensureGreen();
         logger.info("--> Nodes upgrade complete");
         logSegmentsState();
-        
+
         assertNotUpgraded(client());
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
 
         // This test fires up another node running an older version of ES, but because wire protocol changes across major ES versions, it
         // means we can never generate ancient segments in this test (unless Lucene major version bumps but ES major version does not):
         assertFalse(hasAncientSegments(client(), indexToUpgrade));
-        
-        logger.info("--> Running upgrade on index " + indexToUpgrade);
+
+        logger.info("--> Running upgrade on index {}", indexToUpgrade);
         assertNoFailures(client().admin().indices().prepareUpgrade(indexToUpgrade).get());
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                try {
-                    return isUpgraded(client(), indexToUpgrade);
-                } catch (Exception e) {
-                    throw ExceptionsHelper.convertToRuntime(e);
-                }
+        awaitBusy(() -> {
+            try {
+                return isUpgraded(client(), indexToUpgrade);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         });
         logger.info("--> Single index upgrade complete");
@@ -212,7 +202,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
             assertEquals("index " + status.getIndex() + " should be upgraded",
                 0, status.getToUpgradeBytes());
         }
-        
+
         // double check using the segments api that all segments are actually upgraded
         IndicesSegmentResponse segsRsp;
         if (index == null) {
@@ -238,7 +228,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         ESLogger logger = Loggers.getLogger(UpgradeIT.class);
         int toUpgrade = 0;
         for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            logger.info("Index: " + status.getIndex() + ", total: " + status.getTotalBytes() + ", toUpgrade: " + status.getToUpgradeBytes());
+            logger.info("Index: {}, total: {}, toUpgrade: {}", status.getIndex(), status.getTotalBytes(), status.getToUpgradeBytes());
             toUpgrade += status.getToUpgradeBytes();
         }
         return toUpgrade == 0;

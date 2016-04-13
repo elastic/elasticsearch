@@ -19,19 +19,16 @@
 
 package org.elasticsearch.plugin.analysis.smartcn;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.analysis.SmartChineseAnalysisBinderProcessor;
-import org.elasticsearch.indices.analysis.smartcn.SmartChineseIndicesAnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
-
-import java.util.ArrayList;
-import java.util.Collection;
+import org.elasticsearch.index.analysis.SmartChineseAnalyzerProvider;
+import org.elasticsearch.index.analysis.SmartChineseNoOpTokenFilterFactory;
+import org.elasticsearch.index.analysis.SmartChineseTokenizerTokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.Plugin;
 
 /**
  *
  */
-public class AnalysisSmartChinesePlugin extends AbstractPlugin {
+public class AnalysisSmartChinesePlugin extends Plugin {
 
     @Override
     public String name() {
@@ -43,14 +40,12 @@ public class AnalysisSmartChinesePlugin extends AbstractPlugin {
         return "Smart Chinese analysis support";
     }
 
-    @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> classes = new ArrayList<>();
-        classes.add(SmartChineseIndicesAnalysisModule.class);
-        return classes;
-    }
-
     public void onModule(AnalysisModule module) {
-        module.addProcessor(new SmartChineseAnalysisBinderProcessor());
+            module.registerAnalyzer("smartcn", SmartChineseAnalyzerProvider::new);
+            module.registerTokenizer("smartcn_tokenizer", SmartChineseTokenizerTokenizerFactory::new);
+            // This is an alias to "smartcn_tokenizer"; it's here for backwards compat
+        module.registerTokenizer("smartcn_sentence", SmartChineseTokenizerTokenizerFactory::new);
+            // This is a noop token filter; it's here for backwards compat before we had "smartcn_tokenizer"
+        module.registerTokenFilter("smartcn_word", SmartChineseNoOpTokenFilterFactory::new);
     }
 }

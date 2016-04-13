@@ -42,7 +42,7 @@ public class TransportPutIndexedScriptAction extends HandledTransportAction<PutI
     public TransportPutIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
                                            TransportService transportService, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutIndexedScriptAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutIndexedScriptRequest.class);
+        super(settings, PutIndexedScriptAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutIndexedScriptRequest::new);
         this.scriptService = scriptService;
     }
 

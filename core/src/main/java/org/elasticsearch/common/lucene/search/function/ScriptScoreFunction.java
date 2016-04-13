@@ -20,6 +20,7 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExplainableSearchScript;
@@ -29,6 +30,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
@@ -56,18 +58,8 @@ public class ScriptScoreFunction extends ScoreFunction {
         }
 
         @Override
-        public int nextDoc() throws IOException {
+        public DocIdSetIterator iterator() {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long cost() {
-            return 1;
         }
     }
 
@@ -110,9 +102,9 @@ public class ScriptScoreFunction extends ScoreFunction {
                     exp = ((ExplainableSearchScript) leafScript).explain(subQueryScore);
                 } else {
                     double score = score(docId, subQueryScore.getValue());
-                    String explanation = "script score function, computed with script:\"" + sScript;
+                    String explanation = "script score function, computed with script:\"" + sScript + "\"";
                     if (sScript.getParams() != null) {
-                        explanation += "\" and parameters: \n" + sScript.getParams().toString();
+                        explanation += " and parameters: \n" + sScript.getParams().toString();
                     }
                     Explanation scoreExp = Explanation.match(
                             subQueryScore.getValue(), "_score: ",
@@ -127,8 +119,23 @@ public class ScriptScoreFunction extends ScoreFunction {
     }
 
     @Override
+    public boolean needsScores() {
+        return script.needsScores();
+    }
+
+    @Override
     public String toString() {
         return "script" + sScript.toString();
     }
 
+    @Override
+    protected boolean doEquals(ScoreFunction other) {
+        ScriptScoreFunction scriptScoreFunction = (ScriptScoreFunction) other;
+        return Objects.equals(this.sScript, scriptScoreFunction.sScript);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(sScript);
+    }
 }

@@ -1,6 +1,8 @@
 [[query-dsl-fuzzy-query]]
 === Fuzzy Query
 
+deprecated[5.0.0, Will be removed without a replacement for `string` fields. Note that the `fuzziness` parameter is still supported for match queries and in suggesters. Use range queries for `date` and `numeric` fields instead.]
+
 The fuzzy query uses similarity based on Levenshtein edit distance for
 `string` fields, and a `+/-` margin on numeric and date fields.
 
@@ -57,9 +59,9 @@ Or with more advanced settings:
     Defaults to `50`.
 
 
-WARNING: this query can be very heavy if `prefix_length` and `max_expansions`
-are both set to `0`. This could cause every term in the index to be examined!
-
+WARNING: This query can be very heavy if `prefix_length` is set to `0` and if
+`max_expansions` is set to a high number. It could result in every term in the
+index being examined!
 
 [float]
 ==== Numeric and date fields

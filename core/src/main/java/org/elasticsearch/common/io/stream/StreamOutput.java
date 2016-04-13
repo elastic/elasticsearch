@@ -19,48 +19,71 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.vividsolutions.jts.util.Assert;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.tasks.Task;
+import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- *
+ * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
  */
 public abstract class StreamOutput extends OutputStream {
 
     private Version version = Version.CURRENT;
 
+    /**
+     * The version of the node on the other side of this stream.
+     */
     public Version getVersion() {
         return this.version;
     }
 
-    public StreamOutput setVersion(Version version) {
+    /**
+     * Set the version of the node on the other side of this stream.
+     */
+    public void setVersion(Version version) {
         this.version = version;
-        return this;
     }
 
     public long position() throws IOException {
@@ -126,6 +149,19 @@ public abstract class StreamOutput extends OutputStream {
         bytes.writeTo(this);
     }
 
+    /**
+     * Writes an optional bytes reference including a length header. Use this if you need to differentiate between null and empty bytes
+     * references. Use {@link #writeBytesReference(BytesReference)} and {@link StreamInput#readBytesReference()} if you do not.
+     */
+    public void writeOptionalBytesReference(@Nullable BytesReference bytes) throws IOException {
+        if (bytes == null) {
+            writeVInt(0);
+            return;
+        }
+        writeVInt(bytes.length() + 1);
+        bytes.writeTo(this);
+    }
+
     public void writeBytesRef(BytesRef bytes) throws IOException {
         if (bytes == null) {
             writeVInt(0);
@@ -173,9 +209,9 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an long in a variable-length format.  Writes between one and nine
-     * bytes.  Smaller values take fewer bytes.  Negative numbers are not
-     * supported.
+     * Writes a non-negative long in a variable-length format.
+     * Writes between one and nine bytes. Smaller values take fewer bytes.
+     * Negative numbers are not supported.
      */
     public void writeVLong(long i) throws IOException {
         assert i >= 0;
@@ -184,6 +220,23 @@ public abstract class StreamOutput extends OutputStream {
             i >>>= 7;
         }
         writeByte((byte) i);
+    }
+
+    /**
+     * Writes a long in a variable-length format. Writes between one and ten bytes.
+     * Values are remapped by sliding the sign bit into the lsb and then encoded as an unsigned number
+     * e.g., 0 -;&gt; 0, -1 -;&gt; 1, 1 -;&gt; 2, ..., Long.MIN_VALUE -;&gt; -1, Long.MAX_VALUE -;&gt; -2
+     * Numbers with small absolute value will have a small encoding
+     * If the numbers are known to be non-negative, use {@link #writeVLong(long)}
+     */
+    public void writeZLong(long i) throws IOException {
+        // zig-zag encoding cf. https://developers.google.com/protocol-buffers/docs/encoding?hl=en
+        long value = BitUtil.zigZagEncode(i);
+        while ((value & 0xFFFFFFFFFFFFFF80L) != 0L) {
+            writeByte((byte)((value & 0x7F) | 0x80));
+            value >>>= 7;
+        }
+        writeByte((byte) (value & 0x7F));
     }
 
     public void writeOptionalString(@Nullable String str) throws IOException {
@@ -201,6 +254,15 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeVInt(integer);
+        }
+    }
+
+    public void writeOptionalFloat(@Nullable Float floatValue) throws IOException {
+        if (floatValue == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeFloat(floatValue);
         }
     }
 
@@ -254,6 +316,14 @@ public abstract class StreamOutput extends OutputStream {
         writeLong(Double.doubleToLongBits(v));
     }
 
+    public void writeOptionalDouble(Double v) throws IOException {
+        if (v == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeDouble(v);
+        }
+    }
 
     private static byte ZERO = 0;
     private static byte ONE = 1;
@@ -319,6 +389,18 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes a string array, for nullable string, writes false.
+     */
+    public void writeOptionalStringArray(@Nullable String[] array) throws IOException {
+        if (array == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeStringArray(array);
+        }
+    }
+
     public void writeMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
@@ -371,6 +453,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 writeByte((byte) 10);
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
             writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -411,36 +494,53 @@ public abstract class StreamOutput extends OutputStream {
         } else if (value instanceof BytesRef) {
             writeByte((byte) 21);
             writeBytesRef((BytesRef) value);
+        } else if (type == GeoPoint.class) {
+            writeByte((byte) 22);
+            writeGeoPoint((GeoPoint) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }
     }
 
-    public void writeIntArray(int[] value) throws IOException {
-        writeVInt(value.length);
-        for (int i=0; i<value.length; i++) {
-            writeInt(value[i]);
+    public void writeIntArray(int[] values) throws IOException {
+        writeVInt(values.length);
+        for (int value : values) {
+            writeInt(value);
         }
     }
 
-    public void writeLongArray(long[] value) throws IOException {
-        writeVInt(value.length);
-        for (int i=0; i<value.length; i++) {
-            writeLong(value[i]);
+    public void writeVIntArray(int[] values) throws IOException {
+        writeVInt(values.length);
+        for (int value : values) {
+            writeVInt(value);
         }
     }
 
-    public void writeFloatArray(float[] value) throws IOException {
-        writeVInt(value.length);
-        for (int i=0; i<value.length; i++) {
-            writeFloat(value[i]);
+    public void writeLongArray(long[] values) throws IOException {
+        writeVInt(values.length);
+        for (long value : values) {
+            writeLong(value);
         }
     }
 
-    public void writeDoubleArray(double[] value) throws IOException {
-        writeVInt(value.length);
-        for (int i=0; i<value.length; i++) {
-            writeDouble(value[i]);
+    public void writeVLongArray(long[] values) throws IOException {
+        writeVInt(values.length);
+        for (long value : values) {
+            writeVLong(value);
+        }
+    }
+
+    public void writeFloatArray(float[] values) throws IOException {
+        writeVInt(values.length);
+        for (float value : values) {
+            writeFloat(value);
+        }
+    }
+
+    public void writeDoubleArray(double[] values) throws IOException {
+        writeVInt(values.length);
+        for (double value : values) {
+            writeDouble(value);
         }
     }
 
@@ -456,19 +556,12 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_5_2_1: "Remove these regex once we upgrade to Lucene 5.3 and get proper getters for these expections";
-    }
-    private final static Pattern CORRUPT_INDEX_EXCEPTION_REGEX = Regex.compile("^(.+) \\(resource=(.+)\\)$", "");
-    private final static Pattern INDEX_FORMAT_TOO_NEW_EXCEPTION_REGEX = Regex.compile("Format version is not supported \\(resource (.+)\\): (-?\\d+) \\(needs to be between (-?\\d+) and (-?\\d+)\\)", "");
-    private final static Pattern INDEX_FORMAT_TOO_OLD_EXCEPTION_REGEX_1 = Regex.compile("Format version is not supported \\(resource (.+)\\): (-?\\d+)(?: \\(needs to be between (-?\\d+) and (-?\\d+)\\)). This version of Lucene only supports indexes created with release 4.0 and later\\.", "");
-    private final static Pattern INDEX_FORMAT_TOO_OLD_EXCEPTION_REGEX_2 = Regex.compile("Format version is not supported \\(resource (.+)\\): (.+). This version of Lucene only supports indexes created with release 4.0 and later\\.", "");
-
-    private static int parseIntSafe(String val, int defaultVal) {
-        try {
-            return Integer.parseInt(val);
-        } catch (NumberFormatException ex) {
-            return defaultVal;
+    public void writeOptionalWriteable(@Nullable Writeable<?> writeable) throws IOException {
+        if (writeable != null) {
+            writeBoolean(true);
+            writeable.writeTo(this);
+        } else {
+            writeBoolean(false);
         }
     }
 
@@ -481,73 +574,29 @@ public abstract class StreamOutput extends OutputStream {
             boolean writeMessage = true;
             if (throwable instanceof CorruptIndexException) {
                 writeVInt(1);
-                // Lucene 5.3 will have getters for all these
-                // we should switch to using getters instead of trying to parse the message:
-                // writeOptionalString(((CorruptIndexException)throwable).getDescription());
-                // writeOptionalString(((CorruptIndexException)throwable).getResource());
-                Matcher matcher = CORRUPT_INDEX_EXCEPTION_REGEX.matcher(throwable.getMessage());
-                if (matcher.find()) {
-                    writeOptionalString(matcher.group(1)); // message
-                    writeOptionalString(matcher.group(2)); // resource
-                } else {
-                    // didn't match
-                    writeOptionalString("???"); // message
-                    writeOptionalString("???"); // resource
-                }
+                writeOptionalString(((CorruptIndexException)throwable).getOriginalMessage());
+                writeOptionalString(((CorruptIndexException)throwable).getResourceDescription());
                 writeMessage = false;
             } else if (throwable instanceof IndexFormatTooNewException) {
                 writeVInt(2);
-                // Lucene 5.3 will have getters for all these
-                // we should switch to using getters instead of trying to parse the message:
-                // writeOptionalString(((CorruptIndexException)throwable).getResource());
-                // writeInt(((IndexFormatTooNewException)throwable).getVersion());
-                // writeInt(((IndexFormatTooNewException)throwable).getMinVersion());
-                // writeInt(((IndexFormatTooNewException)throwable).getMaxVersion());
-                Matcher matcher = INDEX_FORMAT_TOO_NEW_EXCEPTION_REGEX.matcher(throwable.getMessage());
-                if (matcher.find()) {
-                    writeOptionalString(matcher.group(1)); // resource
-                    writeInt(parseIntSafe(matcher.group(2), -1)); // version
-                    writeInt(parseIntSafe(matcher.group(3), -1)); // min version
-                    writeInt(parseIntSafe(matcher.group(4), -1)); // max version
-                } else {
-                    // didn't match
-                    writeOptionalString("???"); // resource
-                    writeInt(-1); // version
-                    writeInt(-1); // min version
-                    writeInt(-1); // max version
-                }
+                writeOptionalString(((IndexFormatTooNewException)throwable).getResourceDescription());
+                writeInt(((IndexFormatTooNewException)throwable).getVersion());
+                writeInt(((IndexFormatTooNewException)throwable).getMinVersion());
+                writeInt(((IndexFormatTooNewException)throwable).getMaxVersion());
                 writeMessage = false;
                 writeCause = false;
             } else if (throwable instanceof IndexFormatTooOldException) {
                 writeVInt(3);
-                // Lucene 5.3 will have getters for all these
-                // we should switch to using getters instead of trying to parse the message:
-                // writeOptionalString(((CorruptIndexException)throwable).getResource());
-                // writeInt(((IndexFormatTooNewException)throwable).getVersion());
-                // writeInt(((IndexFormatTooNewException)throwable).getMinVersion());
-                // writeInt(((IndexFormatTooNewException)throwable).getMaxVersion());
-                Matcher matcher = INDEX_FORMAT_TOO_OLD_EXCEPTION_REGEX_1.matcher(throwable.getMessage());
-                if (matcher.find()) {
-                    // version with numeric version in constructor
-                    writeOptionalString(matcher.group(1)); // resource
-                    writeBoolean(true);
-                    writeInt(parseIntSafe(matcher.group(2), -1)); // version
-                    writeInt(parseIntSafe(matcher.group(3), -1)); // min version
-                    writeInt(parseIntSafe(matcher.group(4), -1)); // max version
+                IndexFormatTooOldException t = (IndexFormatTooOldException) throwable;
+                writeOptionalString(t.getResourceDescription());
+                if (t.getVersion() == null) {
+                    writeBoolean(false);
+                    writeOptionalString(t.getReason());
                 } else {
-                    matcher = INDEX_FORMAT_TOO_OLD_EXCEPTION_REGEX_2.matcher(throwable.getMessage());
-                    if (matcher.matches()) {
-                        writeOptionalString(matcher.group(1)); // resource
-                        writeBoolean(false);
-                        writeOptionalString(matcher.group(2)); // version
-                    } else {
-                        // didn't match
-                        writeOptionalString("???"); // resource
-                        writeBoolean(true);
-                        writeInt(-1); // version
-                        writeInt(-1); // min version
-                        writeInt(-1); // max version
-                    }
+                    writeBoolean(true);
+                    writeInt(t.getVersion());
+                    writeInt(t.getMinVersion());
+                    writeInt(t.getMaxVersion());
                 }
                 writeMessage = false;
                 writeCause = false;
@@ -577,11 +626,28 @@ public abstract class StreamOutput extends OutputStream {
             } else if (throwable instanceof FileNotFoundException) {
                 writeVInt(13);
                 writeCause = false;
-            } else if (throwable instanceof NoSuchFileException) {
+            } else if (throwable instanceof FileSystemException) {
                 writeVInt(14);
-                writeOptionalString(((NoSuchFileException) throwable).getFile());
-                writeOptionalString(((NoSuchFileException) throwable).getOtherFile());
-                writeOptionalString(((NoSuchFileException) throwable).getReason());
+                if (throwable instanceof NoSuchFileException) {
+                    writeVInt(0);
+                } else if (throwable instanceof NotDirectoryException) {
+                    writeVInt(1);
+                } else if (throwable instanceof DirectoryNotEmptyException) {
+                    writeVInt(2);
+                } else if (throwable instanceof AtomicMoveNotSupportedException) {
+                    writeVInt(3);
+                } else if (throwable instanceof FileAlreadyExistsException) {
+                    writeVInt(4);
+                } else if (throwable instanceof AccessDeniedException) {
+                    writeVInt(5);
+                } else if (throwable instanceof FileSystemLoopException) {
+                    writeVInt(6);
+                } else {
+                    writeVInt(7);
+                }
+                writeOptionalString(((FileSystemException) throwable).getFile());
+                writeOptionalString(((FileSystemException) throwable).getOtherFile());
+                writeOptionalString(((FileSystemException) throwable).getReason());
                 writeCause = false;
             } else if (throwable instanceof OutOfMemoryError) {
                 writeVInt(15);
@@ -590,16 +656,20 @@ public abstract class StreamOutput extends OutputStream {
                 writeVInt(16);
             } else if (throwable instanceof LockObtainFailedException) {
                 writeVInt(17);
+            } else if (throwable instanceof InterruptedException) {
+                writeVInt(18);
+                writeCause = false;
+            } else if (throwable instanceof IOException) {
+                writeVInt(19);
             } else {
                 ElasticsearchException ex;
-                final String name = throwable.getClass().getName();
-                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(name)) {
+                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass())) {
                     ex = (ElasticsearchException) throwable;
                 } else {
                     ex = new NotSerializableExceptionWrapper(throwable);
                 }
                 writeVInt(0);
-                writeString(ex.getClass().getName());
+                writeVInt(ElasticsearchException.getId(ex.getClass()));
                 ex.writeTo(this);
                 return;
 
@@ -612,5 +682,144 @@ public abstract class StreamOutput extends OutputStream {
             }
             ElasticsearchException.writeStackTraces(throwable, this);
         }
+    }
+
+    /**
+     * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
+     */
+    void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
+        writeString(namedWriteable.getWriteableName());
+        namedWriteable.writeTo(this);
+    }
+
+    /**
+     * Writes a {@link AggregatorBuilder} to the current stream
+     */
+    public void writeAggregatorBuilder(AggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
+    }
+
+    /**
+     * Writes a {@link PipelineAggregatorBuilder} to the current stream
+     */
+    public void writePipelineAggregatorBuilder(PipelineAggregatorBuilder<?> builder) throws IOException {
+        writeNamedWriteable(builder);
+    }
+
+    /**
+     * Writes a {@link QueryBuilder} to the current stream
+     */
+    public void writeQuery(QueryBuilder<?> queryBuilder) throws IOException {
+        writeNamedWriteable(queryBuilder);
+    }
+
+    /**
+     * Write an optional {@link QueryBuilder} to the stream.
+     */
+    public void writeOptionalQuery(@Nullable QueryBuilder<?> queryBuilder) throws IOException {
+        if (queryBuilder == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeQuery(queryBuilder);
+        }
+    }
+
+    /**
+     * Writes a {@link ShapeBuilder} to the current stream
+     */
+    public void writeShape(ShapeBuilder shapeBuilder) throws IOException {
+        writeNamedWriteable(shapeBuilder);
+    }
+
+    /**
+     * Writes a {@link ScoreFunctionBuilder} to the current stream
+     */
+    public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
+        writeNamedWriteable(scoreFunctionBuilder);
+    }
+
+    /**
+     * Writes the given {@link SmoothingModel} to the stream
+     */
+    public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
+        writeNamedWriteable(smoothinModel);
+    }
+
+    /**
+     * Writes a {@link Task.Status} to the current stream.
+     */
+    public void writeTaskStatus(Task.Status status) throws IOException {
+        writeNamedWriteable(status);
+    }
+
+    /**
+     * Writes the given {@link GeoPoint} to the stream
+     */
+    public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
+        writeDouble(geoPoint.lat());
+        writeDouble(geoPoint.lon());
+    }
+
+    /**
+     * Write a {@linkplain DateTimeZone} to the stream.
+     */
+    public void writeTimeZone(DateTimeZone timeZone) throws IOException {
+        writeString(timeZone.getID());
+    }
+
+    /**
+     * Write an optional {@linkplain DateTimeZone} to the stream.
+     */
+    public void writeOptionalTimeZone(DateTimeZone timeZone) throws IOException {
+        if (timeZone == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeTimeZone(timeZone);
+        }
+    }
+
+    /**
+     * Writes a list of {@link Writeable} objects
+     */
+    public <T extends Writeable<T>> void writeList(List<T> list) throws IOException {
+        writeVInt(list.size());
+        for (T obj: list) {
+            obj.writeTo(this);
+        }
+     }
+
+     /**
+     * Writes a {@link RescoreBuilder} to the current stream
+     */
+    public void writeRescorer(RescoreBuilder<?> rescorer) throws IOException {
+        writeNamedWriteable(rescorer);
+    }
+
+    /**
+     * Writes a {@link SuggestionBuilder} to the current stream
+     */
+    public void writeSuggestion(SuggestionBuilder<?> suggestion) throws IOException {
+        writeNamedWriteable(suggestion);
+    }
+
+    /**
+     * Writes a {@link SortBuilder} to the current stream
+     */
+    public void writeSortBuilder(SortBuilder<?> sort) throws IOException {
+        writeNamedWriteable(sort);
+    }
+
+    /** Writes a {@link DocValueFormat}. */
+    public void writeValueFormat(DocValueFormat format) throws IOException {
+        writeNamedWriteable(format);
+    }
+
+    /**
+     * Writes an {@link AllocationCommand} to the stream.
+     */
+    public void writeAllocationCommand(AllocationCommand command) throws IOException {
+        writeNamedWriteable(command);
     }
 }

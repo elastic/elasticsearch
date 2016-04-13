@@ -19,14 +19,11 @@
 
 package org.elasticsearch.common.xcontent.smile;
 
-import com.fasterxml.jackson.dataformat.smile.SmileParser;
-import org.elasticsearch.common.bytes.BytesReference;
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
@@ -34,8 +31,12 @@ import java.io.OutputStream;
  */
 public class SmileXContentGenerator extends JsonXContentGenerator {
 
-    public SmileXContentGenerator(BaseJsonGenerator generator) {
-        super(generator);
+    public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
+        this(jsonGenerator, os, filters, true);
+    }
+
+    public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String[] filters, boolean inclusive) {
+        super(jsonGenerator, os, filters, inclusive);
     }
 
     @Override
@@ -49,46 +50,7 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
     }
 
     @Override
-    public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        try (SmileParser parser = SmileXContent.smileFactory.createParser(content)) {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        }
-    }
-
-    @Override
-    public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        try (SmileParser parser = SmileXContent.smileFactory.createParser(content)) {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        }
-    }
-
-    @Override
-    protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        SmileParser parser;
-        if (content.hasArray()) {
-            parser = SmileXContent.smileFactory.createParser(content.array(), content.arrayOffset(), content.length());
-        } else {
-            parser = SmileXContent.smileFactory.createParser(content.streamInput());
-        }
-        try {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        } finally {
-            parser.close();
-        }
-    }
-
-    @Override
-    public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
-        writeFieldName(fieldName);
-        try (SmileParser parser = SmileXContent.smileFactory.createParser(content, offset, length)) {
-            parser.nextToken();
-            generator.copyCurrentStructure(parser);
-        }
+    protected boolean supportsRawWrites() {
+        return false;
     }
 }

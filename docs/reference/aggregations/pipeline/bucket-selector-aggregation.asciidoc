@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-bucket-selector-aggregation]]
 === Bucket Selector Aggregation
 
-coming[2.0.0]
-
 experimental[]
 
 A parent pipeline aggregation which executes a script which determines whether the current bucket will be retained 
@@ -25,7 +23,7 @@ A `bucket_selector` aggregation looks like this in isolation:
             "my_var1": "the_sum", <1>
             "my_var2": "the_value_count"
         },
-        script: "my_var1 > my_var2"
+        "script": "my_var1 > my_var2"
     }
 }
 --------------------------------------------------
@@ -39,7 +37,7 @@ the metrics to use for that variable.
 |`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>> 
 for more details) |Required |
 |`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable 
-(see <<bucket-path-syntax>> for more details) |Required |
+(see <<buckets-path-syntax>> for more details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional, defaults to `skip` |
 |===
@@ -60,10 +58,10 @@ The following snippet only retains buckets where the total sales for the month i
                     "sum": {
                         "field": "price"
                     }
-                }
+                },
                 "sales_bucket_filter": {
                     "bucket_selector": {
-                        "buckets_paths": {
+                        "buckets_path": {
                           "totalSales": "total_sales"
                         },
                         "script": "totalSales <= 50"

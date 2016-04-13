@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,18 +16,18 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.Key;
 
-import java.util.List;
+import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * A variable that can be resolved by an injector.
- * <p/>
- * <p>Use {@link #get} to build a freestanding dependency, or {@link InjectionPoint} to build one
+ * <p>
+ * Use {@link #get} to build a freestanding dependency, or {@link InjectionPoint} to build one
  * that's attached to a constructor, method or field.
  *
  * @author crazybob@google.com (Bob Lee)
@@ -60,11 +60,11 @@ public final class Dependency<T> {
      * Returns the dependencies from the given injection points.
      */
     public static Set<Dependency<?>> forInjectionPoints(Set<InjectionPoint> injectionPoints) {
-        List<Dependency<?>> dependencies = Lists.newArrayList();
+        Set<Dependency<?>> dependencies = new HashSet<>();
         for (InjectionPoint injectionPoint : injectionPoints) {
             dependencies.addAll(injectionPoint.getDependencies());
         }
-        return ImmutableSet.copyOf(dependencies);
+        return unmodifiableSet(dependencies);
     }
 
     /**
@@ -91,7 +91,7 @@ public final class Dependency<T> {
 
     /**
      * Returns the index of this dependency in the injection point's parameter list, or {@code -1} if
-     * this dependency does not belong to a parameter list. Only method and constuctor dependencies
+     * this dependency does not belong to a parameter list. Only method and constructor dependencies
      * are elements in a parameter list.
      */
     public int getParameterIndex() {
@@ -100,16 +100,16 @@ public final class Dependency<T> {
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(injectionPoint, parameterIndex, key);
+        return Objects.hash(injectionPoint, parameterIndex, key);
     }
 
     @Override
     public boolean equals(Object o) {
         if (o instanceof Dependency) {
             Dependency dependency = (Dependency) o;
-            return Objects.equal(injectionPoint, dependency.injectionPoint)
-                    && Objects.equal(parameterIndex, dependency.parameterIndex)
-                    && Objects.equal(key, dependency.key);
+            return Objects.equals(injectionPoint, dependency.injectionPoint)
+                    && Objects.equals(parameterIndex, dependency.parameterIndex)
+                    && Objects.equals(key, dependency.key);
         } else {
             return false;
         }

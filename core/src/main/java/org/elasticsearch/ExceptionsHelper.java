@@ -26,6 +26,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -47,14 +48,14 @@ public final class ExceptionsHelper {
         if (t instanceof RuntimeException) {
             return (RuntimeException) t;
         }
-        return new ElasticsearchException(t.getMessage(), t);
+        return new ElasticsearchException(t);
     }
 
     public static ElasticsearchException convertToElastic(Throwable t) {
         if (t instanceof ElasticsearchException) {
             return (ElasticsearchException) t;
         }
-        return new ElasticsearchException(t.getMessage(), t);
+        return new ElasticsearchException(t);
     }
 
     public static RestStatus status(Throwable t) {
@@ -160,7 +161,7 @@ public final class ExceptionsHelper {
             main = useOrSuppress(main, ex);
         }
         if (main != null) {
-            throw new ElasticsearchException(main.getMessage(), main);
+            throw new ElasticsearchException(main);
         }
     }
 
@@ -243,7 +244,12 @@ public final class ExceptionsHelper {
 
         public GroupBy(Throwable t) {
             if (t instanceof ElasticsearchException) {
-                index = ((ElasticsearchException) t).getIndex();
+                final Index index = ((ElasticsearchException) t).getIndex();
+                if (index != null) {
+                    this.index = index.getName();
+                } else {
+                    this.index = null;
+                }
             } else {
                 index = null;
             }

@@ -19,14 +19,15 @@
 
 package org.elasticsearch.plugin.python;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.python.PythonScriptEngineService;
 
 /**
  *
  */
-public class PythonPlugin extends AbstractPlugin {
+public class PythonPlugin extends Plugin {
 
     @Override
     public String name() {
@@ -39,6 +40,6 @@ public class PythonPlugin extends AbstractPlugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.addScriptEngine(PythonScriptEngineService.class);
+        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PythonScriptEngineService.class, PythonScriptEngineService.TYPES));
     }
 }

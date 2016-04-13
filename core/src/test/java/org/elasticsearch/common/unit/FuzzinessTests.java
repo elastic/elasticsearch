@@ -18,32 +18,32 @@
  */
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.number.IsCloseTo.closeTo;
 
 public class FuzzinessTests extends ESTestCase {
-
-    @Test
     public void testNumerics() {
         String[] options = new String[]{"1.0", "1", "1.000000"};
         assertThat(Fuzziness.build(randomFrom(options)).asByte(), equalTo((byte) 1));
         assertThat(Fuzziness.build(randomFrom(options)).asInt(), equalTo(1));
         assertThat(Fuzziness.build(randomFrom(options)).asFloat(), equalTo(1f));
         assertThat(Fuzziness.build(randomFrom(options)).asDouble(), equalTo(1d));
-        assertThat(Fuzziness.build(randomFrom(options)).asLong(), equalTo(1l));
+        assertThat(Fuzziness.build(randomFrom(options)).asLong(), equalTo(1L));
         assertThat(Fuzziness.build(randomFrom(options)).asShort(), equalTo((short) 1));
     }
 
-    @Test
     public void testParseFromXContent() throws IOException {
         final int iters = randomIntBetween(10, 50);
         for (int i = 0; i < iters; i++) {
@@ -59,7 +59,7 @@ public class FuzzinessTests extends ESTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
                 Fuzziness parse = Fuzziness.parse(parser);
                 assertThat(parse.asFloat(), equalTo(floatValue));
-                assertThat(parse.asDouble(), closeTo((double) floatValue, 0.000001));
+                assertThat(parse.asDouble(), closeTo(floatValue, 0.000001));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
             {
@@ -138,21 +138,17 @@ public class FuzzinessTests extends ESTestCase {
 
     }
 
-    @Test
     public void testAuto() {
-        final int codePoints = randomIntBetween(0, 10);
-        String string = randomRealisticUnicodeOfCodepointLength(codePoints);
         assertThat(Fuzziness.AUTO.asByte(), equalTo((byte) 1));
         assertThat(Fuzziness.AUTO.asInt(), equalTo(1));
         assertThat(Fuzziness.AUTO.asFloat(), equalTo(1f));
         assertThat(Fuzziness.AUTO.asDouble(), equalTo(1d));
-        assertThat(Fuzziness.AUTO.asLong(), equalTo(1l));
+        assertThat(Fuzziness.AUTO.asLong(), equalTo(1L));
         assertThat(Fuzziness.AUTO.asShort(), equalTo((short) 1));
         assertThat(Fuzziness.AUTO.asTimeValue(), equalTo(TimeValue.parseTimeValue("1ms", TimeValue.timeValueMillis(1), "fuzziness")));
 
     }
 
-    @Test
     public void testAsDistance() {
         final int iters = randomIntBetween(10, 50);
         for (int i = 0; i < iters; i++) {
@@ -162,4 +158,27 @@ public class FuzzinessTests extends ESTestCase {
         }
     }
 
+    public void testSerialization() throws IOException {
+        Fuzziness fuzziness = Fuzziness.AUTO;
+        Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+
+        fuzziness = Fuzziness.fromEdits(randomIntBetween(0, 2));
+        deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+    }
+
+    public void testSerializationAuto() throws IOException {
+        Fuzziness fuzziness = Fuzziness.AUTO;
+        Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+        assertEquals(fuzziness.asInt(), deserializedFuzziness.asInt());
+    }
+
+    private static Fuzziness doSerializeRoundtrip(Fuzziness in) throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        in.writeTo(output);
+        StreamInput streamInput = StreamInput.wrap(output.bytes());
+        return new Fuzziness(streamInput);
+    }
 }

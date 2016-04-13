@@ -22,8 +22,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
@@ -33,12 +32,12 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
     protected final ESLogger logger;
     protected final DeprecationLogger deprecationLogger;
     protected final ShardId shardId;
-    protected final Settings indexSettings;
+    protected final IndexSettings indexSettings;
 
-    protected AbstractIndexShardComponent(ShardId shardId, @IndexSettings Settings indexSettings) {
+    protected AbstractIndexShardComponent(ShardId shardId, IndexSettings indexSettings) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
-        this.logger = Loggers.getLogger(getClass(), indexSettings, shardId);
+        this.logger = Loggers.getLogger(getClass(), this.indexSettings.getSettings(), shardId);
         this.deprecationLogger = new DeprecationLogger(logger);
     }
 
@@ -48,11 +47,13 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
     }
 
     @Override
-    public Settings indexSettings() {
-        return this.indexSettings;
+    public IndexSettings indexSettings() {
+        return indexSettings;
     }
 
     public String nodeName() {
-        return indexSettings.get("name", "");
+        return indexSettings.getNodeName();
     }
+
+
 }

@@ -23,12 +23,12 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -38,43 +38,61 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-public class ClusterStatsNodes implements ToXContent, Streamable {
+public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNodes> {
 
-    private Counts counts;
-    private Set<Version> versions;
-    private OsStats os;
-    private ProcessStats process;
-    private JvmStats jvm;
-    private FsInfo.Path fs;
-    private Set<PluginInfo> plugins;
+    private final Counts counts;
+    private final Set<Version> versions;
+    private final OsStats os;
+    private final ProcessStats process;
+    private final JvmStats jvm;
+    private final FsInfo.Path fs;
+    private final Set<PluginInfo> plugins;
 
-    private ClusterStatsNodes() {
+    ClusterStatsNodes(StreamInput in) throws IOException {
+        this.counts = new Counts(in);
+
+        int size = in.readVInt();
+        this.versions = new HashSet<>(size);
+        for (int i = 0; i < size; i++) {
+            this.versions.add(Version.readVersion(in));
+        }
+
+        this.os = new OsStats(in);
+        this.process = new ProcessStats(in);
+        this.jvm = new JvmStats(in);
+        this.fs = FsInfo.Path.readInfoFrom(in);
+
+        size = in.readVInt();
+        this.plugins = new HashSet<>(size);
+        for (int i = 0; i < size; i++) {
+            this.plugins.add(PluginInfo.readFromStream(in));
+        }
     }
 
-    public ClusterStatsNodes(ClusterStatsNodeResponse[] nodeResponses) {
-        this.counts = new Counts();
+    ClusterStatsNodes(ClusterStatsNodeResponse[] nodeResponses) {
         this.versions = new HashSet<>();
-        this.os = new OsStats();
-        this.jvm = new JvmStats();
         this.fs = new FsInfo.Path();
         this.plugins = new HashSet<>();
-        this.process = new ProcessStats();
 
         Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.length);
-
+        List<NodeInfo> nodeInfos = new ArrayList<>();
+        List<NodeStats> nodeStats = new ArrayList<>();
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
-
-            counts.addNodeInfo(nodeResponse.nodeInfo());
-            versions.add(nodeResponse.nodeInfo().getVersion());
-            process.addNodeStats(nodeResponse.nodeStats());
-            jvm.addNodeInfoStats(nodeResponse.nodeInfo(), nodeResponse.nodeStats());
-            plugins.addAll(nodeResponse.nodeInfo().getPlugins().getInfos());
+            nodeInfos.add(nodeResponse.nodeInfo());
+            nodeStats.add(nodeResponse.nodeStats());
+            this.versions.add(nodeResponse.nodeInfo().getVersion());
+            this.plugins.addAll(nodeResponse.nodeInfo().getPlugins().getPluginInfos());
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress = nodeResponse.nodeInfo().getTransport().address().publishAddress();
@@ -82,18 +100,18 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             if (publishAddress.uniqueAddressTypeId() == 1) {
                 inetAddress = ((InetSocketTransportAddress) publishAddress).address().getAddress();
             }
-
             if (!seenAddresses.add(inetAddress)) {
                 continue;
             }
-
-            os.addNodeInfo(nodeResponse.nodeInfo());
             if (nodeResponse.nodeStats().getFs() != null) {
-                fs.add(nodeResponse.nodeStats().getFs().total());
+                this.fs.add(nodeResponse.nodeStats().getFs().total());
             }
         }
+        this.counts = new Counts(nodeInfos);
+        this.os = new OsStats(nodeInfos);
+        this.process = new ProcessStats(nodeStats);
+        this.jvm = new JvmStats(nodeInfos, nodeStats);
     }
-
 
     public Counts getCounts() {
         return this.counts;
@@ -125,25 +143,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        counts = Counts.readCounts(in);
-
-        int size = in.readVInt();
-        versions = new HashSet<>(size);
-        for (; size > 0; size--) {
-            versions.add(Version.readVersion(in));
-        }
-
-        os = OsStats.readOsStats(in);
-        process = ProcessStats.readStats(in);
-        jvm = JvmStats.readJvmStats(in);
-        fs = FsInfo.Path.readInfoFrom(in);
-
-        size = in.readVInt();
-        plugins = new HashSet<>(size);
-        for (; size > 0; size--) {
-            plugins.add(PluginInfo.readFromStream(in));
-        }
+    public ClusterStatsNodes readFrom(StreamInput in) throws IOException {
+        return new ClusterStatsNodes(in);
     }
 
     @Override
@@ -159,12 +160,6 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         for (PluginInfo p : plugins) {
             p.writeTo(out);
         }
-    }
-
-    public static ClusterStatsNodes readNodeStats(StreamInput in) throws IOException {
-        ClusterStatsNodes nodeStats = new ClusterStatsNodes();
-        nodeStats.readFrom(in);
-        return nodeStats;
     }
 
     static final class Fields {
@@ -212,132 +207,123 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         return builder;
     }
 
-    public static class Counts implements Streamable, ToXContent {
-        int total;
-        int masterOnly;
-        int dataOnly;
-        int masterData;
-        int client;
+    public static class Counts implements Writeable<Counts>, ToXContent {
+        static final String COORDINATING_ONLY = "coordinating_only";
 
-        public void addNodeInfo(NodeInfo nodeInfo) {
-            total++;
-            DiscoveryNode node = nodeInfo.getNode();
-            if (node.masterNode()) {
-                if (node.dataNode()) {
-                    masterData++;
-                } else {
-                    masterOnly++;
-                }
-            } else if (node.dataNode()) {
-                dataOnly++;
-            } else if (node.clientNode()) {
-                client++;
+        private final int total;
+        private final Map<String, Integer> roles;
+
+        @SuppressWarnings("unchecked")
+        private Counts(StreamInput in) throws IOException {
+            this.total = in.readVInt();
+            this.roles = (Map<String, Integer>)in.readGenericValue();
+        }
+
+        private Counts(List<NodeInfo> nodeInfos) {
+            this.roles = new HashMap<>();
+            for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
+                this.roles.put(role.getRoleName(), 0);
             }
+            this.roles.put(COORDINATING_ONLY, 0);
+
+            int total = 0;
+            for (NodeInfo nodeInfo : nodeInfos) {
+                total++;
+                if (nodeInfo.getNode().getRoles().isEmpty()) {
+                    Integer count = roles.get(COORDINATING_ONLY);
+                    roles.put(COORDINATING_ONLY, ++count);
+                } else {
+                    for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
+                        Integer count = roles.get(role.getRoleName());
+                        roles.put(role.getRoleName(), ++count);
+                    }
+                }
+            }
+            this.total = total;
         }
 
         public int getTotal() {
             return total;
         }
 
-        public int getMasterOnly() {
-            return masterOnly;
-        }
-
-        public int getDataOnly() {
-            return dataOnly;
-        }
-
-        public int getMasterData() {
-            return masterData;
-        }
-
-        public int getClient() {
-            return client;
-        }
-
-        public static Counts readCounts(StreamInput in) throws IOException {
-            Counts c = new Counts();
-            c.readFrom(in);
-            return c;
+        public Map<String, Integer> getRoles() {
+            return roles;
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            total = in.readVInt();
-            masterOnly = in.readVInt();
-            dataOnly = in.readVInt();
-            masterData = in.readVInt();
-            client = in.readVInt();
+        public Counts readFrom(StreamInput in) throws IOException {
+            return new Counts(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
-            out.writeVInt(masterOnly);
-            out.writeVInt(dataOnly);
-            out.writeVInt(masterData);
-            out.writeVInt(client);
+            out.writeGenericValue(roles);
         }
 
         static final class Fields {
             static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-            static final XContentBuilderString MASTER_ONLY = new XContentBuilderString("master_only");
-            static final XContentBuilderString DATA_ONLY = new XContentBuilderString("data_only");
-            static final XContentBuilderString MASTER_DATA = new XContentBuilderString("master_data");
-            static final XContentBuilderString CLIENT = new XContentBuilderString("client");
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.TOTAL, total);
-            builder.field(Fields.MASTER_ONLY, masterOnly);
-            builder.field(Fields.DATA_ONLY, dataOnly);
-            builder.field(Fields.MASTER_DATA, masterData);
-            builder.field(Fields.CLIENT, client);
+            for (Map.Entry<String, Integer> entry : roles.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
             return builder;
         }
     }
 
-    public static class OsStats implements ToXContent, Streamable {
-
-        int availableProcessors;
-        long availableMemory;
+    public static class OsStats implements ToXContent, Writeable<OsStats> {
+        final int availableProcessors;
+        final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
 
-        public OsStats() {
-            names = new ObjectIntHashMap<>();
+        @SuppressWarnings("unchecked")
+        private OsStats(StreamInput in) throws IOException {
+            this.availableProcessors = in.readVInt();
+            this.allocatedProcessors = in.readVInt();
+            int size = in.readVInt();
+            this.names = new ObjectIntHashMap<>();
+            for (int i = 0; i < size; i++) {
+                names.addTo(in.readString(), in.readVInt());
+            }
         }
 
-        public void addNodeInfo(NodeInfo nodeInfo) {
-            availableProcessors += nodeInfo.getOs().getAvailableProcessors();
-            if (nodeInfo.getOs().getName() != null) {
-                names.addTo(nodeInfo.getOs().getName(), 1);
+        private OsStats(List<NodeInfo> nodeInfos) {
+            this.names = new ObjectIntHashMap<>();
+            int availableProcessors = 0;
+            int allocatedProcessors = 0;
+            for (NodeInfo nodeInfo : nodeInfos) {
+                availableProcessors += nodeInfo.getOs().getAvailableProcessors();
+                allocatedProcessors += nodeInfo.getOs().getAllocatedProcessors();
+
+                if (nodeInfo.getOs().getName() != null) {
+                    names.addTo(nodeInfo.getOs().getName(), 1);
+                }
             }
+            this.availableProcessors = availableProcessors;
+            this.allocatedProcessors = allocatedProcessors;
         }
 
         public int getAvailableProcessors() {
             return availableProcessors;
         }
 
-        public ByteSizeValue getAvailableMemory() {
-            return new ByteSizeValue(availableMemory);
+        public int getAllocatedProcessors() {
+            return allocatedProcessors;
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            availableProcessors = in.readVInt();
-            availableMemory = in.readLong();
-            int size = in.readVInt();
-            names.clear();
-            for (int i = 0; i < size; i++) {
-                names.addTo(in.readString(), in.readVInt());
-            }
+        public OsStats readFrom(StreamInput in) throws IOException {
+            return new OsStats(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(availableProcessors);
-            out.writeLong(availableMemory);
+            out.writeVInt(allocatedProcessors);
             out.writeVInt(names.size());
             for (ObjectIntCursor<String> name : names) {
                 out.writeString(name.key);
@@ -345,29 +331,18 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             }
         }
 
-        public static OsStats readOsStats(StreamInput in) throws IOException {
-            OsStats os = new OsStats();
-            os.readFrom(in);
-            return os;
-        }
-
         static final class Fields {
             static final XContentBuilderString AVAILABLE_PROCESSORS = new XContentBuilderString("available_processors");
+            static final XContentBuilderString ALLOCATED_PROCESSORS = new XContentBuilderString("allocated_processors");
             static final XContentBuilderString NAME = new XContentBuilderString("name");
             static final XContentBuilderString NAMES = new XContentBuilderString("names");
-            static final XContentBuilderString MEM = new XContentBuilderString("mem");
-            static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-            static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
             static final XContentBuilderString COUNT = new XContentBuilderString("count");
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
-            builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, availableMemory);
-            builder.endObject();
-
+            builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
             builder.startArray(Fields.NAMES);
             for (ObjectIntCursor<String> name : names) {
                 builder.startObject();
@@ -376,35 +351,54 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
                 builder.endObject();
             }
             builder.endArray();
-
             return builder;
         }
     }
 
-    public static class ProcessStats implements ToXContent, Streamable {
+    public static class ProcessStats implements ToXContent, Writeable<ProcessStats> {
 
-        int count;
-        int cpuPercent;
-        long totalOpenFileDescriptors;
-        long minOpenFileDescriptors = Long.MAX_VALUE;
-        long maxOpenFileDescriptors = Long.MIN_VALUE;
+        final int count;
+        final int cpuPercent;
+        final long totalOpenFileDescriptors;
+        final long minOpenFileDescriptors;
+        final long maxOpenFileDescriptors;
 
-        public void addNodeStats(NodeStats nodeStats) {
-            if (nodeStats.getProcess() == null) {
-                return;
+        private ProcessStats(StreamInput in) throws IOException {
+            this.count = in.readVInt();
+            this.cpuPercent = in.readVInt();
+            this.totalOpenFileDescriptors = in.readVLong();
+            this.minOpenFileDescriptors = in.readLong();
+            this.maxOpenFileDescriptors = in.readLong();
+        }
+
+        private ProcessStats(List<NodeStats> nodeStatsList) {
+            int count = 0;
+            int cpuPercent = 0;
+            long totalOpenFileDescriptors = 0;
+            long minOpenFileDescriptors = Long.MAX_VALUE;
+            long maxOpenFileDescriptors = Long.MIN_VALUE;
+            for (NodeStats nodeStats : nodeStatsList) {
+                if (nodeStats.getProcess() == null) {
+                    continue;
+                }
+                count++;
+                if (nodeStats.getProcess().getCpu() != null) {
+                    cpuPercent += nodeStats.getProcess().getCpu().getPercent();
+                }
+                long fd = nodeStats.getProcess().getOpenFileDescriptors();
+                if (fd > 0) {
+                    // fd can be -1 if not supported on platform
+                    totalOpenFileDescriptors += fd;
+                }
+                // we still do min max calc on -1, so we'll have an indication of it not being supported on one of the nodes.
+                minOpenFileDescriptors = Math.min(minOpenFileDescriptors, fd);
+                maxOpenFileDescriptors = Math.max(maxOpenFileDescriptors, fd);
             }
-            count++;
-            if (nodeStats.getProcess().getCpu() != null) {
-                cpuPercent += nodeStats.getProcess().getCpu().getPercent();
-            }
-            long fd = nodeStats.getProcess().getOpenFileDescriptors();
-            if (fd > 0) {
-                // fd can be -1 if not supported on platform
-                totalOpenFileDescriptors += fd;
-            }
-            // we still do min max calc on -1, so we'll have an indication of it not being supported on one of the nodes.
-            minOpenFileDescriptors = Math.min(minOpenFileDescriptors, fd);
-            maxOpenFileDescriptors = Math.max(maxOpenFileDescriptors, fd);
+            this.count = count;
+            this.cpuPercent = cpuPercent;
+            this.totalOpenFileDescriptors = totalOpenFileDescriptors;
+            this.minOpenFileDescriptors = minOpenFileDescriptors;
+            this.maxOpenFileDescriptors = maxOpenFileDescriptors;
         }
 
         /**
@@ -436,12 +430,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            count = in.readVInt();
-            cpuPercent = in.readVInt();
-            totalOpenFileDescriptors = in.readVLong();
-            minOpenFileDescriptors = in.readLong();
-            maxOpenFileDescriptors = in.readLong();
+        public ProcessStats readFrom(StreamInput in) throws IOException {
+            return new ProcessStats(in);
         }
 
         @Override
@@ -451,12 +441,6 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             out.writeVLong(totalOpenFileDescriptors);
             out.writeLong(minOpenFileDescriptors);
             out.writeLong(maxOpenFileDescriptors);
-        }
-
-        public static ProcessStats readStats(StreamInput in) throws IOException {
-            ProcessStats cpu = new ProcessStats();
-            cpu.readFrom(in);
-            return cpu;
         }
 
         static final class Fields {
@@ -482,20 +466,54 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         }
     }
 
-    public static class JvmStats implements Streamable, ToXContent {
+    public static class JvmStats implements Writeable<JvmStats>, ToXContent {
 
-        ObjectIntHashMap<JvmVersion> versions;
-        long threads;
-        long maxUptime;
-        long heapUsed;
-        long heapMax;
+        private final ObjectIntHashMap<JvmVersion> versions;
+        private final long threads;
+        private final long maxUptime;
+        private final long heapUsed;
+        private final long heapMax;
 
-        JvmStats() {
-            versions = new ObjectIntHashMap<>();
-            threads = 0;
-            maxUptime = 0;
-            heapMax = 0;
-            heapUsed = 0;
+        private JvmStats(StreamInput in) throws IOException {
+            int size = in.readVInt();
+            this.versions = new ObjectIntHashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                this.versions.addTo(JvmVersion.readJvmVersion(in), in.readVInt());
+            }
+            this.threads = in.readVLong();
+            this.maxUptime = in.readVLong();
+            this.heapUsed = in.readVLong();
+            this.heapMax = in.readVLong();
+        }
+
+        private JvmStats(List<NodeInfo> nodeInfos, List<NodeStats> nodeStatsList) {
+            this.versions = new ObjectIntHashMap<>();
+            long threads = 0;
+            long maxUptime = 0;
+            long heapMax = 0;
+            long heapUsed = 0;
+            for (NodeInfo nodeInfo : nodeInfos) {
+                versions.addTo(new JvmVersion(nodeInfo.getJvm()), 1);
+            }
+
+            for (NodeStats nodeStats : nodeStatsList) {
+                org.elasticsearch.monitor.jvm.JvmStats js = nodeStats.getJvm();
+                if (js == null) {
+                    continue;
+                }
+                if (js.getThreads() != null) {
+                    threads += js.getThreads().getCount();
+                }
+                maxUptime = Math.max(maxUptime, js.getUptime().millis());
+                if (js.getMem() != null) {
+                    heapUsed += js.getMem().getHeapUsed().bytes();
+                    heapMax += js.getMem().getHeapMax().bytes();
+                }
+            }
+            this.threads = threads;
+            this.maxUptime = maxUptime;
+            this.heapUsed = heapUsed;
+            this.heapMax = heapMax;
         }
 
         public ObjectIntHashMap<JvmVersion> getVersions() {
@@ -530,33 +548,9 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             return new ByteSizeValue(heapMax);
         }
 
-        public void addNodeInfoStats(NodeInfo nodeInfo, NodeStats nodeStats) {
-            versions.addTo(new JvmVersion(nodeInfo.getJvm()), 1);
-            org.elasticsearch.monitor.jvm.JvmStats js = nodeStats.getJvm();
-            if (js == null) {
-                return;
-            }
-            if (js.getThreads() != null) {
-                threads += js.getThreads().getCount();
-            }
-            maxUptime = Math.max(maxUptime, js.getUptime().millis());
-            if (js.getMem() != null) {
-                heapUsed += js.getMem().getHeapUsed().bytes();
-                heapMax += js.getMem().getHeapMax().bytes();
-            }
-        }
-
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            int size = in.readVInt();
-            versions = new ObjectIntHashMap<>(size);
-            for (; size > 0; size--) {
-                versions.addTo(JvmVersion.readJvmVersion(in), in.readVInt());
-            }
-            threads = in.readVLong();
-            maxUptime = in.readVLong();
-            heapUsed = in.readVLong();
-            heapMax = in.readVLong();
+        public JvmStats readFrom(StreamInput in) throws IOException {
+            return new JvmStats(in);
         }
 
         @Override
@@ -566,17 +560,10 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
                 v.key.writeTo(out);
                 out.writeVInt(v.value);
             }
-
             out.writeVLong(threads);
             out.writeVLong(maxUptime);
             out.writeVLong(heapUsed);
             out.writeVLong(heapMax);
-        }
-
-        public static JvmStats readJvmStats(StreamInput in) throws IOException {
-            JvmStats jvmStats = new JvmStats();
-            jvmStats.readFrom(in);
-            return jvmStats;
         }
 
         static final class Fields {
@@ -677,6 +664,4 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             out.writeString(vmVendor);
         }
     }
-
-
 }

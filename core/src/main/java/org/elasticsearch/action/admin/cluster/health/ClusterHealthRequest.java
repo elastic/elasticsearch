@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,7 +48,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private String waitForNodes = "";
     private Priority waitForEvents = null;
 
-    ClusterHealthRequest() {
+    public ClusterHealthRequest() {
     }
 
     public ClusterHealthRequest(String... indices) {
@@ -60,7 +61,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     @Override
-    public ClusterHealthRequest indices(String[] indices) {
+    public ClusterHealthRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -126,7 +127,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     /**
-     * Waits for N number of nodes. Use "12" for exact mapping, ">12" and "<12" for range.
+     * Waits for N number of nodes. Use "12" for exact mapping, "&gt;12" and "&lt;12" for range.
      */
     public ClusterHealthRequest waitForNodes(String waitForNodes) {
         this.waitForNodes = waitForNodes;

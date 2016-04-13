@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
@@ -44,8 +45,6 @@ public class SourceToParse {
     private final BytesReference source;
 
     private final XContentParser parser;
-
-    private boolean flyweight = false;
 
     private String index;
 
@@ -105,15 +104,6 @@ public class SourceToParse {
         return this;
     }
 
-    public SourceToParse flyweight(boolean flyweight) {
-        this.flyweight = flyweight;
-        return this;
-    }
-
-    public boolean flyweight() {
-        return this.flyweight;
-    }
-
     public String id() {
         return this.id;
     }
@@ -159,16 +149,22 @@ public class SourceToParse {
         return this.ttl;
     }
 
+    public SourceToParse ttl(TimeValue ttl) {
+        if (ttl == null) {
+            this.ttl = -1;
+            return this;
+        }
+        this.ttl = ttl.millis();
+        return this;
+    }
+
     public SourceToParse ttl(long ttl) {
         this.ttl = ttl;
         return this;
     }
 
-    public static enum Origin {
-
+    public enum Origin {
         PRIMARY,
         REPLICA
-
     }
-
 }

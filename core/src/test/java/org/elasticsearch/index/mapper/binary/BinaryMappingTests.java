@@ -20,13 +20,11 @@
 package org.elasticsearch.index.mapper.binary;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -53,7 +51,7 @@ public class BinaryMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
         assertThat(fieldMapper, instanceOf(BinaryFieldMapper.class));
@@ -65,12 +63,12 @@ public class BinaryMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "binary")
-                .field("store", "yes")
+                .field("store", true)
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         // case 1: a simple binary value
         final byte[] binaryValue1 = new byte[100];
@@ -83,7 +81,7 @@ public class BinaryMappingTests extends ESSingleNodeTestCase {
         }
         final byte[] binaryValue2 = out.bytes().toBytes();
         assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue2)));
-        
+
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
             ParsedDocument doc = mapper.parse("test", "type", "id", XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes());
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
@@ -93,35 +91,4 @@ public class BinaryMappingTests extends ESSingleNodeTestCase {
             assertEquals(new BytesArray(value), originalValue);
         }
     }
-
-    public void testCompressedBackCompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "binary")
-                .field("store", "yes")
-                .endObject()
-                .endObject()
-                .endObject().endObject().string();
-
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_5_0).build();
-        DocumentMapper mapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
-
-        final byte[] original = new byte[100];
-        original[56] = 1;
-        BytesStreamOutput out = new BytesStreamOutput();
-        try (StreamOutput compressed = CompressorFactory.defaultCompressor().streamOutput(out)) {
-            new BytesArray(original).writeTo(compressed);
-        }
-        final byte[] binaryValue = out.bytes().toBytes();
-        assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue)));
-        
-        ParsedDocument doc = mapper.parse("test", "type", "id", XContentFactory.jsonBuilder().startObject().field("field", binaryValue).endObject().bytes());
-        BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
-        assertEquals(new BytesRef(binaryValue), indexedValue);
-        FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
-        Object originalValue = fieldMapper.fieldType().valueForSearch(indexedValue);
-        assertEquals(new BytesArray(original), originalValue);
-    }
-
 }

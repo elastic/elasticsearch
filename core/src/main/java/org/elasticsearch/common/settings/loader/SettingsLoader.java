@@ -22,11 +22,10 @@ package org.elasticsearch.common.settings.loader;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Provides the ability to load settings (in the form of a simple Map) from
@@ -37,12 +36,12 @@ public interface SettingsLoader {
     static class Helper {
 
         public static Map<String, String> loadNestedFromMap(@Nullable Map map) {
-            Map<String, String> settings = newHashMap();
+            Map<String, String> settings = new HashMap<>();
             if (map == null) {
                 return settings;
             }
             StringBuilder sb = new StringBuilder();
-            List<String> path = newArrayList();
+            List<String> path = new ArrayList<>();
             serializeMap(settings, sb, path, map);
             return settings;
         }

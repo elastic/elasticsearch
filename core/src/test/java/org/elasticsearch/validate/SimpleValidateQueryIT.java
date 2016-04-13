@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.validate;
 
-import com.google.common.base.Charsets;
-
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
@@ -28,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -37,9 +36,9 @@ import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -47,6 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -54,21 +54,19 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ClusterScope(randomDynamicTemplates = false, scope = Scope.SUITE)
 public class SimpleValidateQueryIT extends ESIntegTestCase {
-
-    @Test
-    public void simpleValidateQuery() throws Exception {
+    public void testSimpleValidateQuery() throws Exception {
         createIndex("test");
         ensureGreen();
         client().admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setSource("foo".getBytes(Charsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8))).execute().actionGet().isValid(), equalTo(false));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_id:1")).execute().actionGet().isValid(), equalTo(true));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
@@ -80,35 +78,34 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
     }
 
-    @Test
-    public void explainValidateQueryTwoNodes() throws IOException {
+    public void testExplainValidateQueryTwoNodes() throws IOException {
         createIndex("test");
         ensureGreen();
         client().admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
-                        .startObject("baz").field("type", "string").field("analyzer", "snowball").endObject()
+                        .startObject("baz").field("type", "text").field("analyzer", "snowball").endObject()
                         .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
         refresh();
 
-        for (Client client : internalCluster()) {
+        for (Client client : internalCluster().getClients()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
-                    .setSource("foo".getBytes(Charsets.UTF_8))
+                    .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8)))
                     .setExplain(true)
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(false));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
-            assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to parse"));
+            assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to derive xcontent"));
             assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
         }
 
-        for (Client client : internalCluster()) {
-                ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
+        for (Client client : internalCluster().getClients()) {
+            ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.queryStringQuery("foo"))
                     .setExplain(true)
                     .execute().actionGet();
@@ -119,9 +116,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test //https://github.com/elasticsearch/elasticsearch/issues/3629
-    public void explainDateRangeInQueryString() {
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
+    // Issue #3629
+    public void testExplainDateRangeInQueryString() {
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
 
@@ -145,13 +142,16 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(response.isValid(), equalTo(true));
     }
 
-    @Test(expected = IndexNotFoundException.class)
-    public void validateEmptyCluster() {
-        client().admin().indices().prepareValidateQuery().get();
+    public void testValidateEmptyCluster() {
+        try {
+            client().admin().indices().prepareValidateQuery().get();
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
-    public void explainNoQuery() {
+    public void testExplainNoQuery() {
         createIndex("test");
         ensureGreen();
 
@@ -162,10 +162,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), equalTo("*:*"));
     }
 
-    @Test
-    public void explainFilteredAlias() {
+    public void testExplainFilteredAlias() {
         assertAcked(prepareCreate("test")
-                .addMapping("test", "field", "type=string")
+                .addMapping("test", "field", "type=text")
                 .addAlias(new Alias("alias").filter(QueryBuilders.termQuery("field", "value1"))));
         ensureGreen();
 
@@ -177,15 +176,14 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:value1"));
     }
 
-    @Test
-    public void explainMatchPhrasePrefix() {
+    public void testExplainMatchPhrasePrefix() {
         assertAcked(prepareCreate("test").setSettings(
-                Settings.settingsBuilder().put(indexSettings())
+                Settings.builder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
                         .putArray("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")
                         .putArray("index.analysis.analyzer.syns.filter", "syns")
-                    ).addMapping("test", "field","type=string,analyzer=syns"));
+                    ).addMapping("test", "field","type=text,analyzer=syns"));
         ensureGreen();
 
         ValidateQueryResponse validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
@@ -214,10 +212,10 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo (one* two*)\""));
     }
 
-    @Test
-    public void explainWithRewriteValidateQuery() throws Exception {
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
+    public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field", "type=string,analyzer=whitespace")
+                .addMapping("type1", "field", "type=text,analyzer=whitespace")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
         client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
         client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();
@@ -233,54 +231,48 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         // common terms queries
         assertExplanation(QueryBuilders.commonTermsQuery("field", "huge brown pidgin").cutoffFrequency(1),
-                containsString("(field:huge field:brown) +field:pidgin"), true);
+                containsString("+field:pidgin (field:huge field:brown)"), true);
         assertExplanation(QueryBuilders.commonTermsQuery("field", "the brown").analyzer("stop"),
                 containsString("field:brown"), true);
-        
+
         // match queries with cutoff frequency
         assertExplanation(QueryBuilders.matchQuery("field", "huge brown pidgin").cutoffFrequency(1),
-                containsString("(field:huge field:brown) +field:pidgin"), true);
+                containsString("+field:pidgin (field:huge field:brown)"), true);
         assertExplanation(QueryBuilders.matchQuery("field", "the brown").analyzer("stop"),
                 containsString("field:brown"), true);
 
         // fuzzy queries
         assertExplanation(QueryBuilders.fuzzyQuery("field", "the").fuzziness(Fuzziness.fromEdits(2)),
-                containsString("field:the field:tree^0.3333333"), true);
+                containsString("field:the (field:tree)^0.3333333"), true);
         assertExplanation(QueryBuilders.fuzzyQuery("field", "jump"),
-                containsString("field:jumps^0.75"), true);
+                containsString("(field:jumps)^0.75"), true);
 
         // more like this queries
-        assertExplanation(QueryBuilders.moreLikeThisQuery("field").ids("1")
+        assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, MoreLikeThisQueryBuilder.ids("1"))
                         .include(true).minTermFreq(1).minDocFreq(1).maxQueryTerms(2),
                 containsString("field:huge field:pidgin"), true);
-        assertExplanation(QueryBuilders.moreLikeThisQuery("field").like("the huge pidgin")
+        assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, new String[] {"the huge pidgin"}, null)
                         .minTermFreq(1).minDocFreq(1).maxQueryTerms(2),
                 containsString("field:huge field:pidgin"), true);
     }
 
-    @Test
-    public void irrelevantPropertiesBeforeQuery() throws IOException {
+    public void testIrrelevantPropertiesBeforeQuery() throws IOException {
         createIndex("test");
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setSource(new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}")).get().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}"))).get().isValid(), equalTo(false));
     }
 
-    @Test
-    public void irrelevantPropertiesAfterQuery() throws IOException {
+    public void testIrrelevantPropertiesAfterQuery() throws IOException {
         createIndex("test");
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setSource(new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}")).get().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}"))).get().isValid(), equalTo(false));
     }
 
-    private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {
-        assertExplanation(queryBuilder, matcher, false);
-    }
-
-    private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
+    private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
                 .setTypes("type1")
                 .setQuery(queryBuilder)

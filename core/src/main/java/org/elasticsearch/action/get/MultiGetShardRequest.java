@@ -40,12 +40,12 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     IntArrayList locations;
     List<MultiGetRequest.Item> items;
 
-    MultiGetShardRequest() {
+    public MultiGetShardRequest() {
 
     }
 
     MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
-        super(multiGetRequest, index);
+        super(index);
         this.shardId = shardId;
         locations = new IntArrayList();
         items = new ArrayList<>();

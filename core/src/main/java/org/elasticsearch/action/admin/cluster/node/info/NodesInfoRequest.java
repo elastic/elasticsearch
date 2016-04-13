@@ -35,10 +35,10 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     private boolean process = true;
     private boolean jvm = true;
     private boolean threadPool = true;
-    private boolean network = true;
     private boolean transport = true;
     private boolean http = true;
     private boolean plugins = true;
+    private boolean ingest = true;
 
     public NodesInfoRequest() {
     }
@@ -60,10 +60,10 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         process = false;
         jvm = false;
         threadPool = false;
-        network = false;
         transport = false;
         http = false;
         plugins = false;
+        ingest = false;
         return this;
     }
 
@@ -76,10 +76,10 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         process = true;
         jvm = true;
         threadPool = true;
-        network = true;
         transport = true;
         http = true;
         plugins = true;
+        ingest = true;
         return this;
     }
 
@@ -159,21 +159,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     }
 
     /**
-     * Should the node Network be returned.
-     */
-    public boolean network() {
-        return this.network;
-    }
-
-    /**
-     * Should the node Network be returned.
-     */
-    public NodesInfoRequest network(boolean network) {
-        this.network = network;
-        return this;
-    }
-
-    /**
      * Should the node Transport be returned.
      */
     public boolean transport() {
@@ -220,6 +205,22 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         return plugins;
     }
 
+    /**
+     * Should information about ingest be returned
+     * @param ingest true if you want info
+     */
+    public NodesInfoRequest ingest(boolean ingest) {
+        this.ingest = ingest;
+        return this;
+    }
+
+    /**
+     * @return true if information about ingest is requested
+     */
+    public boolean ingest() {
+        return ingest;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -228,10 +229,10 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         process = in.readBoolean();
         jvm = in.readBoolean();
         threadPool = in.readBoolean();
-        network = in.readBoolean();
         transport = in.readBoolean();
         http = in.readBoolean();
         plugins = in.readBoolean();
+        ingest = in.readBoolean();
     }
 
     @Override
@@ -242,9 +243,9 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         out.writeBoolean(process);
         out.writeBoolean(jvm);
         out.writeBoolean(threadPool);
-        out.writeBoolean(network);
         out.writeBoolean(transport);
         out.writeBoolean(http);
         out.writeBoolean(plugins);
+        out.writeBoolean(ingest);
     }
 }

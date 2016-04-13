@@ -44,7 +44,7 @@ Consider this example where we want to associate the color blue with our `terms`
 --------------------------------------------------
 {
     ...
-    aggs": {
+    "aggs": {
         "titles": {
             "terms": {
                 "field": "title"

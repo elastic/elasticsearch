@@ -40,6 +40,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -72,6 +74,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BroadcastReplicationTests extends ESTestCase {
 
     private static ThreadPool threadPool;
+    private static CircuitBreakerService circuitBreakerService;
     private ClusterService clusterService;
     private TransportService transportService;
     private TestBroadcastReplicationAction broadcastReplicationAction;
@@ -79,13 +82,14 @@ public class BroadcastReplicationTests extends ESTestCase {
     @BeforeClass
     public static void beforeClass() {
         threadPool = new ThreadPool("BroadcastReplicationTests");
+        circuitBreakerService = new NoneCircuitBreakerService();
     }
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        LocalTransport transport = new LocalTransport(Settings.EMPTY, threadPool, Version.CURRENT, new NamedWriteableRegistry());
+        LocalTransport transport = new LocalTransport(Settings.EMPTY, threadPool, Version.CURRENT, new NamedWriteableRegistry(), circuitBreakerService);
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(transport, threadPool);
         transportService.start();

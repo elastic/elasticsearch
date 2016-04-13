@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -73,7 +74,8 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
                 .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
                 .build();
         clusterService = createClusterService(THREAD_POOL);
-        transport = new LocalTransport(settings, THREAD_POOL, Version.CURRENT, new NamedWriteableRegistry());
+        transport = new LocalTransport(settings, THREAD_POOL, Version.CURRENT, new NamedWriteableRegistry(),
+            new NoneCircuitBreakerService());
         transportService = new TransportService(transport, THREAD_POOL);
         indicesService = getInstanceFromNode(IndicesService.class);
         shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, THREAD_POOL);

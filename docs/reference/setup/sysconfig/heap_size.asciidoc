@@ -44,7 +44,7 @@ your server. Good rules of thumb are:
 
 Here are examples of how to set the heap size via the jvm.options file:
 
-[source]
+[source,txt]
 ------------------
 Xms2g <1>
 Xmx2g <2>

@@ -114,15 +114,33 @@ public class JvmInfo implements Streamable, ToXContent {
             Class<?> vmOptionClazz = Class.forName("com.sun.management.VMOption");
             PlatformManagedObject hotSpotDiagnosticMXBean = ManagementFactory.getPlatformMXBean(clazz);
             Method vmOptionMethod = clazz.getMethod("getVMOption", String.class);
-            Object useCompressedOopsVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
             Method valueMethod = vmOptionClazz.getMethod("getValue");
-            info.useCompressedOops = (String)valueMethod.invoke(useCompressedOopsVmOption);
-            Object useG1GCVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
-            info.useG1GC = (String)valueMethod.invoke(useG1GCVmOption);
-        } catch (Throwable t) {
-            // unable to deduce the state of compressed oops
-            info.useCompressedOops = "unknown";
-            info.useG1GC = "unknown";
+
+            try {
+                Object useCompressedOopsVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
+                info.useCompressedOops = (String) valueMethod.invoke(useCompressedOopsVmOption);
+            } catch (Exception ignored) {
+            }
+
+            try {
+                Object useG1GCVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
+                info.useG1GC = (String) valueMethod.invoke(useG1GCVmOption);
+            } catch (Exception ignored) {
+            }
+
+            try {
+                Object initialHeapSizeVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "InitialHeapSize");
+                info.configuredInitialHeapSize = Long.parseLong((String) valueMethod.invoke(initialHeapSizeVmOption));
+            } catch (Exception ignored) {
+            }
+
+            try {
+                Object maxHeapSizeVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxHeapSize");
+                info.configuredMaxHeapSize = Long.parseLong((String) valueMethod.invoke(maxHeapSizeVmOption));
+            } catch (Exception ignored) {
+            }
+        } catch (Exception ignored) {
+
         }
 
         INSTANCE = info;
@@ -146,6 +164,9 @@ public class JvmInfo implements Streamable, ToXContent {
 
     long startTime = -1;
 
+    private long configuredInitialHeapSize;
+    private long configuredMaxHeapSize;
+
     Mem mem;
 
     String[] inputArguments;
@@ -159,9 +180,9 @@ public class JvmInfo implements Streamable, ToXContent {
     String[] gcCollectors = Strings.EMPTY_ARRAY;
     String[] memoryPools = Strings.EMPTY_ARRAY;
 
-    private String useCompressedOops;
+    private String useCompressedOops = "unknown";
 
-    private String useG1GC;
+    private String useG1GC = "unknown";
 
     private JvmInfo() {
     }
@@ -284,6 +305,14 @@ public class JvmInfo implements Streamable, ToXContent {
 
     public Map<String, String> getSystemProperties() {
         return this.systemProperties;
+    }
+
+    public long getConfiguredInitialHeapSize() {
+        return configuredInitialHeapSize;
+    }
+
+    public long getConfiguredMaxHeapSize() {
+        return configuredMaxHeapSize;
     }
 
     /**

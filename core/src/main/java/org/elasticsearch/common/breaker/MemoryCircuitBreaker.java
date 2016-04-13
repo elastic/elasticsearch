@@ -82,7 +82,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
         final String message = "Data too large, data for field [" + fieldName + "] would be larger than limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
         logger.debug("{}", message);
-        throw new CircuitBreakingException(message);
+        throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit);
     }
 
     /**

@@ -994,7 +994,6 @@ public final class InternalTestCluster extends TestCluster {
         assertShardIndexCounter();
         //check that shards that have same sync id also contain same number of documents
         assertSameSyncIdSameDocs();
-
     }
 
     private void assertSameSyncIdSameDocs() {
@@ -1852,6 +1851,7 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public void assertAfterTest() throws IOException {
         super.assertAfterTest();
+        assertRequestsFinished();
         for (NodeEnvironment env : this.getInstances(NodeEnvironment.class)) {
             Set<ShardId> shardIds = env.lockedShards();
             for (ShardId id : shardIds) {
@@ -1859,6 +1859,27 @@ public final class InternalTestCluster extends TestCluster {
                     env.shardLock(id, TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (IOException ex) {
                     fail("Shard " + id + " is still locked after 5 sec waiting");
+                }
+            }
+        }
+    }
+
+    private void assertRequestsFinished() {
+        if (size() > 0) {
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                CircuitBreaker inFlightRequestsBreaker = getInstance(HierarchyCircuitBreakerService.class, nodeAndClient.name)
+                    .getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+                try {
+                    // see #ensureEstimatedStats()
+                    assertBusy(() -> {
+                        // ensure that our size accounting on transport level is reset properly
+                        long bytesUsed = inFlightRequestsBreaker.getUsed();
+                        assertThat("All incoming requests on node [" + nodeAndClient.name + "] should have finished. Expected 0 but got " +
+                            bytesUsed, bytesUsed, equalTo(0L));
+                    });
+                } catch (Exception e) {
+                    logger.error("Could not assert finished requests within timeout", e);
+                    fail("Could not assert finished requests within timeout on node [" + nodeAndClient.name + "]");
                 }
             }
         }

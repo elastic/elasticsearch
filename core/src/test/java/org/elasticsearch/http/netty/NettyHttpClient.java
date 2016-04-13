@@ -18,13 +18,17 @@
  */
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.ChannelStateEvent;
 import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
@@ -33,6 +37,7 @@ import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
 import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
 import org.jboss.netty.handler.codec.http.HttpClientCodec;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
@@ -76,9 +81,34 @@ public class NettyHttpClient implements Closeable {
         clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory());;
     }
 
-    public synchronized Collection<HttpResponse> sendRequests(SocketAddress remoteAddress, String... uris) throws InterruptedException {
-        final CountDownLatch latch = new CountDownLatch(uris.length);
-        final Collection<HttpResponse> content = Collections.synchronizedList(new ArrayList<HttpResponse>(uris.length));
+    public Collection<HttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
+        Collection<HttpRequest> requests = new ArrayList<>(uris.length);
+        for (int i = 0; i < uris.length; i++) {
+            final HttpRequest httpRequest = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
+            httpRequest.headers().add(HOST, "localhost");
+            httpRequest.headers().add("X-Opaque-ID", String.valueOf(i));
+            requests.add(httpRequest);
+        }
+        return sendRequests(remoteAddress, requests);
+    }
+
+    public Collection<HttpResponse> post(SocketAddress remoteAddress, Tuple<String, String>... urisAndBodies) throws InterruptedException {
+        Collection<HttpRequest> requests = new ArrayList<>(urisAndBodies.length);
+        for (Tuple<String, String> uriAndBody : urisAndBodies) {
+            ChannelBuffer content = ChannelBuffers.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
+            HttpRequest request = new DefaultHttpRequest(HTTP_1_1, HttpMethod.POST, uriAndBody.v1());
+            request.headers().add(HOST, "localhost");
+            request.headers().add(HttpHeaders.Names.CONTENT_LENGTH, content.readableBytes());
+            request.setContent(content);
+            requests.add(request);
+        }
+        return sendRequests(remoteAddress, requests);
+    }
+
+    private synchronized Collection<HttpResponse> sendRequests(SocketAddress remoteAddress, Collection<HttpRequest> requests)
+        throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(requests.size());
+        final Collection<HttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 
         clientBootstrap.setPipelineFactory(new CountDownLatchPipelineFactory(latch, content));
 
@@ -87,11 +117,8 @@ public class NettyHttpClient implements Closeable {
             channelFuture = clientBootstrap.connect(remoteAddress);
             channelFuture.await(1000);
 
-            for (int i = 0; i < uris.length; i++) {
-                final HttpRequest httpRequest = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
-                httpRequest.headers().add(HOST, "localhost");
-                httpRequest.headers().add("X-Opaque-ID", String.valueOf(i));
-                channelFuture.getChannel().write(httpRequest);
+            for (HttpRequest request : requests) {
+                channelFuture.getChannel().write(request);
             }
             latch.await();
 

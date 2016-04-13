@@ -137,6 +137,49 @@ public class BootstrapCheckTests extends ESTestCase {
         assertThat(suppressed[1], hasToString(containsString("second")));
     }
 
+    public void testHeapSizeCheck() {
+        final int initial = randomIntBetween(0, Integer.MAX_VALUE - 1);
+        final int max = randomIntBetween(initial + 1, Integer.MAX_VALUE);
+        final AtomicLong initialHeapSize = new AtomicLong(initial);
+        final AtomicLong maxHeapSize = new AtomicLong(max);
+
+        final BootstrapCheck.HeapSizeCheck check = new BootstrapCheck.HeapSizeCheck() {
+            @Override
+            long getInitialHeapSize() {
+                return initialHeapSize.get();
+            }
+
+            @Override
+            long getMaxHeapSize() {
+                return maxHeapSize.get();
+            }
+        };
+
+        try {
+            BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck");
+            fail("should have failed to initial heap size not equal to max heap size");
+        } catch (final RuntimeException e) {
+            assertThat(
+                    e.getMessage(),
+                    containsString("initial heap size [" + initialHeapSize.get() + "] " +
+                            "not equal to maximum heap size [" + maxHeapSize.get() + "]")
+            );
+        }
+
+        initialHeapSize.set(maxHeapSize.get());
+
+        BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck");
+
+        // nothing should happen if the initial heap size or the max
+        // heap size is not available
+        if (randomBoolean()) {
+            initialHeapSize.set(0);
+        } else {
+            maxHeapSize.set(0);
+        }
+        BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck");
+    }
+
     public void testFileDescriptorLimits() {
         final boolean osX = randomBoolean(); // simulates OS X versus non-OS X
         final int limit = osX ? 10240 : 1 << 16;

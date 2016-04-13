@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 
@@ -108,6 +109,7 @@ final class BootstrapCheck {
     // the list of checks to execute
     static List<Check> checks(final Settings settings) {
         final List<Check> checks = new ArrayList<>();
+        checks.add(new HeapSizeCheck());
         final FileDescriptorCheck fileDescriptorCheck
             = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
@@ -140,6 +142,38 @@ final class BootstrapCheck {
          * @return the error message on check failure
          */
         String errorMessage();
+
+    }
+
+    static class HeapSizeCheck implements BootstrapCheck.Check {
+
+        @Override
+        public boolean check() {
+            final long initialHeapSize = getInitialHeapSize();
+            final long maxHeapSize = getMaxHeapSize();
+            return initialHeapSize != 0 && maxHeapSize != 0 && initialHeapSize != maxHeapSize;
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                    Locale.ROOT,
+                    "initial heap size [%d] not equal to maximum heap size [%d]; " +
+                            "this can cause resize pauses and prevents mlockall from locking the entire heap",
+                    getInitialHeapSize(),
+                    getMaxHeapSize()
+            );
+        }
+
+        // visible for testing
+        long getInitialHeapSize() {
+            return JvmInfo.jvmInfo().getConfiguredInitialHeapSize();
+        }
+
+        // visible for testing
+        long getMaxHeapSize() {
+            return JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        }
 
     }
 

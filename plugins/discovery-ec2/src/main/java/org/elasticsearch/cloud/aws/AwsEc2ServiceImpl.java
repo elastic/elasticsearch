@@ -28,6 +28,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
+import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
@@ -184,5 +185,8 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         if (client != null) {
             client.shutdown();
         }
+
+        // Ensure that IdleConnectionReaper is shutdown
+        IdleConnectionReaper.shutdown();
     }
 }

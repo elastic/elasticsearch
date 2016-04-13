@@ -43,7 +43,6 @@ import static org.elasticsearch.search.suggest.completion.context.GeoContextMapp
  */
 public final class GeoQueryContext implements ToXContent {
     public static final String NAME = "geo";
-    public static final GeoQueryContext PROTOTYPE = new GeoQueryContext(null, 1, 12, Collections.emptyList());
 
     private final GeoPoint geoPoint;
     private final int boost;

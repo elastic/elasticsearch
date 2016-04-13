@@ -252,7 +252,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             }
         }
         if (in.readBoolean()) {
-            suggestBuilder = SuggestBuilder.PROTOTYPE.readFrom(in);
+            suggestBuilder = new SuggestBuilder(in);
         }
         terminateAfter = in.readVInt();
         timeoutInMillis = in.readLong();

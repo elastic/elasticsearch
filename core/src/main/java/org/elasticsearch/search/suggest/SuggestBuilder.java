@@ -47,12 +47,38 @@ import java.util.Objects;
  * to the terms in provided text. These suggestions are based on several options described in this class.
  */
 public class SuggestBuilder extends ToXContentToBytes implements Writeable<SuggestBuilder> {
-
-    public static final SuggestBuilder PROTOTYPE = new SuggestBuilder();
     protected static final ParseField GLOBAL_TEXT_FIELD = new ParseField("text");
 
     private String globalText;
     private final Map<String, SuggestionBuilder<?>> suggestions = new HashMap<>();
+
+    /**
+     * Build an empty SuggestBuilder.
+     */
+    public SuggestBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SuggestBuilder(StreamInput in) throws IOException {
+        globalText = in.readOptionalString();
+        final int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            suggestions.put(in.readString(), in.readSuggestion());
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(globalText);
+        final int size = suggestions.size();
+        out.writeVInt(size);
+        for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
+            out.writeString(suggestion.getKey());
+            out.writeSuggestion(suggestion.getValue());
+        }
+    }
 
     /**
      * Sets the text to provide suggestions for. The suggest text is a required option that needs
@@ -159,28 +185,6 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
             suggestionSearchContext.addSuggestion(suggestion.getKey(), suggestionContext);
         }
         return suggestionSearchContext;
-    }
-
-    @Override
-    public SuggestBuilder readFrom(StreamInput in) throws IOException {
-        final SuggestBuilder builder = new SuggestBuilder();
-        builder.globalText = in.readOptionalString();
-        final int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.suggestions.put(in.readString(), in.readSuggestion());
-        }
-        return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(globalText);
-        final int size = suggestions.size();
-        out.writeVInt(size);
-        for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
-            out.writeString(suggestion.getKey());
-            out.writeSuggestion(suggestion.getValue());
-        }
     }
 
     @Override

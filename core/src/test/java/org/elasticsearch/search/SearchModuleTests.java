@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -65,9 +64,9 @@ public class SearchModuleTests extends ModuleTestCase {
 
     public void testRegisterSuggester() {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
-        module.registerSuggester("custom", CustomSuggester.PROTOTYPE);
+        module.registerSuggester("custom", CustomSuggester.INSTANCE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> module.registerSuggester("custom", CustomSuggester.PROTOTYPE));
+                () -> module.registerSuggester("custom", CustomSuggester.INSTANCE));
         assertEquals("Can't register the same [suggester] more than once for [custom]", e.getMessage());
     }
 

@@ -38,7 +38,6 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
  */
 public final class CategoryQueryContext implements ToXContent {
     public static final String NAME = "category";
-    public static final CategoryQueryContext PROTOTYPE = new CategoryQueryContext("", 1, false);
 
     private final String category;
     private final boolean isPrefix;

@@ -6,8 +6,8 @@ or from our  <<rpm-repo,RPM repository>>. It can be used to install
 Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
 and Oracle Enterprise.
 
-NOTE: RPM install is not supported on SLES 11.  Please see <<zip-targz>>
-instead.
+NOTE: RPM install is not supported on distributions with old versions of RPM,
+such as SLES 11 and CentOS 5.  Please see <<zip-targz>> instead.
 
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can

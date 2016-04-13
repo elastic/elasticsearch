@@ -1,9 +1,9 @@
 {
-  "template": ".watcher-history-${watcher.template.version}*",
+  "template": ".watcher-history-${xpack.watcher.template.version}*",
   "order": 2147483647,
   "settings": {
-    "watcher.plugin.version": "${watcher.plugin.version}",
-    "watcher.template.version": "${watcher.template.version}",
+    "xpack.watcher.plugin.version": "${xpack.watcher.plugin.version}",
+    "xpack.watcher.template.version": "${xpack.watcher.template.version}",
     "index.number_of_shards": 1,
     "index.mapper.dynamic": false
   },

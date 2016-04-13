@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,13 +45,12 @@ public class IndexAuditTrailUpdateMappingTests extends ShieldIntegTestCase {
     public void testMappingIsUpdated() throws Exception {
         // Setup
         IndexNameResolver.Rollover rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
-        AuthenticationService authService = mock(AuthenticationService.class);
-        Settings settings = Settings.builder().put("shield.audit.index.rollover", rollover.name().toLowerCase(Locale.ENGLISH))
+        Settings settings = Settings.builder().put("xpack.security.audit.index.rollover", rollover.name().toLowerCase(Locale.ENGLISH))
                 .put("path.home", createTempDir()).build();
         Transport transport = mock(Transport.class);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE },
                 DummyTransportAddress.INSTANCE));
-        auditor = new IndexAuditTrail(settings, authService, transport, Providers.of(internalClient()), threadPool,
+        auditor = new IndexAuditTrail(settings, transport, Providers.of(internalClient()), threadPool,
                 mock(ClusterService.class));
 
         // before starting we add an event

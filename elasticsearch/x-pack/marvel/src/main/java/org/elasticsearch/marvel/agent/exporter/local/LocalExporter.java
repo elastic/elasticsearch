@@ -21,11 +21,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
@@ -35,6 +35,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -56,23 +57,21 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
 
-    /** Version number of built-in templates **/
-    private final Integer templateVersion;
-
     public LocalExporter(Exporter.Config config, MonitoringClientProxy client,
                          ClusterService clusterService, CleanerService cleanerService) {
         super(TYPE, config);
         this.client = client;
         this.clusterService = clusterService;
         this.cleanerService = cleanerService;
+        this.resolvers = new ResolversRegistry(config.settings());
 
-        // Loads the current version number of built-in templates
-        templateVersion = MarvelTemplateUtils.TEMPLATE_VERSION;
-        if (templateVersion == null) {
-            throw new IllegalStateException("unable to find built-in template version");
+        // Checks that required templates are loaded
+        for (MonitoringIndexNameResolver resolver : resolvers) {
+            if (resolver.template() == null) {
+                throw new IllegalStateException("unable to find built-in template " + resolver.templateName());
+            }
         }
 
-        resolvers = new ResolversRegistry(config.settings());
         clusterService.add(this);
         cleanerService.add(this);
     }
@@ -99,7 +98,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     @Override
     public void doClose() {
         if (state.getAndSet(State.TERMINATED) != State.TERMINATED) {
-            logger.debug("local exporter [{}] - stopped", name());
+            logger.debug("stopped");
             clusterService.remove(this);
             cleanerService.remove(this);
         }
@@ -113,25 +112,27 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we think may not have .monitoring-es-
             // indices but they may not have been restored from the cluster state on disk
-            logger.debug("local exporter [{}] - waiting until gateway has recovered from disk", name());
+            logger.debug("waiting until gateway has recovered from disk");
             return null;
         }
 
-        String templateName = MarvelTemplateUtils.indexTemplateName(templateVersion);
-        boolean templateInstalled = hasTemplate(templateName, clusterState);
+        // List of distinct templates
+        Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+                .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
 
-        // if this is not the master, we'll just look to see if the monitoring timestamped template is already
-        // installed and if so, if it has a compatible version. If it is (installed and compatible)
-        // we'll be able to start this exporter. Otherwise, we'll just wait for a new cluster state.
+
+        // if this is not the master, we'll just look to see if the monitoring templates are installed.
+        // If they all are, we'll be able to start this exporter. Otherwise, we'll just wait for a new cluster state.
         if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-            // We only need to check the index template for timestamped indices
-            if (templateInstalled == false) {
-                // the template for timestamped indices is not yet installed in the given cluster state, we'll wait.
-                logger.debug("local exporter [{}] - monitoring index template does not exist, so service cannot start", name());
-                return null;
+            for (String template : templates.keySet()) {
+                if (hasTemplate(template, clusterState) == false) {
+                    // the required template is not yet installed in the given cluster state, we'll wait.
+                    logger.debug("monitoring index template [{}] does not exist, so service cannot start", template);
+                    return null;
+                }
             }
 
-            logger.debug("local exporter [{}] - monitoring index template found, service can start", name());
+            logger.debug("monitoring index templates are installed, service can start");
 
         } else {
 
@@ -139,34 +140,26 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             //
             // Check that there is nothing that could block metadata updates
             if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
-                logger.debug("local exporter [{}] - waiting until metadata writes are unblocked", name());
+                logger.debug("waiting until metadata writes are unblocked");
                 return null;
             }
 
-            // Install the index template for timestamped indices first, so that other nodes can ship data
-            if (templateInstalled == false) {
-                logger.debug("local exporter [{}] - could not find existing monitoring template for timestamped indices, " +
-                        "installing a new one", name());
-                putTemplate(templateName, MarvelTemplateUtils.loadTimestampedIndexTemplate());
-                // we'll get that template on the next cluster state update
-                return null;
+            // Check that each required template exist, installing it if needed
+            for (Map.Entry<String, String> template : templates.entrySet()) {
+                if (hasTemplate(template.getKey(), clusterState) == false) {
+                    logger.debug("template [{}] not found", template.getKey());
+                    putTemplate(template.getKey(), template.getValue());
+                    return null;
+                } else {
+                    logger.debug("template [{}] found", template.getKey());
+                }
             }
 
-            // Install the index template for data index
-            templateName = MarvelTemplateUtils.dataTemplateName(templateVersion);
-            if (hasTemplate(templateName, clusterState) == false) {
-                logger.debug("local exporter [{}] - could not find existing monitoring template for data index, " +
-                        "installing a new one", name());
-                putTemplate(templateName, MarvelTemplateUtils.loadDataIndexTemplate());
-                // we'll get that template on the next cluster state update
-                return null;
-            }
-
-            logger.debug("local exporter [{}] - monitoring index template found on master node, service can start", name());
+            logger.debug("monitoring index templates are installed on master node, service can start");
         }
 
         if (state.compareAndSet(State.INITIALIZED, State.RUNNING)) {
-            logger.debug("local exporter [{}] - started!", name());
+            logger.debug("started");
         }
         return new LocalBulk(name(), logger, client, resolvers);
     }
@@ -185,7 +178,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 try {
                     Integer version = Integer.parseInt(template.value.substring(templatePattern.length() - 1));
                     templates.put(template.value, version);
-                    logger.debug("found index template [{}] in version [{}]", template, version);
+                    logger.debug("found index template [{}] in version [{}]", template.value, version);
                 } catch (NumberFormatException e) {
                     logger.warn("cannot extract version number for template [{}]", template.value);
                 }
@@ -199,8 +192,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         return templates.size() > 0;
     }
 
-    void putTemplate(String template, byte[] source) {
-        logger.debug("local exporter [{}] - installing template [{}]", name(), template);
+    void putTemplate(String template, String source) {
+        logger.debug("installing template [{}]",template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source);
         assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
@@ -210,15 +203,15 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             @Override
             public void onResponse(PutIndexTemplateResponse response) {
                 if (response.isAcknowledged()) {
-                    logger.trace("local exporter [{}] - successfully installed monitoring template [{}]", name(), template);
+                    logger.trace("successfully installed monitoring template [{}]", template);
                 } else {
-                    logger.error("local exporter [{}] - failed to update monitoring index template [{}]", name(), template);
+                    logger.error("failed to update monitoring index template [{}]", template);
                 }
             }
 
             @Override
             public void onFailure(Throwable throwable) {
-                logger.error("local exporter [{}] - failed to update monitoring index template [{}]", throwable, name(), template);
+                logger.error("failed to update monitoring index template [{}]", throwable, template);
             }
         });
     }
@@ -226,7 +219,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     @Override
     public void onCleanUpIndices(TimeValue retention) {
         if (state.get() != State.RUNNING) {
-            logger.debug("local exporter [{}] - not ready yet", name());
+            logger.debug("exporter not ready");
             return;
         }
 
@@ -234,7 +227,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             // Reference date time will be compared to index.creation_date settings,
             // that's why it must be in UTC
             DateTime expiration = new DateTime(DateTimeZone.UTC).minus(retention.millis());
-            logger.debug("local exporter [{}] - cleaning indices [expiration={}, retention={}]", name(), expiration, retention);
+            logger.debug("cleaning indices [expiration={}, retention={}]", expiration, retention);
 
             ClusterState clusterState = clusterService.state();
             if (clusterState != null) {
@@ -268,7 +261,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                         long creationDate = index.value.getCreationDate();
                         if (creationDate <= expirationTime) {
                             if (logger.isDebugEnabled()) {
-                                logger.debug("local exporter [{}] - detected expired index [name={}, created={}, expired={}]", name(),
+                                logger.debug("detected expired index [name={}, created={}, expired={}]",
                                         indexName, new DateTime(creationDate, DateTimeZone.UTC), expiration);
                             }
                             indices.add(indexName);
@@ -277,31 +270,33 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 }
 
                 if (!indices.isEmpty()) {
-                    logger.info("local exporter [{}] - cleaning up [{}] old indices", name(), indices.size());
+                    logger.info("cleaning up [{}] old indices", indices.size());
                     deleteIndices(indices);
                 } else {
-                    logger.debug("local exporter [{}] - no old indices found for clean up", name());
+                    logger.debug("no old indices found for clean up");
                 }
             }
         }
     }
 
     private void deleteIndices(Set<String> indices) {
-        logger.trace("local exporter [{}] - deleting {} indices: {}", name(), indices.size(), collectionToCommaDelimitedString(indices));
+        logger.trace("deleting {} indices: [{}]", indices.size(), collectionToCommaDelimitedString(indices));
         client.admin().indices().delete(new DeleteIndexRequest(indices.toArray(new String[indices.size()])),
                 new ActionListener<DeleteIndexResponse>() {
             @Override
             public void onResponse(DeleteIndexResponse response) {
                 if (response.isAcknowledged()) {
-                    logger.debug("local exporter [{}] - indices deleted", name());
+                    logger.debug("{} indices deleted", indices.size());
                 } else {
-                    logger.warn("local exporter [{}] - unable to delete {} indices", name(), indices.size());
+                    // Probably means that the delete request has timed out,
+                    // the indices will survive until the next clean up.
+                    logger.warn("deletion of {} indices wasn't acknowledged", indices.size());
                 }
             }
 
             @Override
             public void onFailure(Throwable e) {
-                logger.error("local exporter [{}] - failed to delete indices", e, name());
+                logger.error("failed to delete indices", e);
             }
         });
     }

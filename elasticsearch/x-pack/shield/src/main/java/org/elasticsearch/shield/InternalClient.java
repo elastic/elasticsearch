@@ -16,6 +16,7 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.authc.AuthenticationService;
+import org.elasticsearch.shield.user.XPackUser;
 
 import java.io.IOException;
 

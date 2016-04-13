@@ -47,13 +47,13 @@ public class ValidationTests extends ESTestCase {
         return newArray;
     }
 
-    public void testESUsersValidateUsername() throws Exception {
+    public void testUsersValidateUsername() throws Exception {
         int length = randomIntBetween(1, 30);
         String name = new String(generateValidName(length));
         assertThat(Users.validateUsername(name), nullValue());
     }
 
-    public void testESUsersValidateUsernameInvalidLength() throws Exception {
+    public void testUsersValidateUsernameInvalidLength() throws Exception {
         int length = frequently() ? randomIntBetween(31, 200) : 0; // invalid length
         char[] name = new char[length];
         if (length > 0) {
@@ -62,13 +62,13 @@ public class ValidationTests extends ESTestCase {
         assertThat(Users.validateUsername(new String(name)), notNullValue());
     }
 
-    public void testESUsersValidateUsernameInvalidCharacters() throws Exception {
+    public void testUsersValidateUsernameInvalidCharacters() throws Exception {
         int length = randomIntBetween(1, 30); // valid length
         String name = new String(generateInvalidName(length));
         assertThat(Users.validateUsername(name), notNullValue());
     }
 
-    public void testESUsersValidatePassword() throws Exception {
+    public void testUsersValidatePassword() throws Exception {
         String passwd = randomAsciiOfLength(randomIntBetween(0, 20));
         logger.info("{}[{}]", passwd, passwd.length());
         if (passwd.length() >= 6) {

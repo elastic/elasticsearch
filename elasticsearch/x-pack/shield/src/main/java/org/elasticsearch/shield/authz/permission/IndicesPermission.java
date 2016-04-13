@@ -61,6 +61,10 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
 
         private final Group[] groups;
 
+        public Core(List<Group> groups) {
+            this(groups.toArray(new Group[groups.size()]));
+        }
+
         public Core(Group... groups) {
             this.groups = groups;
             loadingFunction = (action) -> {

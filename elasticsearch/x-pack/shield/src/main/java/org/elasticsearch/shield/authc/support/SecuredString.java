@@ -18,7 +18,7 @@ import java.util.Arrays;
  * TODO: dot net's SecureString implementation does some obfuscation of the password to prevent gleaming passwords
  * from memory dumps.  (this is hard as dot net uses windows system crypto.  Thats probably the reason java still doesn't have it)
  */
-public class SecuredString implements CharSequence {
+public class SecuredString implements CharSequence, AutoCloseable {
 
     public static final SecuredString EMPTY = new SecuredString(new char[0]);
 
@@ -222,5 +222,10 @@ public class SecuredString implements CharSequence {
         }
 
         return equals == 0;
+    }
+
+    @Override
+    public void close() {
+        clear();
     }
 }

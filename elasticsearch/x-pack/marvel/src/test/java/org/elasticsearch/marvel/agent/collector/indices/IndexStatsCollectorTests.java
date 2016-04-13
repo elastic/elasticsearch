@@ -22,7 +22,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -52,7 +52,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     }
 
     public void testEmptyClusterAllIndices() throws Exception {
-        final String node = internalCluster().startNode(settingsBuilder().put(MarvelSettings.INDICES.getKey(), MetaData.ALL));
+        final String node = internalCluster().startNode(Settings.builder().put(MarvelSettings.INDICES.getKey(), MetaData.ALL));
         waitForNoBlocksOnNode(node);
 
         try {
@@ -63,7 +63,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     }
 
     public void testEmptyClusterMissingIndex() throws Exception {
-        final String node = internalCluster().startNode(settingsBuilder().put(MarvelSettings.INDICES.getKey(), "unknown"));
+        final String node = internalCluster().startNode(Settings.builder().put(MarvelSettings.INDICES.getKey(), "unknown"));
         waitForNoBlocksOnNode(node);
 
         try {

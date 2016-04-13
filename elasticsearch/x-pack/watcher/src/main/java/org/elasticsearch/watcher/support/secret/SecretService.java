@@ -46,7 +46,7 @@ public interface SecretService {
         private final CryptoService cryptoService;
         private final boolean encryptSensitiveData;
         public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
-                Setting.boolSetting("watcher.shield.encrypt_sensitive_data", false, Setting.Property.NodeScope);
+                Setting.boolSetting("xpack.watcher.shield.encrypt_sensitive_data", false, Setting.Property.NodeScope);
         @Inject
         public Secure(Settings settings, CryptoService cryptoService) {
             super(settings);

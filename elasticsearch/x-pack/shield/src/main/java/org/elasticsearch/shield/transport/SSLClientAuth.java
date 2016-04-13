@@ -44,10 +44,8 @@ public enum SSLClientAuth {
 
     public abstract void configure(SSLEngine engine);
 
-    public static SSLClientAuth parse(String value, SSLClientAuth defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
+    public static SSLClientAuth parse(String value) {
+        assert value != null;
         switch (value.toLowerCase(Locale.ROOT)) {
             case "no":
             case "false":

@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.support.secret.Secret;
@@ -129,6 +131,13 @@ public class AccountTests extends ESTestCase {
             String value = randomAsciiOfLength(6);
             smtpProps.put("mail.smtp." + name, value);
             smtpBuilder.put(name, value);
+        }
+
+        // default properties
+        for (String name : new String[]{ "connection_timeout", "write_timeout", "timeout"}) {
+            String propertyName = name.replaceAll("_", "");
+            smtpProps.put("mail.smtp." + propertyName,
+                    String.valueOf(TimeValue.parseTimeValue(Account.DEFAULT_SMTP_TIMEOUT_SETTINGS.get(name), name).millis()));
         }
 
         Settings smtpSettings = smtpBuilder.build();
@@ -262,5 +271,43 @@ public class AccountTests extends ESTestCase {
         }
 
         handle.remove();
+    }
+
+    public void testDefaultAccountTimeout() {
+        Account account = new Account(new Account.Config("default", Settings.builder()
+                .put("smtp.host", "localhost")
+                .put("smtp.port", server.port())
+                .build()), SecretService.Insecure.INSTANCE, logger);
+
+        Properties mailProperties = account.getConfig().smtp.properties;
+        assertThat(mailProperties.get("mail.smtp.connectiontimeout"), is(String.valueOf(TimeValue.timeValueMinutes(2).millis())));
+        assertThat(mailProperties.get("mail.smtp.writetimeout"), is(String.valueOf(TimeValue.timeValueMinutes(2).millis())));
+        assertThat(mailProperties.get("mail.smtp.timeout"), is(String.valueOf(TimeValue.timeValueMinutes(2).millis())));
+    }
+
+    public void testAccountTimeoutsCanBeConfigureAsTimeValue() {
+        Account account = new Account(new Account.Config("default", Settings.builder()
+                .put("smtp.host", "localhost")
+                .put("smtp.port", server.port())
+                .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
+                .put("smtp.write_timeout", TimeValue.timeValueMinutes(6))
+                .put("smtp.timeout", TimeValue.timeValueMinutes(8))
+                .build()), SecretService.Insecure.INSTANCE, logger);
+
+        Properties mailProperties = account.getConfig().smtp.properties;
+
+        assertThat(mailProperties.get("mail.smtp.connectiontimeout"), is(String.valueOf(TimeValue.timeValueMinutes(4).millis())));
+        assertThat(mailProperties.get("mail.smtp.writetimeout"), is(String.valueOf(TimeValue.timeValueMinutes(6).millis())));
+        assertThat(mailProperties.get("mail.smtp.timeout"), is(String.valueOf(TimeValue.timeValueMinutes(8).millis())));
+    }
+
+    public void testAccountTimeoutsConfiguredAsNumberAreRejected() {
+        expectThrows(ElasticsearchException.class, () -> {
+            new Account(new Account.Config("default", Settings.builder()
+                    .put("smtp.host", "localhost")
+                    .put("smtp.port", server.port())
+                    .put("smtp.connection_timeout", 4000)
+                    .build()), SecretService.Insecure.INSTANCE, logger);
+        });
     }
 }

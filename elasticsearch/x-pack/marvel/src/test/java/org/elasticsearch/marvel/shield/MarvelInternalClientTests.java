@@ -11,10 +11,11 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.InternalClient;
+
+import java.util.ArrayList;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -48,23 +49,16 @@ public class MarvelInternalClientTests extends MarvelIntegTestCase {
         assertAccessIsAllowed(internalClient.admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
         assertAccessIsAllowed(internalClient.admin().indices().prepareCreate(MONITORING_INDICES_PREFIX + "test"));
 
-        assertAccessIsAllowed(internalClient.admin().indices().preparePutTemplate("foo")
-                .setSource(MarvelTemplateUtils.loadTimestampedIndexTemplate()));
+        assertAccessIsAllowed(internalClient.admin().indices().preparePutTemplate("foo").setSource(randomTemplateSource()));
         assertAccessIsAllowed(internalClient.admin().indices().prepareGetTemplates("foo"));
     }
 
-    public void testDeniedAccess() {
+    public void testAllowAllAccess() {
         InternalClient internalClient = internalCluster().getInstance(InternalClient.class);
-        assertAcked(internalClient.admin().indices().preparePutTemplate("foo")
-                .setSource(MarvelTemplateUtils.loadDataIndexTemplate()).get());
+        assertAcked(internalClient.admin().indices().preparePutTemplate("foo").setSource(randomTemplateSource()).get());
 
-        if (shieldEnabled) {
-            assertAccessIsDenied(internalClient.admin().indices().prepareDeleteTemplate("foo"));
-            assertAccessIsDenied(internalClient.admin().cluster().prepareGetRepositories());
-        } else {
-            assertAccessIsAllowed(internalClient.admin().indices().prepareDeleteTemplate("foo"));
-            assertAccessIsAllowed(internalClient.admin().cluster().prepareGetRepositories());
-        }
+        assertAccessIsAllowed(internalClient.admin().indices().prepareDeleteTemplate("foo"));
+        assertAccessIsAllowed(internalClient.admin().cluster().prepareGetRepositories());
     }
 
     public void assertAccessIsAllowed(ActionRequestBuilder request) {
@@ -87,6 +81,13 @@ public class MarvelInternalClientTests extends MarvelIntegTestCase {
             // expected
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
         }
+    }
+
+    /**
+     * @return the source of a random monitoring template
+     */
+    private String randomTemplateSource() {
+        return randomFrom(new ArrayList<>(monitoringTemplates().values()));
     }
 }
 

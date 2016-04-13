@@ -6,13 +6,16 @@
 package org.elasticsearch.marvel.agent.exporter;
 
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- *
+ * An export bulk holds one of more documents until it got flushed. The {@link ExportBulk#flush()} usually triggers the exporting of the
+ * documents to their final destination.
  */
 public abstract class ExportBulk {
 
     protected final String name;
+    private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZING);
 
     public ExportBulk(String name) {
         this.name = name;
@@ -23,36 +26,73 @@ public abstract class ExportBulk {
         return name;
     }
 
-    public abstract ExportBulk add(Collection<MonitoringDoc> docs) throws ExportException;
-
-    public abstract void flush() throws ExportException;
-
-    public final void close(boolean flush) throws ExportException {
-        ExportException exception = null;
-        if (flush) {
-            flush();
+    /**
+     * Add documents to the exporting bulk
+     */
+    public void add(Collection<MonitoringDoc> docs) throws ExportException {
+        if (state.get() == State.INITIALIZING) {
+            doAdd(docs);
         }
+    }
 
-        // now closing
-        try {
-            onClose();
-        } catch (Exception e) {
+    protected abstract void doAdd(Collection<MonitoringDoc> docs) throws ExportException;
+
+    /**
+     * Flush the exporting bulk
+     */
+    public void flush() throws ExportException {
+        if (state.compareAndSet(State.INITIALIZING, State.FLUSHING)) {
+            doFlush();
+        }
+    }
+
+    protected abstract void doFlush();
+
+    /**
+     * Close the exporting bulk
+     */
+    public void close(boolean flush) throws ExportException {
+        if (state.getAndSet(State.CLOSED) != State.CLOSED) {
+
+            ExportException exception = null;
+            try {
+                if (flush) {
+                    doFlush();
+                }
+            } catch (ExportException e) {
+                if (exception != null) {
+                    exception.addSuppressed(e);
+                } else {
+                    exception = e;
+                }
+            } finally {
+                try {
+                    doClose();
+                } catch (Exception e) {
+                    if (exception != null) {
+                        exception.addSuppressed(e);
+                    } else {
+                        exception = new ExportException("Exception when closing export bulk", e);
+                    }
+                }
+            }
+
+            // rethrow exception
             if (exception != null) {
-                exception.addSuppressed(e);
-            } else {
-                exception = new ExportException("Exception when closing export bulk", e);
+                throw exception;
             }
         }
-
-        // rethrow exception
-        if (exception != null) {
-            throw exception;
-        }
     }
 
-    protected void onClose() throws Exception {
+    protected abstract void doClose() throws ExportException;
+
+    protected boolean isClosed() {
+        return state.get() == State.CLOSED;
     }
 
+    /**
+     * This class holds multiple export bulks exposed as a single compound bulk.
+     */
     public static class Compound extends ExportBulk {
 
         private final Collection<ExportBulk> bulks;
@@ -63,7 +103,7 @@ public abstract class ExportBulk {
         }
 
         @Override
-        public ExportBulk add(Collection<MonitoringDoc> docs) throws ExportException {
+        protected void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
             ExportException exception = null;
             for (ExportBulk bulk : bulks) {
                 try {
@@ -78,11 +118,10 @@ public abstract class ExportBulk {
             if (exception != null) {
                 throw exception;
             }
-            return this;
         }
 
         @Override
-        public void flush() throws ExportException {
+        protected void doFlush() {
             ExportException exception = null;
             for (ExportBulk bulk : bulks) {
                 try {
@@ -100,11 +139,13 @@ public abstract class ExportBulk {
         }
 
         @Override
-        protected void onClose() throws Exception {
+        protected void doClose() throws ExportException {
             ExportException exception = null;
             for (ExportBulk bulk : bulks) {
                 try {
-                    bulk.onClose();
+                    // We can close without flushing since doFlush()
+                    // would have been called by the parent class
+                    bulk.close(false);
                 } catch (ExportException e) {
                     if (exception == null) {
                         exception = new ExportException("failed to close export bulks");
@@ -116,5 +157,11 @@ public abstract class ExportBulk {
                 throw exception;
             }
         }
+    }
+
+    private enum State {
+        INITIALIZING,
+        FLUSHING,
+        CLOSED
     }
 }

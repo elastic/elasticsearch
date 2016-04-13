@@ -46,13 +46,13 @@ public class InternalHipChatServiceTests extends ESTestCase {
         HipChatMessage.Format defaultFormat = randomBoolean() ? null : randomFrom(HipChatMessage.Format.values());
         Boolean defaultNotify = randomBoolean() ? null : (Boolean) randomBoolean();
         Settings.Builder settingsBuilder = Settings.builder()
-                .put("watcher.actions.hipchat.service.account." + accountName + ".profile", HipChatAccount.Profile.V1.value())
-                .put("watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token");
+                .put("xpack.watcher.actions.hipchat.service.account." + accountName + ".profile", HipChatAccount.Profile.V1.value())
+                .put("xpack.watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token");
         if (host != null) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + accountName + ".host", host);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + accountName + ".host", host);
         }
         if (port > 0) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + accountName + ".port", port);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + accountName + ".port", port);
         }
         buildMessageDefaults(accountName, settingsBuilder, defaultRoom, null, defaultFrom, defaultColor, defaultFormat, defaultNotify);
         InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient,
@@ -93,14 +93,15 @@ public class InternalHipChatServiceTests extends ESTestCase {
         HipChatMessage.Format defaultFormat = randomBoolean() ? null : randomFrom(HipChatMessage.Format.values());
         Boolean defaultNotify = randomBoolean() ? null : (Boolean) randomBoolean();
         Settings.Builder settingsBuilder = Settings.builder()
-                .put("watcher.actions.hipchat.service.account." + accountName + ".profile", HipChatAccount.Profile.INTEGRATION.value())
-                .put("watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token")
-                .put("watcher.actions.hipchat.service.account." + accountName + ".room", room);
+                .put("xpack.watcher.actions.hipchat.service.account." + accountName + ".profile",
+                        HipChatAccount.Profile.INTEGRATION.value())
+                .put("xpack.watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token")
+                .put("xpack.watcher.actions.hipchat.service.account." + accountName + ".room", room);
         if (host != null) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + accountName + ".host", host);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + accountName + ".host", host);
         }
         if (port > 0) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + accountName + ".port", port);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + accountName + ".port", port);
         }
         buildMessageDefaults(accountName, settingsBuilder, null, null, defaultFrom, defaultColor, defaultFormat, defaultNotify);
         InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient,
@@ -129,8 +130,9 @@ public class InternalHipChatServiceTests extends ESTestCase {
     public void testSingleAccountIntegrationNoRoomSetting() throws Exception {
         String accountName = randomAsciiOfLength(10);
         Settings.Builder settingsBuilder = Settings.builder()
-                .put("watcher.actions.hipchat.service.account." + accountName + ".profile", HipChatAccount.Profile.INTEGRATION.value())
-                .put("watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token");
+                .put("xpack.watcher.actions.hipchat.service.account." + accountName + ".profile",
+                        HipChatAccount.Profile.INTEGRATION.value())
+                .put("xpack.watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token");
         try (InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient,
                 new ClusterSettings(settingsBuilder.build(), Collections.singleton(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING)))) {
             service.start();
@@ -150,13 +152,13 @@ public class InternalHipChatServiceTests extends ESTestCase {
         HipChatMessage.Format defaultFormat = randomBoolean() ? null : randomFrom(HipChatMessage.Format.values());
         Boolean defaultNotify = randomBoolean() ? null : (Boolean) randomBoolean();
         Settings.Builder settingsBuilder = Settings.builder()
-                .put("watcher.actions.hipchat.service.account." + accountName + ".profile", HipChatAccount.Profile.USER.value())
-                .put("watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token");
+                .put("xpack.watcher.actions.hipchat.service.account." + accountName + ".profile", HipChatAccount.Profile.USER.value())
+                .put("xpack.watcher.actions.hipchat.service.account." + accountName + ".auth_token", "_token");
         if (host != null) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + accountName + ".host", host);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + accountName + ".host", host);
         }
         if (port > 0) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + accountName + ".port", port);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + accountName + ".port", port);
         }
         buildMessageDefaults(accountName, settingsBuilder, defaultRoom, defaultUser, null, defaultColor, defaultFormat, defaultNotify);
         InternalHipChatService service = new InternalHipChatService(settingsBuilder.build(), httpClient,
@@ -197,17 +199,17 @@ public class InternalHipChatServiceTests extends ESTestCase {
         Boolean defaultNotify = randomBoolean() ? null : (Boolean) randomBoolean();
         Settings.Builder settingsBuilder = Settings.builder();
         String defaultAccount = "_a" + randomIntBetween(0, 4);
-        settingsBuilder.put("watcher.actions.hipchat.service.default_account", defaultAccount);
+        settingsBuilder.put("xpack.watcher.actions.hipchat.service.default_account", defaultAccount);
 
         boolean customGlobalServer = randomBoolean();
         if (customGlobalServer) {
-            settingsBuilder.put("watcher.actions.hipchat.service.host", "_host_global");
-            settingsBuilder.put("watcher.actions.hipchat.service.port", 299);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.host", "_host_global");
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.port", 299);
         }
 
         for (int i = 0; i < 5; i++) {
             String name = "_a" + i;
-            String prefix = "watcher.actions.hipchat.service.account." + name;
+            String prefix = "xpack.watcher.actions.hipchat.service.account." + name;
             HipChatAccount.Profile profile = randomFrom(HipChatAccount.Profile.values());
             settingsBuilder.put(prefix + ".profile", profile);
             settingsBuilder.put(prefix + ".auth_token", "_token" + i);
@@ -256,22 +258,22 @@ public class InternalHipChatServiceTests extends ESTestCase {
     private void buildMessageDefaults(String account, Settings.Builder settingsBuilder, String room, String user, String from,
                                       HipChatMessage.Color color, HipChatMessage.Format format, Boolean notify) {
         if (room != null) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + account + ".message_defaults.room", room);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + account + ".message_defaults.room", room);
         }
         if (user != null) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + account + ".message_defaults.user", user);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + account + ".message_defaults.user", user);
         }
         if (from != null) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + account + ".message_defaults.from", from);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + account + ".message_defaults.from", from);
         }
         if (color != null) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + account + ".message_defaults.color", color.value());
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + account + ".message_defaults.color", color.value());
         }
         if (format != null) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + account + ".message_defaults.format", format);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + account + ".message_defaults.format", format);
         }
         if (notify != null) {
-            settingsBuilder.put("watcher.actions.hipchat.service.account." + account + ".message_defaults.notify", notify);
+            settingsBuilder.put("xpack.watcher.actions.hipchat.service.account." + account + ".message_defaults.notify", notify);
         }
     }
 }

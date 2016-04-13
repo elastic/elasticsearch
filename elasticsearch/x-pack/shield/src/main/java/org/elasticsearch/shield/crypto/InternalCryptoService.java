@@ -10,7 +10,10 @@ import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.CharArrays;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -43,13 +46,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.shield.authc.support.SecuredString.constantTimeEquals;
+import static org.elasticsearch.shield.Security.setting;
 
 /**
  *
  */
 public class InternalCryptoService extends AbstractLifecycleComponent<InternalCryptoService> implements CryptoService {
 
-    public static final String FILE_SETTING = "shield.system_key.file";
     public static final String KEY_ALGO = "HmacSHA512";
     public static final int KEY_SIZE = 1024;
 
@@ -64,6 +67,14 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
 
     private static final Pattern SIG_PATTERN = Pattern.compile("^\\$\\$[0-9]+\\$\\$[^\\$]*\\$\\$.+");
     private static final byte[] HKDF_APP_INFO = "es-shield-crypto-service".getBytes(StandardCharsets.UTF_8);
+
+    public static final Setting<String> FILE_SETTING = Setting.simpleString(setting("system_key.file"), Property.NodeScope);
+    public static final Setting<String> ENCRYPTION_ALGO_SETTING =
+            new Setting<>(setting("encryption.algorithm"), s -> DEFAULT_ENCRYPTION_ALGORITHM, s -> s, Property.NodeScope);
+    public static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING =
+            Setting.intSetting(setting("encryption_key.length"), DEFAULT_KEY_LENGTH, Property.NodeScope);
+    public static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING =
+            new Setting<>(setting("encryption_key.algorithm"), DEFAULT_KEY_ALGORITH, s -> s, Property.NodeScope);
 
     private final Environment env;
     private final ResourceWatcherService watcherService;
@@ -93,10 +104,10 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         this.env = env;
         this.watcherService = watcherService;
         this.listeners = new CopyOnWriteArrayList<>(listeners);
-        this.encryptionAlgorithm = settings.get("shield.encryption.algorithm", DEFAULT_ENCRYPTION_ALGORITHM);
-        this.keyLength = settings.getAsInt("shield.encryption_key.length", DEFAULT_KEY_LENGTH);
+        this.encryptionAlgorithm = ENCRYPTION_ALGO_SETTING.get(settings);
+        this.keyLength = ENCRYPTION_KEY_LENGTH_SETTING.get(settings);
         this.ivLength = keyLength / 8;
-        this.keyAlgorithm = settings.get("shield.encryption_key.algorithm", DEFAULT_KEY_ALGORITH);
+        this.keyAlgorithm = ENCRYPTION_KEY_ALGO_SETTING.get(settings);
     }
 
     @Override
@@ -157,11 +168,11 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     }
 
     public static Path resolveSystemKey(Settings settings, Environment env) {
-        String location = settings.get(FILE_SETTING);
-        if (location == null) {
+        String location = FILE_SETTING.get(settings);
+        if (location.isEmpty()) {
             return XPackPlugin.resolveConfigFile(env, FILE_NAME);
         }
-        return env.binFile().getParent().resolve(location);
+        return XPackPlugin.resolveConfigFile(env, location);
     }
 
     static SecretKey createSigningKey(@Nullable SecretKey systemKey, SecretKey randomKey) {
@@ -667,5 +678,12 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
             generatedBytes.get(result, 0, outputLength);
             return result;
         }
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(FILE_SETTING);
+        settingsModule.registerSetting(ENCRYPTION_KEY_LENGTH_SETTING);
+        settingsModule.registerSetting(ENCRYPTION_KEY_ALGO_SETTING);
+        settingsModule.registerSetting(ENCRYPTION_ALGO_SETTING);
     }
 }

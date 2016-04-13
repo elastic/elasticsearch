@@ -35,6 +35,7 @@ import org.elasticsearch.shield.authc.file.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
+import org.elasticsearch.shield.authz.store.ReservedRolesStore;
 import org.elasticsearch.shield.support.FileAttributesChecker;
 import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.shield.support.Validation.Users;
@@ -96,9 +97,9 @@ public class UsersTool extends MultiCommand {
             char[] password = parsePassword(terminal, passwordOption.value(options));
             String[] roles = parseRoles(terminal, env, rolesOption.value(options));
 
-            Settings esusersSettings = Realms.fileRealmSettings(env.settings());
-            Path passwordFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Path rolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
+            Settings fileSettings = Realms.fileRealmSettings(env.settings());
+            Path passwordFile = FileUserPasswdStore.resolveFile(fileSettings, env);
+            Path rolesFile = FileUserRolesStore.resolveFile(fileSettings, env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
 
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null));
@@ -144,9 +145,9 @@ public class UsersTool extends MultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             String username = parseUsername(arguments.values(options));
-            Settings esusersSettings = Realms.fileRealmSettings(env.settings());
-            Path passwordFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Path rolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
+            Settings fileSettings = Realms.fileRealmSettings(env.settings());
+            Path passwordFile = FileUserPasswdStore.resolveFile(fileSettings, env);
+            Path rolesFile = FileUserRolesStore.resolveFile(fileSettings, env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
 
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null));
@@ -203,8 +204,8 @@ public class UsersTool extends MultiCommand {
             String username = parseUsername(arguments.values(options));
             char[] password = parsePassword(terminal, passwordOption.value(options));
 
-            Settings esusersSettings = Realms.fileRealmSettings(env.settings());
-            Path file = FileUserPasswdStore.resolveFile(esusersSettings, env);
+            Settings fileSettings = Realms.fileRealmSettings(env.settings());
+            Path file = FileUserPasswdStore.resolveFile(fileSettings, env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(file);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
             if (users.containsKey(username) == false) {
@@ -258,9 +259,9 @@ public class UsersTool extends MultiCommand {
                 return;
             }
 
-            Settings esusersSettings = Realms.fileRealmSettings(env.settings());
-            Path usersFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Path rolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
+            Settings fileSettings = Realms.fileRealmSettings(env.settings());
+            Path usersFile = FileUserPasswdStore.resolveFile(fileSettings, env);
+            Path rolesFile = FileUserRolesStore.resolveFile(fileSettings, env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(usersFile, rolesFile);
 
             Map<String, char[]> usersMap = FileUserPasswdStore.parseFile(usersFile, null);
@@ -318,12 +319,15 @@ public class UsersTool extends MultiCommand {
 
     // pkg private for tests
     static void listUsersAndRoles(Terminal terminal, Environment env, String username) throws Exception {
-        Settings esusersSettings = Realms.fileRealmSettings(env.settings());
-        Path userRolesFilePath = FileUserRolesStore.resolveFile(esusersSettings, env);
-        Set<String> knownRoles = FileRolesStore.parseFileForRoleNames(userRolesFilePath, null);
+        Settings fileSettings = Realms.fileRealmSettings(env.settings());
+        Path userRolesFilePath = FileUserRolesStore.resolveFile(fileSettings, env);
         Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
-        Path userFilePath = FileUserPasswdStore.resolveFile(esusersSettings, env);
+
+        Path userFilePath = FileUserPasswdStore.resolveFile(fileSettings, env);
         Set<String> users = FileUserPasswdStore.parseFile(userFilePath, null).keySet();
+
+        Path rolesFilePath = FileRolesStore.resolveFile(env.settings(), env);
+        Set<String> knownRoles = Sets.union(FileRolesStore.parseFileForRoleNames(rolesFilePath, null), ReservedRolesStore.names());
 
         if (username != null) {
             if (!users.contains(username)) {
@@ -338,10 +342,10 @@ public class UsersTool extends MultiCommand {
                     "-" : s).collect(Collectors.joining(","))));
                 if (!unknownRoles.isEmpty()) {
                     // at least one role is marked... so printing the legend
-                    Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
+                    Path rolesFile = FileRolesStore.resolveFile(fileSettings, env).toAbsolutePath();
                     terminal.println("");
-                    terminal.println(" [*]   An unknown role. "
-                        + "Please check [" + rolesFile.toAbsolutePath() + "] to see available roles");
+                    terminal.println(" [*]   Role is not in the [" + rolesFile.toAbsolutePath() + "] file. If the role has been created "
+                            + "using the API, please disregard this message.");
                 }
             } else {
                 terminal.println(String.format(Locale.ROOT, "%-15s: -", username));
@@ -372,10 +376,10 @@ public class UsersTool extends MultiCommand {
 
             if (unknownRolesFound) {
                 // at least one role is marked... so printing the legend
-                Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
+                Path rolesFile = FileRolesStore.resolveFile(fileSettings, env).toAbsolutePath();
                 terminal.println("");
-                terminal.println(" [*]   An unknown role. "
-                    + "Please check [" + rolesFile.toAbsolutePath() + "] to see available roles");
+                terminal.println(" [*]   Role is not in the [" + rolesFile.toAbsolutePath() + "] file. If the role has been created "
+                        + "using the API, please disregard this message.");
             }
         }
     }
@@ -436,11 +440,12 @@ public class UsersTool extends MultiCommand {
     private static void verifyRoles(Terminal terminal, Settings settings, Environment env, String[] roles) {
         Path rolesFile = FileRolesStore.resolveFile(settings, env);
         assert Files.exists(rolesFile);
-        Set<String> knownRoles = FileRolesStore.parseFileForRoleNames(rolesFile, null);
+        Set<String> knownRoles = Sets.union(FileRolesStore.parseFileForRoleNames(rolesFile, null), ReservedRolesStore.names());
         Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
         if (!unknownRoles.isEmpty()) {
-            terminal.println(String.format(Locale.ROOT, "Warning: The following roles [%s] are unknown. Make sure to add them to the [%s]" +
-                    " file. Nonetheless the user will still be associated with all specified roles",
+            terminal.println(String.format(Locale.ROOT, "Warning: The following roles [%s] are not in the [%s] file. Make sure the names " +
+                    "are correct. If the names are correct and the roles were created using the API please disregard this message. " +
+                    "Nonetheless the user will still be associated with all specified roles",
                 Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath()));
             terminal.println("Known roles: " + knownRoles.toString());
         }
@@ -459,8 +464,8 @@ public class UsersTool extends MultiCommand {
             }
         }
 
-        Settings esusersSettings = Realms.fileRealmSettings(env.settings());
-        verifyRoles(terminal, esusersSettings, env, roles);
+        Settings fileSettings = Realms.fileRealmSettings(env.settings());
+        verifyRoles(terminal, fileSettings, env, roles);
 
         return roles;
     }

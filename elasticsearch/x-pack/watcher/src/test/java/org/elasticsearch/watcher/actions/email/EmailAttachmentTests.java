@@ -93,11 +93,11 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         }
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("watcher.actions.email.service.account.test.smtp.auth", true)
-                .put("watcher.actions.email.service.account.test.smtp.user", USERNAME)
-                .put("watcher.actions.email.service.account.test.smtp.password", PASSWORD)
-                .put("watcher.actions.email.service.account.test.smtp.port", server.port())
-                .put("watcher.actions.email.service.account.test.smtp.host", "localhost")
+                .put("xpack.watcher.actions.email.service.account.test.smtp.auth", true)
+                .put("xpack.watcher.actions.email.service.account.test.smtp.user", USERNAME)
+                .put("xpack.watcher.actions.email.service.account.test.smtp.password", PASSWORD)
+                .put("xpack.watcher.actions.email.service.account.test.smtp.port", server.port())
+                .put("xpack.watcher.actions.email.service.account.test.smtp.host", "localhost")
                 .build();
     }
 

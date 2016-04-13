@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
@@ -182,7 +183,7 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put("shield.user", ShieldSettingsSource.DEFAULT_USER_NAME + ":" + ShieldSettingsSource.DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), ShieldSettingsSource.DEFAULT_USER_NAME + ":" + ShieldSettingsSource.DEFAULT_PASSWORD)
                 .build();
     }
 

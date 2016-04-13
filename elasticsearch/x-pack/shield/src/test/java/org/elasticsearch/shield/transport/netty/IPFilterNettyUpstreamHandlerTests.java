@@ -36,7 +36,7 @@ import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.HashSet;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -49,9 +49,9 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        Settings settings = settingsBuilder()
-                .put("shield.transport.filter.allow", "127.0.0.1")
-                .put("shield.transport.filter.deny", "10.0.0.0/8")
+        Settings settings = Settings.builder()
+                .put("xpack.security.transport.filter.allow", "127.0.0.1")
+                .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
                 .build();
 
         boolean isHttpEnabled = randomBoolean();

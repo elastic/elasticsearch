@@ -6,6 +6,8 @@
 package org.elasticsearch.shield.authz.permission;
 
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.shield.user.User;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -15,13 +17,13 @@ import java.util.function.Predicate;
  */
 public interface ClusterPermission extends Permission {
 
-    boolean check(String action);
+    boolean check(String action, TransportRequest request, User user);
 
     public static class Core implements ClusterPermission {
 
         public static final Core NONE = new Core(ClusterPrivilege.NONE) {
             @Override
-            public boolean check(String action) {
+            public boolean check(String action, TransportRequest request, User user) {
                 return false;
             }
 
@@ -44,7 +46,7 @@ public interface ClusterPermission extends Permission {
         }
 
         @Override
-        public boolean check(String action) {
+        public boolean check(String action, TransportRequest request, User user) {
             return predicate.test(action);
         }
 
@@ -63,12 +65,15 @@ public interface ClusterPermission extends Permission {
         }
 
         @Override
-        public boolean check(String action) {
+        public boolean check(String action, TransportRequest request, User user) {
             if (globals == null) {
                 return false;
             }
             for (GlobalPermission global : globals) {
-                if (global.cluster().check(action)) {
+                if (global == null || global.cluster() == null) {
+                    throw new RuntimeException();
+                }
+                if (global.cluster().check(action, request, user)) {
                     return true;
                 }
             }

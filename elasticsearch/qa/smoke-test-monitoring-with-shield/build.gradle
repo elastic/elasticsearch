@@ -1,0 +1,40 @@
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+}
+
+// bring in monitoring rest test suite
+task copyMonitoringRestTests(type: Copy) {
+  into project.sourceSets.test.output.resourcesDir
+  from project(':x-plugins:elasticsearch:x-pack').sourceSets.test.resources.srcDirs
+  include 'rest-api-spec/test/monitoring/**'
+}
+
+integTest {
+  dependsOn copyMonitoringRestTests
+
+  cluster {
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    setting 'xpack.monitoring.agent.interval', '3s'
+    extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+    setupCommand 'setupTestAdminUser',
+                 'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
+    setupCommand 'setupMonitoredSystemUser',
+                 'bin/x-pack/users', 'useradd', 'monitored_system', '-p', 'changeme', '-r', 'monitored_system,required_for_test'
+    setupCommand 'setupPowerlessUser',
+                 'bin/x-pack/users', 'useradd', 'no_monitored_system', '-p', 'changeme', '-r', 'required_for_test'
+
+    waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://${node.httpUri()}",
+              dest: tmpFile.toString(),
+              username: 'test_admin',
+              password: 'changeme',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
+    }
+  }
+}
+

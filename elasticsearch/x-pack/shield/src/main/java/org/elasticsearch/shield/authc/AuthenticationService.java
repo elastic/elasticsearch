@@ -7,7 +7,7 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
@@ -58,4 +58,6 @@ public interface AuthenticationService {
      * @param user      The user to be attached if the header is missing
      */
     void attachUserHeaderIfMissing(User user) throws IOException;
+
+    User getCurrentUser();
 }

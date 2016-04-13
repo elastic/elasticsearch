@@ -16,7 +16,10 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.file.FileRealm;
+import org.elasticsearch.shield.Security;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
+import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -29,7 +32,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.createFolder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
@@ -51,7 +53,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settingsBuilder = settingsBuilder();
+        Settings.Builder settingsBuilder = Settings.builder();
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
 
         Path store;
@@ -65,7 +67,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
         if (sslTransportEnabled()) {
             settingsBuilder.put("transport.profiles.client.shield.truststore.path", store) // settings for client truststore
                            .put("transport.profiles.client.shield.truststore.password", "testnode")
-                           .put("shield.transport.ssl", true);
+                           .put(ShieldNettyTransport.SSL_SETTING.getKey(), true);
         }
 
         return settingsBuilder
@@ -75,33 +77,33 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("transport.profiles.client.port", randomClientPortRange)
                 // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.bind_host", "localhost")
-                .put("shield.audit.enabled", false)
+                .put("xpack.security.audit.enabled", false)
                 .build();
     }
 
     public void testThatConnectionToServerTypeConnectionWorks() throws IOException {
         Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
-        String systemKeyFile = dataNodeSettings.get(InternalCryptoService.FILE_SETTING);
+        String systemKeyFile = InternalCryptoService.FILE_SETTING.get(dataNodeSettings);
 
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
-        String unicastHost = NetworkAddress.formatAddress(inetSocketAddress);
+        String unicastHost = NetworkAddress.format(inetSocketAddress);
 
         // test that starting up a node works
-        Settings nodeSettings = settingsBuilder()
+        Settings nodeSettings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("network.host", "localhost")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
-                .put("shield.transport.ssl", sslTransportEnabled())
-                .put("shield.audit.enabled", false)
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), sslTransportEnabled())
+                .put("xpack.security.audit.enabled", false)
                 .put("path.home", createTempDir())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
+                .put(InternalCryptoService.FILE_SETTING.getKey(), systemKeyFile)
                 .build();
         try (Node node = new MockNode(nodeSettings, Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
             node.start();
@@ -111,27 +113,27 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
 
     public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException {
         Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
-        String systemKeyFile = dataNodeSettings.get(InternalCryptoService.FILE_SETTING);
+        String systemKeyFile = InternalCryptoService.FILE_SETTING.get(dataNodeSettings);
 
         Path folder = createFolder(createTempDir(), getClass().getSimpleName() + "-" + randomAsciiOfLength(10));
 
         // test that starting up a node works
-        Settings nodeSettings = settingsBuilder()
-                .put("shield.authc.realms.file.type", FileRealm.TYPE)
-                .put("shield.authc.realms.file.order", 0)
-                .put("shield.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
-                .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
-                .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
+        Settings nodeSettings = Settings.builder()
+                .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
+                .put("xpack.security.authc.realms.file.order", 0)
+                .put("xpack.security.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
+                .put("xpack.security.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
+                .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", configRoles()))
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
-                .put("shield.user", "test_user:changeme")
+                .put(Security.USER_SETTING.getKey(), "test_user:changeme")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
-                .put("shield.transport.ssl", sslTransportEnabled())
-                .put("shield.audit.enabled", false)
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), sslTransportEnabled())
+                .put("xpack.security.audit.enabled", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
+                .put(InternalCryptoService.FILE_SETTING.getKey(), systemKeyFile)
                 .put("discovery.initial_state_timeout", "2s")
                 .put("path.home", createTempDir())
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)

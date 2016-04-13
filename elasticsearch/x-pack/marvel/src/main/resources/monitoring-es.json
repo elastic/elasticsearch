@@ -156,6 +156,30 @@
                   "properties": {
                     "memory_in_bytes": {
                       "type": "long"
+                    },
+                    "terms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "stored_fields_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "term_vectors_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "norms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "doc_values_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "index_writer_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "version_map_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "fixed_bit_set_memory_in_bytes": {
+                      "type": "long"
                     }
                   }
                 },
@@ -227,6 +251,30 @@
                 "segments": {
                   "properties": {
                     "memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "terms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "stored_fields_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "term_vectors_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "norms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "doc_values_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "index_writer_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "version_map_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "fixed_bit_set_memory_in_bytes": {
                       "type": "long"
                     }
                   }
@@ -318,7 +366,82 @@
               "type": "short"
             },
             "indices": {
-              "type": "object"
+              "properties": {
+                "docs": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "indexing": {
+                  "properties": {
+                    "index_time_in_millis": {
+                      "type": "long"
+                    },
+                    "index_total": {
+                      "type": "long"
+                    },
+                    "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "search": {
+                  "properties": {
+                    "query_time_in_millis": {
+                      "type": "long"
+                    },
+                    "query_total": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "segments": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "terms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "stored_fields_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "term_vectors_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "norms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "doc_values_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "index_writer_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "version_map_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "fixed_bit_set_memory_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "store": {
+                  "properties": {
+                    "size_in_bytes": {
+                      "type": "long"
+                    },
+                    "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
             },
             "fs": {
               "type": "object"

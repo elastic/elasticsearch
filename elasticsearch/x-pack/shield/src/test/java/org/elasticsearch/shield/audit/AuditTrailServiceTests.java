@@ -7,7 +7,7 @@ package org.elasticsearch.shield.audit;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;

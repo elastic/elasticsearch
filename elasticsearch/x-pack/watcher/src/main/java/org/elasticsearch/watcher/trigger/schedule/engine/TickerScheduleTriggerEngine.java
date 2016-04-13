@@ -37,7 +37,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Inject
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(settings, scheduleRegistry, clock);
-        this.tickInterval = settings.getAsTime("watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500));
+        this.tickInterval = settings.getAsTime("xpack.watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500));
         this.schedules = new ConcurrentHashMap<>();
     }
 

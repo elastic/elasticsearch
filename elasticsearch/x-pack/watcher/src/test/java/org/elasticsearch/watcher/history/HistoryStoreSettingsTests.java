@@ -33,9 +33,9 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
         assertAcked(
                 client().admin().cluster().prepareUpdateSettings()
                         .setTransientSettings(Settings.builder()
-                                .put("watcher.history.index.number_of_shards", "2")
-                                .put("watcher.history.index.number_of_replicas", "2")
-                                .put("watcher.history.index.refresh_interval", "5m"))
+                                .put("xpack.watcher.history.index.number_of_shards", "2")
+                                .put("xpack.watcher.history.index.number_of_replicas", "2")
+                                .put("xpack.watcher.history.index.refresh_interval", "5m"))
                         .get()
         );
 
@@ -60,8 +60,8 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
         assertAcked(
                 client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
-                        .put("watcher.history.index.number_of_shards", "2")
-                        .put("watcher.history.index.mapper.dynamic", true)) // forbidden setting, should not get updated
+                        .put("xpack.watcher.history.index.number_of_shards", "2")
+                        .put("xpack.watcher.history.index.mapper.dynamic", true)) // forbidden setting, should not get updated
                 .get()
         );
 

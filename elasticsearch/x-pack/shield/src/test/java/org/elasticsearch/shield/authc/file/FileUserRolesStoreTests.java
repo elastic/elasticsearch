@@ -79,11 +79,11 @@ public class FileUserRolesStoreTests extends ESTestCase {
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, lines, StandardCharsets.UTF_16);
 
-        Settings esusersSettings = Settings.builder()
+        Settings fileSettings = Settings.builder()
                 .put("files.users_roles", file.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", esusersSettings, settings, env);
+        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
         assertThat(store.entriesCount(), is(0));
@@ -94,11 +94,11 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Path tmp = createTempFile();
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings esusersSettings = Settings.builder()
+        Settings fileSettings = Settings.builder()
                 .put("files.users_roles", tmp.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", esusersSettings, settings, env);
+        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -137,11 +137,11 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Path tmp = createTempFile();
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings esusersSettings = Settings.builder()
+        Settings fileSettings = Settings.builder()
                 .put("files.users_roles", tmp.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", esusersSettings, settings, env);
+        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -232,12 +232,12 @@ public class FileUserRolesStoreTests extends ESTestCase {
                     .put("path.home", createTempDir())
                     .build();
 
-            Settings esusersSettings = Settings.builder()
+            Settings fileSettings = Settings.builder()
                     .put("files.users_roles", usersRoles.toAbsolutePath())
                     .build();
 
             Environment env = new Environment(settings);
-            RealmConfig config = new RealmConfig("file-test", esusersSettings, settings, env);
+            RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
             ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
             FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
             assertThat(store.roles("user"), equalTo(Strings.EMPTY_ARRAY));

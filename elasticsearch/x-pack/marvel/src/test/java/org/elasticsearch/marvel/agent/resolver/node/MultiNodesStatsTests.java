@@ -22,7 +22,6 @@ import org.junit.After;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -64,7 +63,7 @@ public class MultiNodesStatsTests extends MarvelIntegTestCase {
         n = randomIntBetween(1, 2);
         logger.debug("--> starting {} client only nodes", n);
         InternalTestCluster.Async<List<String>> clientNodes = internalCluster().startNodesAsync(n,
-                settingsBuilder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), false)
+                Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), false)
                         .put(Node.NODE_INGEST_SETTING.getKey(), false).build());
         clientNodes.get();
         nodes += n;

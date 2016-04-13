@@ -20,7 +20,7 @@ import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.shield.InternalClient;
-import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.Security;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -83,7 +83,7 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
                 results.add(indexStatsDoc);
             }
         } catch (IndexNotFoundException e) {
-            if (Shield.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices()))) {
+            if (Security.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices()))) {
                 logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
             } else {
                 throw e;

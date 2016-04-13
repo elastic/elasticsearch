@@ -15,8 +15,10 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
+import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -28,7 +30,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.Matchers.containsString;
@@ -36,13 +37,13 @@ import static org.hamcrest.Matchers.containsString;
 public class SslClientAuthTests extends ShieldIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // invert the require auth settings
-                .put("shield.transport.ssl", true)
-                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, true)
-                .put("transport.profiles.default.shield.ssl.client.auth", false)
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), true)
+                .put("transport.profiles.default.xpack.security.ssl.client.auth", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
@@ -72,7 +73,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
     }
 
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
         ClientSSLService sslService = new ClientSSLService(settings);
@@ -100,12 +101,13 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
             throw new ElasticsearchException("store path doesn't exist");
         }
 
-        Settings settings = settingsBuilder()
-                .put("shield.transport.ssl", true)
-                .put("shield.ssl.keystore.path", store)
-                .put("shield.ssl.keystore.password", "testclient-client-profile")
+        Settings settings = Settings.builder()
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), true)
+                .put("xpack.security.ssl.keystore.path", store)
+                .put("xpack.security.ssl.keystore.password", "testclient-client-profile")
                 .put("cluster.name", internalCluster().getClusterName())
-                .put("shield.user", transportClientUsername() + ":" + new String(transportClientPassword().internalChars()))
+                .put(Security.USER_SETTING.getKey(),
+                        transportClientUsername() + ":" + new String(transportClientPassword().internalChars()))
                 .build();
         try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build()) {
             Transport transport = internalCluster().getDataNodeInstance(Transport.class);

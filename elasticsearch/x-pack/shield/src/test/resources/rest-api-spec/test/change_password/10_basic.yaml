@@ -1,0 +1,166 @@
+---
+"Test changing users password":
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      shield.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "superuser" ]
+            }
+  - match: { user: { created: true } }
+
+# test that the role actually works
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+# change password
+  - do:
+      shield.change_password:
+        username: "joe"
+        body:  >
+            {
+              "password" : "s3krit2"
+            }
+
+# attempt to login with invalid credentials
+  - do:
+      catch: request
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+
+# login with new credentials
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdDI="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+---
+"Test user changing their own password":
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      shield.put_role:
+        name: "user"
+        body:  >
+            {
+              "cluster": ["monitor"],
+              "indices": [
+                {
+                  "names": "*",
+                  "privileges": ["all"]
+                }
+              ]
+            }
+  - match: { role: { created: true } }
+
+  - do:
+      shield.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "user" ]
+            }
+  - match: { user: { created: true } }
+
+# test that the role actually works
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+# change password as the current user. the power_user role only grants the ability to change their own password
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      shield.change_password:
+        body:  >
+            {
+              "password" : "s3krit2"
+            }
+
+# attempt to login with invalid credentials
+  - do:
+      catch: request
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+
+# login with new credentials
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdDI="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+---
+"Test unauthorized user changing anothers password":
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      shield.put_role:
+        name: "user"
+        body:  >
+            {
+              "cluster": ["monitor"],
+              "indices": [
+                {
+                  "names": "*",
+                  "privileges": ["all"]
+                }
+              ]
+            }
+  - match: { role: { created: true } }
+
+  - do:
+      shield.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "user" ]
+            }
+  - match: { user: { created: true } }
+
+# test that the role actually works
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+# attempt to change another users password
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdA=="
+      catch: forbidden
+      shield.change_password:
+        username: "anotheruser"
+        body:  >
+            {
+              "password" : "s3krit2"
+            }

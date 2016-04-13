@@ -59,9 +59,9 @@ public class TriggeredWatchStore extends AbstractComponent {
     @Inject
     public TriggeredWatchStore(Settings settings, WatcherClientProxy client, TriggeredWatch.Parser triggeredWatchParser) {
         super(settings);
-        this.scrollSize = settings.getAsInt("watcher.execution.scroll.size", 100);
+        this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 100);
         this.client = client;
-        this.scrollTimeout = settings.getAsTime("watcher.execution.scroll.timeout", TimeValue.timeValueSeconds(30));
+        this.scrollTimeout = settings.getAsTime("xpack.watcher.execution.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.triggeredWatchParser = triggeredWatchParser;
     }
 

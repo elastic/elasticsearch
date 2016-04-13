@@ -39,7 +39,7 @@ public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegratio
         assertAcked(
                 client().admin().cluster().prepareUpdateSettings()
                         .setTransientSettings(Settings.builder()
-                                .put("watcher.history.index.key1", "value"))
+                                .put("xpack.watcher.history.index.key1", "value"))
                         .get()
         );
 

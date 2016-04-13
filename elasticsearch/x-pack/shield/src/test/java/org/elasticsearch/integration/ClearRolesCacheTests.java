@@ -16,6 +16,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.action.role.PutRoleResponse;
 import org.elasticsearch.shield.action.role.GetRolesResponse;
 import org.elasticsearch.shield.ShieldTemplateService;
+import org.elasticsearch.shield.authc.esnative.NativeRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.RoleDescriptor;
@@ -78,7 +79,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         logger.debug("using poller interval [{}]", pollerInterval);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("shield.authc.native.reload.interval", pollerInterval)
+                .put(NativeRolesStore.POLL_INTERVAL_SETTING.getKey(), pollerInterval)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
@@ -141,7 +142,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
                     .execute();
             assertThat(response.getStatusCode(), is(RestStatus.OK.getStatus()));
         } else {
-            securityClient.prepareClearRolesCache().roles(rolesToClear).get();
+            securityClient.prepareClearRolesCache().names(rolesToClear).get();
         }
 
         assertRolesAreCorrect(securityClient, toModify);

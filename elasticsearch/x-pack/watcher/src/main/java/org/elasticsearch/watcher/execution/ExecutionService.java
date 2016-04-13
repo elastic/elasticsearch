@@ -45,7 +45,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public class ExecutionService extends AbstractComponent {
 
     private static final TimeValue DEFAULT_MAX_STOP_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private static final String DEFAULT_MAX_STOP_TIMEOUT_SETTING = "watcher.stop.timeout";
+    private static final String DEFAULT_MAX_STOP_TIMEOUT_SETTING = "xpack.watcher.stop.timeout";
 
     private final HistoryStore historyStore;
     private final TriggeredWatchStore triggeredWatchStore;
@@ -70,10 +70,10 @@ public class ExecutionService extends AbstractComponent {
         this.watchStore = watchStore;
         this.watchLockService = watchLockService;
         this.clock = clock;
-        this.defaultThrottlePeriod = settings.getAsTime("watcher.execution.default_throttle_period", TimeValue.timeValueSeconds(5));
+        this.defaultThrottlePeriod = settings.getAsTime("xpack.watcher.execution.default_throttle_period", TimeValue.timeValueSeconds(5));
         maxStopTimeout = settings.getAsTime(DEFAULT_MAX_STOP_TIMEOUT_SETTING, DEFAULT_MAX_STOP_TIMEOUT);
         if (ExecutionService.this.defaultThrottlePeriod.millis() < 0) {
-            settingsValidation.addError("watcher.execution.default_throttle_period", "time value cannot be negative");
+            settingsValidation.addError("xpack.watcher.execution.default_throttle_period", "time value cannot be negative");
         }
     }
 

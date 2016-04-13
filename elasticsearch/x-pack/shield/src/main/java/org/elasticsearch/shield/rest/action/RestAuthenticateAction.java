@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.rest.action;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -16,36 +15,43 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.shield.SystemUser;
-import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.XPackUser;
-import org.elasticsearch.shield.authc.AuthenticationService;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.shield.SecurityContext;
+import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.action.user.AuthenticateAction;
+import org.elasticsearch.shield.action.user.AuthenticateRequest;
+import org.elasticsearch.shield.action.user.AuthenticateResponse;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestAuthenticateAction extends BaseRestHandler {
 
-    private final AuthenticationService authenticationService;
+    private final SecurityContext securityContext;
 
     @Inject
-    public RestAuthenticateAction(Settings settings, RestController controller, Client client,
-                                  AuthenticationService authenticationService) {
+    public RestAuthenticateAction(Settings settings, RestController controller, Client client, SecurityContext securityContext) {
         super(settings, client);
-        this.authenticationService = authenticationService;
-        controller.registerHandler(GET, "/_shield/authenticate", this);
+        this.securityContext = securityContext;
+        controller.registerHandler(GET, "/_shield/authenticate", this); // deprecate
+        controller.registerHandler(GET, "/_shield/_authenticate", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
-        // we should be authenticated at this point, but we call the authc service to retrieve the user from the context
-        User user = authenticationService.authenticate(request);
+        final User user = securityContext.getUser();
         assert user != null;
-        if (SystemUser.is(user) || XPackUser.is(user)) {
-            throw new ElasticsearchSecurityException("the authenticate API cannot be used for the internal users");
-        }
-        XContentBuilder builder = channel.newBuilder();
-        user.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+        final String username = user.runAs() == null ? user.principal() : user.runAs().principal();
+
+        client.execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username),
+                new RestBuilderListener<AuthenticateResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(AuthenticateResponse authenticateResponse, XContentBuilder builder) throws Exception {
+                authenticateResponse.user().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                return new BytesRestResponse(RestStatus.OK, builder);
+            }
+        });
+
     }
 }

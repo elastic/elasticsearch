@@ -71,10 +71,8 @@ compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-
 
 ext.expansions = [
   'project.version': version,
-  // Used in marvel index templates
-  'monitoring.template.version': '1',
   // Used in watcher index templates
-  'watcher.template.version': '1',
+  'xpack.watcher.template.version': '1',
 ]
 
 processResources {
@@ -131,7 +129,7 @@ integTest {
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
   cluster {
     setting 'xpack.monitoring.agent.interval', '3s'
-    setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
         ant.get(src: "http://${node.httpUri()}",
@@ -159,7 +157,7 @@ artifacts {
 }
 
 run {
-  setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+  setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
@@ -174,3 +172,7 @@ thirdPartyAudit.excludes = [
 
 // someone figure out what the x-plugins logic should be
 licenseHeaders.enabled = false
+
+forbiddenApisMain {
+  signaturesURLs += [file('signatures.txt').toURI().toURL()]
+}

@@ -27,10 +27,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -46,9 +48,10 @@ import org.elasticsearch.shield.action.role.DeleteRoleRequest;
 import org.elasticsearch.shield.action.role.PutRoleRequest;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.permission.Role;
-import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.shield.client.SecurityClient;
+import org.elasticsearch.shield.support.SelfReschedulingRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,13 +61,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.shield.Security.setting;
 
 /**
  * ESNativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -75,6 +78,15 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * No caching is done by this class, it is handled at a higher level
  */
 public class NativeRolesStore extends AbstractComponent implements RolesStore, ClusterStateListener {
+
+    public static final Setting<Integer> SCROLL_SIZE_SETTING =
+            Setting.intSetting(setting("authz.store.roles.index.scroll.size"), 1000, Property.NodeScope);
+
+    public static final Setting<TimeValue> SCROLL_KEEP_ALIVE_SETTING =
+            Setting.timeSetting(setting("authz.store.roles.index.scroll.keep_alive"), TimeValue.timeValueSeconds(10L), Property.NodeScope);
+
+    public static final Setting<TimeValue> POLL_INTERVAL_SETTING =
+            Setting.timeSetting(setting("authz.store.roles.index.reload.interval"), TimeValue.timeValueSeconds(30L), Property.NodeScope);
 
     public enum State {
         INITIALIZED,
@@ -96,7 +108,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     private SecurityClient securityClient;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
-    private ScheduledFuture<?> versionChecker;
+    private SelfReschedulingRunnable rolesPoller;
 
     private volatile boolean shieldIndexExists = false;
 
@@ -134,9 +146,9 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
                 this.client = clientProvider.get();
                 this.securityClient = new SecurityClient(client);
-                this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
-                this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
-                TimeValue pollInterval = settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L));
+                this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
+                this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
+                TimeValue pollInterval = POLL_INTERVAL_SETTING.get(settings);
                 RolesStorePoller poller = new RolesStorePoller();
                 try {
                     poller.doRun();
@@ -144,7 +156,8 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     logger.warn("failed to perform initial poll of roles index [{}]. scheduling again in [{}]", e,
                             ShieldTemplateService.SECURITY_INDEX_NAME, pollInterval);
                 }
-                versionChecker = threadPool.scheduleWithFixedDelay(poller, pollInterval);
+                rolesPoller = new SelfReschedulingRunnable(poller, threadPool, pollInterval, Names.GENERIC, logger);
+                rolesPoller.start();
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -156,7 +169,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     public void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             try {
-                FutureUtils.cancel(versionChecker);
+                rolesPoller.stop();
             } finally {
                 state.set(State.STOPPED);
             }
@@ -420,7 +433,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     }
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {
-        ClearRolesCacheRequest request = new ClearRolesCacheRequest().roles(role);
+        ClearRolesCacheRequest request = new ClearRolesCacheRequest().names(role);
         securityClient.clearRolesCache(request, new ActionListener<ClearRolesCacheResponse>() {
             @Override
             public void onResponse(ClearRolesCacheResponse nodes) {
@@ -588,5 +601,11 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         long getVersion() {
             return version;
         }
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(SCROLL_SIZE_SETTING);
+        settingsModule.registerSetting(SCROLL_KEEP_ALIVE_SETTING);
+        settingsModule.registerSetting(POLL_INTERVAL_SETTING);
     }
 }

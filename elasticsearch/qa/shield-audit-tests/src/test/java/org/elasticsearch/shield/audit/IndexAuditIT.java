@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -85,7 +86,7 @@ public class IndexAuditIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put("shield.user", USER + ":" + PASS)
+                .put(Security.USER_SETTING.getKey(), USER + ":" + PASS)
                 .build();
     }
 

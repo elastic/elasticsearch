@@ -48,7 +48,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
         keyFile = createTempDir().resolve("system_key");
         Files.write(keyFile, InternalCryptoService.generateKey());
         settings = Settings.builder()
-                .put("shield.system_key.file", keyFile.toAbsolutePath())
+                .put(InternalCryptoService.FILE_SETTING.getKey(), keyFile.toAbsolutePath())
                 .put("resource.reload.interval.high", "2s")
                 .put("path.home", createTempDir())
                 .build();

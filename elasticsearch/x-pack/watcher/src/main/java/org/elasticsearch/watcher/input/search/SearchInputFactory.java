@@ -39,7 +39,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
         this.queryRegistry = queryRegistry;
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
-        this.defaultTimeout = settings.getAsTime("watcher.input.search.default_timeout", null);
+        this.defaultTimeout = settings.getAsTime("xpack.watcher.input.search.default_timeout", null);
     }
 
     @Override

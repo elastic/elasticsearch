@@ -12,6 +12,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
+import org.elasticsearch.shield.authc.esnative.ReservedRealm;
+import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -29,6 +32,21 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
 
     @Override
     protected void doExecute(final PutUserRequest request, final ActionListener<PutUserResponse> listener) {
+        final String username = request.username();
+        if (ReservedRealm.isReserved(username)) {
+            if (AnonymousUser.isAnonymousUsername(username)) {
+                listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified via the API"));
+                return;
+            } else {
+                listener.onFailure(new IllegalArgumentException("user [" + username + "] is reserved and only the " +
+                        "password can be changed"));
+                return;
+            }
+        } else if (SystemUser.NAME.equals(username)) {
+            listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
+            return;
+        }
+
         usersStore.putUser(request, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean created) {

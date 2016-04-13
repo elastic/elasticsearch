@@ -20,14 +20,16 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.AgentService;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
+import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.file.FileRealm;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
@@ -55,6 +57,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -118,11 +122,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             return Settings.builder()
                     .put(super.transportClientSettings())
                     .put("client.transport.sniff", false)
-                    .put("shield.user", "test:changeme")
+                    .put(Security.USER_SETTING.getKey(), "test:changeme")
                     .build();
         }
         return Settings.builder().put(super.transportClientSettings())
-                .put("shield.enabled", false)
+                .put("xpack.security.enabled", false)
                 .build();
     }
 
@@ -162,10 +166,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        Set<String> templates = new HashSet<>();
-        templates.add(MarvelTemplateUtils.indexTemplateName());
-        templates.add(MarvelTemplateUtils.dataTemplateName());
-        return templates;
+        return monitoringTemplates().keySet();
     }
 
     @Before
@@ -273,6 +274,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    protected Map<String, String> monitoringTemplates() {
+        return StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+                .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
+    }
+
     protected void assertTemplateInstalled(String name) {
         boolean found = false;
         for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
@@ -290,6 +296,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 assertTemplateInstalled(name);
             }
         }, 30, TimeUnit.SECONDS);
+    }
+
+    protected void waitForMarvelTemplates() throws Exception {
+        assertBusy(() -> monitoringTemplates().keySet().forEach(this::assertTemplateInstalled), 30, TimeUnit.SECONDS);
     }
 
     protected void waitForMarvelIndices() throws Exception {
@@ -518,22 +528,22 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
         public static void apply(boolean enabled, Settings.Builder builder)  {
             if (!enabled) {
-                builder.put("shield.enabled", false);
+                builder.put("xpack.security.enabled", false);
                 return;
             }
             try {
                 Path folder = createTempDir().resolve("marvel_shield");
                 Files.createDirectories(folder);
 
-                builder.put("shield.enabled", true)
-                        .put("shield.authc.realms.file.type", FileRealm.TYPE)
-                        .put("shield.authc.realms.file.order", 0)
-                        .put("shield.authc.realms.file.files.users", writeFile(folder, "users", USERS))
-                        .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
-                        .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
-                        .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
-                        .put("shield.authc.sign_user_header", false)
-                        .put("shield.audit.enabled", auditLogsEnabled);
+                builder.put("xpack.security.enabled", true)
+                        .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
+                        .put("xpack.security.authc.realms.esusers.order", 0)
+                        .put("xpack.security.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
+                        .put("xpack.security.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
+                        .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", ROLES))
+                        .put(InternalCryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key.yml", systemKey))
+                        .put("xpack.security.authc.sign_user_header", false)
+                        .put("xpack.security.audit.enabled", auditLogsEnabled);
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);
             }

@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.authz.indicesresolver;
 
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.Set;

@@ -45,10 +45,10 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("watcher.actions.email.service.account._email.smtp.host", "host.domain")
-                .put("watcher.actions.email.service.account._email.smtp.port", 587)
-                .put("watcher.actions.email.service.account._email.smtp.user", "_user")
-                .put("watcher.actions.email.service.account._email.smtp.password", "_passwd")
+                .put("xpack.watcher.actions.email.service.account._email.smtp.host", "host.domain")
+                .put("xpack.watcher.actions.email.service.account._email.smtp.port", 587)
+                .put("xpack.watcher.actions.email.service.account._email.smtp.user", "_user")
+                .put("xpack.watcher.actions.email.service.account._email.smtp.password", "_passwd")
                 .build();
     }
 
@@ -58,9 +58,10 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
         Map<String, Object> nodes = (Map<String, Object>) response.get("nodes");
         for (Object node : nodes.values()) {
             Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-            assertThat(XContentMapValues.extractValue("watcher.actions.email.service.account._email.smtp.user", settings),
+            assertThat(XContentMapValues.extractValue("xpack.watcher.actions.email.service.account._email.smtp.user", settings),
                     is((Object) "_user"));
-            assertThat(XContentMapValues.extractValue("watcher.actions.email.service.account._email.smtp.password", settings), nullValue());
+            assertThat(XContentMapValues.extractValue("xpack.watcher.actions.email.service.account._email.smtp.password", settings),
+                    nullValue());
         }
     }
 

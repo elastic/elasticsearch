@@ -48,9 +48,9 @@ import java.util.Map;
  */
 public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
 
-    static final String SETTINGS_SSL_PREFIX = "watcher.http.ssl.";
-    static final String SETTINGS_PROXY_PREFIX = "watcher.http.proxy.";
-    static final String SETTINGS_SSL_SHIELD_PREFIX = "shield.ssl.";
+    static final String SETTINGS_SSL_PREFIX = "xpack.watcher.http.ssl.";
+    static final String SETTINGS_PROXY_PREFIX = "xpack.watcher.http.proxy.";
+    static final String SETTINGS_SSL_SHIELD_PREFIX = "xpack.security.ssl.";
 
     public static final String SETTINGS_SSL_PROTOCOL = SETTINGS_SSL_PREFIX + "protocol";
     static final String SETTINGS_SSL_SHIELD_PROTOCOL = SETTINGS_SSL_SHIELD_PREFIX + "protocol";
@@ -84,8 +84,8 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         super(settings);
         this.httpAuthRegistry = httpAuthRegistry;
         this.env = env;
-        defaultConnectionTimeout = settings.getAsTime("watcher.http.default_connection_timeout", TimeValue.timeValueSeconds(10));
-        defaultReadTimeout = settings.getAsTime("watcher.http.default_read_timeout", TimeValue.timeValueSeconds(10));
+        defaultConnectionTimeout = settings.getAsTime("xpack.watcher.http.default_connection_timeout", TimeValue.timeValueSeconds(10));
+        defaultReadTimeout = settings.getAsTime("xpack.watcher.http.default_read_timeout", TimeValue.timeValueSeconds(10));
     }
 
     @Override

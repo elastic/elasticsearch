@@ -85,7 +85,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Override
     protected void doExecute(GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licensee.isGraphExploreAllowed()) {
+        if (licensee.isGraphExploreEnabled()) {
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(GraphLicensee.ID));

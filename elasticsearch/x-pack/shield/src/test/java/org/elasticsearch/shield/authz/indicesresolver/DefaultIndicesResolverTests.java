@@ -6,8 +6,6 @@
 package org.elasticsearch.shield.authz.indicesresolver;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
@@ -31,13 +29,13 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.XPackUser;
+import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.user.XPackUser;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.shield.authc.AnonymousService;
 import org.elasticsearch.shield.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.permission.SuperuserRole;
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.shield.authz.store.RolesStore;
@@ -92,13 +90,14 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed" };
         when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
         when(rolesStore.role("test")).thenReturn(Role.builder("test").cluster(ClusterPrivilege.MONITOR).build());
+        when(rolesStore.role(SuperuserRole.NAME)).thenReturn(Role.builder(SuperuserRole.DESCRIPTOR).build());
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(metaData);
 
         InternalAuthorizationService authzService = new InternalAuthorizationService(settings, rolesStore, clusterService,
-                mock(AuditTrail.class), new AnonymousService(settings), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class));
+                mock(AuditTrail.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class));
         defaultIndicesResolver = new DefaultIndicesAndAliasesResolver(authzService);
     }
 
@@ -844,7 +843,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?
 
     private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(Settings.settingsBuilder()
+        return IndexMetaData.builder(index).settings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
     }

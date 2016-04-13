@@ -37,7 +37,6 @@ import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -46,9 +45,9 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SslIntegrationTests extends ShieldIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true).build();
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true).build();
     }
 
     @Override
@@ -58,11 +57,11 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatUnconfiguredCiphersAreRejected() {
-        try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settingsBuilder()
+        try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putArray("shield.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
+                .putArray("xpack.security.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
                 .build()).build()) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
@@ -77,11 +76,11 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
-        try(TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settingsBuilder()
+        try(TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putArray("shield.ssl.supported_protocols", new String[]{"SSLv3"})
+                .putArray("xpack.security.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build()).build()) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());

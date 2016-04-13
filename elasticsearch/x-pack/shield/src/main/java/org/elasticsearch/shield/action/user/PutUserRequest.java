@@ -22,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a native user.
  */
-public class PutUserRequest extends ActionRequest<PutUserRequest> {
+public class PutUserRequest extends ActionRequest<PutUserRequest> implements UserRequest {
 
     private String username;
     private String[] roles;
@@ -103,6 +103,11 @@ public class PutUserRequest extends ActionRequest<PutUserRequest> {
 
     public boolean refresh() {
         return refresh;
+    }
+
+    @Override
+    public String[] usernames() {
+        return new String[] { username };
     }
 
     @Override

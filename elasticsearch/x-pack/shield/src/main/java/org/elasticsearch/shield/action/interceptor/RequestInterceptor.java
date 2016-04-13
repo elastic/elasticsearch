@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.action.interceptor;
 
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.transport.TransportRequest;
 
 /**

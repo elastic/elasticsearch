@@ -11,7 +11,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.shield.SecurityContext;
-import org.elasticsearch.shield.XPackUser;
+import org.elasticsearch.shield.user.XPackUser;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.xpack.common.init.LazyInitializable;
 

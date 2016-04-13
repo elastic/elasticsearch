@@ -18,7 +18,7 @@ integTest {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     setupCommand 'setupTestAdminUser',
-                 'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
     setupCommand 'setupGraphExplorerUser',
                  'bin/x-pack/users', 'useradd', 'graph_explorer', '-p', 'changeme', '-r', 'graph_explorer'
     setupCommand 'setupPowerlessUser',

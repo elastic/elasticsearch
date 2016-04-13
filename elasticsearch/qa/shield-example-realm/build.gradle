@@ -35,14 +35,13 @@ task buildZip(type:Zip, dependsOn: [jar]) {
 task integTest(type: org.elasticsearch.gradle.test.RestIntegTestTask, dependsOn: buildZip) {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
-    // TODO: these should be settings?
-    setting 'shield.authc.realms.custom.order', '0'
-    setting 'shield.authc.realms.custom.type', 'custom'
-    setting 'shield.authc.realms.esusers.order', '1'
-    setting 'shield.authc.realms.esusers.type', 'file'
+    setting 'xpack.security.authc.realms.custom.order', '0'
+    setting 'xpack.security.authc.realms.custom.type', 'custom'
+    setting 'xpack.security.authc.realms.esusers.order', '1'
+    setting 'xpack.security.authc.realms.esusers.type', 'file'
 
     setupCommand 'setupDummyUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     setupCommand 'installExtension',
                   'bin/x-pack/extension', 'install', 'file:' + buildZip.archivePath
     waitCondition = { node, ant ->

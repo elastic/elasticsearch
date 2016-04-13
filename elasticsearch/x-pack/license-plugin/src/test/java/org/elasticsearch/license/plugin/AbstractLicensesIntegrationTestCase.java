@@ -26,7 +26,7 @@ import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.watcher.Watcher;
@@ -48,7 +48,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Shield.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Security.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Graph.NAME), false)

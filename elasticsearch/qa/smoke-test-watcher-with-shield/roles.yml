@@ -30,4 +30,5 @@ crappy_role:
     - cluster:monitor/nodes/info
     - cluster:monitor/health
     - cluster:monitor/nodes/liveness
+    - cluster:monitor/main
 

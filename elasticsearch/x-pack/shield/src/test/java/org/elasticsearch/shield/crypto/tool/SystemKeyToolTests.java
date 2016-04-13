@@ -5,31 +5,34 @@
  */
 package org.elasticsearch.shield.crypto.tool;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.Set;
-
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.junit.Before;
 
-// TODO: use jimfs in these tests so they actually run!
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Set;
+
 public class SystemKeyToolTests extends CommandTestCase {
-    Settings.Builder settingsBuilder;
-    Path homeDir;
 
-    @Before
-    public void init() throws Exception {
-        homeDir = createTempDir();
+    private FileSystem jimfs;
+    private Settings.Builder settingsBuilder;
+    private Path homeDir;
+
+    private void initFileSystem(boolean needsPosix) throws Exception {
+        String view = needsPosix ? "posix" : randomFrom("basic", "posix");
+        Configuration conf = Configuration.unix().toBuilder().setAttributeViews(view).build();
+        jimfs = Jimfs.newFileSystem(conf);
+        PathUtilsForTesting.installMock(jimfs);
+        homeDir = jimfs.getPath("eshome");
+
         settingsBuilder = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), homeDir);
     }
@@ -40,8 +43,11 @@ public class SystemKeyToolTests extends CommandTestCase {
     }
 
     public void testGenerate() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path path = createTempDir().resolve("key");
+        initFileSystem(true);
+
+        Path path = jimfs.getPath(randomAsciiOfLength(10)).resolve("key");
+        Files.createDirectory(path.getParent());
+
         execute(path.toString());
         byte[] bytes = Files.readAllBytes(path);
         // TODO: maybe we should actually check the key is...i dunno...valid?
@@ -54,16 +60,18 @@ public class SystemKeyToolTests extends CommandTestCase {
     }
 
     public void testGeneratePathInSettings() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path path = createTempDir().resolve("key");
-        settingsBuilder.put("shield.system_key.file", path.toAbsolutePath().toString());
+        initFileSystem(false);
+
+        Path path = jimfs.getPath(randomAsciiOfLength(10)).resolve("key");
+        Files.createDirectories(path.getParent());
+        settingsBuilder.put(InternalCryptoService.FILE_SETTING.getKey(), path.toAbsolutePath().toString());
         execute();
         byte[] bytes = Files.readAllBytes(path);
         assertEquals(InternalCryptoService.KEY_SIZE / 8, bytes.length);
     }
 
     public void testGenerateDefaultPath() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
+        initFileSystem(false);
         Path keyPath = homeDir.resolve("config/x-pack/system_key");
         Files.createDirectories(keyPath.getParent());
         execute();
@@ -72,10 +80,10 @@ public class SystemKeyToolTests extends CommandTestCase {
     }
 
     public void testThatSystemKeyMayOnlyBeReadByOwner() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path path = createTempDir().resolve("key");
-        boolean isPosix = Files.getFileAttributeView(path.getParent(), PosixFileAttributeView.class) != null;
-        assumeTrue("posix filesystem", isPosix);
+        initFileSystem(true);
+
+        Path path = jimfs.getPath(randomAsciiOfLength(10)).resolve("key");
+        Files.createDirectories(path.getParent());
 
         execute(path.toString());
         Set<PosixFilePermission> perms = Files.getPosixFilePermissions(path);

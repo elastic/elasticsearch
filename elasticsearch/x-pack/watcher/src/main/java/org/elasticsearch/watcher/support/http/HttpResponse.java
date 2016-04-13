@@ -149,7 +149,9 @@ public class HttpResponse implements ToXContent {
         if (!headers.isEmpty()) {
             builder.startObject(Field.HEADERS.getPreferredName());
             for (Map.Entry<String, String[]> header : headers.entrySet()) {
-                builder.array(header.getKey(), header.getValue());
+                // in order to prevent dots in field names, that might occur in headers, we simply de_dot those header names
+                // when writing toXContent
+                builder.array(header.getKey().replaceAll("\\.", "_"), header.getValue());
             }
             builder.endObject();
         }

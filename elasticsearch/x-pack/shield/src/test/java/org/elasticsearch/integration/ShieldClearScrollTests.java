@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -90,7 +91,7 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
         String shieldUser = "allowed_user:change_me";
         String basicAuth = basicAuthHeaderValue("allowed_user", new SecuredString("change_me".toCharArray()));
         Map<String, String> headers = new HashMap<>();
-        headers.put("shield.user", shieldUser);
+        headers.put(Security.USER_SETTING.getKey(), shieldUser);
         headers.put(BASIC_AUTH_HEADER, basicAuth);
         ClearScrollResponse clearScrollResponse = internalCluster().transportClient().filterWithHeader(headers)
             .prepareClearScroll()
@@ -104,7 +105,7 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
         String shieldUser = "denied_user:change_me";
         String basicAuth = basicAuthHeaderValue("denied_user", new SecuredString("change_me".toCharArray()));
         Map<String, String> headers = new HashMap<>();
-        headers.put("shield.user", shieldUser);
+        headers.put(Security.USER_SETTING.getKey(), shieldUser);
         headers.put(BASIC_AUTH_HEADER, basicAuth);
         assertThrows(internalCluster().transportClient().filterWithHeader(headers)
                 .prepareClearScroll()

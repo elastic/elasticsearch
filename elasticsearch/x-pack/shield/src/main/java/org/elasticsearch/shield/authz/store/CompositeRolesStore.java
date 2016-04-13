@@ -9,22 +9,30 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.shield.authz.permission.Role;
 
 /**
- * A composite roles store that combines file-based and index-based roles
- * lookups. Checks the file first, then the index.
+ * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the
+ * file roles, and finally the index roles.
  */
 public class CompositeRolesStore implements RolesStore {
 
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
-    
+    private final ReservedRolesStore reservedRolesStore;
+
     @Inject
-    public CompositeRolesStore(FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore) {
+    public CompositeRolesStore(FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore, ReservedRolesStore reservedRolesStore) {
         this.fileRolesStore = fileRolesStore;
         this.nativeRolesStore = nativeRolesStore;
+        this.reservedRolesStore = reservedRolesStore;
     }
     
     public Role role(String role) {
-        // Try the file first, then the index if it isn't there
+        // builtins first
+        Role builtIn = reservedRolesStore.role(role);
+        if (builtIn != null) {
+            return builtIn;
+        }
+
+        // Try the file next, then the index if it isn't there
         Role fileRole = fileRolesStore.role(role);
         if (fileRole != null) {
             return fileRole;

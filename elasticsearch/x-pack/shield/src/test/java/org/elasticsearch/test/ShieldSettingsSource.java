@@ -13,8 +13,12 @@ import org.elasticsearch.marvel.Marvel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.Security;
+import org.elasticsearch.shield.audit.AuditTrailModule;
+import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.test.ShieldTestUtils;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
@@ -31,7 +35,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 
@@ -43,7 +47,7 @@ import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
  */
 public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZen {
 
-    public static final Settings DEFAULT_SETTINGS = settingsBuilder()
+    public static final Settings DEFAULT_SETTINGS = Settings.builder()
             .put("node.mode", "network")
             .build();
 
@@ -115,24 +119,23 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         Path folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
-        Settings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
 
                 //TODO: for now isolate shield tests from watcher & monitoring (randomize this later)
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
-
-                .put("shield.audit.enabled", randomBoolean())
-                .put("shield.audit.logfile.prefix.emit_node_host_address", randomBoolean())
-                .put("shield.audit.logfile.prefix.emit_node_host_name", randomBoolean())
-                .put("shield.audit.logfile.prefix.emit_node_name", randomBoolean())
-                .put(InternalCryptoService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
-                .put("shield.authc.realms.file.type", FileRealm.TYPE)
-                .put("shield.authc.realms.file.order", 0)
-                .put("shield.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
-                .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
-                .put("shield.authc.realms.index.type", NativeRealm.TYPE)
-                .put("shield.authc.realms.index.order", "1")
-                .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
+                .put(AuditTrailModule.ENABLED_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), randomBoolean())
+                .put(InternalCryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key", systemKey))
+                .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
+                .put("xpack.security.authc.realms.file.order", 0)
+                .put("xpack.security.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
+                .put("xpack.security.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
+                .put("xpack.security.authc.realms.index.type", NativeRealm.TYPE)
+                .put("xpack.security.authc.realms.index.order", "1")
+                .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", configRoles()))
                 .put(getNodeSSLSettings());
 
         return builder.build();
@@ -140,10 +143,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     @Override
     public Settings transportClientSettings() {
-        Settings.Builder builder = settingsBuilder().put(super.transportClientSettings())
+        Settings.Builder builder = Settings.builder().put(super.transportClientSettings())
                 .put(getClientSSLSettings());
         if (randomBoolean()) {
-            builder.put("shield.user", transportClientUsername() + ":" + new String(transportClientPassword().internalChars()));
+            builder.put(Security.USER_SETTING.getKey(),
+                    transportClientUsername() + ":" + new String(transportClientPassword().internalChars()));
         } else {
             builder.put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue(transportClientUsername(),
                     transportClientPassword()));
@@ -207,12 +211,12 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     public Settings getNodeSSLSettings() {
         return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode",
-                sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
+                sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, false);
     }
 
     public Settings getClientSSLSettings() {
         return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient",
-                sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
+                sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, true);
     }
 
     /**
@@ -223,11 +227,12 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @return the configuration settings
      */
     public static Settings getSSLSettingsForStore(String resourcePathToStore, String password) {
-        return getSSLSettingsForStore(resourcePathToStore, password, true, true, true);
+        return getSSLSettingsForStore(resourcePathToStore, password, true, true, true, true);
     }
 
     private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled,
-                                                   boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled) {
+                                                   boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled,
+                                                   boolean transportClient) {
         Path store;
         try {
             store = PathUtils.get(ShieldSettingsSource.class.getResource(resourcePathToStore).toURI());
@@ -239,20 +244,24 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
             throw new ElasticsearchException("store path doesn't exist");
         }
 
-        Settings.Builder builder = settingsBuilder()
-                .put("shield.transport.ssl", sslTransportEnabled)
-                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, false);
+        final String sslEnabledSetting =
+                randomFrom(ShieldNettyTransport.SSL_SETTING.getKey(), ShieldNettyTransport.DEPRECATED_SSL_SETTING.getKey());
+        Settings.Builder builder = Settings.builder().put(sslEnabledSetting, sslTransportEnabled);
+
+        if (transportClient == false) {
+            builder.put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), false);
+        }
 
         if (sslTransportEnabled) {
-            builder.put("shield.ssl.keystore.path", store)
-                    .put("shield.ssl.keystore.password", password)
-                    .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, hostnameVerificationEnabled)
-                    .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, hostnameVerificationResolveNameEnabled);
+            builder.put("xpack.security.ssl.keystore.path", store)
+                    .put("xpack.security.ssl.keystore.password", password)
+                    .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), hostnameVerificationEnabled)
+                    .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), hostnameVerificationResolveNameEnabled);
         }
 
         if (sslTransportEnabled && randomBoolean()) {
-            builder.put("shield.ssl.truststore.path", store)
-                    .put("shield.ssl.truststore.password", password);
+            builder.put("xpack.security.ssl.truststore.path", store)
+                    .put("xpack.security.ssl.truststore.password", password);
         }
         return builder.build();
     }

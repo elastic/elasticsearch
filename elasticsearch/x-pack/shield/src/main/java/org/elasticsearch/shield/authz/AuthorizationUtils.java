@@ -6,8 +6,8 @@
 package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.SystemUser;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.InternalAuthenticationService;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;

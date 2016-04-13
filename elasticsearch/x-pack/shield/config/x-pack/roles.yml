@@ -1,43 +1,3 @@
-admin:
-  cluster:
-    - all
-  indices:
-    - names: '*'
-      privileges:
-        - all
-
-# monitoring cluster privileges
-# All operations on all indices
-power_user:
-  cluster:
-    - monitor
-  indices:
-    - names: '*'
-      privileges:
-        - all
-
-# Read-only operations on indices
-user:
-  indices:
-    - names: '*'
-      privileges:
-        - read
-
-# Defines the required permissions for transport clients
-transport_client:
-  cluster:
-      - transport_client
-
-# The required permissions for the kibana 4 server
-kibana4_server:
-  cluster:
-      - monitor
-  indices:
-    - names: '.kibana'
-      privileges:
-        - all
-
-# The required role for logstash users
 logstash:
   cluster:
     - manage_index_templates
@@ -63,7 +23,7 @@ monitoring_user:
 # Marvel remote agent role. Assign to the agent user on the remote marvel cluster
 # to which the marvel agent will export all its data
 remote_monitoring_agent:
-  cluster: [ "manage_index_templates" ]
+  cluster: [ "manage_index_templates", "monitor" ]
   indices:
     - names:
         - '.marvel-es-*'

@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -65,23 +64,23 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     @Before
     public void initializeSslSocketFactory() throws Exception {
         Path keystore = getDataPath("support/ldaptrust.jks");
-        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
+        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        clientSSLService = new ClientSSLService(settingsBuilder()
-                .put("shield.ssl.keystore.path", keystore)
-                .put("shield.ssl.keystore.password", "changeit")
+        clientSSLService = new ClientSSLService(Settings.builder()
+                .put("xpack.security.ssl.keystore.path", keystore)
+                .put("xpack.security.ssl.keystore.password", "changeit")
                 .build());
         clientSSLService.setEnvironment(env);
 
-        globalSettings = settingsBuilder().put("path.home", createTempDir()).build();
+        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
     public void testSupportsUnauthenticatedSessions() throws Exception {
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, "", LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", "")
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -101,7 +100,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
 
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -135,7 +134,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
 
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -174,7 +173,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "cn=William Bush,ou=people,o=sevenSeas";
 
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -209,7 +208,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
 
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -248,7 +247,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "ou=people,o=sevenSeas";
 
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -283,7 +282,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
 
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -321,7 +320,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
 
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -354,7 +353,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     public void testUserSearchWithActiveDirectory() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(LdapTestCase.buildLdapSettings(new String[] { ActiveDirectorySessionFactoryTests.AD_LDAP_URL }, Strings.EMPTY_ARRAY,
                         groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
@@ -397,7 +396,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     public void testUserSearchwithBindUserOpenLDAP() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", settingsBuilder()
+        RealmConfig config = new RealmConfig("oldap-test", Settings.builder()
                 .put(LdapTestCase.buildLdapSettings(new String[] { OpenLdapTests.OPEN_LDAP_URL }, Strings.EMPTY_ARRAY, groupSearchBase,
                         LdapSearchScope.ONE_LEVEL))
                 .put("user_search.base_dn", userSearchBase)
@@ -431,7 +430,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     public void testConnectionPoolDefaultSettings() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -457,7 +456,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     public void testConnectionPoolSettings() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -482,7 +481,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     public void testThatEmptyBindDNThrowsExceptionWithHealthCheckEnabled() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_password", "pass")
@@ -497,12 +496,12 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     public void testEmptyBindDNReturnsNullBindRequest() {
-        BindRequest request = LdapUserSearchSessionFactory.bindRequest(settingsBuilder().put("bind_password", "password").build());
+        BindRequest request = LdapUserSearchSessionFactory.bindRequest(Settings.builder().put("bind_password", "password").build());
         assertThat(request, is(nullValue()));
     }
 
     public void testThatBindRequestReturnsSimpleBindRequest() {
-        BindRequest request = LdapUserSearchSessionFactory.bindRequest(settingsBuilder()
+        BindRequest request = LdapUserSearchSessionFactory.bindRequest(Settings.builder()
                 .put("bind_password", "password")
                 .put("bind_dn", "cn=ironman")
                 .build());
@@ -515,7 +514,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     public void testThatLDAPServerConnectErrorDoesNotPreventNodeFromStarting() throws IOException {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-        Settings ldapSettings = settingsBuilder()
+        Settings ldapSettings = Settings.builder()
                 .put(LdapTestCase.buildLdapSettings(new String[] { "ldaps://elastic.co:636" }, Strings.EMPTY_ARRAY,
                         groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
@@ -526,9 +525,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("type", "ldap")
                 .build();
 
-        Settings.Builder builder = settingsBuilder();
+        Settings.Builder builder = Settings.builder();
         for (Map.Entry<String, String> entry : ldapSettings.getAsMap().entrySet()) {
-            builder.put("shield.authc.realms.ldap1." + entry.getKey(), entry.getValue());
+            builder.put("xpack.security.authc.realms.ldap1." + entry.getKey(), entry.getValue());
         }
         builder.put("path.home", createTempDir());
 

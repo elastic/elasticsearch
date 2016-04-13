@@ -7,8 +7,9 @@ package org.elasticsearch.shield.rest.action;
 
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authz.InternalAuthorizationService;
+import org.elasticsearch.shield.user.AnonymousUser;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -38,9 +39,9 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true);
 
         if (anonymousEnabled) {
-            builder.put("shield.authc.anonymous.username", "anon")
-                   .putArray("shield.authc.anonymous.roles", ShieldSettingsSource.DEFAULT_ROLE, "foo")
-                   .put("shield.authc.anonymous.authz_exception", false);
+            builder.put(AnonymousUser.USERNAME_SETTING.getKey(), "anon")
+                   .putArray(AnonymousUser.ROLES_SETTING.getKey(), ShieldSettingsSource.DEFAULT_ROLE, "foo")
+                   .put(InternalAuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false);
         }
         return builder.build();
     }

@@ -12,14 +12,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.SystemUser;
-import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.XPackUser;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.user.XPackUser;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authz.privilege.SystemPrivilege;
@@ -36,6 +39,7 @@ import java.net.SocketAddress;
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
 import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
+import static org.elasticsearch.shield.Security.setting;
 
 /**
  *
@@ -43,6 +47,12 @@ import static org.elasticsearch.shield.audit.AuditUtil.restRequestContent;
 public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTrail> implements AuditTrail {
 
     public static final String NAME = "logfile";
+    public static final Setting<Boolean> HOST_ADDRESS_SETTING =
+            Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_address"), false, Property.NodeScope);
+    public static final Setting<Boolean> HOST_NAME_SETTING =
+            Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"), false, Property.NodeScope);
+    public static final Setting<Boolean> NODE_NAME_SETTING =
+            Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true, Property.NodeScope);
 
     private final ESLogger logger;
     private final Transport transport;
@@ -329,14 +339,14 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
     public void connectionGranted(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
         if (logger.isTraceEnabled()) {
             logger.trace("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix,
-                    NetworkAddress.formatAddress(inetAddress), profile, rule);
+                    NetworkAddress.format(inetAddress), profile, rule);
         }
     }
 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
         logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix,
-                NetworkAddress.formatAddress(inetAddress), profile, rule);
+                NetworkAddress.format(inetAddress), profile, rule);
     }
 
     @Override
@@ -367,7 +377,7 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         String formattedAddress;
         SocketAddress socketAddress = request.getRemoteAddress();
         if (socketAddress instanceof InetSocketAddress) {
-            formattedAddress = NetworkAddress.formatAddress(((InetSocketAddress) socketAddress).getAddress());
+            formattedAddress = NetworkAddress.format(((InetSocketAddress) socketAddress).getAddress());
         } else {
             formattedAddress = socketAddress.toString();
         }
@@ -381,7 +391,7 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
         if (restAddress != null) {
             builder.append("origin_type=[rest], origin_address=[").
-                    append(NetworkAddress.formatAddress(restAddress.getAddress())).
+                    append(NetworkAddress.format(restAddress.getAddress())).
                     append("]");
             return builder.toString();
         }
@@ -392,7 +402,7 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
             builder.append("origin_type=[transport], ");
             if (address instanceof InetSocketTransportAddress) {
                 builder.append("origin_address=[").
-                        append(NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress())).
+                        append(NetworkAddress.format(((InetSocketTransportAddress) address).address().getAddress())).
                         append("]");
             } else {
                 builder.append("origin_address=[").append(address).append("]");
@@ -409,19 +419,19 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
 
     static String resolvePrefix(Settings settings, Transport transport) {
         StringBuilder builder = new StringBuilder();
-        if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_host_address", false)) {
+        if (HOST_ADDRESS_SETTING.get(settings)) {
             String address = transport.boundAddress().publishAddress().getAddress();
             if (address != null) {
                 builder.append("[").append(address).append("] ");
             }
         }
-        if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_host_name", false)) {
+        if (HOST_NAME_SETTING.get(settings)) {
             String hostName = transport.boundAddress().publishAddress().getHost();
             if (hostName != null) {
                 builder.append("[").append(hostName).append("] ");
             }
         }
-        if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_name", true)) {
+        if (NODE_NAME_SETTING.get(settings)) {
             String name = settings.get("name");
             if (name != null) {
                 builder.append("[").append(name).append("] ");
@@ -441,5 +451,11 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
             builder.append(user.runAs().principal()).append("], run_by_principal=[");
         }
         return builder.append(user.principal()).append("]").toString();
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(HOST_ADDRESS_SETTING);
+        settingsModule.registerSetting(HOST_NAME_SETTING);
+        settingsModule.registerSetting(NODE_NAME_SETTING);
     }
 }

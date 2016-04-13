@@ -31,26 +31,44 @@ public class ShieldLicenseState {
      * Indicates whether the stats and health API calls should be allowed. If a license is expired and past the grace
      * period then we deny these calls.
      *
-     * @return true if the license allows for the stats and health apis to be used.
+     * @return true if the license allows for the stats and health APIs to be used.
      */
     public boolean statsAndHealthEnabled() {
         return status.getLicenseState() != LicenseState.DISABLED;
     }
 
     /**
-     * @return true if the license enables DLS and FLS
+     * Determine if Document Level Security (DLS) and Field Level Security (FLS) should be enabled.
+     * <p>
+     * DLS and FLS are only disabled when the mode is not:
+     * <ul>
+     * <li>{@link OperationMode#PLATINUM}</li>
+     * <li>{@link OperationMode#TRIAL}</li>
+     * </ul>
+     * Note: This does not consider the <em>state</em> of the license so that Security does not suddenly leak information!
+     *
+     * @return {@code true} to enable DLS and FLS. Otherwise {@code false}.
      */
     public boolean documentAndFieldLevelSecurityEnabled() {
         Status status = this.status;
-        return status.getMode() == OperationMode.PLATINUM || status.getMode() == OperationMode.TRIAL;
+        return status.getMode() == OperationMode.TRIAL || status.getMode() == OperationMode.PLATINUM;
     }
 
     /**
-     * @return true if the license enables the use of custom authentication realms
+     * Determine if Custom Realms should be enabled.
+     * <p>
+     * Custom Realms are only disabled when the mode is not:
+     * <ul>
+     * <li>{@link OperationMode#PLATINUM}</li>
+     * <li>{@link OperationMode#TRIAL}</li>
+     * </ul>
+     * Note: This does not consider the <em>state</em> of the license so that Security does not suddenly block requests!
+     *
+     * @return {@code true} to enable Custom Realms. Otherwise {@code false}.
      */
     public boolean customRealmsEnabled() {
         Status status = this.status;
-        return status.getMode() == OperationMode.PLATINUM || status.getMode() == OperationMode.TRIAL;
+        return status.getMode() == OperationMode.TRIAL || status.getMode() == OperationMode.PLATINUM;
     }
 
     void updateStatus(Status status) {

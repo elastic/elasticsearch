@@ -72,7 +72,7 @@ public class PagerDutyServiceIT extends AbstractWatcherIntegrationTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("watcher.actions.pagerduty.service.account.test_account.service_api_key", "fc082467005d4072a914e0bb041882d0")
+                .put("xpack.watcher.actions.pagerduty.service.account.test_account.service_api_key", "fc082467005d4072a914e0bb041882d0")
                 .build();
     }
 

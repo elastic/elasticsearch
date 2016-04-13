@@ -19,7 +19,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
 import org.elasticsearch.shield.license.ShieldLicenseState;
-import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.handler.ssl.SslHandler;
@@ -46,10 +45,8 @@ public class ShieldRestFilter extends RestFilter {
         this.licenseState = licenseState;
         this.threadContext = threadPool.getThreadContext();
         controller.registerFilter(this);
-        boolean ssl = settings.getAsBoolean(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING,
-                ShieldNettyHttpServerTransport.HTTP_SSL_DEFAULT);
-        extractClientCertificate = ssl && SSLClientAuth.parse(settings.get(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING),
-                ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_DEFAULT).enabled();
+        boolean ssl = ShieldNettyHttpServerTransport.SSL_SETTING.get(settings);
+        extractClientCertificate = ssl && ShieldNettyHttpServerTransport.CLIENT_AUTH_SETTING.get(settings).enabled();
         logger = Loggers.getLogger(getClass(), settings);
     }
 

@@ -7,7 +7,10 @@ package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.shield.ssl.ServerSSLService;
@@ -22,6 +25,7 @@ import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLEngine;
 
+import static org.elasticsearch.shield.Security.setting;
 import static org.elasticsearch.shield.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
 import static org.elasticsearch.shield.transport.SSLExceptionHelper.isNotSslRecordException;
 
@@ -30,21 +34,27 @@ import static org.elasticsearch.shield.transport.SSLExceptionHelper.isNotSslReco
  */
 public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
-    public static final String HTTP_SSL_SETTING = "shield.http.ssl";
-    public static final boolean HTTP_SSL_DEFAULT = false;
-    public static final String HTTP_CLIENT_AUTH_SETTING = "shield.http.ssl.client.auth";
-    public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NO;
+    public static final boolean SSL_DEFAULT = false;
+    public static final String CLIENT_AUTH_DEFAULT = SSLClientAuth.NO.name();
+
+    public static final Setting<Boolean> DEPRECATED_SSL_SETTING =
+            Setting.boolSetting(setting("http.ssl"), SSL_DEFAULT, Property.NodeScope, Property.Deprecated);
+    public static final Setting<Boolean> SSL_SETTING =
+            Setting.boolSetting(setting("http.ssl.enabled"), DEPRECATED_SSL_SETTING, Property.NodeScope);
+    public static final Setting<SSLClientAuth> CLIENT_AUTH_SETTING =
+            new Setting<>(setting("http.ssl.client.auth"), CLIENT_AUTH_DEFAULT, SSLClientAuth::parse, Property.NodeScope);
+
 
     private final IPFilter ipFilter;
     private final ServerSSLService sslService;
     private final boolean ssl;
 
     @Inject
-    public ShieldNettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                          IPFilter ipFilter, ServerSSLService sslService, ThreadPool threadPool) {
+    public ShieldNettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
+                                          ServerSSLService sslService, ThreadPool threadPool) {
         super(settings, networkService, bigArrays, threadPool);
         this.ipFilter = ipFilter;
-        this.ssl = settings.getAsBoolean(HTTP_SSL_SETTING, HTTP_SSL_DEFAULT);
+        this.ssl = SSL_SETTING.get(settings);
         this.sslService =  sslService;
     }
 
@@ -91,7 +101,7 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
         public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
             super(transport, detailedErrorsEnabled, threadPool.getThreadContext());
-            clientAuth = SSLClientAuth.parse(settings.get(HTTP_CLIENT_AUTH_SETTING), HTTP_CLIENT_AUTH_DEFAULT);
+            clientAuth = CLIENT_AUTH_SETTING.get(settings);
         }
 
         @Override
@@ -107,5 +117,11 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
             pipeline.addFirst("ipfilter", new IPFilterNettyUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME));
             return pipeline;
         }
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(SSL_SETTING);
+        settingsModule.registerSetting(CLIENT_AUTH_SETTING);
+        settingsModule.registerSetting(DEPRECATED_SSL_SETTING);
     }
 }

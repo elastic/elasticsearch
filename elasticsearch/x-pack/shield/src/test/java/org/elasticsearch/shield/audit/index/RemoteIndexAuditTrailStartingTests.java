@@ -54,8 +54,8 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("shield.audit.enabled", localAudit)
-                .put("shield.audit.outputs", outputs)
+                .put("xpack.security.audit.enabled", localAudit)
+                .put("xpack.security.audit.outputs", outputs)
                 .build();
     }
 
@@ -92,15 +92,15 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
-                        .put("shield.audit.enabled", true)
-                        .put("shield.audit.outputs", randomFrom("index", "index,logfile"))
-                        .putArray("shield.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))
-                        .put("shield.audit.index.client.cluster.name", clusterName)
-                        .put("shield.audit.index.client.shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
+                        .put("xpack.security.audit.enabled", true)
+                        .put("xpack.security.audit.outputs", randomFrom("index", "index,logfile"))
+                        .putArray("xpack.security.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))
+                        .put("xpack.security.audit.index.client.cluster.name", clusterName)
+                        .put("xpack.security.audit.index.client.xpack.security.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
 
                 if (useSSL) {
                     for (Map.Entry<String, String> entry : getClientSSLSettings().getAsMap().entrySet()) {
-                        builder.put("shield.audit.index.client." + entry.getKey(), entry.getValue());
+                        builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
                     }
                 }
                 return builder.build();

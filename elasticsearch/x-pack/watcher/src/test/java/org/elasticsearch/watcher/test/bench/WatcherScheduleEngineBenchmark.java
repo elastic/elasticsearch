@@ -59,7 +59,7 @@ import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 public class WatcherScheduleEngineBenchmark {
 
     private final static Settings SETTINGS = Settings.builder()
-            .put("shield.enabled", false)
+            .put("xpack.security.enabled", false)
             .put("cluster.name", "bench")
             .put("script.disable_dynamic", false)
             .put("http.cors.enabled", true)
@@ -135,7 +135,7 @@ public class WatcherScheduleEngineBenchmark {
             System.gc();
             Settings settings = Settings.builder()
                     .put(SETTINGS)
-                    .put("watcher.trigger.schedule.engine", engine)
+                    .put("xpack.watcher.trigger.schedule.engine", engine)
                     .put("node.data", false)
                     .build();
             try (Node node = new MockNode(settings, Version.CURRENT, Arrays.asList(XPackPlugin.class, XPackPlugin.class))) {

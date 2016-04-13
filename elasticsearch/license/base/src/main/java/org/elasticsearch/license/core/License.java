@@ -73,13 +73,14 @@ public class License implements ToXContent {
     private final OperationMode operationMode;
 
     /**
-     * Decouples operation mode of a license
-     * from the license type value
+     * Decouples operation mode of a license from the license type value.
+     * <p>
+     * Note: The mode indicates features that should be made available, but it does not indicate whether the license is active!
      */
     public enum OperationMode {
-        NONE,
         TRIAL,
         BASIC,
+        STANDARD,
         GOLD,
         PLATINUM;
 
@@ -92,6 +93,8 @@ public class License implements ToXContent {
                     return TRIAL;
                 case "basic":
                     return BASIC;
+                case "standard":
+                    return STANDARD;
                 case "silver":
                 case "gold":
                     return GOLD;

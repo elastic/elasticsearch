@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -58,10 +59,10 @@ public class SmokeTestMonitoringWithShieldIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put("shield.user", USER + ":" + PASS)
-                .put(ShieldNettyTransport.TRANSPORT_SSL_SETTING, true)
-                .put("shield.ssl.keystore.path", clientKeyStore)
-                .put("shield.ssl.keystore.password", KEYSTORE_PASS)
+                .put(Security.USER_SETTING.getKey(), USER + ":" + PASS)
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), true)
+                .put("xpack.security.ssl.keystore.path", clientKeyStore)
+                .put("xpack.security.ssl.keystore.password", KEYSTORE_PASS)
                 .build();
     }
 

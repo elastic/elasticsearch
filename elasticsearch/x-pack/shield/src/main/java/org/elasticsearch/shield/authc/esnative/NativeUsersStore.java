@@ -9,7 +9,6 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -36,10 +35,12 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -48,16 +49,20 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.user.User.Fields;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
+import org.elasticsearch.shield.action.user.ChangePasswordRequest;
 import org.elasticsearch.shield.action.user.DeleteUserRequest;
 import org.elasticsearch.shield.action.user.PutUserRequest;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.SecurityClient;
+import org.elasticsearch.shield.support.SelfReschedulingRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,9 +72,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.shield.Security.setting;
 
 /**
  * ESNativeUsersStore is a {@code UserStore} that, instead of reading from a
@@ -82,6 +89,15 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class NativeUsersStore extends AbstractComponent implements ClusterStateListener {
 
+    public static final Setting<Integer> SCROLL_SIZE_SETTING =
+            Setting.intSetting(setting("authc.native.scroll.size"), 1000, Property.NodeScope);
+
+    public static final Setting<TimeValue> SCROLL_KEEP_ALIVE_SETTING =
+            Setting.timeSetting(setting("authc.native.scroll.keep_alive"), TimeValue.timeValueSeconds(10L), Property.NodeScope);
+
+    public static final Setting<TimeValue> POLL_INTERVAL_SETTING =
+            Setting.timeSetting(setting("authc.native.reload.interval"), TimeValue.timeValueSeconds(30L), Property.NodeScope);
+
     public enum State {
         INITIALIZED,
         STARTING,
@@ -91,19 +107,16 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         FAILED
     }
 
-    // TODO - perhaps separate indices for users/roles instead of types?
     public static final String USER_DOC_TYPE = "user";
+    static final String RESERVED_USER_DOC_TYPE = "reserved-user";
 
-    // this map contains the mapping for username -> version, which is used when polling the index to easily detect of
-    // any changes that may have been missed since the last update.
-    private final ObjectLongHashMap<String> versionMap = new ObjectLongHashMap<>();
     private final Hasher hasher = Hasher.BCRYPT;
     private final List<ChangeListener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final Provider<InternalClient> clientProvider;
     private final ThreadPool threadPool;
 
-    private ScheduledFuture<?> versionChecker;
+    private SelfReschedulingRunnable userPoller;
     private Client client;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
@@ -148,13 +161,13 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             public void onFailure(Throwable t) {
                 if (t instanceof IndexNotFoundException) {
                     logger.trace("failed to retrieve user [{}] since security index does not exist", username);
+                    // We don't invoke the onFailure listener here, instead
+                    // we call the response with a null user
+                    listener.onResponse(null);
                 } else {
                     logger.debug("failed to retrieve user [{}]", t, username);
+                    listener.onFailure(t);
                 }
-
-                // We don't invoke the onFailure listener here, instead
-                // we call the response with a null user
-                listener.onResponse(null);
             }
         });
     }
@@ -293,6 +306,73 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         }
     }
 
+    public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
+        final String username = request.username();
+        if (SystemUser.NAME.equals(username)) {
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationError("changing the password for [" + username + "] is not allowed");
+            listener.onFailure(validationException);
+            return;
+        }
+
+        final String docType;
+        if (ReservedRealm.isReserved(username)) {
+            docType = RESERVED_USER_DOC_TYPE;
+        } else {
+            docType = USER_DOC_TYPE;
+        }
+
+        client.prepareUpdate(ShieldTemplateService.SECURITY_INDEX_NAME, docType, username)
+                .setDoc(Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()))
+                .setRefresh(request.refresh())
+                .execute(new ActionListener<UpdateResponse>() {
+                    @Override
+                    public void onResponse(UpdateResponse updateResponse) {
+                        assert updateResponse.isCreated() == false;
+                        clearRealmCache(request.username(), listener, null);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        Throwable cause = e;
+                        if (e instanceof ElasticsearchException) {
+                            cause = ExceptionsHelper.unwrapCause(e);
+                            if ((cause instanceof IndexNotFoundException) == false
+                                    && (cause instanceof DocumentMissingException) == false) {
+                                listener.onFailure(e);
+                                return;
+                            }
+                        }
+
+                        if (docType.equals(RESERVED_USER_DOC_TYPE)) {
+                            createReservedUser(username, request.passwordHash(), request.refresh(), listener);
+                        } else {
+                            logger.debug("failed to change password for user [{}]", cause, request.username());
+                            ValidationException validationException = new ValidationException();
+                            validationException.addValidationError("user must exist in order to change password");
+                            listener.onFailure(validationException);
+                        }
+                    }
+                });
+    }
+
+    private void createReservedUser(String username, char[] passwordHash, boolean refresh, ActionListener<Void> listener) {
+        client.prepareIndex(ShieldTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
+                .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash))
+                .setRefresh(refresh)
+                .execute(new ActionListener<IndexResponse>() {
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {
+                        clearRealmCache(username, listener, null);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        listener.onFailure(e);
+                    }
+                });
+    }
+
     public void putUser(final PutUserRequest request, final ActionListener<Boolean> listener) {
         if (state() != State.STARTED) {
             listener.onFailure(new IllegalStateException("user cannot be added as native user service has not been started"));
@@ -331,7 +411,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     @Override
                     public void onFailure(Throwable e) {
                         Throwable cause = e;
-                        if (e instanceof RemoteTransportException) {
+                        if (e instanceof ElasticsearchException) {
                             cause = ExceptionsHelper.unwrapCause(e);
                             if ((cause instanceof IndexNotFoundException) == false
                                     && (cause instanceof DocumentMissingException) == false) {
@@ -436,6 +516,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         if (clusterState.routingTable().index(ShieldTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
             logger.debug("security index [{}] all primary shards started, so service can start",
                     ShieldTemplateService.SECURITY_INDEX_NAME);
+            shieldIndexExists = true;
             return true;
         }
         return false;
@@ -445,18 +526,17 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
                 this.client = clientProvider.get();
-                this.scrollSize = settings.getAsInt("shield.authc.native.scroll.size", 1000);
-                this.scrollKeepAlive = settings.getAsTime("shield.authc.native.scroll.keep_alive", TimeValue.timeValueSeconds(10L));
+                this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
+                this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
 
-                // FIXME only start if a realm is using this
                 UserStorePoller poller = new UserStorePoller();
                 try {
                     poller.doRun();
                 } catch (Exception e) {
                     logger.warn("failed to do initial poll of users", e);
                 }
-                versionChecker = threadPool.scheduleWithFixedDelay(poller,
-                        settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L)));
+                userPoller = new SelfReschedulingRunnable(poller, threadPool, POLL_INTERVAL_SETTING.get(settings), Names.GENERIC, logger);
+                userPoller.start();
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -468,7 +548,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     public void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             try {
-                FutureUtils.cancel(versionChecker);
+                userPoller.stop();
             } catch (Throwable t) {
                 state.set(State.FAILED);
                 throw t;
@@ -503,6 +583,62 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
 
     public void addListener(ChangeListener listener) {
         listeners.add(listener);
+    }
+
+    boolean started() {
+        return state() == State.STARTED;
+    }
+
+    boolean shieldIndexExists() {
+        return shieldIndexExists;
+    }
+
+    char[] reservedUserPassword(String username) throws Throwable {
+        assert started();
+        final AtomicReference<char[]> passwordHash = new AtomicReference<>();
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        client.prepareGet(ShieldTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
+                .execute(new LatchedActionListener<>(new ActionListener<GetResponse>() {
+                    @Override
+                    public void onResponse(GetResponse getResponse) {
+                        if (getResponse.isExists()) {
+                            Map<String, Object> sourceMap = getResponse.getSourceAsMap();
+                            String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
+                            if (password == null || password.isEmpty()) {
+                                failure.set(new IllegalStateException("password hash must not be empty!"));
+                                return;
+                            }
+                            passwordHash.set(password.toCharArray());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        if (e instanceof IndexNotFoundException) {
+                            logger.trace("could not retrieve built in user [{}] password since security index does not exist", e, username);
+                        } else {
+                            logger.error("failed to retrieve built in user [{}] password", e, username);
+                            failure.set(e);
+                        }
+                    }
+                }, latch));
+
+        try {
+            final boolean responseReceived = latch.await(30, TimeUnit.SECONDS);
+            if (responseReceived == false) {
+                failure.set(new TimeoutException("timed out trying to get built in user [" + username + "]"));
+            }
+        } catch (InterruptedException e) {
+            failure.set(e);
+        }
+
+        Throwable failureCause = failure.get();
+        if (failureCause != null) {
+            // if there is any sort of failure we need to throw an exception to prevent the fallback to the default password...
+            throw failureCause;
+        }
+        return passwordHash.get();
     }
 
     private void clearScrollResponse(String scrollId) {
@@ -565,7 +701,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         if (state != State.STOPPED && state != State.FAILED) {
             throw new IllegalStateException("can only reset if stopped!!!");
         }
-        this.versionMap.clear();
         this.listeners.clear();
         this.client = null;
         this.shieldIndexExists = false;
@@ -592,8 +727,16 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
 
     private class UserStorePoller extends AbstractRunnable {
 
+        // this map contains the mapping for username -> version, which is used when polling the index to easily detect of
+        // any changes that may have been missed since the last update.
+        private final ObjectLongHashMap<String> userVersionMap = new ObjectLongHashMap<>();
+        private final ObjectLongHashMap<String> reservedUserVersionMap = new ObjectLongHashMap<>();
+
         @Override
         public void doRun() {
+            // hold a reference to the client since the poller may run after the class is stopped (we don't interrupt it running) and
+            // we reset when we test which sets the client to null...
+            final Client client = NativeUsersStore.this.client;
             if (isStopped()) {
                 return;
             }
@@ -603,50 +746,86 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 return;
             }
 
-            // hold a reference to the client since the poller may run after the class is stopped (we don't interrupt it running) and
-            // we reset when we test which sets the client to null...
-            final Client client = NativeUsersStore.this.client;
-
             logger.trace("starting polling of user index to check for changes");
-            // create a copy of all known users
-            ObjectHashSet<String> knownUsers = new ObjectHashSet<>(versionMap.keys());
-            List<String> changedUsers = new ArrayList<>();
-
-            ObjectLongMap<String> currentUsersMap = collectUsersAndVersions(client);
-            Iterator<ObjectLongCursor<String>> iterator = currentUsersMap.iterator();
-            while (iterator.hasNext()) {
-                ObjectLongCursor<String> cursor = iterator.next();
-                String username = cursor.key;
-                long version = cursor.value;
-                if (knownUsers.contains(username)) {
-                    final long lastKnownVersion = versionMap.get(username);
-                    if (version != lastKnownVersion) {
-                        // version is only changed by this method
-                        assert version > lastKnownVersion;
-                        versionMap.put(username, version);
-                        // there is a chance that the user's cache has already been cleared and we'll clear it again but
-                        // this should be ok in most cases as user changes should not be that frequent
-                        changedUsers.add(username);
-                    }
-                    knownUsers.remove(username);
-                } else {
-                    versionMap.put(username, version);
-                }
-            }
-
-            // exit before comparing with known users
+            List<String> changedUsers = scrollForModifiedUsers(client, USER_DOC_TYPE, userVersionMap);
             if (isStopped()) {
                 return;
+            }
+
+            changedUsers.addAll(scrollForModifiedUsers(client, RESERVED_USER_DOC_TYPE, reservedUserVersionMap));
+            if (isStopped()) {
+                return;
+            }
+
+            notifyListeners(changedUsers);
+            logger.trace("finished polling of user index");
+        }
+
+        private List<String> scrollForModifiedUsers(Client client, String docType, ObjectLongMap<String> usersMap) {
+            // create a copy of all known users
+            ObjectHashSet<String> knownUsers = new ObjectHashSet<>(usersMap.keys());
+            List<String> changedUsers = new ArrayList<>();
+
+            SearchResponse response = null;
+            try {
+                client.admin().indices().prepareRefresh(ShieldTemplateService.SECURITY_INDEX_NAME).get();
+                response = client.prepareSearch(ShieldTemplateService.SECURITY_INDEX_NAME)
+                        .setScroll(scrollKeepAlive)
+                        .setQuery(QueryBuilders.typeQuery(docType))
+                        .setSize(scrollSize)
+                        .setVersion(true)
+                        .setFetchSource(false) // we only need id and version
+                        .get();
+
+                boolean keepScrolling = response.getHits().getHits().length > 0;
+                while (keepScrolling) {
+                    for (SearchHit hit : response.getHits().getHits()) {
+                        final String username = hit.id();
+                        final long version = hit.version();
+                        if (knownUsers.contains(username)) {
+                            final long lastKnownVersion = usersMap.get(username);
+                            if (version != lastKnownVersion) {
+                                // version is only changed by this method
+                                assert version > lastKnownVersion;
+                                usersMap.put(username, version);
+                                // there is a chance that the user's cache has already been cleared and we'll clear it again but
+                                // this should be ok in most cases as user changes should not be that frequent
+                                changedUsers.add(username);
+                            }
+                            knownUsers.remove(username);
+                        } else {
+                            usersMap.put(username, version);
+                        }
+                    }
+
+                    if (isStopped()) {
+                        // bail here
+                        return Collections.emptyList();
+                    }
+                    response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollKeepAlive).get();
+                    keepScrolling = response.getHits().getHits().length > 0;
+                }
+            } catch (IndexNotFoundException e) {
+                logger.trace("security index does not exist", e);
+            } finally {
+                if (response != null && response.getScrollId() != null) {
+                    ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(response.getScrollId()).request();
+                    client.clearScroll(clearScrollRequest).actionGet();
+                }
             }
 
             // we now have a list of users that were in our version map and have been deleted
             Iterator<ObjectCursor<String>> userIter = knownUsers.iterator();
             while (userIter.hasNext()) {
                 String user = userIter.next().value;
-                versionMap.remove(user);
+                usersMap.remove(user);
                 changedUsers.add(user);
             }
 
+            return changedUsers;
+        }
+
+        private void notifyListeners(List<String> changedUsers) {
             if (changedUsers.isEmpty()) {
                 return;
             }
@@ -675,47 +854,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             logger.error("error occurred while checking the native users for changes", t);
         }
 
-        private ObjectLongMap<String> collectUsersAndVersions(Client client) {
-            final ObjectLongMap<String> map = new ObjectLongHashMap<>();
-            SearchResponse response = null;
-            try {
-                client.admin().indices().prepareRefresh(ShieldTemplateService.SECURITY_INDEX_NAME).get();
-                SearchRequest request = client.prepareSearch(ShieldTemplateService.SECURITY_INDEX_NAME)
-                        .setScroll(scrollKeepAlive)
-                        .setQuery(QueryBuilders.typeQuery(USER_DOC_TYPE))
-                        .setSize(scrollSize)
-                        .setVersion(true)
-                        .setFetchSource(false) // we only need id and version
-                        .request();
-                response = client.search(request).actionGet();
-
-                boolean keepScrolling = response.getHits().getHits().length > 0;
-                while (keepScrolling) {
-                    if (isStopped()) {
-                        // instead of throwing an exception we return an empty map so nothing is processed and we exit early
-                        return new ObjectLongHashMap<>();
-                    }
-                    for (SearchHit hit : response.getHits().getHits()) {
-                        String username = hit.id();
-                        long version = hit.version();
-                        map.put(username, version);
-                    }
-                    SearchScrollRequest scrollRequest =
-                            client.prepareSearchScroll(response.getScrollId()).setScroll(scrollKeepAlive).request();
-                    response = client.searchScroll(scrollRequest).actionGet();
-                    keepScrolling = response.getHits().getHits().length > 0;
-                }
-            } catch (IndexNotFoundException e) {
-                logger.trace("security index does not exist", e);
-            } finally {
-                if (response != null) {
-                    ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(response.getScrollId()).request();
-                    client.clearScroll(clearScrollRequest).actionGet();
-                }
-            }
-            return map;
-        }
-
         private boolean isStopped() {
             State state = state();
             return state == State.STOPPED || state == State.STOPPING;
@@ -725,5 +863,11 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     interface ChangeListener {
 
         void onUsersChanged(List<String> username);
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(SCROLL_SIZE_SETTING);
+        settingsModule.registerSetting(SCROLL_KEEP_ALIVE_SETTING);
+        settingsModule.registerSetting(POLL_INTERVAL_SETTING);
     }
 }

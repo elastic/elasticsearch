@@ -6,11 +6,18 @@
 package org.elasticsearch.watcher.support;
 
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -18,9 +25,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.MatchAllQueryParser;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
@@ -31,13 +39,8 @@ import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.joda.time.DateTime;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-
 import static java.util.Collections.singletonMap;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.watcher.support.WatcherUtils.DEFAULT_INDICES_OPTIONS;
@@ -133,7 +136,9 @@ public class WatcherUtilsTests extends ESTestCase {
         builder = WatcherUtils.writeSearchRequest(expectedRequest, builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
+        QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
+        registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
         QueryParseContext context = new QueryParseContext(registry);
         context.reset(parser);
         SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);
@@ -221,7 +226,9 @@ public class WatcherUtilsTests extends ESTestCase {
 
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY, singletonMap("match_all", new MatchAllQueryParser()));
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
+        QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
+        registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
         QueryParseContext context = new QueryParseContext(registry);
         context.reset(parser);
         SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);

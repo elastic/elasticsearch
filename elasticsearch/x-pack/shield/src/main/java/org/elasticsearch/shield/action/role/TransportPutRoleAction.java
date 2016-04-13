@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authz.store.NativeRolesStore;
+import org.elasticsearch.shield.authz.store.ReservedRolesStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -29,6 +30,12 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
 
     @Override
     protected void doExecute(final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
+        final String name = request.roleDescriptor().getName();
+        if (ReservedRolesStore.isReserved(name)) {
+            listener.onFailure(new IllegalArgumentException("role [" + name + "] is reserved and cannot be modified."));
+            return;
+        }
+
         rolesStore.putRole(request, request.roleDescriptor(), new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean created) {

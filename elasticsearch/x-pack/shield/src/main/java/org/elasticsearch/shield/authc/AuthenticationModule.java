@@ -9,10 +9,13 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
 import org.elasticsearch.shield.authc.file.FileRealm;
+import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
 import org.elasticsearch.shield.support.AbstractShieldModule;
+import org.elasticsearch.shield.user.AnonymousUser;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -26,7 +29,7 @@ import java.util.Map.Entry;
 public class AuthenticationModule extends AbstractShieldModule.Node {
 
     static final List<String> INTERNAL_REALM_TYPES =
-            Arrays.asList(NativeRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
+            Arrays.asList(ReservedRealm.TYPE, NativeRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
 
     private final Map<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> customRealms =
             new HashMap<>();
@@ -39,24 +42,26 @@ public class AuthenticationModule extends AbstractShieldModule.Node {
 
     @Override
     protected void configureNode() {
+        AnonymousUser.initialize(settings);
         MapBinder<String, Realm.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Realm.Factory.class);
         mapBinder.addBinding(FileRealm.TYPE).to(FileRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(NativeRealm.TYPE).to(NativeRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(ActiveDirectoryRealm.TYPE).to(ActiveDirectoryRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(LdapRealm.TYPE).to(LdapRealm.Factory.class).asEagerSingleton();
         mapBinder.addBinding(PkiRealm.TYPE).to(PkiRealm.Factory.class).asEagerSingleton();
-        for (Entry<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> entry : customRealms.entrySet
-                ()) {
+        for (Entry<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> entry :
+                customRealms.entrySet()) {
             mapBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
         }
 
+        bind(ReservedRealm.class).asEagerSingleton();
         bind(Realms.class).asEagerSingleton();
-        bind(AnonymousService.class).asEagerSingleton();
         if (authcFailureHandler == null) {
             bind(AuthenticationFailureHandler.class).to(DefaultAuthenticationFailureHandler.class).asEagerSingleton();
         } else {
             bind(AuthenticationFailureHandler.class).to(authcFailureHandler).asEagerSingleton();
         }
+        bind(NativeUsersStore.class).asEagerSingleton();
         bind(AuthenticationService.class).to(InternalAuthenticationService.class).asEagerSingleton();
     }
 

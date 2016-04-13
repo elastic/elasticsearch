@@ -28,7 +28,7 @@ import java.util.Set;
 @SuppressForbidden(reason = "gradle is broken and tries to run me as a test")
 public final class MessyTestUtils {
     public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("script.inline", "true")
                 .put("script.indexed", "true")
                 .put("path.home", LuceneTestCase.createTempDir())

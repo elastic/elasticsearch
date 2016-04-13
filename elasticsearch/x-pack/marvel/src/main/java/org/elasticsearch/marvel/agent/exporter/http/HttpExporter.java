@@ -25,7 +25,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.marvel.agent.exporter.ExportBulk;
 import org.elasticsearch.marvel.agent.exporter.ExportException;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
@@ -47,6 +46,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -55,6 +55,8 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  *
@@ -107,11 +109,6 @@ public class HttpExporter extends Exporter {
     volatile boolean checkedAndUploadedIndexTemplate = false;
     volatile boolean supportedClusterVersion = false;
 
-    /**
-     * Version number of built-in templates
-     **/
-    private final Integer templateVersion;
-
     boolean keepAlive;
     final ConnectionKeepAliveWorker keepAliveWorker;
     Thread keepAliveThread;
@@ -145,14 +142,16 @@ public class HttpExporter extends Exporter {
         sslSocketFactory = createSSLSocketFactory(config.settings().getAsSettings(SSL_SETTING));
         hostnameVerification = config.settings().getAsBoolean(SSL_HOSTNAME_VERIFICATION_SETTING, true);
 
-        // Loads the current version number of built-in templates
-        templateVersion = MarvelTemplateUtils.TEMPLATE_VERSION;
-        if (templateVersion == null) {
-            throw new IllegalStateException("unable to find built-in template version");
-        }
         resolvers = new ResolversRegistry(config.settings());
-        logger.debug("initialized with hosts [{}], index prefix [{}], template version [{}]",
-                Strings.arrayToCommaDelimitedString(hosts), MonitoringIndexNameResolver.PREFIX, templateVersion);
+        // Checks that required templates are loaded
+        for (MonitoringIndexNameResolver resolver : resolvers) {
+            if (resolver.template() == null) {
+                throw new IllegalStateException("unable to find built-in template " + resolver.templateName());
+            }
+        }
+
+        logger.debug("initialized with hosts [{}], index prefix [{}]",
+                Strings.arrayToCommaDelimitedString(hosts), MonitoringIndexNameResolver.PREFIX);
     }
 
     ResolversRegistry getResolvers() {
@@ -223,23 +222,21 @@ public class HttpExporter extends Exporter {
                 out.write(CONTENT_TYPE.xContent().streamSeparator());
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("http exporter [{}] - added index request [index={}, type={}, id={}]",
-                            name(), index, type, id);
+                    logger.trace("added index request [index={}, type={}, id={}]", index, type, id);
                 }
             } else if (logger.isTraceEnabled()) {
-                logger.trace("http exporter [{}] - no resolver found for monitoring document [class={}, id={}, version={}]",
-                        name(), doc.getClass().getName(), doc.getMonitoringId(), doc.getMonitoringVersion());
+                logger.trace("no resolver found for monitoring document [class={}, id={}, version={}]",
+                        doc.getClass().getName(), doc.getMonitoringId(), doc.getMonitoringVersion());
             }
         } catch (Exception e) {
-            logger.warn("http exporter [{}] - failed to render document [{}], skipping it", e, name(), doc);
+            logger.warn("failed to render document [{}], skipping it", e, doc);
         }
     }
 
     @SuppressWarnings("unchecked")
     private void sendCloseExportingConnection(HttpURLConnection conn) throws IOException {
         logger.trace("sending content");
-        OutputStream os = conn.getOutputStream();
-        os.close();
+        closeExportingConnection(conn);
         if (conn.getResponseCode() != 200) {
             logConnectionError("remote target didn't respond with 200 OK", conn);
             return;
@@ -261,6 +258,12 @@ public class HttpExporter extends Exporter {
                     }
                 }
             }
+        }
+    }
+
+    private void closeExportingConnection(HttpURLConnection connection) throws IOException {
+        try (OutputStream os = connection.getOutputStream()) {
+            logger.debug("closing exporting connection [{}]", connection);
         }
     }
 
@@ -420,24 +423,18 @@ public class HttpExporter extends Exporter {
      * @return true if template exists or was uploaded successfully.
      */
     private boolean checkAndUploadIndexTemplate(final String host) {
-        String templateName = MarvelTemplateUtils.indexTemplateName(templateVersion);
-        boolean templateInstalled = hasTemplate(templateName, host);
+        // List of distinct templates
+        Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+                .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
 
-        // Works like LocalExporter on master:
-        // Install the index template for timestamped indices first, so that other nodes can ship data
-        if (!templateInstalled) {
-            logger.debug("http exporter [{}] - could not find existing monitoring template, installing a new one", name());
-            if (!putTemplate(host, templateName, MarvelTemplateUtils.loadTimestampedIndexTemplate())) {
-                return false;
-            }
-        }
-
-        // Install the index template for data index
-        templateName = MarvelTemplateUtils.dataTemplateName(templateVersion);
-        if (!hasTemplate(templateName, host)) {
-            logger.debug("http exporter [{}] - could not find existing monitoring template for data index, installing a new one", name());
-            if (!putTemplate(host, templateName, MarvelTemplateUtils.loadDataIndexTemplate())) {
-                return false;
+        for (Map.Entry<String, String> template : templates.entrySet()) {
+            if (hasTemplate(template.getKey(), host) == false) {
+                logger.debug("template [{}] not found", template.getKey());
+                if (!putTemplate(host, template.getKey(), template.getValue())) {
+                    return false;
+                }
+            } else {
+                logger.debug("template [{}] found", template.getKey());
             }
         }
         return true;
@@ -451,8 +448,7 @@ public class HttpExporter extends Exporter {
 
         HttpURLConnection connection = null;
         try {
-            logger.debug("http exporter [{}] - checking if monitoring template [{}] exists on the monitoring cluster",
-                    name(), templateName);
+            logger.debug("checking if monitoring template [{}] exists on the monitoring cluster", templateName);
             connection = openConnection(host, "GET", url, null);
             if (connection == null) {
                 throw new IOException("no available connection to check for monitoring template [" + templateName + "] existence");
@@ -464,8 +460,7 @@ public class HttpExporter extends Exporter {
                 return true;
             }
         } catch (Exception e) {
-            logger.error("http exporter [{}] - failed to verify the monitoring template [{}] on [{}]:\n{}", name(), templateName, host,
-                    e.getMessage());
+            logger.error("failed to verify the monitoring template [{}] on [{}]:\n{}", templateName, host, e.getMessage());
             return false;
         } finally {
             if (connection != null) {
@@ -479,28 +474,27 @@ public class HttpExporter extends Exporter {
         return false;
     }
 
-    boolean putTemplate(String host, String template, byte[] source) {
-        logger.debug("http exporter [{}] - installing template [{}]", name(), template);
+    boolean putTemplate(String host, String template, String source) {
+        logger.debug("installing template [{}]", template);
         HttpURLConnection connection = null;
         try {
             connection = openConnection(host, "PUT", "_template/" + template, XContentType.JSON.mediaType());
             if (connection == null) {
-                logger.debug("http exporter [{}] - no available connection to update monitoring template [{}]", name(), template);
+                logger.debug("no available connection to update monitoring template [{}]", template);
                 return false;
             }
 
             // Uploads the template and closes the outputstream
-            Streams.copy(source, connection.getOutputStream());
+            Streams.copy(source.getBytes(StandardCharsets.UTF_8), connection.getOutputStream());
             if (connection.getResponseCode() != 200 && connection.getResponseCode() != 201) {
                 logConnectionError("error adding the monitoring template [" + template + "] to [" + host + "]", connection);
                 return false;
             }
 
-            logger.info("http exporter [{}] - monitoring template [{}] updated to version [{}]", name(), template, templateVersion);
+            logger.info("monitoring template [{}] updated ", template);
             return true;
         } catch (IOException e) {
-            logger.error("http exporter [{}] - failed to update monitoring template [{}] on host [{}]:\n{}", name(), template, host,
-                    e.getMessage());
+            logger.error("failed to update monitoring template [{}] on host [{}]:\n{}", template, host, e.getMessage());
             return false;
         } finally {
             if (connection != null) {
@@ -705,7 +699,7 @@ public class HttpExporter extends Exporter {
         }
 
         @Override
-        public Bulk add(Collection<MonitoringDoc> docs) throws ExportException {
+        public void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
             try {
                 if ((docs != null) && (!docs.isEmpty())) {
                     if (connection == null) {
@@ -735,14 +729,13 @@ public class HttpExporter extends Exporter {
             } catch (Exception e) {
                 throw new ExportException("failed to add documents to export bulk [{}]", name);
             }
-            return this;
         }
 
         @Override
-        public void flush() throws ExportException {
+        public void doFlush() throws ExportException {
             if (connection != null) {
                 try {
-                    flush(connection);
+                    sendCloseExportingConnection(connection);
                 } catch (Exception e) {
                     throw new ExportException("failed to flush export bulk [{}]", e, name);
                 } finally {
@@ -751,8 +744,17 @@ public class HttpExporter extends Exporter {
             }
         }
 
-        private void flush(HttpURLConnection connection) throws IOException {
-            sendCloseExportingConnection(connection);
+        @Override
+        protected void doClose() throws ExportException {
+            if (connection != null) {
+                try {
+                    closeExportingConnection(connection);
+                } catch (Exception e) {
+                    throw new ExportException("failed to close export bulk [{}]", e, name);
+                } finally {
+                    connection = null;
+                }
+            }
         }
     }
 

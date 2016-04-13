@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.shield.authc.Realm;

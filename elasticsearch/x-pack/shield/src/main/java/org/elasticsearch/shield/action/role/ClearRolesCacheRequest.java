@@ -17,58 +17,58 @@ import java.io.IOException;
  */
 public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequest> {
 
-    String[] roles;
+    String[] names;
 
     /**
      * Sets the roles for which caches will be evicted. When not set all the roles will be evicted from the cache.
      *
-     * @param roles    The role names
+     * @param names    The role names
      */
-    public ClearRolesCacheRequest roles(String... roles) {
-        this.roles = roles;
+    public ClearRolesCacheRequest names(String... names) {
+        this.names = names;
         return this;
     }
 
     /**
      * @return an array of role names that will have the cache evicted or <code>null</code> if all
      */
-    public String[] roles() {
-        return roles;
+    public String[] names() {
+        return names;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        roles = in.readOptionalStringArray();
+        names = in.readOptionalStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStringArray(roles);
+        out.writeOptionalStringArray(names);
     }
 
     public static class Node extends BaseNodeRequest {
-        String[] roles;
+        String[] names;
 
         public Node() {
         }
 
         public Node(ClearRolesCacheRequest request, String nodeId) {
             super(nodeId);
-            this.roles = request.roles();
+            this.names = request.names();
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            roles = in.readOptionalStringArray();
+            names = in.readOptionalStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalStringArray(roles);
+            out.writeOptionalStringArray(names);
         }
     }
 }

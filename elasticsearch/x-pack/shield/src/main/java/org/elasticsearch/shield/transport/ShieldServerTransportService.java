@@ -7,7 +7,6 @@ package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.action.ShieldActionMapper;
@@ -35,12 +34,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_DEFAULT;
-import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_CLIENT_AUTH_SETTING;
-import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_PROFILE_CLIENT_AUTH_SETTING;
-import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_PROFILE_SSL_SETTING;
-import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_SSL_DEFAULT;
-import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.TRANSPORT_SSL_SETTING;
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.CLIENT_AUTH_SETTING;
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.PROFILE_CLIENT_AUTH_SETTING;
+import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.SSL_SETTING;
 
 /**
  *
@@ -127,10 +123,8 @@ public class ShieldServerTransportService extends TransportService {
 
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();
-            final boolean profileSsl = profileSettings.getAsBoolean(TRANSPORT_PROFILE_SSL_SETTING,
-                    settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT));
-            final boolean clientAuth = SSLClientAuth.parse(profileSettings.get(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING,
-                    settings.get(TRANSPORT_CLIENT_AUTH_SETTING)), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
+            final boolean profileSsl = ShieldNettyTransport.profileSsl(profileSettings, settings);
+            final boolean clientAuth = PROFILE_CLIENT_AUTH_SETTING.get(profileSettings, settings).enabled();
             final boolean extractClientCert = profileSsl && clientAuth;
             String type = entry.getValue().get(SETTING_NAME, "node");
             switch (type) {
@@ -145,9 +139,8 @@ public class ShieldServerTransportService extends TransportService {
         }
 
         if (!profileFilters.containsKey(TransportSettings.DEFAULT_PROFILE)) {
-            final boolean profileSsl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
-            final boolean clientAuth =
-                    SSLClientAuth.parse(settings.get(TRANSPORT_CLIENT_AUTH_SETTING), TRANSPORT_CLIENT_AUTH_DEFAULT).enabled();
+            final boolean profileSsl = SSL_SETTING.get(settings);
+            final boolean clientAuth = CLIENT_AUTH_SETTING.get(settings).enabled();
             final boolean extractClientCert = profileSsl && clientAuth;
             profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
                     actionMapper, threadPool.getThreadContext(), extractClientCert));

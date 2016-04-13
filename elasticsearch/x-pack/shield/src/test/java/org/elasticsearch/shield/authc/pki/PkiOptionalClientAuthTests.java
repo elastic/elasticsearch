@@ -12,10 +12,12 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
+import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -54,19 +56,19 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
-                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, SSLClientAuth.OPTIONAL)
-                .put("shield.authc.realms.file.type", "file")
-                .put("shield.authc.realms.file.order", "0")
-                .put("shield.authc.realms.pki1.type", "pki")
-                .put("shield.authc.realms.pki1.order", "1")
-                .put("shield.authc.realms.pki1.truststore.path",
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(ShieldNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), SSLClientAuth.OPTIONAL)
+                .put("xpack.security.authc.realms.file.type", "file")
+                .put("xpack.security.authc.realms.file.order", "0")
+                .put("xpack.security.authc.realms.pki1.type", "pki")
+                .put("xpack.security.authc.realms.pki1.order", "1")
+                .put("xpack.security.authc.realms.pki1.truststore.path",
                         getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("shield.authc.realms.pki1.truststore.password", "truststore-testnode-only")
-                .put("shield.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
+                .put("xpack.security.authc.realms.pki1.truststore.password", "truststore-testnode-only")
+                .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 .put("transport.profiles.want_client_auth.port", randomClientPortRange)
                 .put("transport.profiles.want_client_auth.bind_host", "localhost")
-                .put("transport.profiles.want_client_auth.shield.ssl.client.auth", SSLClientAuth.OPTIONAL)
+                .put("transport.profiles.want_client_auth.xpack.security.ssl.client.auth", SSLClientAuth.OPTIONAL)
                 .build();
     }
 
@@ -105,9 +107,9 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
                 ("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks", "truststore-testnode-only");
         Settings settings = Settings.builder()
                 .put(sslSettingsForStore)
-                .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
-                .put("shield.transport.ssl", true)
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), true)
                 .build();
 
 

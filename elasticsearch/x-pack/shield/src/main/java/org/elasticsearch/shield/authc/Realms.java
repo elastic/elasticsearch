@@ -8,8 +8,12 @@ package org.elasticsearch.shield.authc;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
 import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.license.ShieldLicenseState;
@@ -22,29 +26,37 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.shield.Security.setting;
+
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
 public class Realms extends AbstractLifecycleComponent<Realms> implements Iterable<Realm> {
 
+    public static final Setting<Settings> REALMS_GROUPS_SETTINGS = Setting.groupSetting(setting("authc.realms."), Property.NodeScope);
+
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
     private final ShieldLicenseState shieldLicenseState;
+    private final ReservedRealm reservedRealm;
 
     protected List<Realm> realms = Collections.emptyList();
     // a list of realms that are "internal" in that they are provided by shield and not a third party
     protected List<Realm> internalRealmsOnly = Collections.emptyList();
 
     @Inject
-    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, ShieldLicenseState shieldLicenseState) {
+    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, ShieldLicenseState shieldLicenseState,
+                  ReservedRealm reservedRealm) {
         super(settings);
         this.env = env;
         this.factories = factories;
         this.shieldLicenseState = shieldLicenseState;
+        this.reservedRealm = reservedRealm;
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
+        assert factories.get(ReservedRealm.TYPE) == null;
         this.realms = initRealms();
         // pre-computing a list of internal only realms allows us to have much cheaper iteration than a custom iterator
         // and is also simpler in terms of logic. These lists are small, so the duplication should not be a real issue here
@@ -58,8 +70,13 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
         if (internalRealms.isEmpty()) {
             addInternalRealms(internalRealms);
         }
-        this.internalRealmsOnly = Collections.unmodifiableList(internalRealms);
 
+        if (internalRealms.contains(reservedRealm) == false) {
+            internalRealms.add(0, reservedRealm);
+        }
+        assert internalRealms.get(0) == reservedRealm;
+
+        this.internalRealmsOnly = Collections.unmodifiableList(internalRealms);
     }
 
     @Override
@@ -92,7 +109,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     }
 
     protected List<Realm> initRealms() {
-        Settings realmsSettings = settings.getAsSettings("shield.authc.realms");
+        Settings realmsSettings = REALMS_GROUPS_SETTINGS.get(settings);
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
         for (String name : realmsSettings.names()) {
@@ -126,11 +143,12 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
 
         if (!realms.isEmpty()) {
             Collections.sort(realms);
-            return realms;
+        } else {
+            // there is no "realms" configuration, add the defaults
+            addInternalRealms(realms);
         }
-
-        // there is no "realms" configuration, add the defaults
-        addInternalRealms(realms);
+        // always add built in first!
+        realms.add(0, reservedRealm);
         return realms;
     }
 
@@ -140,7 +158,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
      * configured, there can only be one configured instance.
      */
     public static Settings fileRealmSettings(Settings settings) {
-        Settings realmsSettings = settings.getAsSettings("shield.authc.realms");
+        Settings realmsSettings = REALMS_GROUPS_SETTINGS.get(settings);
         Settings result = null;
         for (String name : realmsSettings.names()) {
             Settings realmSettings = realmsSettings.getAsSettings(name);
@@ -160,13 +178,17 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     }
 
     private void addInternalRealms(List<Realm> realms) {
+        Realm.Factory fileRealm = factories.get(FileRealm.TYPE);
+        if (fileRealm != null) {
+            realms.add(fileRealm.createDefault("default_" + FileRealm.TYPE));
+        }
         Realm.Factory indexRealmFactory = factories.get(NativeRealm.TYPE);
         if (indexRealmFactory != null) {
             realms.add(indexRealmFactory.createDefault("default_" + NativeRealm.TYPE));
         }
-        Realm.Factory esUsersRealm = factories.get(FileRealm.TYPE);
-        if (esUsersRealm != null) {
-            realms.add(esUsersRealm.createDefault("default_" + FileRealm.TYPE));
-        }
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(REALMS_GROUPS_SETTINGS);
     }
 }

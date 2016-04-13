@@ -14,10 +14,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +29,7 @@ import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
 
+import static org.elasticsearch.shield.Security.setting;
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 
 /**
@@ -34,8 +39,10 @@ import static org.elasticsearch.shield.support.Exceptions.authenticationError;
  */
 public class InternalAuthenticationService extends AbstractComponent implements AuthenticationService {
 
-    public static final String SETTING_SIGN_USER_HEADER = "shield.authc.sign_user_header";
-    public static final String SETTING_RUN_AS_ENABLED = "shield.authc.run_as.enabled";
+    public static final Setting<Boolean> SIGN_USER_HEADER =
+            Setting.boolSetting(setting("authc.sign_user_header"), true, Property.NodeScope);
+    public static final Setting<Boolean> RUN_AS_ENABLED =
+            Setting.boolSetting(setting("authc.run_as.enabled"), true, Property.NodeScope);
     public static final String RUN_AS_USER_HEADER = "es-shield-runas-user";
 
     static final String TOKEN_KEY = "_shield_token";
@@ -44,7 +51,6 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     private final Realms realms;
     private final AuditTrail auditTrail;
     private final CryptoService cryptoService;
-    private final AnonymousService anonymousService;
     private final AuthenticationFailureHandler failureHandler;
     private final ThreadContext threadContext;
     private final boolean signUserHeader;
@@ -52,17 +58,15 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
     @Inject
     public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, CryptoService cryptoService,
-                                         AnonymousService anonymousService, AuthenticationFailureHandler failureHandler,
-                                         ThreadPool threadPool) {
+                                         AuthenticationFailureHandler failureHandler, ThreadPool threadPool) {
         super(settings);
         this.realms = realms;
         this.auditTrail = auditTrail;
         this.cryptoService = cryptoService;
-        this.anonymousService = anonymousService;
         this.failureHandler = failureHandler;
         this.threadContext = threadPool.getThreadContext();
-        this.signUserHeader = settings.getAsBoolean(SETTING_SIGN_USER_HEADER, true);
-        this.runAsEnabled = settings.getAsBoolean(SETTING_RUN_AS_ENABLED, true);
+        this.signUserHeader = SIGN_USER_HEADER.get(settings);
+        this.runAsEnabled = RUN_AS_ENABLED.get(settings);
     }
 
     @Override
@@ -86,11 +90,12 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         }
 
         if (token == null) {
-            if (anonymousService.enabled()) {
+            if (AnonymousUser.enabled()) {
+                User anonymousUser = AnonymousUser.INSTANCE;
                 // we must put the user in the request context, so it'll be copied to the
                 // transport request - without it, the transport will assume system user
-                setUser(anonymousService.anonymousUser());
-                return anonymousService.anonymousUser();
+                setUser(anonymousUser);
+                return anonymousUser;
             }
             auditTrail.anonymousAccessDenied(request);
             throw failureHandler.missingToken(request);
@@ -198,6 +203,11 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         setUser(user);
     }
 
+    @Override
+    public User getCurrentUser() {
+        return getUserFromContext();
+    }
+
     void setUserHeader(User user) throws IOException {
         String userHeader = signUserHeader ? cryptoService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
         threadContext.putHeader(USER_KEY, userHeader);
@@ -282,8 +292,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             if (fallbackUser != null) {
                 return fallbackUser;
             }
-            if (anonymousService.enabled()) {
-                return anonymousService.anonymousUser();
+            if (AnonymousUser.enabled()) {
+                return AnonymousUser.INSTANCE;
             }
             auditTrail.anonymousAccessDenied(action, message);
             throw failureHandler.missingToken(message, action);
@@ -429,5 +439,10 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             }
         }
         return null;
+    }
+
+    public static void registerSettings(SettingsModule settingsModule) {
+        settingsModule.registerSetting(SIGN_USER_HEADER);
+        settingsModule.registerSetting(RUN_AS_ENABLED);
     }
 }

@@ -9,7 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.Security;
 
 /**
  *
@@ -23,7 +23,7 @@ public abstract class AbstractShieldModule extends AbstractModule {
     public AbstractShieldModule(Settings settings) {
         this.settings = settings;
         this.clientMode = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-        this.shieldEnabled = Shield.enabled(settings);
+        this.shieldEnabled = Security.enabled(settings);
     }
 
     @Override

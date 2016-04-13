@@ -6,8 +6,8 @@
 package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.shield.SystemUser;
 import org.elasticsearch.shield.authc.AuthenticationService;
+import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;

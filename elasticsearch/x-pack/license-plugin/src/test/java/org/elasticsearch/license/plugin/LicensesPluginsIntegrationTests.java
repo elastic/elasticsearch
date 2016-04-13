@@ -33,13 +33,13 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }
 
     private Settings nodeSettingsWithConsumerPlugin(int trialLicenseDuration) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(0))
                 // this setting is only used in tests
                 .put("_trial_license_duration_in_seconds", trialLicenseDuration)

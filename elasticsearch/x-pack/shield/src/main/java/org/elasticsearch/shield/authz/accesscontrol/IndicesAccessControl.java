@@ -62,7 +62,7 @@ public class IndicesAccessControl {
         }
 
         /**
-         * @return Whether  any role / permission group is allowed to this index.
+         * @return Whether any role / permission group is allowed to this index.
          */
         public boolean isGranted() {
             return granted;

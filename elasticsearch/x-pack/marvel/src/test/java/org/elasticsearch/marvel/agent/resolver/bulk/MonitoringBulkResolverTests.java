@@ -56,7 +56,7 @@ public class MonitoringBulkResolverTests extends MonitoringIndexNameResolverTest
         }
 
         MonitoringBulkResolver resolver = newResolver();
-        assertThat(resolver.index(doc), equalTo(".monitoring-kibana-0-2015.07.22"));
+        assertThat(resolver.index(doc), equalTo(".monitoring-kibana-2-2015.07.22"));
         assertThat(resolver.type(doc), equalTo(doc.getType()));
         assertThat(resolver.id(doc), nullValue());
 

@@ -22,7 +22,7 @@ import org.elasticsearch.watcher.watch.WatchStore;
 /**
   */
 public class RestHijackOperationAction extends WatcherRestHandler {
-    private static String ALLOW_DIRECT_ACCESS_TO_WATCH_INDEX_SETTING = "watcher.index.rest.direct_access";
+    private static String ALLOW_DIRECT_ACCESS_TO_WATCH_INDEX_SETTING = "xpack.watcher.index.rest.direct_access";
 
 
     @Inject

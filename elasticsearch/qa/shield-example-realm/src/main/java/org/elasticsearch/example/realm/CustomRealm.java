@@ -6,7 +6,7 @@
 package org.elasticsearch.example.realm;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;
@@ -22,7 +22,7 @@ public class CustomRealm extends Realm<UsernamePasswordToken> {
 
     static final String KNOWN_USER = "custom_user";
     static final String KNOWN_PW = "changeme";
-    static final String[] ROLES = new String[] { "admin" };
+    static final String[] ROLES = new String[] { "superuser" };
 
     public CustomRealm(RealmConfig config) {
         super(TYPE, config);

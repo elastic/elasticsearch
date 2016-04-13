@@ -12,6 +12,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
+import org.elasticsearch.shield.authc.esnative.ReservedRealm;
+import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -30,21 +33,30 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
 
     @Override
     protected void doExecute(DeleteUserRequest request, final ActionListener<DeleteUserResponse> listener) {
-        try {
-            usersStore.deleteUser(request, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(Boolean found) {
-                    listener.onResponse(new DeleteUserResponse(found));
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            });
-        } catch (Exception e) {
-            logger.error("failed to delete user [{}]", e, request.username());
-            listener.onFailure(e);
+        final String username = request.username();
+        if (ReservedRealm.isReserved(username)) {
+            if (AnonymousUser.isAnonymousUsername(username)) {
+                listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be deleted"));
+                return;
+            } else {
+                listener.onFailure(new IllegalArgumentException("user [" + username + "] is reserved and cannot be deleted"));
+                return;
+            }
+        } else if (SystemUser.NAME.equals(username)) {
+            listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
+            return;
         }
+
+        usersStore.deleteUser(request, new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean found) {
+                listener.onResponse(new DeleteUserResponse(found));
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                listener.onFailure(e);
+            }
+        });
     }
 }

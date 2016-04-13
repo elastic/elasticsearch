@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authc.esnative;
 
-import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.user.User;
 
 /**
  * Like User, but includes the hashed password

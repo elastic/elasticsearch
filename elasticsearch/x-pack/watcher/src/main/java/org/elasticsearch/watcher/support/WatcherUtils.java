@@ -113,7 +113,7 @@ public final class WatcherUtils {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, BODY_FIELD)) {
-                    searchRequest.source(SearchSourceBuilder.parseSearchSource(parser, context, aggParsers, suggesters));
+                    searchRequest.source(SearchSourceBuilder.fromXContent(parser, context, aggParsers, suggesters));
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_FIELD)) {

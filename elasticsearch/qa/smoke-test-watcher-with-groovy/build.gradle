@@ -9,7 +9,7 @@ integTest {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     setting 'script.inline', 'true'
-    setting 'xpack.shield.enabled', 'false'
+    setting 'xpack.security.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
   }
 }

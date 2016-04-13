@@ -40,7 +40,7 @@ public class RestClearRolesCacheAction extends BaseRestHandler {
 
         String[] roles = request.paramAsStringArrayOrEmptyIfAll("name");
 
-        ClearRolesCacheRequest req = new ClearRolesCacheRequest().roles(roles);
+        ClearRolesCacheRequest req = new ClearRolesCacheRequest().names(roles);
 
         new SecurityClient(client).clearRolesCache(req, new RestBuilderListener<ClearRolesCacheResponse>(channel) {
             @Override

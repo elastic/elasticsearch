@@ -31,6 +31,7 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMonitoringD
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
+import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkResolver;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -50,8 +51,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.dataTemplateName;
-import static org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils.indexTemplateName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -63,9 +62,6 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     private int webPort;
     private MockWebServer webServer;
-
-    private static final byte[] TIMESTAMPED_TEMPLATE = MarvelTemplateUtils.loadTimestampedIndexTemplate();
-    private static final byte[] DATA_TEMPLATE = MarvelTemplateUtils.loadDataIndexTemplate();
 
     @Before
     public void startWebservice() throws Exception {
@@ -91,10 +87,10 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     public void testExport() throws Exception {
         enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueResponse(404, "template for timestamped indices does not exist");
-        enqueueResponse(201, "template for timestamped indices created");
-        enqueueResponse(404, "template for data index does not exist");
-        enqueueResponse(201, "template for data index created");
+        for (String template : monitoringTemplates().keySet()) {
+            enqueueResponse(404, "template [" + template + "] does not exist");
+            enqueueResponse(201, "template [" + template + "] created");
+        }
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
         Settings.Builder builder = Settings.builder()
@@ -109,29 +105,22 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         final int nbDocs = randomIntBetween(1, 25);
         export(newRandomMarvelDocs(nbDocs));
 
-        assertThat(webServer.getRequestCount(), equalTo(6));
+        assertThat(webServer.getRequestCount(), equalTo(2 + monitoringTemplates().size() * 2));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
         assertThat(recordedRequest.getPath(), equalTo("/"));
 
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + indexTemplateName()));
+        for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {
+            recordedRequest = webServer.takeRequest();
+            assertThat(recordedRequest.getMethod(), equalTo("GET"));
+            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
 
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + indexTemplateName()));
-        assertThat(recordedRequest.getBody().readByteArray(), equalTo(TIMESTAMPED_TEMPLATE));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + dataTemplateName()));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + dataTemplateName()));
-        assertThat(recordedRequest.getBody().readByteArray(), equalTo(DATA_TEMPLATE));
+            recordedRequest = webServer.takeRequest();
+            assertThat(recordedRequest.getMethod(), equalTo("PUT"));
+            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
+            assertThat(recordedRequest.getBody().readUtf8(), equalTo(template.getValue()));
+        }
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("POST"));
@@ -176,10 +165,10 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         logger.info("--> starting node");
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueResponse(404, "template for timestamped indices does not exist");
-        enqueueResponse(201, "template for timestamped indices created");
-        enqueueResponse(404, "template for data index does not exist");
-        enqueueResponse(201, "template for data index created");
+        for (String template : monitoringTemplates().keySet()) {
+            enqueueResponse(404, "template [" + template + "] does not exist");
+            enqueueResponse(201, "template [" + template + "] created");
+        }
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
         String agentNode = internalCluster().startNode(builder);
@@ -190,29 +179,22 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         export(Collections.singletonList(newRandomMarvelDoc()));
 
         assertThat(exporter.supportedClusterVersion, is(true));
-        assertThat(webServer.getRequestCount(), equalTo(6));
+        assertThat(webServer.getRequestCount(), equalTo(2 + monitoringTemplates().size() * 2));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
         assertThat(recordedRequest.getPath(), equalTo("/"));
 
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + indexTemplateName()));
+        for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {
+            recordedRequest = webServer.takeRequest();
+            assertThat(recordedRequest.getMethod(), equalTo("GET"));
+            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
 
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + indexTemplateName()));
-        assertThat(recordedRequest.getBody().readByteArray(), equalTo(TIMESTAMPED_TEMPLATE));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + dataTemplateName()));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + dataTemplateName()));
-        assertThat(recordedRequest.getBody().readByteArray(), equalTo(DATA_TEMPLATE));
+            recordedRequest = webServer.takeRequest();
+            assertThat(recordedRequest.getMethod(), equalTo("PUT"));
+            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
+            assertThat(recordedRequest.getBody().readUtf8(), equalTo(template.getValue()));
+        }
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("POST"));
@@ -246,32 +228,37 @@ public class HttpExporterTests extends MarvelIntegTestCase {
             exporter = getExporter(agentNode);
 
             enqueueGetClusterVersionResponse(secondWebServer, Version.CURRENT);
-            enqueueResponse(secondWebServer, 404, "template for timestamped indices does not exist");
-            enqueueResponse(secondWebServer, 201, "template for timestamped indices created");
-            enqueueResponse(secondWebServer, 200, "template for data index exist");
+            for (String template : monitoringTemplates().keySet()) {
+                if (template.contains(MonitoringBulkResolver.Data.DATA)) {
+                    enqueueResponse(secondWebServer, 200, "template [" + template + "] exist");
+                } else {
+                    enqueueResponse(secondWebServer, 404, "template [" + template + "] does not exist");
+                    enqueueResponse(secondWebServer, 201, "template [" + template + "] created");
+                }
+            }
             enqueueResponse(secondWebServer, 200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
             logger.info("--> exporting a second event");
             export(Collections.singletonList(newRandomMarvelDoc()));
 
-            assertThat(secondWebServer.getRequestCount(), equalTo(5));
+            assertThat(secondWebServer.getRequestCount(), equalTo(2 + monitoringTemplates().size() * 2 - 1));
 
             recordedRequest = secondWebServer.takeRequest();
             assertThat(recordedRequest.getMethod(), equalTo("GET"));
             assertThat(recordedRequest.getPath(), equalTo("/"));
 
-            recordedRequest = secondWebServer.takeRequest();
-            assertThat(recordedRequest.getMethod(), equalTo("GET"));
-            assertThat(recordedRequest.getPath(), equalTo("/_template/" + indexTemplateName()));
+            for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {
+                recordedRequest = secondWebServer.takeRequest();
+                assertThat(recordedRequest.getMethod(), equalTo("GET"));
+                assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
 
-            recordedRequest = secondWebServer.takeRequest();
-            assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-            assertThat(recordedRequest.getPath(), equalTo("/_template/" + indexTemplateName()));
-            assertThat(recordedRequest.getBody().readByteArray(), equalTo(TIMESTAMPED_TEMPLATE));
-
-            recordedRequest = secondWebServer.takeRequest();
-            assertThat(recordedRequest.getMethod(), equalTo("GET"));
-            assertThat(recordedRequest.getPath(), equalTo("/_template/" + dataTemplateName()));;
+                if (template.getKey().contains(MonitoringBulkResolver.Data.DATA) == false) {
+                    recordedRequest = secondWebServer.takeRequest();
+                    assertThat(recordedRequest.getMethod(), equalTo("PUT"));
+                    assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
+                    assertThat(recordedRequest.getBody().readUtf8(), equalTo(template.getValue()));
+                }
+            }
 
             recordedRequest = secondWebServer.takeRequest();
             assertThat(recordedRequest.getMethod(), equalTo("POST"));
@@ -325,10 +312,10 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         logger.info("--> exporting a first event");
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueResponse(404, "template for timestamped indices does not exist");
-        enqueueResponse(201, "template for timestamped indices created");
-        enqueueResponse(404, "template for data index does not exist");
-        enqueueResponse(201, "template for data index created");
+        for (String template : monitoringTemplates().keySet()) {
+            enqueueResponse(404, "template [" + template + "] does not exist");
+            enqueueResponse(201, "template [" + template + "] created");
+        }
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
         HttpExporter exporter = getExporter(agentNode);
@@ -336,29 +323,23 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         MonitoringDoc doc = newRandomMarvelDoc();
         export(Collections.singletonList(doc));
 
-        assertThat(webServer.getRequestCount(), equalTo(6));
+        final int expectedRequests = 2 + monitoringTemplates().size() * 2;
+        assertThat(webServer.getRequestCount(), equalTo(expectedRequests));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
         assertThat(recordedRequest.getPath(), equalTo("/"));
 
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + indexTemplateName()));
+        for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {
+            recordedRequest = webServer.takeRequest();
+            assertThat(recordedRequest.getMethod(), equalTo("GET"));
+            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
 
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + indexTemplateName()));
-        assertThat(recordedRequest.getBody().readByteArray(), equalTo(TIMESTAMPED_TEMPLATE));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + dataTemplateName()));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + dataTemplateName()));
-        assertThat(recordedRequest.getBody().readByteArray(), equalTo(DATA_TEMPLATE));
+            recordedRequest = webServer.takeRequest();
+            assertThat(recordedRequest.getMethod(), equalTo("PUT"));
+            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
+            assertThat(recordedRequest.getBody().readUtf8(), equalTo(template.getValue()));
+        }
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("POST"));
@@ -381,8 +362,9 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         logger.info("--> exporting a second event");
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueResponse(200, "template for timestamped indices exist");
-        enqueueResponse(200, "template for data index exist");
+        for (String template : monitoringTemplates().keySet()) {
+            enqueueResponse(200, "template [" + template + "] exist");
+        }
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
         doc = newRandomMarvelDoc();
@@ -391,19 +373,17 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         String expectedMarvelIndex = ".monitoring-es-" + MarvelTemplateUtils.TEMPLATE_VERSION + "-"
                 + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.getTimestamp());
 
-        assertThat(webServer.getRequestCount(), equalTo(6 + 4));
+        assertThat(webServer.getRequestCount(), equalTo(expectedRequests + 2 + monitoringTemplates().size()));
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
         assertThat(recordedRequest.getPath(), equalTo("/"));
 
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + indexTemplateName()));
-
-        recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/" + dataTemplateName()));
+        for (String template : monitoringTemplates().keySet()) {
+            recordedRequest = webServer.takeRequest();
+            assertThat(recordedRequest.getMethod(), equalTo("GET"));
+            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template));
+        }
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("POST"));

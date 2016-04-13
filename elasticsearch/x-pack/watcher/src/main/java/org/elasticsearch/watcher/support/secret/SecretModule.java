@@ -7,22 +7,22 @@ package org.elasticsearch.watcher.support.secret;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.Shield;
+import org.elasticsearch.shield.Security;
 
 /**
  *
  */
 public class SecretModule extends AbstractModule {
 
-    private final boolean shieldEnabled;
+    private final boolean securityEnabled;
 
     public SecretModule(Settings settings) {
-        shieldEnabled = Shield.enabled(settings);
+        securityEnabled = Security.enabled(settings);
     }
 
     @Override
     protected void configure() {
-        if (shieldEnabled) {
+        if (securityEnabled) {
             bind(SecretService.Secure.class).asEagerSingleton();
             bind(SecretService.class).to(SecretService.Secure.class);
         } else {

@@ -14,6 +14,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
 import org.elasticsearch.shield.authc.file.FileRealm;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.test.ShieldTestUtils;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -50,14 +51,16 @@ public class ShieldF {
         }
         Path folder = ShieldTestUtils.createFolder(ShieldTestUtils.createFolder(PathUtils.get(homeDir), "config"), "shield");
 
-        settings.put("shield.authc.realms.file.type", FileRealm.TYPE);
-        settings.put("shield.authc.realms.file.order", "0");
-        settings.put("shield.authc.realms.file.files.users", writeFile(folder, "users", ShieldSettingsSource.CONFIG_STANDARD_USER));
-        settings.put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles",
+        settings.put("xpack.security.authc.realms.file.type", FileRealm.TYPE);
+        settings.put("xpack.security.authc.realms.file.order", "0");
+        settings.put("xpack.security.authc.realms.file.files.users",
+                writeFile(folder, "users", ShieldSettingsSource.CONFIG_STANDARD_USER));
+        settings.put("xpack.security.authc.realms.file.files.users_roles", writeFile(folder, "users_roles",
                 ShieldSettingsSource.CONFIG_STANDARD_USER_ROLES));
-        settings.put("shield.authc.realms.esnative.type", NativeRealm.TYPE);
-        settings.put("shield.authc.realms.esnative.order", "1");
-        settings.put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ShieldSettingsSource.CONFIG_ROLE_ALLOW_ALL));
+        settings.put("xpack.security.authc.realms.esnative.type", NativeRealm.TYPE);
+        settings.put("xpack.security.authc.realms.esnative.order", "1");
+        settings.put(FileRolesStore.ROLES_FILE_SETTING.getKey(),
+                writeFile(folder, "roles.yml", ShieldSettingsSource.CONFIG_ROLE_ALLOW_ALL));
 
         final CountDownLatch latch = new CountDownLatch(1);
         final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(XPackPlugin.class));

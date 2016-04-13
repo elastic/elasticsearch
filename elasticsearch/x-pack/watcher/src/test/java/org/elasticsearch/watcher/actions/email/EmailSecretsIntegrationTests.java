@@ -67,10 +67,10 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         }
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("watcher.actions.email.service.account.test.smtp.auth", true)
-                .put("watcher.actions.email.service.account.test.smtp.port", server.port())
-                .put("watcher.actions.email.service.account.test.smtp.host", "localhost")
-                .put("watcher.shield.encrypt_sensitive_data", encryptSensitiveData)
+                .put("xpack.watcher.actions.email.service.account.test.smtp.auth", true)
+                .put("xpack.watcher.actions.email.service.account.test.smtp.port", server.port())
+                .put("xpack.watcher.actions.email.service.account.test.smtp.host", "localhost")
+                .put("xpack.watcher.shield.encrypt_sensitive_data", encryptSensitiveData)
                 .build();
     }
 

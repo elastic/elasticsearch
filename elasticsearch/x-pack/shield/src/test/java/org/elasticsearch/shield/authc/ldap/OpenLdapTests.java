@@ -45,8 +45,8 @@ public class OpenLdapTests extends ESTestCase {
          * verification tests since a re-established connection does not perform hostname verification.
          */
         clientSSLService = new ClientSSLService(Settings.builder()
-                .put("shield.ssl.keystore.path", keystore)
-                .put("shield.ssl.keystore.password", "changeit")
+                .put("xpack.security.ssl.keystore.path", keystore)
+                .put("xpack.security.ssl.keystore.password", "changeit")
                 .build());
         clientSSLService.setEnvironment(env);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();

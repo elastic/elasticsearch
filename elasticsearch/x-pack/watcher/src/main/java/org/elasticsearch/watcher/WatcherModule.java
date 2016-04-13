@@ -23,16 +23,16 @@ import java.util.Properties;
 public class WatcherModule extends AbstractModule {
 
     static final String PROPERTIES_FILE = "/watcher.properties";
-    static final String VERSION_FIELD = "watcher.template.version";
+    static final String VERSION_FIELD = "xpack.watcher.template.version";
 
     public static final String HISTORY_TEMPLATE_NAME = "watch_history_" + getHistoryIndexTemplateVersion();
     public static final String TRIGGERED_TEMPLATE_NAME = "triggered_watches";
     public static final String WATCHES_TEMPLATE_NAME = "watches";
-    public static final Setting<Settings> HISTORY_TEMPLATE_SETTING = Setting.groupSetting("watcher.history.index.",
+    public static final Setting<Settings> HISTORY_TEMPLATE_SETTING = Setting.groupSetting("xpack.watcher.history.index.",
             Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<Settings> TRIGGERED_TEMPLATE_SETTING = Setting.groupSetting("watcher.triggered_watches.index.",
+    public static final Setting<Settings> TRIGGERED_TEMPLATE_SETTING = Setting.groupSetting("xpack.watcher.triggered_watches.index.",
             Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<Settings> WATCHES_TEMPLATE_SETTING = Setting.groupSetting("watcher.watches.index.",
+    public static final Setting<Settings> WATCHES_TEMPLATE_SETTING = Setting.groupSetting("xpack.watcher.watches.index.",
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
 

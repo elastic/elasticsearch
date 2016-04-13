@@ -28,8 +28,10 @@ import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.shield.authc.file.FileRealm;
+import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -131,10 +133,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
-                .put("watcher.execution.scroll.size", randomIntBetween(1, 100))
-                .put("watcher.watch.scroll.size", randomIntBetween(1, 100))
+                .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
+                .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
                 .put(ShieldSettings.settings(shieldEnabled))
-                .put("watcher.trigger.schedule.engine", scheduleImplName)
+                .put("xpack.watcher.trigger.schedule.engine", scheduleImplName)
                 .build();
     }
 
@@ -262,7 +264,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         return Settings.builder()
                 .put("client.transport.sniff", false)
-                .put("shield.user", "admin:changeme")
+                .put(Security.USER_SETTING.getKey(), "admin:changeme")
                 .build();
     }
 
@@ -703,20 +705,20 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         public static Settings settings(boolean enabled)  {
             Settings.Builder builder = Settings.builder();
             if (!enabled) {
-                return builder.put("shield.enabled", false).build();
+                return builder.put("xpack.security.enabled", false).build();
             }
             try {
                 Path folder = createTempDir().resolve("watcher_shield");
                 Files.createDirectories(folder);
-                return builder.put("shield.enabled", true)
-                        .put("shield.authc.realms.file.type", FileRealm.TYPE)
-                        .put("shield.authc.realms.file.order", 0)
-                        .put("shield.authc.realms.file.files.users", writeFile(folder, "users", USERS))
-                        .put("shield.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
-                        .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
-                        .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
-                        .put("shield.authc.sign_user_header", false)
-                        .put("shield.audit.enabled", auditLogsEnabled)
+                return builder.put("xpack.security.enabled", true)
+                        .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
+                        .put("xpack.security.authc.realms.esusers.order", 0)
+                        .put("xpack.security.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
+                        .put("xpack.security.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
+                        .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", ROLES))
+                        .put(InternalCryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key.yml", systemKey))
+                        .put("xpack.security.authc.sign_user_header", false)
+                        .put("xpack.security.audit.enabled", auditLogsEnabled)
                         .build();
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);

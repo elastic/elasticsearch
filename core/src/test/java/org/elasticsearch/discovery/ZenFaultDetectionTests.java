@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -50,6 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ZenFaultDetectionTests extends ESTestCase {
 
     protected ThreadPool threadPool;
+    private CircuitBreakerService circuitBreakerService;
 
     protected static final Version version0 = Version.fromId(/*0*/99);
     protected DiscoveryNode nodeA;
@@ -64,6 +67,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new ThreadPool(getClass().getName());
+        circuitBreakerService = new NoneCircuitBreakerService();
         serviceA = build(Settings.builder().put("name", "TS_A").build(), version0);
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
         serviceB = build(Settings.builder().put("name", "TS_B").build(), version1);
@@ -108,7 +112,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
     protected MockTransportService build(Settings settings, Version version) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         MockTransportService transportService = new MockTransportService(Settings.EMPTY,
-                new LocalTransport(settings, threadPool, version, namedWriteableRegistry), threadPool);
+                new LocalTransport(settings, threadPool, version, namedWriteableRegistry, circuitBreakerService), threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;

@@ -74,17 +74,15 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             return;
         }
         ChannelBuffer buffer = (ChannelBuffer) m;
-        int size = buffer.getInt(buffer.readerIndex() - 4);
-        transportServiceAdapter.received(size + 6);
+        Marker marker = new Marker(buffer);
+        int size = marker.messageSizeWithRemainingHeaders();
+        transportServiceAdapter.received(marker.messageSizeWithAllHeaders());
 
         // we have additional bytes to read, outside of the header
-        boolean hasMessageBytesToRead = (size - (NettyHeader.HEADER_SIZE - 6)) != 0;
-
-        int markedReaderIndex = buffer.readerIndex();
-        int expectedIndexReader = markedReaderIndex + size;
+        boolean hasMessageBytesToRead = marker.messageSize() != 0;
 
         // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
-        // buffer, or in the cumlation buffer, which is cleaned each time
+        // buffer, or in the cumulation buffer, which is cleaned each time
         StreamInput streamIn = ChannelBufferStreamInputFactory.create(buffer, size);
         boolean success = false;
         try {
@@ -115,23 +113,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             streamIn.setVersion(version);
 
             if (TransportStatus.isRequest(status)) {
-                String action = handleRequest(ctx.getChannel(), streamIn, requestId, version);
-
-                // Chek the entire message has been read
-                final int nextByte = streamIn.read();
-                // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
-                if (nextByte != -1) {
-                    throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
-                            + action + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
-                }
-                if (buffer.readerIndex() < expectedIndexReader) {
-                    throw new IllegalStateException("Message is fully read (request), yet there are " + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
-                }
-                if (buffer.readerIndex() > expectedIndexReader) {
-                    throw new IllegalStateException("Message read past expected size (request) for requestId [" + requestId + "], action ["
-                            + action + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedIndexReader + "]; resetting");
-                }
-
+                handleRequest(ctx.getChannel(), marker, streamIn, requestId, size, version);
             } else {
                 TransportResponseHandler<?> handler = transportServiceAdapter.onResponseReceived(requestId);
                 // ignore if its null, the adapter logs it
@@ -141,24 +123,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     } else {
                         handleResponse(ctx.getChannel(), streamIn, handler);
                     }
-
-                    // Chek the entire message has been read
-                    final int nextByte = streamIn.read();
-                    // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
-                    if (nextByte != -1) {
-                        throw new IllegalStateException("Message not fully read (response) for requestId [" + requestId + "], handler ["
-                                + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
-                    }
-                    if (buffer.readerIndex() < expectedIndexReader) {
-                        throw new IllegalStateException("Message is fully read (response), yet there are " + (expectedIndexReader - buffer.readerIndex()) + " remaining bytes; resetting");
-                    }
-                    if (buffer.readerIndex() > expectedIndexReader) {
-                        throw new IllegalStateException("Message read past expected size (response) for requestId [" + requestId + "], handler ["
-                                + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
-                    }
-
+                    marker.validateResponse(streamIn, requestId, handler, TransportStatus.isError(status));
                 }
             }
+            success = true;
         } finally {
             try {
                 if (success) {
@@ -168,7 +136,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 }
             } finally {
                 // Set the expected position of the buffer, no matter what happened
-                buffer.readerIndex(expectedIndexReader);
+                buffer.readerIndex(marker.expectedReaderIndex());
             }
         }
     }
@@ -231,12 +199,17 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
+    protected String handleRequest(Channel channel, Marker marker, StreamInput buffer, long requestId, int messageLengthBytes,
+                                   Version version) throws IOException {
         buffer = new NamedWriteableAwareStreamInput(buffer, transport.namedWriteableRegistry);
         final String action = buffer.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
-        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, profileName);
+        NettyTransportChannel transportChannel = null;
         try {
+            transport.inFlightRequestsBreaker().addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
+            transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel,
+                requestId, version, profileName, messageLengthBytes);
+
             final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
             if (reg == null) {
                 throw new ActionNotFoundTransportException(action);
@@ -244,6 +217,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             final TransportRequest request = reg.newRequest();
             request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
             request.readFrom(buffer);
+            // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
+            validateRequest(marker, buffer, requestId, request, action);
             if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
                 //noinspection unchecked
                 reg.processMessageReceived(request, transportChannel);
@@ -251,6 +226,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
             }
         } catch (Throwable e) {
+            // the circuit breaker tripped
+            if (transportChannel == null) {
+                transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel,
+                    requestId, version, profileName, 0);
+            }
             try {
                 transportChannel.sendResponse(e);
             } catch (IOException e1) {
@@ -260,6 +240,12 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
         return action;
     }
+
+    // This template method is needed to inject custom error checking logic in tests.
+    protected void validateRequest(Marker marker, StreamInput buffer, long requestId, TransportRequest request, String action) throws IOException {
+        marker.validateRequest(buffer, requestId, action);
+    }
+
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
@@ -319,6 +305,108 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     logger.warn("Failed to send error message back to client for action [" + reg.getAction() + "]", e1);
                     logger.warn("Actual Exception", e);
                 }
+            }
+        }
+    }
+
+    /**
+     * Internal helper class to store characteristic offsets of a buffer during processing
+     */
+    protected static final class Marker {
+        private final ChannelBuffer buffer;
+        private final int remainingMessageSize;
+        private final int expectedReaderIndex;
+
+        public Marker(ChannelBuffer buffer) {
+            this.buffer = buffer;
+            // when this constructor is called, we have read already two parts of the message header: the marker bytes and the message
+            // message length (see SizeHeaderFrameDecoder). Hence we have to rewind the index for MESSAGE_LENGTH_SIZE bytes to read the
+            // remaining message length again.
+            this.remainingMessageSize = buffer.getInt(buffer.readerIndex() - NettyHeader.MESSAGE_LENGTH_SIZE);
+            this.expectedReaderIndex = buffer.readerIndex() + remainingMessageSize;
+        }
+
+        /**
+         * @return the number of bytes that have yet to be read from the buffer
+         */
+        public int messageSizeWithRemainingHeaders() {
+            return remainingMessageSize;
+        }
+
+        /**
+         * @return the number in bytes for the message including all headers (even the ones that have been read from the buffer already)
+         */
+        public int messageSizeWithAllHeaders() {
+            return remainingMessageSize + NettyHeader.MARKER_BYTES_SIZE + NettyHeader.MESSAGE_LENGTH_SIZE;
+        }
+
+        /**
+         * @return the number of bytes for the message itself (excluding all headers).
+         */
+        public int messageSize() {
+            return messageSizeWithAllHeaders() - NettyHeader.HEADER_SIZE;
+        }
+
+        /**
+         * @return the expected index of the buffer's reader after the message has been consumed entirely.
+         */
+        public int expectedReaderIndex() {
+            return expectedReaderIndex;
+        }
+
+        /**
+         * Validates that a request has been fully read (not too few bytes but also not too many bytes).
+         *
+         * @param stream    A stream that is associated with the buffer that is tracked by this marker.
+         * @param requestId The current request id.
+         * @param action    The currently executed action.
+         * @throws IOException           Iff the stream could not be read.
+         * @throws IllegalStateException Iff the request has not been fully read.
+         */
+        public void validateRequest(StreamInput stream, long requestId, String action) throws IOException {
+            final int nextByte = stream.read();
+            // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
+            if (nextByte != -1) {
+                throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
+                    + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedReaderIndex + "]; resetting");
+            }
+            if (buffer.readerIndex() < expectedReaderIndex) {
+                throw new IllegalStateException("Message is fully read (request), yet there are "
+                    + (expectedReaderIndex - buffer.readerIndex()) + " remaining bytes; resetting");
+            }
+            if (buffer.readerIndex() > expectedReaderIndex) {
+                throw new IllegalStateException(
+                    "Message read past expected size (request) for requestId [" + requestId + "], action [" + action
+                        + "], readerIndex [" + buffer.readerIndex() + "] vs expected [" + expectedReaderIndex + "]; resetting");
+            }
+        }
+
+        /**
+         * Validates that a response has been fully read (not too few bytes but also not too many bytes).
+         *
+         * @param stream    A stream that is associated with the buffer that is tracked by this marker.
+         * @param requestId The corresponding request id for this response.
+         * @param handler   The current response handler.
+         * @param error     Whether validate an error response.
+         * @throws IOException           Iff the stream could not be read.
+         * @throws IllegalStateException Iff the request has not been fully read.
+         */
+        public void validateResponse(StreamInput stream, long requestId,
+                                     TransportResponseHandler<?> handler, boolean error) throws IOException {
+            // Check the entire message has been read
+            final int nextByte = stream.read();
+            // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
+            if (nextByte != -1) {
+                throw new IllegalStateException("Message not fully read (response) for requestId [" + requestId + "], handler ["
+                    + handler + "], error [" + error + "]; resetting");
+            }
+            if (buffer.readerIndex() < expectedReaderIndex) {
+                throw new IllegalStateException("Message is fully read (response), yet there are "
+                    + (expectedReaderIndex - buffer.readerIndex()) + " remaining bytes; resetting");
+            }
+            if (buffer.readerIndex() > expectedReaderIndex) {
+                throw new IllegalStateException("Message read past expected size (response) for requestId [" + requestId
+                    + "], handler [" + handler + "], error [" + error + "]; resetting");
             }
         }
     }

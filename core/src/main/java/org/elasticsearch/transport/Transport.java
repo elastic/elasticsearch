@@ -85,7 +85,8 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * Sends the request to the node.
      */
-    void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException;
+    void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
+        IOException, TransportException;
 
     /**
      * Returns count of currently open connections

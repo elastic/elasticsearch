@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,11 +67,11 @@ public class MulticastZenPingTests extends ESTestCase {
 
         ThreadPool threadPool = new ThreadPool("testSimplePings");
         final ClusterName clusterName = new ClusterName("test");
-        final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()), threadPool).start();
+        final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry(), new NoneCircuitBreakerService()), threadPool).start();
         transportServiceA.acceptIncomingRequests();
         final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
-        final TransportService transportServiceB = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()), threadPool).start();
+        final TransportService transportServiceB = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry(), new NoneCircuitBreakerService()), threadPool).start();
         transportServiceB.acceptIncomingRequests();
         final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceB.boundAddress().publishAddress(), Version.CURRENT);
 
@@ -141,7 +142,7 @@ public class MulticastZenPingTests extends ESTestCase {
 
         final ThreadPool threadPool = new ThreadPool("testExternalPing");
         final ClusterName clusterName = new ClusterName("test");
-        final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry()), threadPool).start();
+        final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry(), new NoneCircuitBreakerService()), threadPool).start();
         transportServiceA.acceptIncomingRequests();
         final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 

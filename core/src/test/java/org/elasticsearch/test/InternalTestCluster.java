@@ -1865,6 +1865,7 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public void assertAfterTest() throws IOException {
         super.assertAfterTest();
+        assertRequestsFinished();
         for (NodeEnvironment env : this.getInstances(NodeEnvironment.class)) {
             Set<ShardId> shardIds = env.lockedShards();
             for (ShardId id : shardIds) {
@@ -1872,6 +1873,30 @@ public final class InternalTestCluster extends TestCluster {
                     env.shardLock(id, TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (IOException ex) {
                     fail("Shard " + id + " is still locked after 5 sec waiting");
+                }
+            }
+        }
+    }
+
+    private void assertRequestsFinished() {
+        if (size() > 0) {
+            for (final NodeAndClient nodeAndClient : nodes.values()) {
+                final CircuitBreaker inFlightRequestsBreaker = getInstance(HierarchyCircuitBreakerService.class, nodeAndClient.name)
+                    .getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+                try {
+                    // see #ensureEstimatedStats()
+                    assertBusy(new Runnable() {
+                        @Override
+                        public void run() {
+                            // ensure that our size accounting on transport level is reset properly
+                            long bytesUsed = inFlightRequestsBreaker.getUsed();
+                            assertThat("All incoming requests on node [" + nodeAndClient.name + "] should have finished. Expected 0 but got " +
+                                bytesUsed, bytesUsed, equalTo(0L));
+                        }
+                    });
+                } catch (Exception e) {
+                    logger.error("Could not assert finished requests within timeout", e);
+                    fail("Could not assert finished requests within timeout on node [" + nodeAndClient.name + "]");
                 }
             }
         }

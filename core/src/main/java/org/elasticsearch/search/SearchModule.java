@@ -588,6 +588,7 @@ public class SearchModule extends AbstractModule {
         registerQuery(SpanOrQueryBuilder::new, SpanOrQueryBuilder::fromXContent, SpanOrQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(MoreLikeThisQueryBuilder::new, MoreLikeThisQueryBuilder::fromXContent, MoreLikeThisQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(WrapperQueryBuilder::new, WrapperQueryBuilder::fromXContent, WrapperQueryBuilder.QUERY_NAME_FIELD);
+        // TODO Remove IndicesQuery in 6.0
         registerQuery(IndicesQueryBuilder::new, IndicesQueryBuilder::fromXContent, IndicesQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(CommonTermsQueryBuilder::new, CommonTermsQueryBuilder::fromXContent, CommonTermsQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(SpanMultiTermQueryBuilder::new, SpanMultiTermQueryBuilder::fromXContent, SpanMultiTermQueryBuilder.QUERY_NAME_FIELD);

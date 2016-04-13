@@ -24,6 +24,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -34,9 +36,13 @@ import java.util.Collection;
 import java.util.Objects;
 
 /**
- * A query that will execute the wrapped query only for the specified indices, and "match_all" when
- * it does not match those indices (by default).
+ * A query that will execute the wrapped query only for the specified indices,
+ * and "match_all" when it does not match those indices (by default).
+ *
+ * @deprecated instead search on the `_index` field
  */
+@Deprecated
+// TODO remove this class in 6.0
 public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilder> {
 
     public static final String NAME = "indices";
@@ -47,13 +53,20 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField INDICES_FIELD = new ParseField("indices");
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndicesQueryBuilder.class));
+
     private final QueryBuilder<?> innerQuery;
 
     private final String[] indices;
 
     private QueryBuilder<?> noMatchQuery = defaultNoMatchQuery();
 
+    /**
+     * @deprecated instead search on the `_index` field
+     */
+    @Deprecated
     public IndicesQueryBuilder(QueryBuilder<?> innerQuery, String... indices) {
+        DEPRECATION_LOGGER.deprecated("{} query is deprecated. Instead search on the '_index' field", NAME);
         if (innerQuery == null) {
             throw new IllegalArgumentException("inner query cannot be null");
         }

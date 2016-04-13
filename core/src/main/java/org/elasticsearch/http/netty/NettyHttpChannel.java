@@ -118,7 +118,8 @@ public final class NettyHttpChannel extends AbstractRestChannel {
             ChannelFuture future;
 
             if (orderedUpstreamMessageEvent != null) {
-                OrderedDownstreamChannelEvent downstreamChannelEvent = new OrderedDownstreamChannelEvent(orderedUpstreamMessageEvent, 0, true, resp);
+                OrderedDownstreamChannelEvent downstreamChannelEvent =
+                    new OrderedDownstreamChannelEvent(orderedUpstreamMessageEvent, 0, true, resp);
                 future = downstreamChannelEvent.getFuture();
                 channel.getPipeline().sendDownstream(downstreamChannelEvent);
             } else {

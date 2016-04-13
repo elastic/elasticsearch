@@ -80,7 +80,8 @@ public class AssertingLocalTransport extends LocalTransport {
     private final Version maxVersion;
 
     @Inject
-    public AssertingLocalTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool, Version version, NamedWriteableRegistry namedWriteableRegistry) {
+    public AssertingLocalTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool,
+                                   Version version, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings, threadPool, version, namedWriteableRegistry, circuitBreakerService);
         final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
         random = new Random(seed);
@@ -96,7 +97,8 @@ public class AssertingLocalTransport extends LocalTransport {
     }
 
     @Override
-    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
+                            TransportRequestOptions options) throws IOException, TransportException {
         ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersionBetween(random, minVersion, maxVersion), request,
                 namedWriteableRegistry);
         super.sendRequest(node, requestId, action, request, options);

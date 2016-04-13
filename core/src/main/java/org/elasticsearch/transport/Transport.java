@@ -47,7 +47,7 @@ public interface Transport extends LifecycleComponent<Transport> {
 
     /**
      * Further profile bound addresses
-     * @return Should return null if transport does not support profiles, otherwise a map with name of profile and its bound transport address
+     * @return <code>null</code> iff profiles are unsupported, otherwise a map with name of profile and its bound transport address
      */
     Map<String, BoundTransportAddress> profileBoundAddresses();
 

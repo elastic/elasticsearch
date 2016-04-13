@@ -58,9 +58,9 @@ public class TransportClientRetryIT extends ESIntegTestCase {
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
-        try (TransportClient transportClient = TransportClient.builder().settings(builder.build()).build()) {
-            transportClient.addTransportAddresses(addresses);
-            assertThat(transportClient.connectedNodes().size(), equalTo(internalCluster().size()));
+        try (TransportClient client = TransportClient.builder().settings(builder.build()).build()) {
+            client.addTransportAddresses(addresses);
+            assertThat(client.connectedNodes().size(), equalTo(internalCluster().size()));
 
             int size = cluster().size();
             //kill all nodes one by one, leaving a single master/data node at the end of the loop
@@ -71,14 +71,14 @@ public class TransportClientRetryIT extends ESIntegTestCase {
                 ClusterState clusterState;
                 //use both variants of execute method: with and without listener
                 if (randomBoolean()) {
-                    clusterState = transportClient.admin().cluster().state(clusterStateRequest).get().getState();
+                    clusterState = client.admin().cluster().state(clusterStateRequest).get().getState();
                 } else {
-                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(transportClient.threadPool());
-                    transportClient.admin().cluster().state(clusterStateRequest, future);
+                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(client.threadPool());
+                    client.admin().cluster().state(clusterStateRequest, future);
                     clusterState = future.get().getState();
                 }
                 assertThat(clusterState.nodes().getSize(), greaterThanOrEqualTo(size - j));
-                assertThat(transportClient.connectedNodes().size(), greaterThanOrEqualTo(size - j));
+                assertThat(client.connectedNodes().size(), greaterThanOrEqualTo(size - j));
             }
         }
     }

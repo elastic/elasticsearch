@@ -136,9 +136,9 @@ public class WatcherUtilsTests extends ESTestCase {
         builder = WatcherUtils.writeSearchRequest(expectedRequest, builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        QueryParser<MatchAllQueryBuilder> termQueryParser = MatchAllQueryBuilder::fromXContent;
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY,
-                singletonMap(MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryBuilder.QUERY_NAME_FIELD, termQueryParser)));
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
+        QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
+        registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
         QueryParseContext context = new QueryParseContext(registry);
         context.reset(parser);
         SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);
@@ -226,9 +226,9 @@ public class WatcherUtilsTests extends ESTestCase {
 
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        QueryParser<MatchAllQueryBuilder> termQueryParser = MatchAllQueryBuilder::fromXContent;
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry(Settings.EMPTY,
-                singletonMap(MatchAllQueryBuilder.NAME, new Tuple<>(MatchAllQueryBuilder.QUERY_NAME_FIELD, termQueryParser)));
+        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
+        QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
+        registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
         QueryParseContext context = new QueryParseContext(registry);
         context.reset(parser);
         SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);

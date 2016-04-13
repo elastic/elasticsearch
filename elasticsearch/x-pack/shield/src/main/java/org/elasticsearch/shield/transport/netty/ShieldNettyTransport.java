@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.SSLClientAuth;
@@ -79,8 +80,9 @@ public class ShieldNettyTransport extends NettyTransport {
     @Inject
     public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                                 Version version, @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
-                                ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry) {
-        super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry);
+                                ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry,
+                                CircuitBreakerService circuitBreakerService) {
+        super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.ssl = SSL_SETTING.get(settings);
         this.serverSslService = serverSSLService;

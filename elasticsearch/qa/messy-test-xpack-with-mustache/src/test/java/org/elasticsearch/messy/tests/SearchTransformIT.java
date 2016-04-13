@@ -196,7 +196,7 @@ public class SearchTransformIT extends ESIntegTestCase {
         assertThat(result.type(), is(SearchTransform.TYPE));
         assertThat(result.status(), is(Transform.Result.Status.FAILURE));
         assertThat(result.reason(), notNullValue());
-        assertThat(result.reason(), containsString("No query registered for [_unknown_query_]"));
+        assertThat(result.reason(), containsString("no [query] registered for [_unknown_query_]"));
 
         // extract the base64 encoded query from the template script, path is: query -> wrapper -> query
         String jsonQuery = result.executedRequest().template().getScript();

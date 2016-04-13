@@ -5,11 +5,15 @@
  */
 package org.elasticsearch.watcher.support.http;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -21,13 +25,18 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentParser;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.not;
 
 /**
  *
  */
 public class HttpResponseTests extends ESTestCase {
+
     public void testParseSelfGenerated() throws Exception {
         int status = randomIntBetween(200, 600);
         Map<String, String[]> headers = emptyMap();
@@ -90,5 +99,32 @@ public class HttpResponseTests extends ESTestCase {
         HttpResponse response = new HttpResponse(200, headers);
         assertThat(response.header("key")[0], is("value"));
         assertThat(response.contentType(), is("text/html"));
+    }
+
+    public void testThatHeaderNamesDoNotContainDotsOnSerialization() throws Exception {
+        Map<String, String[]> headers = new HashMap<>();
+        headers.put("es.index", new String[] { "value" });
+        headers.put("es.index.2", new String[] { "value" });
+
+        HttpResponse response = new HttpResponse(200, headers);
+        assertThat(response.header("es.index")[0], is("value"));
+        assertThat(response.header("es.index.2")[0], is("value"));
+
+        XContentBuilder builder = jsonBuilder();
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
+        Map<String, Object> responseMap = parser.map();
+        parser.close();
+
+        assertThat(responseMap, hasKey("headers"));
+        assertThat(responseMap.get("headers"), instanceOf(Map.class));
+        Map<String, Object> responseHeaders = (Map<String, Object>) responseMap.get("headers");
+
+        assertThat(responseHeaders, not(hasKey("es.index")));
+        assertThat(responseHeaders, hasEntry("es_index", Lists.newArrayList("value")));
+
+        assertThat(responseHeaders, not(hasKey("es.index.2")));
+        assertThat(responseHeaders, hasEntry("es_index_2", Lists.newArrayList("value")));
     }
 }

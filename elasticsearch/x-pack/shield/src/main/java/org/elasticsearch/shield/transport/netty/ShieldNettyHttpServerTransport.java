@@ -50,8 +50,8 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
     private final boolean ssl;
 
     @Inject
-    public ShieldNettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                          IPFilter ipFilter, ServerSSLService sslService, ThreadPool threadPool) {
+    public ShieldNettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
+                                          ServerSSLService sslService, ThreadPool threadPool) {
         super(settings, networkService, bigArrays, threadPool);
         this.ipFilter = ipFilter;
         this.ssl = SSL_SETTING.get(settings);

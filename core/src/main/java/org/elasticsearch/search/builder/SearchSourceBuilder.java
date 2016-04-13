@@ -233,7 +233,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             int size = in.readVInt();
             scriptFields = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                scriptFields.add(ScriptField.PROTOTYPE.readFrom(in));
+                scriptFields.add(new ScriptField(in));
             }
         }
         size = in.readVInt();
@@ -1264,20 +1264,30 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     public static class ScriptField implements Writeable<ScriptField>, ToXContent {
 
-        public static final ScriptField PROTOTYPE = new ScriptField((String) null, (Script) null);
-
         private final boolean ignoreFailure;
         private final String fieldName;
         private final Script script;
-
-        private ScriptField(String fieldName, Script script) {
-            this(fieldName, script, false);
-        }
 
         public ScriptField(String fieldName, Script script, boolean ignoreFailure) {
             this.fieldName = fieldName;
             this.script = script;
             this.ignoreFailure = ignoreFailure;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public ScriptField(StreamInput in) throws IOException {
+            fieldName = in.readString();
+            script = Script.readScript(in);
+            ignoreFailure = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(fieldName);
+            script.writeTo(out);
+            out.writeBoolean(ignoreFailure);
         }
 
         public ScriptField(XContentParser parser, QueryParseContext context) throws IOException {
@@ -1332,18 +1342,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         public boolean ignoreFailure() {
             return ignoreFailure;
-        }
-
-        @Override
-        public ScriptField readFrom(StreamInput in) throws IOException {
-            return new ScriptField(in.readString(), Script.readScript(in), in.readBoolean());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(fieldName);
-            script.writeTo(out);
-            out.writeBoolean(ignoreFailure);
         }
 
         @Override

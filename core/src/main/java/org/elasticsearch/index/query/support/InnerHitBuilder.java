@@ -153,7 +153,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         fieldNames = (List<String>) in.readGenericValue();
         fieldDataFields = (List<String>) in.readGenericValue();
         if (in.readBoolean()) {
-            scriptFields = in.readList(ScriptField.PROTOTYPE::readFrom);
+            scriptFields = in.readList(ScriptField::new);
         }
         fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
         if (in.readBoolean()) {

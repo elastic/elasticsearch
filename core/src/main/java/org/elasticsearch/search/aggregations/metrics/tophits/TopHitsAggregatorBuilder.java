@@ -545,7 +545,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
             int size = in.readVInt();
             Set<ScriptField> scriptFields = new HashSet<>(size);
             for (int i = 0; i < size; i++) {
-                scriptFields.add(ScriptField.PROTOTYPE.readFrom(in));
+                scriptFields.add(new ScriptField(in));
             }
             factory.scriptFields = scriptFields;
         }

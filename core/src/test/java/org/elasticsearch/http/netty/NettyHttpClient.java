@@ -99,9 +99,10 @@ public class NettyHttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    public Collection<HttpResponse> post(SocketAddress remoteAddress, Tuple<String, String>... urisAndBodies) throws InterruptedException {
+    public Collection<HttpResponse> post(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
+            throws InterruptedException {
         Collection<HttpRequest> requests = new ArrayList<>(urisAndBodies.length);
-        for (Tuple<String, String> uriAndBody : urisAndBodies) {
+        for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {
             ChannelBuffer content = ChannelBuffers.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
             HttpRequest request = new DefaultHttpRequest(HTTP_1_1, HttpMethod.POST, uriAndBody.v1());
             request.headers().add(HOST, "localhost");

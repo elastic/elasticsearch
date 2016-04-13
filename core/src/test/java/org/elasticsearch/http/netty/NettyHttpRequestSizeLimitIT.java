@@ -69,7 +69,8 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
             bulkRequest.append(System.lineSeparator());
         }
 
-        Tuple[] requests = new Tuple[] {
+        @SuppressWarnings("unchecked")
+        Tuple<String, CharSequence>[] requests = new Tuple[] {
             Tuple.tuple("/index/type/_bulk", bulkRequest),
             Tuple.tuple("/index/type/_bulk", bulkRequest),
             Tuple.tuple("/index/type/_bulk", bulkRequest),
@@ -81,11 +82,11 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
             ().boundAddresses());
 
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
+            @SuppressWarnings("unchecked")
             Collection<HttpResponse> singleResponse = nettyHttpClient.post(inetSocketTransportAddress.address(), requests[0]);
             assertThat(singleResponse, hasSize(1));
             assertAtLeastOnceExpectedStatus(singleResponse, HttpResponseStatus.OK);
 
-            @SuppressWarnings("unchecked")
             Collection<HttpResponse> multipleResponses = nettyHttpClient.post(inetSocketTransportAddress.address(), requests);
             assertThat(multipleResponses, hasSize(requests.length));
             assertAtLeastOnceExpectedStatus(multipleResponses, HttpResponseStatus.SERVICE_UNAVAILABLE);

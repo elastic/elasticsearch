@@ -73,19 +73,19 @@ final class BootstrapCheck {
     static void check(final boolean enforceLimits, final List<Check> checks, final String nodeName) {
         final ESLogger logger = Loggers.getLogger(BootstrapCheck.class, nodeName);
 
-        final List<IllegalStateException> exceptions =
+        final List<String> errors =
                 checks.stream()
                         .filter(BootstrapCheck.Check::check)
-                        .map(check -> new IllegalStateException(check.errorMessage()))
+                        .map(BootstrapCheck.Check::errorMessage)
                         .collect(Collectors.toList());
 
-        if (!exceptions.isEmpty()) {
-            final List<String> messages = new ArrayList<>(1 + exceptions.size());
+        if (!errors.isEmpty()) {
+            final List<String> messages = new ArrayList<>(1 + errors.size());
             messages.add("bootstrap checks failed");
-            exceptions.forEach(e -> messages.add(e.getMessage()));
+            messages.addAll(errors);
             if (enforceLimits) {
                 final RuntimeException re = new RuntimeException(String.join("\n", messages));
-                exceptions.forEach(re::addSuppressed);
+                errors.stream().map(IllegalStateException::new).forEach(re::addSuppressed);
                 throw re;
             } else {
                 messages.forEach(message -> logger.warn(message));

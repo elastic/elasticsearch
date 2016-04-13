@@ -56,19 +56,19 @@ fi
 
 # TODO: remove for Elasticsearch 6.x
 unsupported_environment_variable() {
-    if [ ! -z "$1" ]; then
+    if test -n "$1"; then
         echo "$2=$1: $3"
     fi
 }
 
-if [[ !(-z "$ES_MIN_MEM" &&
-        -z "$ES_MAX_MEM" &&
-        -z "$ES_HEAP_SIZE" &&
-        -z "$ES_HEAP_NEWSIZE" &&
-        -z "$ES_DIRECT_SIZE" &&
-        -z "$ES_USE_IPV4" &&
-        -z "$ES_GC_OPTS" &&
-        -z "$ES_GC_LOG_FILE") ]]; then
+if test -n "$ES_MIN_MEM" ||
+   test -n "$ES_MAX_MEM" ||
+   test -n "$ES_HEAP_SIZE" ||
+   test -n "$ES_HEAP_NEWSIZE" ||
+   test -n "$ES_DIRECT_SIZE" ||
+   test -n "$ES_USE_IPV4" ||
+   test -n "$ES_GC_OPTS" ||
+   test -n "$ES_GC_LOG_FILE"; then
     echo "Error: encountered environment variables that are no longer supported"
     echo "Use jvm.options or ES_JAVA_OPTS to configure the JVM"
     unsupported_environment_variable "$ES_MIN_MEM" ES_MIN_MEM "set -Xms$ES_MIN_MEM in jvm.options or add \"-Xms$ES_MIN_MEM\" to ES_JAVA_OPTS"

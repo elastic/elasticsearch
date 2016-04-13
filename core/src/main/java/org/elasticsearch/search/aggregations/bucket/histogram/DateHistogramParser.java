@@ -37,11 +37,6 @@ public class DateHistogramParser extends HistogramParser {
     }
 
     @Override
-    public String type() {
-        return InternalDateHistogram.TYPE.name();
-    }
-
-    @Override
     protected Object parseStringInterval(String text) {
         return new DateHistogramInterval(text);
     }
@@ -95,10 +90,5 @@ public class DateHistogramParser extends HistogramParser {
     @Override
     protected long parseStringOffset(String offset) throws IOException {
         return DateHistogramAggregatorBuilder.parseStringOffset(offset);
-    }
-
-    @Override
-    public DateHistogramAggregatorBuilder getFactoryPrototypes() {
-        return DateHistogramAggregatorBuilder.PROTOTYPE;
     }
 }

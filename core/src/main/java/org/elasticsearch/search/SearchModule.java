@@ -111,7 +111,9 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalParser;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
@@ -458,8 +460,9 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new RangeParser());
         registerAggregatorParser(new DateRangeParser());
         registerAggregatorParser(new IpRangeParser());
-        registerAggregatorParser(new HistogramParser());
-        registerAggregatorParser(new DateHistogramParser());
+        registerAggregation(HistogramAggregatorBuilder::new, new HistogramParser(), HistogramAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(DateHistogramAggregatorBuilder::new, new DateHistogramParser(),
+                DateHistogramAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregatorParser(new GeoDistanceParser());
         registerAggregatorParser(new GeoHashGridParser());
         registerAggregatorParser(new NestedParser());

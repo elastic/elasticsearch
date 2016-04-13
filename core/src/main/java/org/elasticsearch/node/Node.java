@@ -381,6 +381,9 @@ public class Node implements Closeable {
     }
 
     private Node stop() {
+        if (lifecycle.moveToStarted()) {
+            return this;
+        }
         if (!lifecycle.moveToStopped()) {
             return this;
         }

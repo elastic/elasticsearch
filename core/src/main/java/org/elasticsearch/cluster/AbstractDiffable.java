@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.StreamableReader;
 
 import java.io.IOException;
 

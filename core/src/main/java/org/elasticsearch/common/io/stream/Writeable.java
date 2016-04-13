@@ -31,11 +31,6 @@ import java.io.IOException;
  *
  * Prefer implementing this interface over implementing {@link Streamable} where possible. Lots of code depends on {@linkplain Streamable}
  * so this isn't always possible.
- *
- * The fact that this interface extends {@link StreamableReader} should be consider vestigial. Instead of using its
- * {@link #readFrom(StreamInput)} method you should prefer using the Reader interface as a reference to a constructor that takes
- * {@link StreamInput}. The reasoning behind this is that most "good" readFrom implementations just delegated to such a constructor anyway
- * and they required an unsightly PROTOTYPE object.
  */
 public interface Writeable<T> { // TODO remove <T>
     /**
@@ -43,8 +38,12 @@ public interface Writeable<T> { // TODO remove <T>
      */
     void writeTo(StreamOutput out) throws IOException;
 
+    /**
+     * Read this object from a stream. Use a {@link Writeable.Reader} instead. This lives on for backwards compatibility but should be
+     * removed before 5.0.0GA. It is not deprecated because Diffable extends this interface and it shouldn't be deprecated there.
+     */
     default T readFrom(StreamInput in) throws IOException {
-        // See class javadoc for reasoning
+        // NORELEASE remove before 5.0.0GA
         throw new UnsupportedOperationException(
                 "Prefer calling a constructor or static method that takes a StreamInput to calling readFrom.");
     }

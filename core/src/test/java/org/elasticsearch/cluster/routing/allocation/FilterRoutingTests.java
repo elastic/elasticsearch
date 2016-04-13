@@ -165,7 +165,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         }
     }
 
-    public void testRebalanceAfterShardsCannotRemainOnNode() {
+    public void testConcurrentRecoveriesAfterShardsCannotRemainOnNode() {
         AllocationService strategy = createAllocationService(Settings.builder().build());
 
         logger.info("Building initial routing table");
@@ -199,14 +199,14 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> disable allocation for node1 and reroute");
         strategy = createAllocationService(Settings.builder()
-                .put("cluster.routing.allocation.cluster_concurrent_rebalance", "1")
+                .put("cluster.routing.allocation.node_concurrent_recoveries", "1")
                 .put("cluster.routing.allocation.exclude.tag1", "value1")
                 .build());
 
         logger.info("--> move shards from node1 to node2");
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        logger.info("--> check that concurrent rebalance only allows 1 shard to move");
+        logger.info("--> check that concurrent recoveries only allows 1 shard to move");
         assertThat(clusterState.getRoutingNodes().node(node1.getId()).numberOfShardsWithState(STARTED), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(INITIALIZING), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(STARTED), equalTo(2));

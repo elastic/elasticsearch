@@ -557,8 +557,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
                     Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
-                    Decision rebalanceDecision = allocation.deciders().canRebalance(shardRouting, allocation);
-                    if (allocationDecision.type() == Type.YES && rebalanceDecision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
+                    if (allocationDecision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                         sourceNode.removeShard(shardRouting);
                         ShardRouting targetRelocatingShard = routingNodes.relocate(shardRouting, target.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                         currentNode.addShard(targetRelocatingShard);

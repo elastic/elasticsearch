@@ -103,7 +103,7 @@ import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterParser;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersParser;
 import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
@@ -451,7 +451,7 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new CardinalityParser());
         registerAggregatorParser(new GlobalParser());
         registerAggregatorParser(new MissingParser());
-        registerAggregatorParser(new FilterParser());
+        registerAggregation(FilterAggregatorBuilder::new, FilterAggregatorBuilder::parse, FilterAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregatorParser(new FiltersParser(queryParserRegistry));
         registerAggregatorParser(new SamplerParser());
         registerAggregatorParser(new DiversifiedSamplerParser());

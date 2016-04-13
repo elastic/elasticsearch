@@ -162,7 +162,7 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDR
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetric;
-import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricParser;
+import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsParser;
@@ -467,7 +467,8 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new TopHitsParser());
         registerAggregatorParser(new GeoBoundsParser());
         registerAggregatorParser(new GeoCentroidParser());
-        registerAggregatorParser(new ScriptedMetricParser());
+        registerAggregation(ScriptedMetricAggregatorBuilder::new, ScriptedMetricAggregatorBuilder::parse,
+                ScriptedMetricAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(ChildrenAggregatorBuilder::new, ChildrenAggregatorBuilder::parse,
                 ChildrenAggregatorBuilder.AGGREGATION_NAME_FIELD);
 

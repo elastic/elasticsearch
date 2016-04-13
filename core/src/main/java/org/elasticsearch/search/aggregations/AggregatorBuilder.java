@@ -100,7 +100,9 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         return factory;
     }
 
-    protected abstract AB doReadFrom(String name, StreamInput in) throws IOException;
+    protected AB doReadFrom(String name, StreamInput in) throws IOException {
+        throw new UnsupportedOperationException(); // NORELEASE remove before 5.0.0GA
+    }
 
     /**
      * Add a sub aggregation to this aggregation.

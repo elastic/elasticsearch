@@ -22,20 +22,19 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.monitor.process.ProcessProbe;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * We enforce limits once any network host is configured. In this case we assume the node is running in production
@@ -54,10 +53,11 @@ final class BootstrapCheck {
      * checks the current limits against the snapshot or release build
      * checks
      *
-     * @param settings the current node settings
+     * @param settings              the current node settings
+     * @param boundTransportAddress the node network bindings
      */
-    public static void check(final Settings settings) {
-        check(enforceLimits(settings), checks(settings));
+    static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) {
+        check(enforceLimits(boundTransportAddress), checks(settings), Node.NODE_NAME_SETTING.get(settings));
     }
 
     /**
@@ -67,50 +67,42 @@ final class BootstrapCheck {
      * @param enforceLimits true if the checks should be enforced or
      *                      warned
      * @param checks        the checks to execute
+     * @param nodeName      the node name to be used as a logging prefix
      */
     // visible for testing
-    static void check(final boolean enforceLimits, final List<Check> checks) {
-        final ESLogger logger = Loggers.getLogger(BootstrapCheck.class);
+    static void check(final boolean enforceLimits, final List<Check> checks, final String nodeName) {
+        final ESLogger logger = Loggers.getLogger(BootstrapCheck.class, nodeName);
 
-        for (final Check check : checks) {
-            final boolean fail = check.check();
-            if (fail) {
-                if (enforceLimits) {
-                    throw new RuntimeException(check.errorMessage());
-                } else {
-                    logger.warn(check.errorMessage());
-                }
+        final List<String> errors =
+                checks.stream()
+                        .filter(BootstrapCheck.Check::check)
+                        .map(BootstrapCheck.Check::errorMessage)
+                        .collect(Collectors.toList());
+
+        if (!errors.isEmpty()) {
+            final List<String> messages = new ArrayList<>(1 + errors.size());
+            messages.add("bootstrap checks failed");
+            messages.addAll(errors);
+            if (enforceLimits) {
+                final RuntimeException re = new RuntimeException(String.join("\n", messages));
+                errors.stream().map(IllegalStateException::new).forEach(re::addSuppressed);
+                throw re;
+            } else {
+                messages.forEach(message -> logger.warn(message));
             }
         }
     }
 
     /**
-     * The set of settings such that if any are set for the node, then
-     * the checks are enforced
-     *
-     * @return the enforcement settings
-     */
-    // visible for testing
-    static Set<Setting> enforceSettings() {
-        return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            TransportSettings.BIND_HOST,
-            TransportSettings.HOST,
-            TransportSettings.PUBLISH_HOST,
-            NetworkService.GLOBAL_NETWORK_HOST_SETTING,
-            NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
-            NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING
-        )));
-    }
-
-    /**
      * Tests if the checks should be enforced
      *
-     * @param settings the current node settings
+     * @param boundTransportAddress the node network bindings
      * @return true if the checks should be enforced
      */
     // visible for testing
-    static boolean enforceLimits(final Settings settings) {
-        return enforceSettings().stream().anyMatch(s -> s.exists(settings));
+    static boolean enforceLimits(BoundTransportAddress boundTransportAddress) {
+        return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(TransportAddress::isLoopbackOrLinkLocalAddress) &&
+                boundTransportAddress.publishAddress().isLoopbackOrLinkLocalAddress());
     }
 
     // the list of checks to execute

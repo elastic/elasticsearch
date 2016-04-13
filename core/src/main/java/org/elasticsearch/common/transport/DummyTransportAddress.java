@@ -45,6 +45,11 @@ public class DummyTransportAddress implements TransportAddress {
     }
 
     @Override
+    public boolean isLoopbackOrLinkLocalAddress() {
+        return false;
+    }
+
+    @Override
     public String getHost() {
         return "dummy";
     }

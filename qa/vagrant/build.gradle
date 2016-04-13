@@ -186,7 +186,7 @@ for (String box : availableBoxes) {
     dependsOn up
     finalizedBy halt
     commandLine 'vagrant', 'ssh', box, '--command',
-      "set -o pipefail && ${smokeTestCommand} | sed -ue \'s/^/    ${box}: /'"
+      "set -o pipefail && ${smokeTestCommand} | sed -ue 's/^/    ${box}: /'"
   }
   vagrantSmokeTest.dependsOn(smoke) 
 

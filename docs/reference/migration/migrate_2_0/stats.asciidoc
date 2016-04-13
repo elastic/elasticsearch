@@ -20,7 +20,7 @@ info, and node stats responses:
 Removed `id_cache` metric from nodes stats, indices stats and cluster stats
 apis. This metric has also been removed from the shards cat, indices cat and
 nodes cat apis. Parent/child memory is now reported under fielddata, because
-it has internally be using fielddata for a while now.
+it has internally been using fielddata for a while now.
 
 To just see how much parent/child related field data is taking, the
 `fielddata_fields` option can be used on the stats apis. Indices stats

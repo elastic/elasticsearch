@@ -156,16 +156,14 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        {
-            final RuntimeException e =
-                    expectThrows(
-                            RuntimeException.class,
-                            () -> BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck"));
-            assertThat(
-                    e.getMessage(),
-                    containsString("initial heap size [" + initialHeapSize.get() + "] " +
-                            "not equal to maximum heap size [" + maxHeapSize.get() + "]"));
-        }
+        final RuntimeException e =
+                expectThrows(
+                        RuntimeException.class,
+                        () -> BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck"));
+        assertThat(
+                e.getMessage(),
+                containsString("initial heap size [" + initialHeapSize.get() + "] " +
+                        "not equal to maximum heap size [" + maxHeapSize.get() + "]"));
 
         initialHeapSize.set(maxHeapSize.get());
 
@@ -202,14 +200,12 @@ public class BootstrapCheckTests extends ESTestCase {
             };
         }
 
-        {
-            final RuntimeException e =
-                    expectThrows(RuntimeException.class,
-                            () -> BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimits"));
-            assertThat(e.getMessage(), containsString("max file descriptors"));
+        final RuntimeException e =
+                expectThrows(RuntimeException.class,
+                        () -> BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimits"));
+        assertThat(e.getMessage(), containsString("max file descriptors"));
 
-            maxFileDescriptorCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
-        }
+        maxFileDescriptorCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
 
         BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimits");
 
@@ -280,12 +276,10 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        {
-            final RuntimeException e = expectThrows(
-                    RuntimeException.class,
-                    () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxNumberOfThreadsCheck"));
-            assertThat(e.getMessage(), containsString("max number of threads"));
-        }
+        final RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxNumberOfThreadsCheck"));
+        assertThat(e.getMessage(), containsString("max number of threads"));
 
         maxNumberOfThreads.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
 
@@ -312,12 +306,11 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        {
-            final RuntimeException e = expectThrows(
-                    RuntimeException.class,
-                    () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory"));
-            assertThat(e.getMessage(), containsString("max size virtual memory"));
-        }
+
+        final RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory"));
+        assertThat(e.getMessage(), containsString("max size virtual memory"));
 
         maxSizeVirtualMemory.set(rlimInfinity);
 

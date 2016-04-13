@@ -126,12 +126,12 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
         return builder;
     }
 
-    public static ChildrenAggregatorBuilder parse(String aggregationName, XContentParser parser,
-            QueryParseContext context) throws IOException {
+    public static ChildrenAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
         String childType = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
+        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

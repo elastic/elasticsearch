@@ -101,10 +101,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField PROFILE_FIELD = new ParseField("profile");
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
 
-    public static SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers,
+    public static SearchSourceBuilder fromXContent(QueryParseContext context, AggregatorParsers aggParsers,
             Suggesters suggesters) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(parser, context, aggParsers, suggesters);
+        builder.parseXContent(context, aggParsers, suggesters);
         return builder;
     }
 
@@ -979,11 +979,12 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
      * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(XContentParser, QueryParseContext, AggregatorParsers, Suggesters)} if you have normal defaults.
+     * {@link #fromXContent(QueryParseContext, AggregatorParsers, Suggesters)} if you have normal defaults.
      */
-    public void parseXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers, Suggesters suggesters)
+    public void parseXContent(QueryParseContext context, AggregatorParsers aggParsers, Suggesters suggesters)
         throws IOException {
 
+        XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -1011,7 +1012,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, TRACK_SCORES_FIELD)) {
                     trackScores = parser.booleanValue();
                 } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    fetchSourceContext = FetchSourceContext.parse(parser, context);
+                    fetchSourceContext = FetchSourceContext.parse(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     field(parser.text());
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
@@ -1028,11 +1029,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, POST_FILTER_FIELD)) {
                     postQueryBuilder = context.parseInnerQueryBuilder();
                 } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    fetchSourceContext = FetchSourceContext.parse(parser, context);
+                    fetchSourceContext = FetchSourceContext.parse(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELDS_FIELD)) {
                     scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        scriptFields.add(new ScriptField(parser, context));
+                        scriptFields.add(new ScriptField(context));
                     }
                 } else if (context.parseFieldMatcher().match(currentFieldName, INDICES_BOOST_FIELD)) {
                     indexBoost = new ObjectFloatHashMap<String>();
@@ -1047,11 +1048,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         }
                     }
                 } else if (context.parseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)) {
-                    aggregations = aggParsers.parseAggregators(parser, context);
+                    aggregations = aggParsers.parseAggregators(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
                     highlightBuilder = HighlightBuilder.fromXContent(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
-                    innerHitsBuilder = InnerHitsBuilder.fromXContent(parser, context);
+                    innerHitsBuilder = InnerHitsBuilder.fromXContent(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
                     suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
@@ -1103,7 +1104,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         }
                     }
                 } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    fetchSourceContext = FetchSourceContext.parse(parser, context);
+                    fetchSourceContext = FetchSourceContext.parse(context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SEARCH_AFTER)) {
                     searchAfterBuilder = SearchAfterBuilder.PROTOTYPE.fromXContent(parser, context.parseFieldMatcher());
                 } else {
@@ -1290,8 +1291,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             out.writeBoolean(ignoreFailure);
         }
 
-        public ScriptField(XContentParser parser, QueryParseContext context) throws IOException {
+        public ScriptField(QueryParseContext context) throws IOException {
             boolean ignoreFailure = false;
+            XContentParser parser = context.parser();
             String scriptFieldName = parser.currentName();
             Script script = null;
 
@@ -1373,6 +1375,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
     }
 
+    @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
                 highlightBuilder, indexBoost, innerHitsBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,

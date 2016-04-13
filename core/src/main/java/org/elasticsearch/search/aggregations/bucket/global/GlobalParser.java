@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+
 import java.io.IOException;
 
 /**
@@ -34,9 +34,8 @@ public class GlobalParser implements Aggregator.Parser {
     }
 
     @Override
-    public GlobalAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
-            throws IOException {
-        parser.nextToken();
+    public GlobalAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        context.parser().nextToken();
         return new GlobalAggregatorBuilder(aggregationName);
     }
 

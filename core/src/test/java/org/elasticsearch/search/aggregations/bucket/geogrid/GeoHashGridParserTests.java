@@ -37,7 +37,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         // can create a factory
-        assertNotNull(parser.parse("geohash_grid", stParser, parseContext));
+        assertNotNull(parser.parse("geohash_grid", parseContext));
     }
 
     public void testParseValidFromStrings() throws Exception {
@@ -51,7 +51,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         // can create a factory
-        assertNotNull(parser.parse("geohash_grid", stParser, parseContext));
+        assertNotNull(parser.parse("geohash_grid", parseContext));
     }
 
     public void testParseErrorOnNonIntPrecision() throws Exception {
@@ -63,7 +63,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         try {
-            parser.parse("geohash_grid", stParser, parseContext);
+            parser.parse("geohash_grid", parseContext);
             fail();
         } catch (NumberFormatException ex) {
             assertEquals("For input string: \"2.0\"", ex.getMessage());
@@ -79,7 +79,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         try {
-            parser.parse("geohash_grid", stParser, parseContext);
+            parser.parse("geohash_grid", parseContext);
             fail();
         } catch (ParsingException ex) {
             assertEquals("Unexpected token VALUE_BOOLEAN [precision] in [geohash_grid].", ex.getMessage());
@@ -95,7 +95,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         try {
-            parser.parse("geohash_grid", stParser, parseContext);
+            parser.parse("geohash_grid", parseContext);
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("Invalid geohash aggregation precision of 13. Must be between 1 and 12.", ex.getMessage());

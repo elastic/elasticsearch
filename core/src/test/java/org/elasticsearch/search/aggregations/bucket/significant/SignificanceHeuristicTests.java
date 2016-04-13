@@ -253,7 +253,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
             parseContext.reset(stParser);
             parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
             stParser.nextToken();
-            new SignificantTermsParser(heuristicParserMapper, registry).parse("testagg", stParser, parseContext);
+            new SignificantTermsParser(heuristicParserMapper, registry).parse("testagg", parseContext);
             fail();
         } catch (ElasticsearchParseException e) {
             assertTrue(e.getMessage().contains(expectedError));
@@ -277,7 +277,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         stParser.nextToken();
         SignificantTermsAggregatorBuilder aggregatorFactory = (SignificantTermsAggregatorBuilder) new SignificantTermsParser(
-                heuristicParserMapper, registry).parse("testagg", stParser, parseContext);
+                heuristicParserMapper, registry).parse("testagg", parseContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200L));
         assertThat(stParser.currentToken(), equalTo(null));

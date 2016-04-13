@@ -82,7 +82,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             try {
                 List<ScriptField> scriptFields = new ArrayList<>();
                 for (XContentParser.Token token = p.nextToken(); token != END_OBJECT; token = p.nextToken()) {
-                    scriptFields.add(new ScriptField(p, c));
+                    scriptFields.add(new ScriptField(c));
                 }
                 i.setScriptFields(scriptFields);
             } catch (IOException e) {
@@ -93,7 +93,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField((p, i, c) -> {
             try {
-                i.setFetchSourceContext(FetchSourceContext.parse(p, c));
+                i.setFetchSourceContext(FetchSourceContext.parse(c));
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner _source definition", e);
             }
@@ -109,7 +109,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }, SearchSourceBuilder.QUERY_FIELD);
         PARSER.declareObject(InnerHitBuilder::setInnerHitsBuilder, (p, c) -> {
             try {
-                return InnerHitsBuilder.fromXContent(p, c);
+                return InnerHitsBuilder.fromXContent(c);
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query definition", e);
             }
@@ -579,8 +579,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 fieldDataFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, query, innerHitsBuilder);
     }
 
-    public static InnerHitBuilder fromXContent(XContentParser parser, QueryParseContext context) throws IOException {
-        return PARSER.parse(parser, new InnerHitBuilder(), context);
+    public static InnerHitBuilder fromXContent(QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new InnerHitBuilder(), context);
     }
 
 }

@@ -71,15 +71,14 @@ public class AggregatorParsers {
     /**
      * Parses the aggregation request recursively generating aggregator factories in turn.
      *
-     * @param parser    The input xcontent that will be parsed.
      * @param parseContext   The parse context.
      *
      * @return          The parsed aggregator factories.
      *
      * @throws IOException When parsing fails for unknown reasons.
      */
-    public AggregatorFactories.Builder parseAggregators(XContentParser parser, QueryParseContext parseContext) throws IOException {
-        return parseAggregators(parser, parseContext, 0);
+    public AggregatorFactories.Builder parseAggregators(QueryParseContext parseContext) throws IOException {
+        return parseAggregators(parseContext.parser(), parseContext, 0);
     }
 
     private AggregatorFactories.Builder parseAggregators(XContentParser parser, QueryParseContext parseContext, int level)
@@ -173,10 +172,10 @@ public class AggregatorParsers {
                                 throw new ParsingException(parser.getTokenLocation(),
                                         "Could not find aggregator type [" + fieldName + "] in [" + aggregationName + "]");
                             } else {
-                                pipelineAggregatorFactory = pipelineAggregatorParser.parse(aggregationName, parser, parseContext);
+                                pipelineAggregatorFactory = pipelineAggregatorParser.parse(aggregationName, parseContext);
                             }
                         } else {
-                            aggFactory = aggregatorParser.parse(aggregationName, parser, parseContext);
+                            aggFactory = aggregatorParser.parse(aggregationName, parseContext);
                         }
                     }
                 } else {

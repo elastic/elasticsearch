@@ -32,9 +32,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -110,8 +110,9 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
         }
     }
 
-    public static ScriptScoreFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser)
+    public static ScriptScoreFunctionBuilder fromXContent(QueryParseContext parseContext)
             throws IOException, ParsingException {
+        XContentParser parser = parseContext.parser();
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Script script = null;
         Map<String, Object> vars = null;

@@ -97,7 +97,8 @@ public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> im
      * </pre>
      */
     @Override
-    public DFB fromXContent(QueryParseContext context, XContentParser parser) throws IOException, ParsingException {
+    public DFB fromXContent(QueryParseContext context) throws IOException, ParsingException {
+        XContentParser parser = context.parser();
         String currentFieldName;
         XContentParser.Token token;
         MultiValueMode multiValueMode = DecayFunctionBuilder.DEFAULT_MULTI_VALUE_MODE;

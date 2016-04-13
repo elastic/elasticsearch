@@ -250,7 +250,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     iqb = parseContext.parseInnerQueryBuilder();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
-                    innerHitBuilder = InnerHitBuilder.fromXContent(parser, parseContext);
+                    innerHitBuilder = InnerHitBuilder.fromXContent(parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
                 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
+
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
@@ -571,7 +572,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
                     queryParseContext.reset(parser);
                     queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                    parseSource(context, SearchSourceBuilder.fromXContent(parser, queryParseContext, aggParsers, suggesters));
+                    parseSource(context, SearchSourceBuilder.fromXContent(queryParseContext, aggParsers, suggesters));
                 }
             }
             parseSource(context, request.source());

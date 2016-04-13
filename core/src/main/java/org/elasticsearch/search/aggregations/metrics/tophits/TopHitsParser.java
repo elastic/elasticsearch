@@ -44,11 +44,11 @@ public class TopHitsParser implements Aggregator.Parser {
     }
 
     @Override
-    public TopHitsAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
-            throws IOException {
+    public TopHitsAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
         TopHitsAggregatorBuilder factory = new TopHitsAggregatorBuilder(aggregationName);
         XContentParser.Token token;
         String currentFieldName = null;
+        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -64,7 +64,7 @@ public class TopHitsParser implements Aggregator.Parser {
                 } else if (context.parseFieldMatcher().match(currentFieldName, SearchSourceBuilder.TRACK_SCORES_FIELD)) {
                     factory.trackScores(parser.booleanValue());
                 } else if (context.parseFieldMatcher().match(currentFieldName, SearchSourceBuilder._SOURCE_FIELD)) {
-                    factory.fetchSource(FetchSourceContext.parse(parser, context));
+                    factory.fetchSource(FetchSourceContext.parse(context));
                 } else if (context.parseFieldMatcher().match(currentFieldName, SearchSourceBuilder.FIELDS_FIELD)) {
                     List<String> fieldNames = new ArrayList<>();
                     fieldNames.add(parser.text());
@@ -77,7 +77,7 @@ public class TopHitsParser implements Aggregator.Parser {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (context.parseFieldMatcher().match(currentFieldName, SearchSourceBuilder._SOURCE_FIELD)) {
-                    factory.fetchSource(FetchSourceContext.parse(parser, context));
+                    factory.fetchSource(FetchSourceContext.parse(context));
                 } else if (context.parseFieldMatcher().match(currentFieldName, SearchSourceBuilder.SCRIPT_FIELDS_FIELD)) {
                     List<ScriptField> scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -157,7 +157,7 @@ public class TopHitsParser implements Aggregator.Parser {
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(context);
                     factory.sorts(sorts);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SearchSourceBuilder._SOURCE_FIELD)) {
-                    factory.fetchSource(FetchSourceContext.parse(parser, context));
+                    factory.fetchSource(FetchSourceContext.parse(context));
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());

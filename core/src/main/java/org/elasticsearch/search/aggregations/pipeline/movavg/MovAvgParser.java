@@ -56,8 +56,8 @@ public class MovAvgParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public MovAvgPipelineAggregatorBuilder parse(String pipelineAggregatorName, XContentParser parser,
-            QueryParseContext context) throws IOException {
+    public MovAvgPipelineAggregatorBuilder parse(String pipelineAggregatorName, QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;

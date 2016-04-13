@@ -46,8 +46,8 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public BucketScriptPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
-            QueryParseContext context) throws IOException {
+    public BucketScriptPipelineAggregatorBuilder parse(String reducerName, QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token;
         Script script = null;
         String currentFieldName = null;

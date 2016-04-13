@@ -130,7 +130,7 @@ public class RestSearchAction extends BaseRestHandler {
                     Template template = TemplateQueryBuilder.parse(parser, context.parseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
                 } else {
-                    searchRequest.source().parseXContent(parser, context, aggParsers, suggesters);
+                    searchRequest.source().parseXContent(context, aggParsers, suggesters);
                 }
             }
         }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -44,8 +45,9 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public final BucketMetricsPipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, XContentParser parser,
-            QueryParseContext context) throws IOException {
+    public final BucketMetricsPipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, QueryParseContext context)
+            throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;

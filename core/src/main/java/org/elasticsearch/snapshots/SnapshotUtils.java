@@ -52,9 +52,10 @@ public class SnapshotUtils {
             boolean add = true;
             if (!indexOrPattern.isEmpty()) {
                 if (availableIndices.contains(indexOrPattern)) {
-                    if (result != null) {
-                        result.add(indexOrPattern);
+                    if (result == null) {
+                        result = new HashSet<>();
                     }
+                    result.add(indexOrPattern);
                     continue;
                 }
                 if (indexOrPattern.charAt(0) == '+') {

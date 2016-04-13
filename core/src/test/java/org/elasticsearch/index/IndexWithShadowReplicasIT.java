@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -549,13 +550,18 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        int nodeCount = randomIntBetween(2, 5);
+        final int nodeCount = randomIntBetween(2, 5);
+        logger.info("--> starting {} nodes", nodeCount);
         final List<String> nodes = internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
-        String IDX = "test";
+        final String IDX = "test";
+        final Tuple<Integer, Integer> numPrimariesAndReplicas = randomPrimariesAndReplicas(nodeCount);
+        final int numPrimaries = numPrimariesAndReplicas.v1();
+        final int numReplicas = numPrimariesAndReplicas.v2();
+        logger.info("--> creating index {} with {} primary shards and {} replicas", IDX, numPrimaries, numReplicas);
 
         Settings idxSettings = Settings.builder()
-                                   .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                   .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, nodeCount - 1))
+                                   .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries)
+                                   .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
                                    .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                                    .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                                    .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
@@ -796,12 +802,20 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath.getParent());
 
-        final List<String> nodes = internalCluster().startNodesAsync(2, nodeSettings).get();
-        String IDX = "test";
+        final int numNodes = randomIntBetween(2, 5);
+        logger.info("--> starting {} nodes", numNodes);
+        final List<String> nodes = internalCluster().startNodesAsync(numNodes, nodeSettings).get();
+        final String IDX = "test";
+        final Tuple<Integer, Integer> numPrimariesAndReplicas = randomPrimariesAndReplicas(numNodes);
+        final int numPrimaries = numPrimariesAndReplicas.v1();
+        final int numReplicas = numPrimariesAndReplicas.v2();
+        logger.info("--> creating index {} with {} primary shards and {} replicas", IDX, numPrimaries, numReplicas);
 
+        assert numPrimaries > 0;
+        assert numReplicas >= 0;
         Settings idxSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
@@ -820,90 +834,13 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         logger.info("--> closing index {}", IDX);
         client().admin().indices().prepareClose(IDX).get();
+        ensureGreen(IDX);
 
         logger.info("--> deleting closed index");
         client().admin().indices().prepareDelete(IDX).get();
 
         assertPathHasBeenCleared(dataPath);
         assertIndicesDirsDeleted(nodes);
-    }
-
-    public void testDeletingIndexWithDedicatedMasterNodes() throws Exception {
-        final Path dataPath = createTempDir();
-        final Settings nodeSettings = nodeSettings(dataPath.getParent());
-        final List<String> nodes = internalCluster().startMasterOnlyNodesAsync(1, nodeSettings).get();
-        assert nodes.size() > 0;
-        logger.info("--> master node is " + nodes.get(0));
-        final int numDataNodes = randomIntBetween(2, 5);
-        nodes.addAll(internalCluster().startDataOnlyNodesAsync(numDataNodes, nodeSettings).get());
-        final String IDX = "test";
-        final Settings idxSettings = Settings.builder()
-                                             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
-                                             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numDataNodes - 1)
-                                             .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
-                                             .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                                             .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
-                                             .build();
-
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureGreen(IDX);
-
-        client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
-        client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
-        flushAndRefresh(IDX);
-
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
-
-        logger.info("--> performing query");
-        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
-        assertHitCount(resp, 2);
-
-        assertAcked(client().admin().indices().prepareDelete(IDX));
-
-        assertPathHasBeenCleared(dataPath);
-        //norelease
-        //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
-        //assertIndicesDirsDeleted(nodes);
-    }
-
-    public void testShadowReplicaIndexWithNodesHavingNoShards() throws Exception {
-        Path dataPath = createTempDir();
-        Settings nodeSettings = nodeSettings(dataPath);
-
-        int nodeCount = randomIntBetween(3, 5);
-        final List<String> nodes = internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
-        String IDX = "test";
-
-        Settings idxSettings = Settings.builder()
-                                       .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                       .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                                       .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
-                                       .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                                       .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
-                                       .build();
-
-        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureGreen(IDX);
-
-        client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
-        client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
-        flushAndRefresh(IDX);
-
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
-
-        logger.info("--> deleting index " + IDX);
-        assertAcked(client().admin().indices().prepareDelete(IDX));
-
-        assertPathHasBeenCleared(dataPath);
-        //norelease
-        //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
-        //assertIndicesDirsDeleted(nodes);
     }
 
     public void testNodeJoinsWithoutShadowReplicaConfigured() throws Exception {
@@ -941,11 +878,26 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
     }
 
-    private void assertIndicesDirsDeleted(final List<String> nodes) throws IOException {
+    private static void assertIndicesDirsDeleted(final List<String> nodes) throws IOException {
         for (String node : nodes) {
             final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class, node);
             assertThat(nodeEnv.availableIndexFolders(), equalTo(Collections.emptySet()));
         }
+    }
+
+    private static Tuple<Integer, Integer> randomPrimariesAndReplicas(final int numNodes) {
+        final int numPrimaries;
+        final int numReplicas;
+        if (randomBoolean()) {
+            // test with some nodes having no shards
+            numPrimaries = 1;
+            numReplicas = randomIntBetween(0, numNodes - 2);
+        } else {
+            // test with all nodes having at least one shard
+            numPrimaries = randomIntBetween(1, 5);
+            numReplicas = numNodes - 1;
+        }
+        return Tuple.tuple(numPrimaries, numReplicas);
     }
 
 }

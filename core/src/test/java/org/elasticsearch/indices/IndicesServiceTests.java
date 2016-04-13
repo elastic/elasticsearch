@@ -34,10 +34,16 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesServiceTests extends ESSingleNodeTestCase {
 
@@ -192,5 +198,55 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
         assertAcked(client().admin().indices().prepareOpen("test"));
 
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/17695")
+    public void testDeletingSameIndexDirectoryFromConcurrentProcesses() throws Exception {
+        final Path dataPath = createTempDir();
+        final String indexName = "test";
+        final Settings settings = Settings.builder()
+                                          .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                                          // so we delete custom location as well
+                                          .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                                          .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
+                                          .build();
+        final IndexService idxService = createIndex(indexName, settings);
+        client().prepareIndex(indexName, "type", "1").setSource("field", "value").setRefresh(true).get();
+        client().admin().indices().prepareFlush(indexName).get();
+        assertHitCount(client().prepareSearch(indexName).get(), 1);
+        client().admin().indices().prepareClose(indexName).execute().get();
+
+        final int numSimulatedNodes = randomIntBetween(2, 20);
+        final NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class);
+        final CyclicBarrier barrier = new CyclicBarrier(numSimulatedNodes + 1); // extra one because the current thread waits too
+        final AtomicInteger errorCount = new AtomicInteger(0);
+        for (int i = 0; i < numSimulatedNodes; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    try {
+                        barrier.await();
+                        nodeEnv.deleteIndexDirectoryUnderLock(idxService.index(), idxService.getIndexSettings());
+                    } catch (IOException e) {
+                        // a race condition in deleting the index directory caused file not found exceptions
+                        errorCount.incrementAndGet();
+                    } catch (BrokenBarrierException | InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                } finally {
+                    try {
+                        barrier.await();
+                    } catch (BrokenBarrierException | InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            thread.start();
+        }
+
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
+        assertThat(errorCount.get(), equalTo(0));
     }
 }

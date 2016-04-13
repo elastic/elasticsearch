@@ -140,6 +140,7 @@ class NodeInfo {
                 args.add("${property.getKey()}=${property.getValue()}")
             }
         }
+        env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
         args.addAll("-E", "es.path.conf=${confDir}")
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted

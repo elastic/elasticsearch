@@ -167,7 +167,7 @@ fi
 
 # JAVA_OPTS is not a built-in JVM mechanism but some people think it is
 # so let us warn them that we are not observing the value of $JAVA_OPTS
-if [ ! -z "JAVA_OPTS" ]; then
+if [ "x$JAVA_OPTS" != "x" ]; then
     echo "Warning: Ignoring JAVA_OPTS=$JAVA_OPTS"
     echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
 fi

@@ -112,15 +112,23 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     protected abstract void collectBucketValue(String bucketKey, Double bucketValue);
 
     @Override
-    public void doReadFrom(StreamInput in) throws IOException {
+    public final void doReadFrom(StreamInput in) throws IOException {
         formatter = ValueFormatterStreams.readOptional(in);
         gapPolicy = GapPolicy.readFrom(in);
+        innerReadFrom(in);
+    }
+
+    protected void innerReadFrom(StreamInput in) throws IOException {
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
+    public final void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(formatter, out);
         gapPolicy.writeTo(out);
+        innerWriteTo(out);
+    }
+
+    protected void innerWriteTo(StreamOutput out) throws IOException {
     }
 
 }

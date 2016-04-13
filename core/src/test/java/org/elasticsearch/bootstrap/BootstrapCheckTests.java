@@ -126,6 +126,7 @@ public class BootstrapCheckTests extends ESTestCase {
                     }
                 }
         );
+
         final RuntimeException e =
                 expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, checks, "testExceptionAggregation"));
         assertThat(e, hasToString(allOf(containsString("bootstrap checks failed"), containsString("first"), containsString("second"))));
@@ -155,15 +156,15 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        try {
-            BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck");
-            fail("should have failed to initial heap size not equal to max heap size");
-        } catch (final RuntimeException e) {
+        {
+            final RuntimeException e =
+                    expectThrows(
+                            RuntimeException.class,
+                            () -> BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck"));
             assertThat(
                     e.getMessage(),
                     containsString("initial heap size [" + initialHeapSize.get() + "] " +
-                            "not equal to maximum heap size [" + maxHeapSize.get() + "]")
-            );
+                            "not equal to maximum heap size [" + maxHeapSize.get() + "]"));
         }
 
         initialHeapSize.set(maxHeapSize.get());
@@ -201,14 +202,14 @@ public class BootstrapCheckTests extends ESTestCase {
             };
         }
 
-        try {
-            BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimits");
-            fail("should have failed due to max file descriptors too low");
-        } catch (final RuntimeException e) {
+        {
+            final RuntimeException e =
+                    expectThrows(RuntimeException.class,
+                            () -> BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimits"));
             assertThat(e.getMessage(), containsString("max file descriptors"));
-        }
 
-        maxFileDescriptorCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
+            maxFileDescriptorCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
+        }
 
         BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimits");
 
@@ -256,14 +257,12 @@ public class BootstrapCheckTests extends ESTestCase {
             };
 
             if (testCase.shouldFail) {
-                try {
-                    BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimitsThrowsOnInvalidLimit");
-                    fail("should have failed due to memory not being locked");
-                } catch (final RuntimeException e) {
-                    assertThat(
+                final RuntimeException e = expectThrows(
+                        RuntimeException.class,
+                        () -> BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimitsThrowsOnInvalidLimit"));
+                assertThat(
                         e.getMessage(),
                         containsString("memory locking requested for elasticsearch process but memory is not locked"));
-                }
             } else {
                 // nothing should happen
                 BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimitsThrowsOnInvalidLimit");
@@ -281,10 +280,10 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        try {
-            BootstrapCheck.check(true, Collections.singletonList(check), "testMaxNumberOfThreadsCheck");
-            fail("should have failed due to max number of threads too low");
-        } catch (final RuntimeException e) {
+        {
+            final RuntimeException e = expectThrows(
+                    RuntimeException.class,
+                    () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxNumberOfThreadsCheck"));
             assertThat(e.getMessage(), containsString("max number of threads"));
         }
 
@@ -313,10 +312,10 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        try {
-            BootstrapCheck.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory");
-            fail("should have failed due to max size virtual memory too low");
-        } catch (final RuntimeException e) {
+        {
+            final RuntimeException e = expectThrows(
+                    RuntimeException.class,
+                    () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory"));
             assertThat(e.getMessage(), containsString("max size virtual memory"));
         }
 

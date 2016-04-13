@@ -556,6 +556,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             for (ModelNode currentNode : sorter.modelNodes) {
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
+                    // don't use canRebalance as we want hard filtering rules to apply. See #17698
                     Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                     if (allocationDecision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                         sourceNode.removeShard(shardRouting);

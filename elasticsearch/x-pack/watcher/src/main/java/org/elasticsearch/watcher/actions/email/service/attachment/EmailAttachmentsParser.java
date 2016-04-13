@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.watcher.actions.email.service.attachment;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -21,7 +21,7 @@ public class EmailAttachmentsParser {
 
     @Inject
     public EmailAttachmentsParser(Map<String, EmailAttachmentParser> parsers) {
-        this.parsers = ImmutableMap.copyOf(parsers);
+        this.parsers = Collections.unmodifiableMap(parsers);
     }
 
     public EmailAttachments parse(XContentParser parser) throws IOException {

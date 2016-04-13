@@ -21,7 +21,7 @@ dependencyLicenses.enabled = false
 
 dependencies {
   // license deps
-  compile project(':x-plugins:elasticsearch:license:plugin-api')
+  compile project(':x-plugins:elasticsearch:license:base')
   testCompile project(':x-plugins:elasticsearch:license:licensor')
 
   // shield deps
@@ -31,11 +31,9 @@ dependencies {
 
   // watcher deps
   compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
-  compile 'com.google.guava:guava:16.0.1' // needed by watcher and shield tests for jimfs
+  compile 'com.google.guava:guava:16.0.1' // needed by watcher for the html sanitizer and shield tests for jimfs
   compile 'com.google.code.findbugs:jsr305:3.0.1' // TODO: remove this
   compile 'com.sun.mail:javax.mail:1.5.3'
-  // fork of mustache: https://github.com/elastic/x-plugins/issues/1116 
-  compile 'com.github.spullara.mustache.java:compiler:0.9.1' // TODO: remove this
   testCompile 'org.subethamail:subethasmtp:3.1.7'
 
   // common test deps
@@ -153,6 +151,8 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 artifacts {
+    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+    archives jar
     testArtifacts testJar
 }
 
@@ -175,4 +175,26 @@ licenseHeaders.enabled = false
 
 forbiddenApisMain {
   signaturesURLs += [file('signatures.txt').toURI().toURL()]
+}
+
+modifyPom { MavenPom pom ->
+  pom.withXml { XmlProvider xml ->
+    // first find if we have dependencies at all, and grab the node
+    NodeList depsNodes = xml.asNode().get('dependencies')
+    if (depsNodes.isEmpty()) {
+      return
+    }
+
+    // find the 'base' dependency and replace it with the correct name because the project name is
+    // always used even when the pom of the other project is correct
+    for (Node depNode : depsNodes.get(0).children()) {
+      String groupId = depNode.get('groupId').get(0).text()
+      Node artifactIdNode = depNode.get('artifactId').get(0)
+      String artifactId = artifactIdNode.text()
+      if (groupId.equals('org.elasticsearch') && artifactId.equals('base')) {
+        artifactIdNode.replaceNode(new Node(null, 'artifactId', 'license-core'))
+        return
+      }
+    }
+  }
 }

@@ -71,7 +71,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         metaData = in.readMap();
     }
 
-    protected boolean usesNewStyleSerialization() {
+    protected boolean usesNewStyleSerialization() { // NORELEASE remove this before 5.0.0GA, when all the aggregations have been migrated
         return false;
     }
 

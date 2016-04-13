@@ -351,6 +351,8 @@ run_elasticsearch_service() {
 # This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
 [ -f /usr/share/java/jayatanaag.jar ] && export JAVA_TOOL_OPTIONS="-javaagent:/usr/share/java/jayatanaag.jar"
 # And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
+export ES_JVM_OPTIONS=$ES_JVM_OPTIONS
+export ES_JAVA_OPTS=$ES_JAVA_OPTS
 $timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $ES_PATH_CONF $commandLineArgs
 BASH
         [ "$status" -eq "$expectedStatus" ]

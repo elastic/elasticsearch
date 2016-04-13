@@ -145,6 +145,7 @@ subprojects {
 
     configFiles = copySpec {
       from '../src/main/resources/config'
+      MavenFilteringHack.filter(it, expansions)
     }
 
     commonFiles = copySpec {
@@ -242,6 +243,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
       up to date when the directory is created, which it would by default. And
       that'll happen when createEtc runs. */
     outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yml"
+    outputs.file "${packagingFiles}/etc/elasticsearch/jvm.options"
     outputs.file "${packagingFiles}/etc/elasticsearch/logging.yml"
   }
 
@@ -305,6 +307,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     }
 
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/logging.yml'
     into('/etc') {
       from "${packagingFiles}/etc"

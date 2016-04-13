@@ -1,14 +1,36 @@
-### configuration
+## JVM configuration
 
-## memory
+################################################################
+## IMPORTANT: JVM heap size
+################################################################
+##
+##  You should always set the min and max JVM heap
+##  size to the same value. For example, to set
+##  the heap to 4 GB, set:
+##
+##  -Xms4g
+##  -Xmx4g
+##
+## See https://www.elastic.co/guide/en/elasticsearch/reference/current/heap-size.html
+## for more information
+##
+################################################################
 
-# you should always set these two numbers equal to each other
-# this will prevent pauses upon resize, and will enable memory locking
-# to lock the entire heap into physical memory
 # Xms represents the initial size of total heap space
 # Xmx represents the maximum size of total heap space
+
 -Xms${heap.min}
 -Xmx${heap.max}
+
+################################################################
+## Expert settings
+################################################################
+##
+## All settings below this section are considered
+## expert settings. Don't tamper with them unless
+## you understand what you are doing
+##
+################################################################
 
 ## GC configuration
 -XX:+UseParNewGC

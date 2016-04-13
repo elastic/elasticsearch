@@ -58,7 +58,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
         if (randomBoolean()) {
-            queryStringQueryBuilder.defaultField(randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10));
+            queryStringQueryBuilder.defaultField(randomBoolean() ?
+                STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10));
         }
         if (randomBoolean()) {
             int numFields = randomIntBetween(1, 5);
@@ -145,7 +146,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     @Override
-    protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
+                                       Query query, QueryShardContext context) throws IOException {
         if ("".equals(queryBuilder.queryString())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
@@ -173,7 +175,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryPhraseQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        Query query = queryStringQuery("\"term1 term2\"").defaultField(STRING_FIELD_NAME).phraseSlop(3).toQuery(createShardContext());
+        Query query = queryStringQuery("\"term1 term2\"")
+            .defaultField(STRING_FIELD_NAME)
+            .phraseSlop(3)
+            .toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
         assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(1));
@@ -204,7 +209,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         boostQuery = (BoostQuery) boostQuery.getQuery();
         assertThat(boostQuery.getBoost(), equalTo(2.0f));
 
-        queryStringQuery = queryStringQuery("((" + STRING_FIELD_NAME + ":boosted^2) AND (" + STRING_FIELD_NAME + ":foo^1.5))^3");
+        queryStringQuery =
+            queryStringQuery("((" + STRING_FIELD_NAME + ":boosted^2) AND (" + STRING_FIELD_NAME + ":foo^1.5))^3");
         query = queryStringQuery.toQuery(shardContext);
         assertThat(query, instanceOf(BoostQuery.class));
         boostQuery = (BoostQuery) query;
@@ -226,27 +232,38 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryMultipleTermsBooleanQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        Query query = queryStringQuery("test1 test2").field(STRING_FIELD_NAME).useDisMax(false).toQuery(createShardContext());
+        Query query = queryStringQuery("test1 test2").field(STRING_FIELD_NAME)
+            .useDisMax(false)
+            .toQuery(createShardContext());
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) query;
         assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test1")));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test2")));
+        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME, "test1")));
+        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME, "test2")));
     }
 
     public void testToQueryMultipleFieldsBooleanQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        Query query = queryStringQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).useDisMax(false).toQuery(createShardContext());
+        Query query = queryStringQuery("test").field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .useDisMax(false)
+            .toQuery(createShardContext());
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) query;
         assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME, "test")));
+        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME_2, "test")));
     }
 
     public void testToQueryMultipleFieldsDisMaxQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        Query query = queryStringQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).useDisMax(true).toQuery(createShardContext());
+        Query query = queryStringQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2)
+            .useDisMax(true)
+            .toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
@@ -260,13 +277,18 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) query;
         assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME, "test")));
+        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME_2, "test")));
     }
 
     public void testToQueryDisMaxQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        Query query = queryStringQuery("test").field(STRING_FIELD_NAME, 2.2f).field(STRING_FIELD_NAME_2).useDisMax(true).toQuery(createShardContext());
+        Query query = queryStringQuery("test").field(STRING_FIELD_NAME, 2.2f)
+            .field(STRING_FIELD_NAME_2)
+            .useDisMax(true)
+            .toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
@@ -274,9 +296,40 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertTermOrBoostQuery(disjuncts.get(1), STRING_FIELD_NAME_2, "test", 1.0f);
     }
 
+    public void testToQueryPrefixQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        for (Operator op : Operator.values()) {
+            Query query = queryStringQuery("foo-bar-foobar*")
+                .defaultField(STRING_FIELD_NAME)
+                .analyzeWildcard(true)
+                .analyzer("standard")
+                .defaultOperator(op)
+                .toQuery(createShardContext());
+            assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery bq = (BooleanQuery) query;
+            assertThat(bq.clauses().size(), equalTo(3));
+            String[] expectedTerms = new String[]{"foo", "bar", "foobar"};
+            for (int i = 0; i < bq.clauses().size(); i++) {
+                BooleanClause clause = bq.clauses().get(i);
+                if (i != bq.clauses().size() - 1) {
+                    assertTermQuery(clause.getQuery(), STRING_FIELD_NAME, expectedTerms[i]);
+                } else {
+                    assertPrefixQuery(clause.getQuery(), STRING_FIELD_NAME, expectedTerms[i]);
+                }
+                if (op == Operator.AND) {
+                    assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+                } else {
+                    assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                }
+            }
+        }
+    }
+
     public void testToQueryRegExpQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        Query query = queryStringQuery("/foo*bar/").defaultField(STRING_FIELD_NAME).maxDeterminizedStates(5000).toQuery(createShardContext());
+        Query query = queryStringQuery("/foo*bar/").defaultField(STRING_FIELD_NAME)
+            .maxDeterminizedStates(5000)
+            .toQuery(createShardContext());
         assertThat(query, instanceOf(RegexpQuery.class));
         RegexpQuery regexpQuery = (RegexpQuery) query;
         assertTrue(regexpQuery.toString().contains("/foo*bar/"));
@@ -344,7 +397,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         float mainBoost = 2.0f / randomIntBetween(3, 20);
         boosts[boosts.length - 1] = mainBoost;
-        QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(queryString).field(STRING_FIELD_NAME)
+        QueryStringQueryBuilder queryStringQueryBuilder =
+            new QueryStringQueryBuilder(queryString).field(STRING_FIELD_NAME)
                 .minimumShouldMatch("2").boost(mainBoost);
         Query query = queryStringQueryBuilder.toQuery(createShardContext());
 
@@ -359,14 +413,17 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(2));
         assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), equalTo(new TermQuery(new Term(STRING_FIELD_NAME, "foo"))));
+        assertThat(booleanQuery.clauses().get(0).getQuery(),
+            equalTo(new TermQuery(new Term(STRING_FIELD_NAME, "foo"))));
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(1).getQuery(), equalTo(new TermQuery(new Term(STRING_FIELD_NAME, "bar"))));
+        assertThat(booleanQuery.clauses().get(1).getQuery(),
+            equalTo(new TermQuery(new Term(STRING_FIELD_NAME, "bar"))));
     }
 
     public void testToQueryPhraseQueryBoostAndSlop() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder("\"test phrase\"~2").field(STRING_FIELD_NAME, 5f);
+        QueryStringQueryBuilder queryStringQueryBuilder =
+            new QueryStringQueryBuilder("\"test phrase\"~2").field(STRING_FIELD_NAME, 5f);
         Query query = queryStringQueryBuilder.toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;

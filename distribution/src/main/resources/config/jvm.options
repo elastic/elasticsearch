@@ -1,41 +1,16 @@
 ### configuration
 
-## basic
+## memory
 
-# set to headless, just in case
--Djava.awt.headless=true
-
-# ensure UTF-8 encoding by default (e.g. filenames)
--Dfile.encoding=UTF-8
-
-# use our provided JNA always versus the system one
--Djna.nosys=true
-
-## networking
-
-# force the JVM to use the IPv4 stack
-#-Djava.net.preferIPv4Stack=true
-
-### memory
-
-## heap configuration
-
-# minimum size of total heap space
+# you should always set these two numbers equal to each other
+# this will prevent pauses upon resize, and will enable memory locking
+# to lock the entire heap into physical memory
+# Xms represents the initial size of total heap space
+# Xmx represents the maximum size of total heap space
 -Xms${heap.min}
-
-# maximum size of total heap space
-# it is recommended to set the minimum size and maximum size equal to
-# each other to prevent pauses upon resize, and so that memory locking
-# will lock the entire heap in physical memory
 -Xmx${heap.max}
 
-# size of young generation heap space
-#-Xmn${new.size}
-
-# maximum size of NIO direct-buffer allocations
-#-XX:MaxDirectMemorySize${max.direct.memory.size}
-
-## CMS configuration
+## GC configuration
 -XX:+UseParNewGC
 -XX:+UseConcMarkSweepGC
 -XX:CMSInitiatingOccupancyFraction=75
@@ -48,6 +23,17 @@
 
 # pre-touch memory pages used by the JVM during initialization
 -XX:+AlwaysPreTouch
+
+## basic
+
+# set to headless, just in case
+-Djava.awt.headless=true
+
+# ensure UTF-8 encoding by default (e.g. filenames)
+-Dfile.encoding=UTF-8
+
+# use our provided JNA always versus the system one
+-Djna.nosys=true
 
 ## heap dumps
 

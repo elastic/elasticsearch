@@ -48,6 +48,8 @@ public class ShardStateIT extends ESIntegTestCase {
         indicesService.indexService(resolveIndex("test")).getShard(shard).failShard("simulated test failure", null);
 
         logger.info("--> waiting for a yellow index");
+        // JDK 9 type inference gets confused, so we have to help the
+        // type inference
         assertBusy(() -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(),
             equalTo(ClusterHealthStatus.YELLOW)));
 

@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.hasSize;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
-    private static final ByteSizeValue LIMIT = new ByteSizeValue(1, ByteSizeUnit.KB);
+    private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

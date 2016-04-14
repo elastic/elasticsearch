@@ -181,7 +181,7 @@ public class GeoDistanceSortBuilder extends SortBuilder {
             builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
         }
         if (order == SortOrder.DESC) {
-            builder.field("reverse", true);
+            builder.field("order", "desc");
         }
         if (sortMode != null) {
             builder.field("mode", sortMode);

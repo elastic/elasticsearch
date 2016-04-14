@@ -29,6 +29,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -56,6 +57,8 @@ import java.util.List;
  *
  */
 public class GeoDistanceSortParser implements SortParser {
+
+    private static final ParseField REVERSE_FIELD = new ParseField("reverse").withAllDeprecated("replaced by order");
 
     @Override
     public String[] names() {
@@ -99,7 +102,7 @@ public class GeoDistanceSortParser implements SortParser {
                     geoPoints.add(point);
                 }
             } else if (token.isValue()) {
-                if ("reverse".equals(currentName)) {
+                if (context.parseFieldMatcher().match(currentName, REVERSE_FIELD)) {
                     reverse = parser.booleanValue();
                 } else if ("order".equals(currentName)) {
                     reverse = "desc".equals(parser.text());

@@ -180,7 +180,7 @@ public class ScriptSortBuilder extends SortBuilder {
         }
         builder.field("type", type);
         if (order == SortOrder.DESC) {
-            builder.field("reverse", true);
+            builder.field("order", "desc");
         }
         if (sortMode != null) {
             builder.field("mode", sortMode);

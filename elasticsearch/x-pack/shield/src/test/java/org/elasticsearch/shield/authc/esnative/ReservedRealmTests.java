@@ -129,6 +129,6 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(ReservedRealm.isReserved(notExpected), is(false));
         assertThat(ReservedRealm.getUser(notExpected), nullValue());
 
-        assertThat(ReservedRealm.users(), containsInAnyOrder(XPackUser.INSTANCE, KibanaUser.INSTANCE));
+        assertThat(ReservedRealm.users(), containsInAnyOrder((User) XPackUser.INSTANCE, KibanaUser.INSTANCE));
     }
 }

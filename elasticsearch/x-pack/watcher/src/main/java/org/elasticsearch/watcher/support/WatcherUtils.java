@@ -5,6 +5,17 @@
  */
 package org.elasticsearch.watcher.support;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
+
+import java.io.IOException;
+import java.lang.reflect.Array;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -26,17 +37,6 @@ import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
-
-import java.io.IOException;
-import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
 
 /**
  */
@@ -113,7 +113,7 @@ public final class WatcherUtils {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, BODY_FIELD)) {
-                    searchRequest.source(SearchSourceBuilder.fromXContent(parser, context, aggParsers, suggesters));
+                    searchRequest.source(SearchSourceBuilder.fromXContent(context, aggParsers, suggesters));
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_FIELD)) {

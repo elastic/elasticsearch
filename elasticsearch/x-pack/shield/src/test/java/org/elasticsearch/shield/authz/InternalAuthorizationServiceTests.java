@@ -45,6 +45,7 @@ import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -82,6 +83,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -105,8 +108,10 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
+        IndexNameExpressionResolver nameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(nameExpressionResolver.resolveDateMathExpression(any(String.class))).thenAnswer(returnsFirstArg());
         internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService,
-                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool);
+                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, nameExpressionResolver);
     }
 
     @After
@@ -349,8 +354,10 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
         AnonymousUser.initialize(Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build());
+        IndexNameExpressionResolver nameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(nameExpressionResolver.resolveDateMathExpression(any(String.class))).thenAnswer(returnsFirstArg());
         internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool);
+                new DefaultAuthenticationFailureHandler(), threadPool, nameExpressionResolver);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
@@ -377,9 +384,11 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
                 .put(InternalAuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false)
                 .build());
         User anonymousUser = AnonymousUser.INSTANCE;
+        IndexNameExpressionResolver nameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(nameExpressionResolver.resolveDateMathExpression(any(String.class))).thenAnswer(returnsFirstArg());
         internalAuthorizationService = new InternalAuthorizationService(
                 Settings.builder().put(InternalAuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false).build(),
-                rolesStore, clusterService, auditTrail, new DefaultAuthenticationFailureHandler(), threadPool);
+                rolesStore, clusterService, auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, nameExpressionResolver);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);

@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -45,6 +46,7 @@ import org.junit.Before;
 
 import java.util.Set;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -61,6 +63,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
     private RolesStore rolesStore;
     private MetaData metaData;
     private DefaultIndicesAndAliasesResolver defaultIndicesResolver;
+    private IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Before
     public void setup() {
@@ -70,6 +73,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
                 .build();
 
+        indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo").putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
                 .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("foofoobar")).settings(settings))
@@ -81,6 +85,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
                 .put(indexBuilder("bar").settings(settings))
                 .put(indexBuilder("bar-closed").state(IndexMetaData.State.CLOSE).settings(settings))
                 .put(indexBuilder("bar2").settings(settings))
+                .put(indexBuilder(indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")).settings(settings))
                 .put(indexBuilder(ShieldTemplateService.SECURITY_INDEX_NAME).settings(settings));
         metaData = mdBuilder.build();
 
@@ -97,8 +102,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         when(state.metaData()).thenReturn(metaData);
 
         InternalAuthorizationService authzService = new InternalAuthorizationService(settings, rolesStore, clusterService,
-                mock(AuditTrail.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class));
-        defaultIndicesResolver = new DefaultIndicesAndAliasesResolver(authzService);
+                mock(AuditTrail.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class), indexNameExpressionResolver);
+        defaultIndicesResolver = new DefaultIndicesAndAliasesResolver(authzService, indexNameExpressionResolver);
     }
 
     public void testResolveEmptyIndicesExpandWilcardsOpenAndClosed() {
@@ -838,6 +843,82 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         aliasesRequest.addAlias("shield_alias1", "*");
         indices = defaultIndicesResolver.resolve(allAccessUser, IndicesAliasesAction.NAME, aliasesRequest, metaData);
         assertThat(indices, not(hasItem(ShieldTemplateService.SECURITY_INDEX_NAME)));
+    }
+
+    public void testResolvingDateExpression() {
+        // the user isn't authorized so resolution should fail
+        SearchRequest request = new SearchRequest("<datetime-{now/M}>");
+        if (randomBoolean()) {
+            request.indicesOptions(IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+        }
+        try {
+            defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+            fail("user is not authorized to see this index");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
+
+        // make the user authorized
+        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed",
+                indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")};
+        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+
+        Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+        assertThat(indices.size(), equalTo(1));
+        assertThat(request.indices()[0], equalTo(indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")));
+    }
+
+    public void testMissingDateExpression() {
+        SearchRequest request = new SearchRequest("<foobar-{now/M}>");
+        try {
+            defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+            fail("index should not exist");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
+    }
+
+    public void testAliasDateMathExpressionNotSupported() {
+        // make the user authorized
+        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed",
+                indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")};
+        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+        GetAliasesRequest request = new GetAliasesRequest("<datetime-{now/M}>").indices("foo", "foofoo");
+        Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+        //the union of all indices and aliases gets returned
+        String[] expectedIndices = new String[]{"<datetime-{now/M}>", "foo", "foofoo"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder("foo", "foofoo"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("<datetime-{now/M}>"));
+    }
+
+    public void testCompositeRequestsCanResolveExpressions() {
+        // make the user authorized
+        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed",
+                indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")};
+        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        multiSearchRequest.add(new SearchRequest("<datetime-{now/M}>"));
+        multiSearchRequest.add(new SearchRequest("bar"));
+        Set<String> indices = defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, multiSearchRequest, metaData);
+
+        String resolvedName = indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>");
+        String[] expectedIndices = new String[]{resolvedName, "bar"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        assertThat(multiSearchRequest.requests().get(0).indices(), arrayContaining(resolvedName));
+        assertThat(multiSearchRequest.requests().get(1).indices(), arrayContaining("bar"));
+
+        // multi get doesn't support replacing indices but we should authorize the proper indices
+        MultiGetRequest multiGetRequest = new MultiGetRequest();
+        multiGetRequest.add("<datetime-{now/M}>", "type", "1");
+        multiGetRequest.add("bar", "type", "1");
+        indices = defaultIndicesResolver.resolve(user, MultiGetAction.NAME, multiGetRequest, metaData);
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        assertThat(multiGetRequest.getItems().get(0).indices(), arrayContaining("<datetime-{now/M}>"));
+        assertThat(multiGetRequest.getItems().get(1).indices(), arrayContaining("bar"));
     }
 
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?

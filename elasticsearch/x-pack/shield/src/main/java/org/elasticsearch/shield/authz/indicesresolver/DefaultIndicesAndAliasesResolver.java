@@ -7,7 +7,9 @@ package org.elasticsearch.shield.authz.indicesresolver;
 
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -35,9 +37,11 @@ import java.util.SortedMap;
 public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolver<TransportRequest> {
 
     private final AuthorizationService authzService;
+    private final IndexNameExpressionResolver nameExpressionResolver;
 
-    public DefaultIndicesAndAliasesResolver(AuthorizationService authzService) {
+    public DefaultIndicesAndAliasesResolver(AuthorizationService authzService, IndexNameExpressionResolver nameExpressionResolver) {
         this.authzService = authzService;
+        this.nameExpressionResolver = nameExpressionResolver;
     }
 
     @Override
@@ -80,25 +84,30 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
             indices = Collections.singleton(((PutMappingRequest) indicesRequest).getConcreteIndex().getName());
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                     : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
-        } else {
-            if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
-                if (indicesRequest instanceof IndicesRequest.Replaceable) {
-                    List<String> authorizedIndices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(),
-                            indicesRequest.indicesOptions(),
-                            metaData, authzService.authorizedIndicesAndAliases(user, action));
-                    ((IndicesRequest.Replaceable) indicesRequest).indices(authorizedIndices.toArray(new String[authorizedIndices.size()]));
-                } else {
-                    assert !containsWildcards(indicesRequest) :
-                            "There are no external requests known to support wildcards that don't support replacing their indices";
-
-                    //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
-                    // replacing their indices.
-                    //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
-                    //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
-                    // shard level requests.
-                }
-            }
+        } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
+            IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
+            final boolean replaceWildcards = indicesRequest.indicesOptions().expandWildcardsOpen()
+                    || indicesRequest.indicesOptions().expandWildcardsClosed();
+            List<String> authorizedIndices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(),
+                    indicesRequest.indicesOptions(),
+                    metaData,
+                    authzService.authorizedIndicesAndAliases(user, action),
+                    replaceWildcards);
+            replaceable.indices(authorizedIndices.toArray(new String[authorizedIndices.size()]));
             indices = Sets.newHashSet(indicesRequest.indices());
+        } else {
+            assert !containsWildcards(indicesRequest) :
+                    "There are no external requests known to support wildcards that don't support replacing their indices";
+            //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
+            // replacing their indices.
+            //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
+            //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
+            // shard level requests.
+            List<String> resolvedNames = new ArrayList<>();
+            for (String name : indicesRequest.indices()) {
+                resolvedNames.add(nameExpressionResolver.resolveDateMathExpression(name));
+            }
+            indices = Sets.newHashSet(resolvedNames);
         }
 
         if (indicesRequest instanceof AliasesRequest) {
@@ -177,10 +186,14 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
     }
 
     private List<String> replaceWildcardsWithAuthorizedIndices(String[] indices, IndicesOptions indicesOptions, MetaData metaData,
-                                                               List<String> authorizedIndices) {
+                                                               List<String> authorizedIndices, boolean replaceWildcards) {
 
         // check for all and return list of authorized indices
         if (IndexNameExpressionResolver.isAllIndices(indicesList(indices))) {
+            if (replaceWildcards == false) {
+                // if we cannot replace wildcards, then we should not set all indices
+                return throwExceptionIfNoIndicesWereResolved(indices, null);
+            }
             List<String> visibleIndices = new ArrayList<>();
             for (String authorizedIndex : authorizedIndices) {
                 if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
@@ -214,7 +227,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
                 aliasOrIndex = index;
             }
 
-            if (Regex.isSimpleMatchPattern(aliasOrIndex)) {
+            if (replaceWildcards && Regex.isSimpleMatchPattern(aliasOrIndex)) {
                 for (String authorizedIndex : authorizedIndices) {
                     if (Regex.simpleMatch(aliasOrIndex, authorizedIndex)) {
                         if (minus) {
@@ -227,15 +240,32 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
                     }
                 }
             } else {
-                //MetaData#convertFromWildcards checks if the index exists here and throws IndexNotFoundException if not (based on
-                // ignore_unavailable).
-                //Do nothing as if the index is missing but the user is not authorized to it an AuthorizationException will be thrown.
-                //If the index is missing and the user is authorized to it, core will throw IndexNotFoundException later on.
-                //There is no problem with deferring this as we are dealing with an explicit name, not with wildcards.
-                if (minus) {
-                    finalIndices.remove(aliasOrIndex);
+                // we always need to check for date math expressions
+                String dateMathName = nameExpressionResolver.resolveDateMathExpression(aliasOrIndex);
+                // we can use != here to compare strings since the name expression resolver returns the same instance, but add an assert
+                // to ensure we catch this if it changes
+                if (dateMathName != aliasOrIndex) {
+                    assert dateMathName.equals(aliasOrIndex) == false;
+                    if (authorizedIndices.contains(dateMathName)) {
+                        if (minus) {
+                            finalIndices.remove(dateMathName);
+                        } else {
+                            if (isIndexVisible(dateMathName, indicesOptions, metaData, true)) {
+                                finalIndices.add(dateMathName);
+                            }
+                        }
+                    }
                 } else {
-                    finalIndices.add(aliasOrIndex);
+                    //MetaData#convertFromWildcards checks if the index exists here and throws IndexNotFoundException if not (based on
+                    // ignore_unavailable).
+                    //Do nothing as if the index is missing but the user is not authorized to it an AuthorizationException will be thrown.
+                    //If the index is missing and the user is authorized to it, core will throw IndexNotFoundException later on.
+                    //There is no problem with deferring this as we are dealing with an explicit name, not with wildcards.
+                    if (minus) {
+                        finalIndices.remove(aliasOrIndex);
+                    } else {
+                        finalIndices.add(aliasOrIndex);
+                    }
                 }
             }
         }
@@ -258,6 +288,10 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
     }
 
     private static boolean isIndexVisible(String index, IndicesOptions indicesOptions, MetaData metaData) {
+        return isIndexVisible(index, indicesOptions, metaData, false);
+    }
+
+    private static boolean isIndexVisible(String index, IndicesOptions indicesOptions, MetaData metaData, boolean dateMathExpression) {
         if (metaData.hasConcreteIndex(index)) {
             IndexMetaData indexMetaData = metaData.index(index);
             if (indexMetaData == null) {
@@ -265,10 +299,10 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
                 //complicated to support those options with aliases pointing to multiple indices...
                 return true;
             }
-            if (indexMetaData.getState() == IndexMetaData.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE && (indicesOptions.expandWildcardsClosed() || dateMathExpression)) {
                 return true;
             }
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN && indicesOptions.expandWildcardsOpen()) {
+            if (indexMetaData.getState() == IndexMetaData.State.OPEN && (indicesOptions.expandWildcardsOpen() || dateMathExpression)) {
                 return true;
             }
         }

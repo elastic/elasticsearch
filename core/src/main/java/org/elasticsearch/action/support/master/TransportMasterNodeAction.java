@@ -168,12 +168,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     retry(null, MasterNodeChangePredicate.INSTANCE);
                 } else {
                     taskManager.registerChildTask(task, nodes.getMasterNode().getId());
-                    transportService.sendRequest(nodes.getMasterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener) {
-                        @Override
-                        public Response newInstance() {
-                            return newResponse();
-                        }
-
+                    transportService.sendRequest(nodes.getMasterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::newResponse) {
                         @Override
                         public void handleException(final TransportException exp) {
                             Throwable cause = exp.unwrapCause();

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -32,9 +31,9 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
@@ -55,6 +54,13 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
         protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, type, valuesSourceType, targetValueType);
+        }
+
+        /**
+         * Read from a stream.
+         */
+        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
+            super(in, type, valuesSourceType, targetValueType);
         }
 
         @Override
@@ -138,6 +144,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         }
     }
 
+    /**
+     * Write subclass's state to the stream.
+     */
     protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     @SuppressWarnings("unchecked")

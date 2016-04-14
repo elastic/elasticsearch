@@ -148,6 +148,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
@@ -442,7 +443,7 @@ public class SearchModule extends AbstractModule {
 
         SignificanceHeuristicParserMapper significanceHeuristicParserMapper = new SignificanceHeuristicParserMapper(heuristicParsers);
 
-        registerAggregatorParser(new AvgParser());
+        registerAggregation(AvgAggregatorBuilder::new, new AvgParser(), AvgAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregatorParser(new SumParser());
         registerAggregatorParser(new MinParser());
         registerAggregatorParser(new MaxParser());

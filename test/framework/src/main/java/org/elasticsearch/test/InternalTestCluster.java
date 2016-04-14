@@ -365,6 +365,13 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = Settings.builder().put(defaultSettings)
                 .put(getRandomNodeSettings(nodeSeed));
+        Settings interimSettings = builder.build();
+        final String dataSuffix = getRoleSuffix(interimSettings);
+        if (dataSuffix.isEmpty() == false) {
+            String[] dataPath = Environment.PATH_DATA_SETTING.get(interimSettings).stream()
+                .map(path -> path+dataSuffix).toArray(String[]::new);
+            builder.putArray(Environment.PATH_DATA_SETTING.getKey(), dataPath);
+        }
         Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) != null) {
@@ -609,18 +616,25 @@ public final class InternalTestCluster extends TestCluster {
 
     private String buildNodeName(int id, Settings settings) {
         String prefix = nodePrefix;
+        prefix = prefix + getRoleSuffix(settings);
+        return prefix + id;
+    }
+
+    /** returns a suffix string based on the node role. If no explicit role is defined, the suffix will be empty */
+    private String getRoleSuffix(Settings settings) {
+        String suffix = "";
         if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings)) {
-            prefix = prefix + "m";
+            suffix = suffix + "m";
         }
         if (Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings)) {
-            prefix = prefix + "d";
+            suffix = suffix + "d";
         }
         if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings) == false &&
             Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings) == false
             ) {
-            prefix = prefix + "c";
+            suffix = suffix + "c";
         }
-        return prefix + id;
+        return suffix;
     }
 
     /**

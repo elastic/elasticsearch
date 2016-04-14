@@ -84,9 +84,10 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     @Override
-    public final ValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public final ValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName, QueryParseContext context)
             throws IOException {
 
+        XContentParser parser = context.parser();
         String field = null;
         Script script = null;
         ValueType valueType = null;

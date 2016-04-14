@@ -50,9 +50,9 @@ public class FetchSourceContext implements Streamable, ToXContent {
     private String[] includes;
     private String[] excludes;
 
-    public static FetchSourceContext parse(XContentParser parser, QueryParseContext context) throws IOException {
+    public static FetchSourceContext parse(QueryParseContext context) throws IOException {
         FetchSourceContext fetchSourceContext = new FetchSourceContext();
-        fetchSourceContext.fromXContent(parser, context);
+        fetchSourceContext.fromXContent(context);
         return fetchSourceContext;
     }
 
@@ -147,7 +147,8 @@ public class FetchSourceContext implements Streamable, ToXContent {
         return null;
     }
 
-    public void fromXContent(XContentParser parser, QueryParseContext context) throws IOException {
+    public void fromXContent(QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;

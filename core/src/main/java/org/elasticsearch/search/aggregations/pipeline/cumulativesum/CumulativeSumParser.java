@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,8 +41,8 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public CumulativeSumPipelineAggregatorBuilder parse(String pipelineAggregatorName,
-            XContentParser parser, QueryParseContext context) throws IOException {
+    public CumulativeSumPipelineAggregatorBuilder parse(String pipelineAggregatorName, QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;

@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -104,13 +103,14 @@ public final class InnerHitsBuilder extends ToXContentToBytes implements Writeab
         return innerHitsBuilders.hashCode();
     }
 
-    public static InnerHitsBuilder fromXContent(XContentParser parser, QueryParseContext context) throws IOException {
+    public static InnerHitsBuilder fromXContent(QueryParseContext context) throws IOException {
         Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
         String innerHitName = null;
+        XContentParser parser = context.parser();
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
             switch (token) {
                 case START_OBJECT:
-                    InnerHitBuilder innerHitBuilder = InnerHitBuilder.fromXContent(parser, context);
+                    InnerHitBuilder innerHitBuilder = InnerHitBuilder.fromXContent(context);
                     innerHitBuilder.setName(innerHitName);
                     innerHitBuilders.put(innerHitName, innerHitBuilder);
                     break;

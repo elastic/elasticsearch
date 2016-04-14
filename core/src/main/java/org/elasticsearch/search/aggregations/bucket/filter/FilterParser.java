@@ -19,10 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+
 import java.io.IOException;
 
 /**
@@ -36,8 +36,7 @@ public class FilterParser implements Aggregator.Parser {
     }
 
     @Override
-    public FilterAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
-            throws IOException {
+    public FilterAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
         QueryBuilder<?> filter = context.parseInnerQueryBuilder();
 
         if (filter == null) {

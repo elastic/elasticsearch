@@ -177,7 +177,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregatorBuild
             parseContext.reset(parser);
             parseContext.parseFieldMatcher(parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-            aggParsers.parseAggregators(parser, parseContext);
+            aggParsers.parseAggregators(parseContext);
             fail();
         } catch (AggregationInitializationException e) {
             assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));

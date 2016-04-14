@@ -163,7 +163,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         ScoreMode scoreMode = ScoreMode.Avg;
         String queryName = null;
-        QueryBuilder query = null;
+        QueryBuilder<?> query = null;
         String path = null;
         String currentFieldName = null;
         InnerHitBuilder innerHitBuilder = null;
@@ -176,7 +176,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     query = parseContext.parseInnerQueryBuilder();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
-                    innerHitBuilder = InnerHitBuilder.fromXContent(parser, parseContext);
+                    innerHitBuilder = InnerHitBuilder.fromXContent(parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }

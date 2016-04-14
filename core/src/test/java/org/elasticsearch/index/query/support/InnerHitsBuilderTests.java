@@ -30,29 +30,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -100,7 +85,7 @@ public class InnerHitsBuilderTests extends ESTestCase {
             XContentParser parser = XContentHelper.createParser(builder.bytes());
             context.reset(parser);
             parser.nextToken();
-            InnerHitsBuilder secondInnerHits = InnerHitsBuilder.fromXContent(parser, context);
+            InnerHitsBuilder secondInnerHits = InnerHitsBuilder.fromXContent(context);
             assertThat(innerHits, not(sameInstance(secondInnerHits)));
             assertThat(innerHits, equalTo(secondInnerHits));
             assertThat(innerHits.hashCode(), equalTo(secondInnerHits.hashCode()));

@@ -53,8 +53,9 @@ public class FiltersParser implements Aggregator.Parser {
     }
 
     @Override
-    public FiltersAggregatorBuilder parse(String aggregationName, XContentParser parser, QueryParseContext context)
+    public FiltersAggregatorBuilder parse(String aggregationName, QueryParseContext context)
             throws IOException {
+        XContentParser parser = context.parser();
 
         List<FiltersAggregator.KeyedFilter> keyedFilters = null;
         List<QueryBuilder<?>> nonKeyedFilters = null;

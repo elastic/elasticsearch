@@ -93,7 +93,7 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 if (token == XContentParser.Token.START_OBJECT) {
-                    parseCompoundSortField(parser, context, sortFields);
+                    parseCompoundSortField(context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     String fieldName = parser.text();
                     sortFields.add(fieldOrScoreSort(fieldName));
@@ -106,7 +106,7 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
             String fieldName = parser.text();
             sortFields.add(fieldOrScoreSort(fieldName));
         } else if (token == XContentParser.Token.START_OBJECT) {
-            parseCompoundSortField(parser, context, sortFields);
+            parseCompoundSortField(context, sortFields);
         } else {
             throw new IllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
         }
@@ -121,9 +121,10 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
         }
     }
 
-    private static void parseCompoundSortField(XContentParser parser, QueryParseContext context, List<SortBuilder<?>> sortFields)
+    private static void parseCompoundSortField(QueryParseContext context, List<SortBuilder<?>> sortFields)
             throws IOException {
         XContentParser.Token token;
+        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.currentName();

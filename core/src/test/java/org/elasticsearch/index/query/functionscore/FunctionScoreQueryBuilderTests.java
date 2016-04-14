@@ -35,7 +35,6 @@ import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
@@ -725,9 +724,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             return NAME;
         }
 
-        public static RandomScoreFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser)
+        public static RandomScoreFunctionBuilder fromXContent(QueryParseContext parseContext)
                 throws IOException, ParsingException {
-            RandomScoreFunctionBuilder builder = RandomScoreFunctionBuilder.fromXContent(parseContext, parser);
+            RandomScoreFunctionBuilder builder = RandomScoreFunctionBuilder.fromXContent(parseContext);
             RandomScoreFunctionBuilderWithFixedSeed replacement = new RandomScoreFunctionBuilderWithFixedSeed();
             replacement.seed(builder.getSeed());
             return replacement;

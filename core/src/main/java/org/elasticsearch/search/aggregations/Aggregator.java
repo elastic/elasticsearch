@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -60,12 +59,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * aggregation should be skipped (e.g. when trying to aggregate on unmapped fields).
          *
          * @param aggregationName   The name of the aggregation
-         * @param parser            The xcontent parser
-         * @param context           The search context
+         * @param context           The parse context
          * @return                  The resolved aggregator factory or {@code null} in case the aggregation should be skipped
          * @throws java.io.IOException      When parsing fails
          */
-        AggregatorBuilder<?> parse(String aggregationName, XContentParser parser, QueryParseContext context) throws IOException;
+        AggregatorBuilder<?> parse(String aggregationName, QueryParseContext context) throws IOException;
 
         /**
          * @return an empty {@link AggregatorBuilder} instance for this parser

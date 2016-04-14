@@ -46,8 +46,8 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public BucketSelectorPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
-            QueryParseContext context) throws IOException {
+    public BucketSelectorPipelineAggregatorBuilder parse(String reducerName, QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token;
         Script script = null;
         String currentFieldName = null;

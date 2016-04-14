@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,8 +42,8 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public SerialDiffPipelineAggregatorBuilder parse(String reducerName, XContentParser parser,
-            QueryParseContext context) throws IOException {
+    public SerialDiffPipelineAggregatorBuilder parse(String reducerName, QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;

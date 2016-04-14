@@ -321,6 +321,9 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
         assert fieldType.hasDocValues() == false;
+        if (fieldType().indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
+            throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
+        }
         this.positionIncrementGap = positionIncrementGap;
     }
 

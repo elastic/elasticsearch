@@ -23,9 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -62,8 +61,8 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
     private final ScriptService scriptService;
     private final CompiledScript script;
 
-    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService,
-            ClusterState state, Client client, ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest,
+    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, ClusterState state,
+            ParentTaskAssigningClient client, ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest,
             ActionListener<Response> listener) {
         super(task, logger, client, threadPool, mainRequest, firstSearchRequest, listener);
         this.scriptService = scriptService;

@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -66,9 +67,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     }
 
     @Override
-    protected void doExecute(Task task, UpdateByQueryRequest request,
-            ActionListener<BulkIndexByScrollResponse> listener) {
+    protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
         ClusterState state = clusterService.state();
+        ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
         new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool, state, request, listener)
                 .start();
     }
@@ -82,8 +83,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      * Simple implementation of update-by-query using scrolling and bulk.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
-        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client,
-                ThreadPool threadPool, ClusterState clusterState, UpdateByQueryRequest request,
+        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService,
+                ParentTaskAssigningClient client, ThreadPool threadPool, ClusterState clusterState, UpdateByQueryRequest request,
                 ActionListener<BulkIndexByScrollResponse> listener) {
             super(task, logger, scriptService, clusterState, client, threadPool, request, request.getSearchRequest(), listener);
         }

@@ -134,7 +134,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
 
     @Override
     protected AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> action() {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, null,
-                threadPool, request(), listener());
+        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, null, threadPool, request(), listener());
     }
 }

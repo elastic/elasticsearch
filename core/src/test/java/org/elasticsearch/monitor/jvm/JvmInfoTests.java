@@ -29,7 +29,7 @@ public class JvmInfoTests extends ESTestCase {
         // if we are running on HotSpot, and the test JVM was started
         // with UseG1GC, then JvmInfo should successfully report that
         // G1GC is enabled
-        if (Constants.JVM_NAME.contains("HotSpot")) {
+        if (Constants.JVM_NAME.contains("HotSpot") || Constants.JVM_NAME.contains("OpenJDK")) {
             assertEquals(Boolean.toString(isG1GCEnabled()), JvmInfo.jvmInfo().useG1GC());
         } else {
             assertEquals("unknown", JvmInfo.jvmInfo().useG1GC());

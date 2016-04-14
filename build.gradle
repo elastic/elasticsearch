@@ -181,6 +181,10 @@ allprojects {
       outputDir = file('build-idea/classes/main')
       testOutputDir = file('build-idea/classes/test')
 
+      // also ignore other possible build dirs
+      excludeDirs += file('build')
+      excludeDirs += file('build-eclipse')
+
       iml {
         // fix so that Gradle idea plugin properly generates support for resource folders
         // see also https://issues.gradle.org/browse/GRADLE-2975

@@ -20,6 +20,8 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
@@ -38,6 +40,8 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
 
@@ -87,7 +91,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 SearchContext.current() == null ? null : new InnerHitBuilder()
                         .setName(randomAsciiOfLengthBetween(1, 10))
                         .setSize(randomIntBetween(0, 100))
-                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME).order(SortOrder.ASC)));
+                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME).order(SortOrder.ASC))).ignoreUnmapped(randomBoolean());
     }
 
     @Override
@@ -176,6 +180,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 "      }\n" +
                 "    },\n" +
                 "    \"path\" : \"obj1\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"score_mode\" : \"avg\",\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
@@ -185,5 +190,18 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, ScoreMode.Avg, parsed.scoreMode());
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        final NestedQueryBuilder queryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(queryShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final NestedQueryBuilder failingQueryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        failingQueryBuilder.ignoreUnmapped(false);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        assertThat(e.getMessage(), containsString("[" + NestedQueryBuilder.NAME + "] failed to find nested object under path [unmapped]"));
     }
 }

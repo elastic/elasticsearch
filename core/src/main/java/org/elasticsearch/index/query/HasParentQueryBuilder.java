@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
@@ -49,16 +50,23 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     public static final boolean DEFAULT_SCORE = false;
 
+    /**
+     * The default value for ignore_unmapped.
+     */
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
     private static final ParseField TYPE_FIELD = new ParseField("parent_type", "type");
     private static final ParseField SCORE_FIELD = new ParseField("score");
     private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final QueryBuilder<?> query;
     private final String type;
     private boolean score = DEFAULT_SCORE;
     private InnerHitBuilder innerHit;
+    private boolean ignoreUnmapped = false;
 
     /**
      * @param type  The parent type
@@ -94,6 +102,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         score = in.readBoolean();
         query = in.readQuery();
         innerHit = in.readOptionalWriteable(InnerHitBuilder::new);
+        ignoreUnmapped = in.readBoolean();
     }
 
     @Override
@@ -102,6 +111,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         out.writeBoolean(score);
         out.writeQuery(query);
         out.writeOptionalWriteable(innerHit);
+        out.writeBoolean(ignoreUnmapped);
     }
 
     /**
@@ -150,6 +160,25 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         return innerHit;
     }
 
+    /**
+     * Sets whether the query builder should ignore unmapped types (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the type is unmapped.
+     */
+    public HasParentQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Gets whether the query builder will ignore unmapped types (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the type is unmapped.
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
+    }
+
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query innerQuery;
@@ -166,8 +195,11 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         }
         DocumentMapper parentDocMapper = context.getMapperService().documentMapper(type);
         if (parentDocMapper == null) {
-            throw new QueryShardException(context, "[" + NAME + "] query configured 'parent_type' [" + type
-                    + "] is not a valid type");
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "[" + NAME + "] query configured 'parent_type' [" + type + "] is not a valid type");
+            }
         }
 
         if (innerHit != null) {
@@ -220,6 +252,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         query.toXContent(builder, params);
         builder.field(TYPE_FIELD.getPreferredName(), type);
         builder.field(SCORE_FIELD.getPreferredName(), score);
+        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);
         if (innerHit != null) {
             builder.field(INNER_HITS_FIELD.getPreferredName(), innerHit, params);
@@ -234,6 +267,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         boolean score = HasParentQueryBuilder.DEFAULT_SCORE;
         String queryName = null;
         InnerHitBuilder innerHits = null;
+        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -264,6 +298,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_FIELD)) {
                     score = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                    ignoreUnmapped = parser.booleanValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
@@ -273,7 +309,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                 }
             }
         }
-        return new HasParentQueryBuilder(parentType, iqb, score, innerHits).queryName(queryName).boost(boost);
+        return new HasParentQueryBuilder(parentType, iqb, score, innerHits).ignoreUnmapped(ignoreUnmapped).queryName(queryName)
+                .boost(boost);
     }
 
     @Override
@@ -286,12 +323,13 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         return Objects.equals(query, that.query)
                 && Objects.equals(type, that.type)
                 && Objects.equals(score, that.score)
-                && Objects.equals(innerHit, that.innerHit);
+                && Objects.equals(innerHit, that.innerHit) 
+                && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, type, score, innerHit);
+        return Objects.hash(query, type, score, innerHit, ignoreUnmapped);
     }
 
     @Override

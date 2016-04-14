@@ -8,10 +8,10 @@ The `parent_id` query can be used to find child documents which belong to a part
 [source,js]
 --------------------------------------------------
 {
-  "parent_id" : {
-    "type" : "blog_tag",
-    "id" : "1"
-  }
+    "parent_id" : {
+        "type" : "blog_tag",
+        "id" : "1"
+    }
 }
 --------------------------------------------------
 
@@ -41,3 +41,8 @@ This query has two required parameters:
 `type`::  The **child** type. This must be a type with `_parent` field.
 
 `id`::    The required parent id select documents must referrer to.
+
+`ignore_unmapped`::  When set to `true` this will ignore an unmapped `type` and will not match any 
+documents for this query. This can be useful when querying multiple indexes
+which might have different mappings. When set to `false` (the default value)
+the query will throw an exception if the `type` is not mapped.

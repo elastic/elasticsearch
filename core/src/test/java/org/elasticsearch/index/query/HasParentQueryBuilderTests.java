@@ -21,6 +21,8 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.fasterxml.jackson.core.JsonParseException;
+
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchParseException;
@@ -45,9 +47,10 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
@@ -109,7 +112,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 randomBoolean() ? null : new InnerHitBuilder()
                         .setName(randomAsciiOfLengthBetween(1, 10))
                         .setSize(randomIntBetween(0, 100))
-                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC))).ignoreUnmapped(randomBoolean());
     }
 
     @Override
@@ -257,6 +260,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "    },\n" +
                 "    \"parent_type\" : \"blog\",\n" +
                 "    \"score\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -264,5 +268,19 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         checkGeneratedJson(json, parsed);
         assertEquals(json, "blog", parsed.type());
         assertEquals(json, "something", ((TermQueryBuilder) parsed.query()).value());
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        final HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(queryShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final HasParentQueryBuilder failingQueryBuilder = new HasParentQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        failingQueryBuilder.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        assertThat(e.getMessage(),
+                    containsString("[" + HasParentQueryBuilder.NAME + "] query configured 'parent_type' [unmapped] is not a valid type"));
     }
 }

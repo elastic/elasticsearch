@@ -26,6 +26,7 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
@@ -55,9 +56,10 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.is;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
@@ -124,7 +126,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 randomBoolean()  ? null : new InnerHitBuilder()
                         .setName(randomAsciiOfLengthBetween(1, 10))
                         .setSize(randomIntBetween(0, 100))
-                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC))).ignoreUnmapped(randomBoolean());
     }
 
     @Override
@@ -217,6 +219,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "    \"score_mode\" : \"avg\",\n" +
                 "    \"min_children\" : 883170873,\n" +
                 "    \"max_children\" : 1217235442,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 2.0,\n" +
                 "    \"_name\" : \"WNzYMJKRwePuRBh\",\n" +
                 "    \"inner_hits\" : {\n" +
@@ -385,5 +388,18 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("No score mode for child query [unrecognized value] found"));
         }
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        final HasChildQueryBuilder queryBuilder = new HasChildQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(queryShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final HasChildQueryBuilder failingQueryBuilder = new HasChildQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        failingQueryBuilder.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        assertThat(e.getMessage(), containsString("[" + HasChildQueryBuilder.NAME + "] no mapping found for type [unmapped]"));
     }
 }

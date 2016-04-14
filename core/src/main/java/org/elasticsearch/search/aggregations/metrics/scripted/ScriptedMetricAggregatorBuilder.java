@@ -219,8 +219,7 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
         return builder;
     }
 
-    public static ScriptedMetricAggregatorBuilder parse(String aggregationName, XContentParser parser,
-            QueryParseContext context) throws IOException {
+    public static ScriptedMetricAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
         Script initScript = null;
         Script mapScript = null;
         Script combineScript = null;
@@ -236,6 +235,7 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
         scriptParameters.add(REDUCE_SCRIPT_FIELD.getPreferredName());
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser(scriptParameters);
 
+        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

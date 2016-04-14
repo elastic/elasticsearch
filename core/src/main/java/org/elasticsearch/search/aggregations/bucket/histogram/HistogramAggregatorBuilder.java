@@ -51,4 +51,8 @@ public class HistogramAggregatorBuilder extends AbstractHistogramBuilder<Histogr
                 parent, subFactoriesBuilder, metaData);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

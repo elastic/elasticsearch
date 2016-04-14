@@ -133,9 +133,10 @@ import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGe
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
+import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedSamplerParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerParser;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
@@ -459,8 +460,10 @@ public class SearchModule extends AbstractModule {
         registerAggregation(FilterAggregatorBuilder::new, FilterAggregatorBuilder::parse, FilterAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(FiltersAggregatorBuilder::new, (n, c) -> FiltersAggregatorBuilder.parse(queryParserRegistry, n, c),
                 FiltersAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregatorParser(new SamplerParser());
-        registerAggregatorParser(new DiversifiedSamplerParser());
+        registerAggregation(SamplerAggregatorBuilder::new, SamplerAggregatorBuilder::parse,
+                SamplerAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(DiversifiedAggregatorBuilder::new, new DiversifiedSamplerParser(),
+                DiversifiedAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(TermsAggregatorBuilder::new, new TermsParser(), TermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregatorParser(new SignificantTermsParser(significanceHeuristicParserMapper, queryParserRegistry));
         registerAggregation(RangeAggregatorBuilder::new, new RangeParser(), RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);

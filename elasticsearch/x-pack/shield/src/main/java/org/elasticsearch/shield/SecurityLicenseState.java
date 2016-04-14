@@ -21,10 +21,29 @@ public class SecurityLicenseState {
     protected volatile Status status = Status.ENABLED;
 
     /**
-     * @return true if the license allows for security features to be enabled (authc, authz, ip filter, audit, etc)
+     * @return true if authentication and authorization should be enabled. this does not indicate what realms are available
+     * @see SecurityLicenseState#enabledRealmType() for the enabled realms
      */
-    public boolean securityEnabled() {
-        return status.getMode() != OperationMode.BASIC;
+    public boolean authenticationAndAuthorizationEnabled() {
+        OperationMode mode = status.getMode();
+        return mode == OperationMode.STANDARD || mode == OperationMode.GOLD || mode == OperationMode.PLATINUM
+                || mode == OperationMode.TRIAL;
+    }
+
+    /**
+     * @return true if IP filtering should be enabled
+     */
+    public boolean ipFilteringEnabled() {
+        OperationMode mode = status.getMode();
+        return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL;
+    }
+
+    /**
+     * @return true if auditing should be enabled
+     */
+    public boolean auditingEnabled() {
+        OperationMode mode = status.getMode();
+        return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL;
     }
 
     /**
@@ -55,23 +74,31 @@ public class SecurityLicenseState {
     }
 
     /**
-     * Determine if Custom Realms should be enabled.
-     * <p>
-     * Custom Realms are only disabled when the mode is not:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM}</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     * Note: This does not consider the <em>state</em> of the license so that Security does not suddenly block requests!
-     *
-     * @return {@code true} to enable Custom Realms. Otherwise {@code false}.
+     * @return the type of realms that are enabled based on the license {@link OperationMode}
      */
-    public boolean customRealmsEnabled() {
-        Status status = this.status;
-        return status.getMode() == OperationMode.TRIAL || status.getMode() == OperationMode.PLATINUM;
+    public EnabledRealmType enabledRealmType() {
+        OperationMode mode = status.getMode();
+        switch (mode) {
+            case PLATINUM:
+            case TRIAL:
+                return EnabledRealmType.ALL;
+            case GOLD:
+                return EnabledRealmType.DEFAULT;
+            case STANDARD:
+                return EnabledRealmType.NATIVE;
+            default:
+                return EnabledRealmType.NONE;
+        }
     }
 
     void updateStatus(Status status) {
         this.status = status;
+    }
+
+    public enum EnabledRealmType {
+        NONE,
+        NATIVE,
+        DEFAULT,
+        ALL
     }
 }

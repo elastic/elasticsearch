@@ -13,12 +13,14 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.SecurityLicenseState.EnabledRealmType;
 import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
 import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.SecurityLicenseState;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -41,8 +43,10 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     private final ReservedRealm reservedRealm;
 
     protected List<Realm> realms = Collections.emptyList();
-    // a list of realms that are "internal" in that they are provided by shield and not a third party
+    // a list of realms that are considered default in that they are provided by x-pack and not a third party
     protected List<Realm> internalRealmsOnly = Collections.emptyList();
+    // a list of realms that are considered native, that is they only interact with x-pack and no 3rd party auth sources
+    protected List<Realm> nativeRealmsOnly = Collections.emptyList();
 
     @Inject
     public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, SecurityLicenseState shieldLicenseState,
@@ -61,22 +65,30 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
         // pre-computing a list of internal only realms allows us to have much cheaper iteration than a custom iterator
         // and is also simpler in terms of logic. These lists are small, so the duplication should not be a real issue here
         List<Realm> internalRealms = new ArrayList<>();
+        List<Realm> nativeRealms = new ArrayList<>();
         for (Realm realm : realms) {
-            if (AuthenticationModule.INTERNAL_REALM_TYPES.contains(realm.type())) {
+            // don't add the reserved realm here otherwise we end up with only this realm...
+            if (AuthenticationModule.INTERNAL_REALM_TYPES.contains(realm.type()) && ReservedRealm.TYPE.equals(realm.type()) == false) {
                 internalRealms.add(realm);
+            }
+
+            if (FileRealm.TYPE.equals(realm.type()) || NativeRealm.TYPE.equals(realm.type())) {
+                nativeRealms.add(realm);
             }
         }
 
-        if (internalRealms.isEmpty()) {
-            addInternalRealms(internalRealms);
-        }
+        for (List<Realm> realmList : Arrays.asList(internalRealms, nativeRealms)) {
+            if (realmList.isEmpty()) {
+                addNativeRealms(realmList);
+            }
 
-        if (internalRealms.contains(reservedRealm) == false) {
-            internalRealms.add(0, reservedRealm);
+            assert realmList.contains(reservedRealm) == false;
+            realmList.add(0, reservedRealm);
+            assert realmList.get(0) == reservedRealm;
         }
-        assert internalRealms.get(0) == reservedRealm;
 
         this.internalRealmsOnly = Collections.unmodifiableList(internalRealms);
+        this.nativeRealmsOnly = Collections.unmodifiableList(nativeRealms);
     }
 
     @Override
@@ -89,10 +101,17 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
 
     @Override
     public Iterator<Realm> iterator() {
-        if (shieldLicenseState.customRealmsEnabled()) {
-            return realms.iterator();
+        EnabledRealmType enabledRealmType = shieldLicenseState.enabledRealmType();
+        switch (enabledRealmType) {
+            case ALL:
+                return realms.iterator();
+            case DEFAULT:
+                return internalRealmsOnly.iterator();
+            case NATIVE:
+                return nativeRealmsOnly.iterator();
+            default:
+                throw new IllegalStateException("authentication should not be enabled");
         }
-        return internalRealmsOnly.iterator();
     }
 
     public Realm realm(String name) {
@@ -145,7 +164,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             Collections.sort(realms);
         } else {
             // there is no "realms" configuration, add the defaults
-            addInternalRealms(realms);
+            addNativeRealms(realms);
         }
         // always add built in first!
         realms.add(0, reservedRealm);
@@ -177,7 +196,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
         return result != null ? result : Settings.EMPTY;
     }
 
-    private void addInternalRealms(List<Realm> realms) {
+    private void addNativeRealms(List<Realm> realms) {
         Realm.Factory fileRealm = factories.get(FileRealm.TYPE);
         if (fileRealm != null) {
             realms.add(fileRealm.createDefault("default_" + FileRealm.TYPE));

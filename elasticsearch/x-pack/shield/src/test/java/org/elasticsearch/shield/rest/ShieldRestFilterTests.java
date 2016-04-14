@@ -43,7 +43,7 @@ public class ShieldRestFilterTests extends ESTestCase {
         channel = mock(RestChannel.class);
         chain = mock(RestFilterChain.class);
         licenseState = mock(SecurityLicenseState.class);
-        when(licenseState.securityEnabled()).thenReturn(true);
+        when(licenseState.authenticationAndAuthorizationEnabled()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         filter = new ShieldRestFilter(authcService, restController, Settings.EMPTY, threadPool, licenseState);
@@ -61,7 +61,7 @@ public class ShieldRestFilterTests extends ESTestCase {
 
     public void testProcessBasicLicense() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        when(licenseState.securityEnabled()).thenReturn(false);
+        when(licenseState.authenticationAndAuthorizationEnabled()).thenReturn(false);
         filter.process(request, channel, chain);
         verify(chain).continueProcessing(request, channel);
         verifyZeroInteractions(channel, authcService);

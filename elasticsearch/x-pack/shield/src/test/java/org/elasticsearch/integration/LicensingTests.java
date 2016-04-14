@@ -198,7 +198,7 @@ public class LicensingTests extends ShieldIntegTestCase {
         assertThat(httpClient().path("/").execute().getStatusCode(), is(200));
 
         // generate a new license with a mode that enables auth
-        OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM);
+        OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);
         enableLicensing(mode);
         assertThat(httpClient().path("/").execute().getStatusCode(), is(401));
     }
@@ -217,7 +217,7 @@ public class LicensingTests extends ShieldIntegTestCase {
         }
 
         // enable a license that enables security
-        OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.PLATINUM, OperationMode.TRIAL);
+        OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);
         enableLicensing(mode);
 
         try (TransportClient client = TransportClient.builder().settings(builder).addPlugin(XPackPlugin.class).build()) {

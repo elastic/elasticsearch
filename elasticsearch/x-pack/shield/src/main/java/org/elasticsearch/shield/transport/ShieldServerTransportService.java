@@ -174,7 +174,7 @@ public class ShieldServerTransportService extends TransportService {
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext()) {
-                if (licenseState.securityEnabled()) {
+                if (licenseState.authenticationAndAuthorizationEnabled()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

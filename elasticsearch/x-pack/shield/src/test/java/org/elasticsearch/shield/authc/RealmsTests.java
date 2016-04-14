@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.SecurityLicenseState.EnabledRealmType;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
@@ -51,7 +52,7 @@ public class RealmsTests extends ESTestCase {
         }
         shieldLicenseState = mock(SecurityLicenseState.class);
         reservedRealm = mock(ReservedRealm.class);
-        when(shieldLicenseState.customRealmsEnabled()).thenReturn(true);
+        when(shieldLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.ALL);
     }
 
     public void testWithSettings() throws Exception {
@@ -159,7 +160,23 @@ public class RealmsTests extends ESTestCase {
             i++;
         }
 
-        when(shieldLicenseState.customRealmsEnabled()).thenReturn(false);
+        when(shieldLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.DEFAULT);
+
+        iter = realms.iterator();
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm, is(reservedRealm));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), equalTo(FileRealm.TYPE));
+        assertThat(realm.name(), equalTo("default_" + FileRealm.TYPE));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), equalTo(NativeRealm.TYPE));
+        assertThat(realm.name(), equalTo("default_" + NativeRealm.TYPE));
+        assertThat(iter.hasNext(), is(false));
+
+        when(shieldLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.NATIVE);
 
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -204,7 +221,7 @@ public class RealmsTests extends ESTestCase {
         }
         assertThat(types, contains("ldap", "type_0"));
 
-        when(shieldLicenseState.customRealmsEnabled()).thenReturn(false);
+        when(shieldLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.DEFAULT);
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
@@ -216,6 +233,57 @@ public class RealmsTests extends ESTestCase {
             i++;
         }
         assertThat(i, is(1));
+
+        when(shieldLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.NATIVE);
+        iter = realms.iterator();
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm, is(reservedRealm));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), equalTo(FileRealm.TYPE));
+        assertThat(realm.name(), equalTo("default_" + FileRealm.TYPE));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), equalTo(NativeRealm.TYPE));
+        assertThat(realm.name(), equalTo("default_" + NativeRealm.TYPE));
+        assertThat(iter.hasNext(), is(false));
+    }
+
+    public void testUnlicensedWithNativeRealms() throws Exception {
+        factories.put(LdapRealm.TYPE, new DummyRealm.Factory(LdapRealm.TYPE, false));
+        final String type = randomFrom(FileRealm.TYPE, NativeRealm.TYPE);
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put("xpack.security.authc.realms.foo.type", "ldap")
+                .put("xpack.security.authc.realms.foo.order", "0")
+                .put("xpack.security.authc.realms.native.type", type)
+                .put("xpack.security.authc.realms.native.order", "1");
+        Settings settings = builder.build();
+        Environment env = new Environment(settings);
+        Realms realms = new Realms(settings, env, factories, shieldLicenseState, reservedRealm);
+        realms.start();
+        Iterator<Realm> iter = realms.iterator();
+        assertThat(iter.hasNext(), is(true));
+        Realm realm = iter.next();
+        assertThat(realm, is(reservedRealm));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), is("ldap"));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), is(type));
+        assertThat(iter.hasNext(), is(false));
+
+        when(shieldLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.NATIVE);
+        iter = realms.iterator();
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm, is(reservedRealm));
+        assertThat(iter.hasNext(), is(true));
+        realm = iter.next();
+        assertThat(realm.type(), is(type));
+        assertThat(iter.hasNext(), is(false));
     }
 
     public void testDisabledRealmsAreNotAdded() throws Exception {

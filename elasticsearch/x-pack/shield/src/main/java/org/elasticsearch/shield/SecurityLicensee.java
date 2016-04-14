@@ -54,10 +54,10 @@ public class SecurityLicensee extends AbstractLicenseeComponent<SecurityLicensee
                         case GOLD:
                         case PLATINUM:
                             return new String[] {
-                                "The following Shield functionality will be disabled: authentication, authorization, ip filtering, " +
-                                "auditing, SSL will be disabled on node restart. Please restart your node after applying the license.",
-                                "Field and document level access control will be disabled",
-                                "Custom realms will be ignored"
+                                "The following X-Pack security functionality will be disabled: authentication, authorization, " +
+                                "ip filtering, and auditing. Please restart your node after applying the license.",
+                                "Field and document level access control will be disabled.",
+                                "Custom realms will be ignored."
                             };
                     }
                 }
@@ -71,12 +71,28 @@ public class SecurityLicensee extends AbstractLicenseeComponent<SecurityLicensee
                         case TRIAL:
                         case PLATINUM:
                             return new String[] {
-                                "Field and document level access control will be disabled",
-                                "Custom realms will be ignored"
+                                "Field and document level access control will be disabled.",
+                                "Custom realms will be ignored."
                             };
                     }
                 }
                 break;
+            case STANDARD:
+                if (currentLicense != null) {
+                    switch (currentLicense.operationMode()) {
+                        case BASIC:
+                        // ^^ though technically it was already disabled, it's not bad to remind them
+                        case GOLD:
+                        case PLATINUM:
+                        case TRIAL:
+                            return new String[] {
+                                    "Authentication will be limited to the native realms.",
+                                    "IP filtering and auditing will be disabled.",
+                                    "Field and document level access control will be disabled.",
+                                    "Custom realms will be ignored."
+                            };
+                    }
+                }
         }
         return Strings.EMPTY_ARRAY;
     }

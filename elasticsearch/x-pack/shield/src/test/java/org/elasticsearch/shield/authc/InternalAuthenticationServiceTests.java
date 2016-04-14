@@ -17,6 +17,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.InternalAuthenticationService.AuditableRequest;
+import org.elasticsearch.shield.SecurityLicenseState.EnabledRealmType;
 import org.elasticsearch.shield.user.AnonymousUser;
 import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.user.User;
@@ -92,7 +93,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         when(secondRealm.name()).thenReturn("second");
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         SecurityLicenseState shieldLicenseState = mock(SecurityLicenseState.class);
-        when(shieldLicenseState.customRealmsEnabled()).thenReturn(true);
+        when(shieldLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.ALL);
         realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), shieldLicenseState,
                 mock(ReservedRealm.class)) {
 

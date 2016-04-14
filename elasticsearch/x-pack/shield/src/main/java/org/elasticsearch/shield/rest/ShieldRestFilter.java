@@ -58,7 +58,7 @@ public class ShieldRestFilter extends RestFilter {
     @Override
     public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
 
-        if (licenseState.securityEnabled()) {
+        if (licenseState.authenticationAndAuthorizationEnabled()) {
             // CORS - allow for preflight unauthenticated OPTIONS request
             if (request.method() != RestRequest.Method.OPTIONS) {
                 if (extractClientCertificate) {

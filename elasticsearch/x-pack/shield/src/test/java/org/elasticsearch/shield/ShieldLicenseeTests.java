@@ -58,8 +58,10 @@ public class ShieldLicenseeTests extends AbstractLicenseeTestCase {
         verifyNoMoreInteractions(registry, shieldState);
     }
 
-    public void testAcknowledgementMessagesFromBasicToAnyNotGoldIsNoOp() {
-        assertEmptyAck(OperationMode.BASIC, randomModeExcept(OperationMode.GOLD), this::buildLicensee);
+    public void testAcknowledgementMessagesFromBasicToAnyNotGoldOrStandardIsNoOp() {
+        assertEmptyAck(OperationMode.BASIC,
+                randomFrom(OperationMode.values(), mode -> mode != OperationMode.GOLD && mode != OperationMode.STANDARD),
+                this::buildLicensee);
     }
 
     public void testAcknowledgementMessagesFromAnyToTrialOrPlatinumIsNoOp() {
@@ -74,6 +76,16 @@ public class ShieldLicenseeTests extends AbstractLicenseeTestCase {
 
         // leaving messages up to inspection
         assertThat(fromToMessage(from, to), messages.length, equalTo(3));
+    }
+
+    public void testAcknowlegmentMessagesFromAnyToStandardNotesLimits() {
+        OperationMode from = randomFrom(OperationMode.BASIC, OperationMode.GOLD, OperationMode.PLATINUM, OperationMode.TRIAL);
+        OperationMode to = OperationMode.STANDARD;
+
+        String[] messages = ackLicenseChange(from, to, this::buildLicensee);
+
+        // leaving messages up to inspection
+        assertThat(fromToMessage(from, to), messages.length, equalTo(4));
     }
 
     public void testAcknowledgementMessagesFromBasicStandardTrialOrPlatinumToGoldNotesLimits() {

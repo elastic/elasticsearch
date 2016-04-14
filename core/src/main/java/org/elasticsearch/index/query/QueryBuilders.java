@@ -591,10 +591,14 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that will execute the wrapped query only for the specified indices, and "match_all" when
-     * it does not match those indices.
+     * A query that will execute the wrapped query only for the specified
+     * indices, and "match_all" when it does not match those indices.
+     *
+     * @deprecated instead search on the `_index` field
      */
+    @Deprecated
     public static IndicesQueryBuilder indicesQuery(QueryBuilder queryBuilder, String... indices) {
+        // TODO remove this method in 6.0
         return new IndicesQueryBuilder(queryBuilder, indices);
     }
 

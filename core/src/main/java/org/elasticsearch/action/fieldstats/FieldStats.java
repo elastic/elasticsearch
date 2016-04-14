@@ -315,71 +315,6 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
 
     }
 
-    public static final class Float extends FieldStats<java.lang.Float> {
-
-        public Float() {
-        }
-
-        public Float(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, float minValue, float maxValue) {
-            super(1, maxDoc, docCount, sumDocFreq, sumTotalTermFreq);
-            this.minValue = minValue;
-            this.maxValue = maxValue;
-        }
-
-        @Override
-        public String getMinValueAsString() {
-            return String.valueOf(minValue.floatValue());
-        }
-
-        @Override
-        public String getMaxValueAsString() {
-            return String.valueOf(maxValue.floatValue());
-        }
-
-        @Override
-        public void append(FieldStats stats) {
-            super.append(stats);
-            Float other = (Float) stats;
-            this.minValue = Math.min(other.minValue, minValue);
-            this.maxValue = Math.max(other.maxValue, maxValue);
-        }
-
-        @Override
-        protected java.lang.Float valueOf(String value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            return java.lang.Float.valueOf(value);
-        }
-
-        @Override
-        public String stringValueOf(Object value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            if (value instanceof Number) {
-                return java.lang.Float.toString(((Number) value).floatValue());
-            } else {
-                throw new IllegalArgumentException("value must be a Float: " + value);
-            }
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            minValue = in.readFloat();
-            maxValue = in.readFloat();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeFloat(minValue);
-            out.writeFloat(maxValue);
-        }
-
-    }
-
     public static final class Double extends FieldStats<java.lang.Double> {
 
         public Double() {
@@ -528,7 +463,7 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         public Date(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue, FormatDateTimeFormatter dateFormatter) {
-            super(4, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
+            super(1, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
             this.dateFormatter = dateFormatter;
         }
 
@@ -614,16 +549,13 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
                 stats = new Long();
                 break;
             case 1:
-                stats = new Float();
+                stats = new Date();
                 break;
             case 2:
                 stats = new Double();
                 break;
             case 3:
                 stats = new Text();
-                break;
-            case 4:
-                stats = new Date();
                 break;
             default:
                 throw new IllegalArgumentException("Illegal type [" + type + "]");

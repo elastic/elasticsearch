@@ -117,8 +117,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
         assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1f));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9f));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
     }

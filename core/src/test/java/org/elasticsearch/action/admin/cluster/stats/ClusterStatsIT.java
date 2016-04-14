@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -39,7 +38,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -59,12 +57,16 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     public void testNodeCounts() {
         int total = 1;
+        internalCluster().startNode();
         Map<String, Integer> expectedCounts = new HashMap<>();
-        expectedCounts.put(DiscoveryNode.Role.DATA.getRoleName(), 0);
-        expectedCounts.put(DiscoveryNode.Role.MASTER.getRoleName(), 0);
-        expectedCounts.put(DiscoveryNode.Role.INGEST.getRoleName(), 0);
+        expectedCounts.put(DiscoveryNode.Role.DATA.getRoleName(), 1);
+        expectedCounts.put(DiscoveryNode.Role.MASTER.getRoleName(), 1);
+        expectedCounts.put(DiscoveryNode.Role.INGEST.getRoleName(), 1);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
+
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
 
         for (int i = 0; i < numNodes; i++) {
             boolean isDataNode = randomBoolean();
@@ -90,7 +92,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
             }
 
-            ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+            response = client().admin().cluster().prepareClusterStats().get();
             assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
         }
     }
@@ -112,7 +114,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     public void testIndicesShardStats() throws ExecutionException, InterruptedException {
-        internalCluster().startNodesAsync(randomIntBetween(1, 3)).get();
+        internalCluster().startNode();
+        ensureGreen();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 

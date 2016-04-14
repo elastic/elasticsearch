@@ -90,11 +90,13 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     @Before
     public void computePrevMajorVersion() {
         Version previousMajor;
-        // find a GA build whose major version is N-1
+        // find a GA build whose major version is <N
         do {
             previousMajor = VersionUtils.randomVersion(random());
-        } while (previousMajor.major != Version.CURRENT.major - 1
-                && (previousMajor.isAlpha() || previousMajor.isBeta() || previousMajor.isRC()));
+        } while (previousMajor.onOrAfter(Version.CURRENT.minimumCompatibilityVersion())
+                || previousMajor.isAlpha()
+                || previousMajor.isBeta()
+                || previousMajor.isRC());
         previousMajorVersion = previousMajor;
     }
 

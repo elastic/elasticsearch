@@ -105,7 +105,7 @@ import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorB
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersParser;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
@@ -456,7 +456,8 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new GlobalParser());
         registerAggregatorParser(new MissingParser());
         registerAggregation(FilterAggregatorBuilder::new, FilterAggregatorBuilder::parse, FilterAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregatorParser(new FiltersParser(queryParserRegistry));
+        registerAggregation(FiltersAggregatorBuilder::new, (n, c) -> FiltersAggregatorBuilder.parse(queryParserRegistry, n, c),
+                FiltersAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregatorParser(new SamplerParser());
         registerAggregatorParser(new DiversifiedSamplerParser());
         registerAggregatorParser(new TermsParser());

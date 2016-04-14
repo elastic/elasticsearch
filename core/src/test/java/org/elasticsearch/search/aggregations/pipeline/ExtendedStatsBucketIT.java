@@ -101,15 +101,15 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    public void testDocCountTopLevel() throws Exception {
     /**
      * Test for https://github.com/elastic/elasticsearch/issues/17701
      */
     public void testGappyIndexWithSigma() {
-        double sigma = randomDoubleBetween(1.0, 6.0, true);
+        double sigma = 1.0 + (randomDouble() * 5.0);
         SearchResponse response = client().prepareSearch("idx_gappy")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L))
-                .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count").sigma(sigma)).execute().actionGet();
+                .addAggregation(extendedStatsBucket("extended_stats_bucket").setBucketsPaths("histo>_count").sigma(sigma)).execute()
+                .actionGet();
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());

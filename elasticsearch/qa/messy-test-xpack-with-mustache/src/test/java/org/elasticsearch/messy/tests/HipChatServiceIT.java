@@ -90,7 +90,7 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
     public void testSendMessageV1Account() throws Exception {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage hipChatMessage = new HipChatMessage(
-                "/code HipChatServiceTests#testSendMessage_V1Account",
+                "HipChatServiceTests#testSendMessage_V1Account",
                 new String[] { "test-watcher", "test-watcher-2" },
                 null, // users are unsupported in v1
                 "watcher-tests",
@@ -108,7 +108,7 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
         HipChatMessage hipChatMessage = new HipChatMessage(
-                "/code HipChatServiceTests#testSendMessage_IntegrationAccount colored " + color.value(),
+                "HipChatServiceTests#testSendMessage_IntegrationAccount colored " + color.value(),
                 null, // custom rooms are unsupported by integration profiles
                 null, // users are unsupported by integration profiles
                 null, // custom "from" is not supported by integration profiles
@@ -126,7 +126,7 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
         HipChatMessage hipChatMessage = new HipChatMessage(
-                "/code HipChatServiceTests#testSendMessage_UserAccount colored " + color.value(),
+                "HipChatServiceTests#testSendMessage_UserAccount colored " + color.value(),
                 new String[] { "test-watcher", "test-watcher-2" },
                 new String[] { "watcher@elastic.co" },
                 null, // custom "from" is not supported by integration profiles
@@ -148,7 +148,7 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
         switch (profile) {
             case USER:
                 account = "user_account";
-                actionBuilder = hipchatAction(account, "/code {{ctx.payload.ref}}")
+                actionBuilder = hipchatAction(account, "{{ctx.payload.ref}}")
                         .addRooms("test-watcher", "test-watcher-2")
                         .addUsers("watcher@elastic.co")
                         .setFormat(HipChatMessage.Format.TEXT)
@@ -158,7 +158,7 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
 
             case INTEGRATION:
                 account = "integration_account";
-                actionBuilder = hipchatAction(account, "/code {{ctx.payload.ref}}")
+                actionBuilder = hipchatAction(account, "{{ctx.payload.ref}}")
                         .setFormat(HipChatMessage.Format.TEXT)
                         .setColor(color)
                         .setNotify(false);
@@ -167,7 +167,7 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
             default:
                 assertThat(profile, is(HipChatAccount.Profile.V1));
                 account = "v1_account";
-                actionBuilder = hipchatAction(account, "/code {{ctx.payload.ref}}")
+                actionBuilder = hipchatAction(account, "{{ctx.payload.ref}}")
                         .addRooms("test-watcher", "test-watcher-2")
                         .setFrom("watcher-test")
                         .setFormat(HipChatMessage.Format.TEXT)
@@ -199,6 +199,23 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
 
         assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits(), is(1L));
+    }
+
+    public void testDefaultValuesForColorAndFormatWorks() {
+        HipChatService service = getInstanceFromMaster(HipChatService.class);
+        HipChatMessage hipChatMessage = new HipChatMessage(
+                "HipChatServiceTests#testSendMessage_UserAccount with default Color and text",
+                new String[] { "test-watcher" },
+                new String[] { "watcher@elastic.co" },
+                null, // custom "from" is not supported by integration profiles
+                null,
+                null,
+                false);
+
+        HipChatAccount account = service.getAccount("user_account");
+        assertThat(account, notNullValue());
+        SentMessages messages = account.send(hipChatMessage);
+        assertSentMessagesAreValid(2, messages);
     }
 
     private void assertSentMessagesAreValid(int expectedMessageSize, SentMessages messages) {

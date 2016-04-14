@@ -31,6 +31,10 @@ public class DefaultTextTemplateEngine extends AbstractComponent implements Text
 
     @Override
     public String render(TextTemplate template, Map<String, Object> model) {
+        if (template == null) {
+            return null;
+        }
+
         XContentType contentType = detectContentType(template);
         Map<String, String> compileParams = compileParams(contentType);
         template = trimContentType(template);

@@ -13,6 +13,10 @@ import java.util.Map;
 public class MockTextTemplateEngine implements TextTemplateEngine {
     @Override
     public String render(TextTemplate template, Map<String, Object> model) {
+        if (template == null ) {
+            return null;
+        }
+
         return template.getTemplate();
     }
 }

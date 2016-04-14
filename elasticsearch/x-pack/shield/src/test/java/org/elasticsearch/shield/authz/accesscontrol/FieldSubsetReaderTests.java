@@ -10,6 +10,7 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -24,6 +25,9 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.PointValues.IntersectVisitor;
+import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
@@ -38,10 +42,12 @@ import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -80,6 +86,93 @@ public class FieldSubsetReaderTests extends ESTestCase {
         IOUtils.close(ir, iw, dir);
     }
     
+    /**
+     * test filtering two int points
+     */
+    public void testPoints() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        // add document with 2 points
+        Document doc = new Document();
+        doc.add(new IntPoint("fieldA", 1));
+        doc.add(new IntPoint("fieldB", 2));
+        iw.addDocument(doc);
+
+        // open reader
+        Set<String> fields = Collections.singleton("fieldA");
+        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), fields);
+
+        // see only one field
+        LeafReader segmentReader = ir.leaves().get(0).reader();
+        PointValues points = segmentReader.getPointValues();
+
+        // size statistic
+        assertEquals(1, points.size("fieldA"));
+        assertEquals(0, points.size("fieldB"));
+
+        // doccount statistic
+        assertEquals(1, points.getDocCount("fieldA"));
+        assertEquals(0, points.getDocCount("fieldB"));
+
+        // min statistic
+        assertNotNull(points.getMinPackedValue("fieldA"));
+        assertNull(points.getMinPackedValue("fieldB"));
+
+        // max statistic
+        assertNotNull(points.getMaxPackedValue("fieldA"));
+        assertNull(points.getMaxPackedValue("fieldB"));
+
+        // bytes per dimension
+        assertEquals(Integer.BYTES, points.getBytesPerDimension("fieldA"));
+        assertEquals(0, points.getBytesPerDimension("fieldB"));
+
+        // number of dimensions
+        assertEquals(1, points.getNumDimensions("fieldA"));
+        assertEquals(0, points.getNumDimensions("fieldB"));
+
+        // walk the trees: we should see stuff in fieldA
+        AtomicBoolean sawDoc = new AtomicBoolean(false);
+        points.intersect("fieldA", new IntersectVisitor() {
+            @Override
+            public void visit(int docID) throws IOException {
+                throw new IllegalStateException("should not get here");
+            }
+
+            @Override
+            public void visit(int docID, byte[] packedValue) throws IOException {
+                sawDoc.set(true);
+            }
+
+            @Override
+            public Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+                return Relation.CELL_CROSSES_QUERY;
+            }
+        });
+        assertTrue(sawDoc.get());
+        // not in fieldB
+        points.intersect("fieldB", new IntersectVisitor() {
+            @Override
+            public void visit(int docID) throws IOException {
+                throw new IllegalStateException("should not get here");
+            }
+
+            @Override
+            public void visit(int docID, byte[] packedValue) throws IOException {
+                throw new IllegalStateException("should not get here");
+            }
+
+            @Override
+            public Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+                throw new IllegalStateException("should not get here");
+            }
+        });
+
+        TestUtil.checkReader(ir);
+        IOUtils.close(ir, iw, dir);
+    }
+
     /**
      * test filtering two stored fields (string)
      */

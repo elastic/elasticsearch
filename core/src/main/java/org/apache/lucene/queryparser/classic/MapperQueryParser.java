@@ -167,8 +167,7 @@ public class MapperQueryParser extends QueryParser {
                         clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
-                if (clauses.size() == 0)  // happens for stopwords
-                    return null;
+                if (clauses.isEmpty()) return null; // happens for stopwords
                 return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
@@ -270,8 +269,7 @@ public class MapperQueryParser extends QueryParser {
                         clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
-                if (clauses.size() == 0)  // happens for stopwords
-                    return null;
+                if (clauses.isEmpty()) return null; // happens for stopwords
                 return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
@@ -322,8 +320,7 @@ public class MapperQueryParser extends QueryParser {
                     clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                 }
             }
-            if (clauses.size() == 0)  // happens for stopwords
-                return null;
+            if (clauses.isEmpty()) return null; // happens for stopwords
             return getBooleanQueryCoordDisabled(clauses);
         }
     }
@@ -454,8 +451,7 @@ public class MapperQueryParser extends QueryParser {
                         clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
-                if (clauses.size() == 0)  // happens for stopwords
-                    return null;
+                if (clauses.isEmpty()) return null; // happens for stopwords
                 return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
@@ -619,8 +615,7 @@ public class MapperQueryParser extends QueryParser {
                         clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
-                if (clauses.size() == 0)  // happens for stopwords
-                    return null;
+                if (clauses.isEmpty()) return null; // happens for stopwords
                 return getBooleanQueryCoordDisabled(clauses);
             }
         } else {
@@ -748,8 +743,7 @@ public class MapperQueryParser extends QueryParser {
                         clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
-                if (clauses.size() == 0)  // happens for stopwords
-                    return null;
+                if (clauses.isEmpty()) return null; // happens for stopwords
                 return getBooleanQueryCoordDisabled(clauses);
             }
         } else {

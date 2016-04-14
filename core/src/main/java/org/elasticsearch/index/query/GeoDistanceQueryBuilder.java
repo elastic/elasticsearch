@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
@@ -66,6 +67,11 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Default for optimising query through pre computed bounding box query. */
     public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
 
+    /**
+     * The default value for ignore_unmapped.
+     */
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
@@ -73,6 +79,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     private static final ParseField DISTANCE_FIELD = new ParseField("distance");
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String fieldName;
     /** Distance from center to cover. */
@@ -85,6 +92,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     private String optimizeBbox = DEFAULT_OPTIMIZE_BBOX;
     /** How strict should geo coordinate validation be? */
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
+
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     /**
      * Construct new GeoDistanceQueryBuilder.
@@ -108,6 +117,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         center = in.readGeoPoint();
         optimizeBbox = in.readString();
         geoDistance = GeoDistance.readFromStream(in);
+        ignoreUnmapped = in.readBoolean();
     }
 
     @Override
@@ -118,6 +128,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         out.writeGeoPoint(center);
         out.writeString(optimizeBbox);
         geoDistance.writeTo(out);
+        out.writeBoolean(ignoreUnmapped);
     }
 
     /** Name of the field this query is operating on. */
@@ -243,11 +254,34 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         return this.validationMethod;
     }
 
+    /**
+     * Sets whether the query builder should ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public GeoDistanceQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Gets whether the query builder will ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
+    }
+
     @Override
     protected Query doToQuery(QueryShardContext shardContext) throws IOException {
         MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
+            }
         }
 
         if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
@@ -289,6 +323,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.field(DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
         builder.field(OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
+        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -310,6 +345,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validationMethod = null;
+        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -370,6 +406,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
                     ignoreMalformed = parser.booleanValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                    ignoreUnmapped = parser.booleanValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD_FIELD)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
@@ -404,12 +442,13 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         qb.geoDistance(geoDistance);
         qb.boost(boost);
         qb.queryName(queryName);
+        qb.ignoreUnmapped(ignoreUnmapped);
         return qb;
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(center, geoDistance, optimizeBbox, distance, validationMethod);
+        return Objects.hash(center, geoDistance, optimizeBbox, distance, validationMethod, ignoreUnmapped);
     }
 
     @Override
@@ -419,7 +458,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                 Objects.equals(validationMethod, other.validationMethod) &&
                 Objects.equals(center, other.center) &&
                 Objects.equals(optimizeBbox, other.optimizeBbox) &&
-                Objects.equals(geoDistance, other.geoDistance);
+                Objects.equals(geoDistance, other.geoDistance) &&
+                Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
     private QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {

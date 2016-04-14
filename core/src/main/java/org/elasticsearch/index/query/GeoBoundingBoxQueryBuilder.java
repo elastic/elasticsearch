@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
@@ -58,6 +59,11 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     /** Default type for executing this query (memory as of this writing). */
     public static final GeoExecType DEFAULT_TYPE = GeoExecType.MEMORY;
 
+    /**
+     * The default value for ignore_unmapped.
+     */
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+
     private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
@@ -71,6 +77,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     private static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
     private static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     private static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     /** Name of field holding geo coordinates to compute the bounding box on.*/
     private final String fieldName;
@@ -82,6 +89,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
     /** How the query should be run. */
     private GeoExecType type = DEFAULT_TYPE;
+
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     /**
      * Create new bounding box query.
@@ -104,6 +113,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         bottomRight = in.readGeoPoint();
         type = GeoExecType.readFromStream(in);
         validationMethod = GeoValidationMethod.readFromStream(in);
+        ignoreUnmapped = in.readBoolean();
     }
 
     @Override
@@ -113,6 +123,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         out.writeGeoPoint(bottomRight);
         type.writeTo(out);
         validationMethod.writeTo(out);
+        out.writeBoolean(ignoreUnmapped);
     }
 
     /**
@@ -245,6 +256,25 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return this.fieldName;
     }
 
+    /**
+     * Sets whether the query builder should ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public GeoBoundingBoxQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Gets whether the query builder will ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
+    }
+
     QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
         if (GeoValidationMethod.isIgnoreMalformed(validationMethod) == true || indexCreatedBeforeV2_0) {
@@ -276,7 +306,11 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     public Query doToQuery(QueryShardContext context) {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+            }
         }
         if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
@@ -342,6 +376,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.endObject();
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(TYPE_FIELD.getPreferredName(), type);
+        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
 
         printBoostAndQueryName(builder);
 
@@ -365,6 +400,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validationMethod = null;
+        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
         GeoPoint sparse = new GeoPoint();
 
@@ -431,6 +467,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD_FIELD)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                    ignoreUnmapped = parser.booleanValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     type = parser.text();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
@@ -449,6 +487,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.queryName(queryName);
         builder.boost(boost);
         builder.type(GeoExecType.fromString(type));
+        builder.ignoreUnmapped(ignoreUnmapped);
         if (validationMethod != null) {
             // ignore deprecated coerce/ignoreMalformed settings if validationMethod is set
             builder.setValidationMethod(validationMethod);
@@ -464,12 +503,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 Objects.equals(bottomRight, other.bottomRight) &&
                 Objects.equals(type, other.type) &&
                 Objects.equals(validationMethod, other.validationMethod) &&
-                Objects.equals(fieldName, other.fieldName);
+                Objects.equals(fieldName, other.fieldName) &&
+                Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(topLeft, bottomRight, type, validationMethod, fieldName);
+        return Objects.hash(topLeft, bottomRight, type, validationMethod, fieldName, ignoreUnmapped);
     }
 
     @Override

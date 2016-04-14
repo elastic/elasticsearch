@@ -127,3 +127,11 @@ Format in `lat,lon`.
 The query *requires* the <<geo-point,`geo_point`>> type to be set on the
 relevant field.
 
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

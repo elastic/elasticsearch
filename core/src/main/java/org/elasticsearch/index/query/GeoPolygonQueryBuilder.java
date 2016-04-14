@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.spatial.geopoint.search.GeoPointInPolygonQuery;
@@ -48,16 +49,24 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     public static final String NAME = "geo_polygon";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
+    /**
+     * The default value for ignore_unmapped.
+     */
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+
     private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
     private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     private static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
     private static final ParseField POINTS_FIELD = new ParseField("points");
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String fieldName;
 
     private final List<GeoPoint> shell;
 
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
+
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     public GeoPolygonQueryBuilder(String fieldName, List<GeoPoint> points) {
         if (Strings.isEmpty(fieldName)) {
@@ -96,6 +105,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             shell.add(in.readGeoPoint());
         }
         validationMethod = GeoValidationMethod.readFromStream(in);
+        ignoreUnmapped = in.readBoolean();
     }
 
     @Override
@@ -106,6 +116,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             out.writeGeoPoint(point);
         }
         validationMethod.writeTo(out);
+        out.writeBoolean(ignoreUnmapped);
     }
 
     public String fieldName() {
@@ -127,11 +138,34 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         return this.validationMethod;
     }
 
+    /**
+     * Sets whether the query builder should ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public GeoPolygonQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Gets whether the query builder will ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the field is unmapped.
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
+    }
+
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+            }
         }
         if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
@@ -201,6 +235,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.field(COERCE_FIELD.getPreferredName(), GeoValidationMethod.isCoerce(validationMethod));
         builder.field(IGNORE_MALFORMED_FIELD.getPreferredName(),
                 GeoValidationMethod.isIgnoreMalformed(validationMethod));
+        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
 
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -220,6 +255,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
+        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -257,6 +293,8 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
                     if (coerce) {
                         ignoreMalformed = true;
                     }
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                    ignoreUnmapped = parser.booleanValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
                     ignoreMalformed = parser.booleanValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD)) {
@@ -283,6 +321,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         if (boost != null) {
             builder.boost(boost);
         }
+        builder.ignoreUnmapped(ignoreUnmapped);
         return builder;
     }
 
@@ -290,12 +329,13 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     protected boolean doEquals(GeoPolygonQueryBuilder other) {
         return Objects.equals(validationMethod, other.validationMethod)
                 && Objects.equals(fieldName, other.fieldName)
-                && Objects.equals(shell, other.shell);
+                && Objects.equals(shell, other.shell)
+                && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(validationMethod, fieldName, shell);
+        return Objects.hash(validationMethod, fieldName, shell, ignoreUnmapped);
     }
 
     @Override

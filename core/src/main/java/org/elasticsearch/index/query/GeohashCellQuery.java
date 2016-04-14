@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
@@ -64,8 +65,14 @@ public class GeohashCellQuery {
 
     public static final boolean DEFAULT_NEIGHBORS = false;
 
+    /**
+     * The default value for ignore_unmapped.
+     */
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+
     private static final ParseField NEIGHBORS_FIELD = new ParseField("neighbors");
     private static final ParseField PRECISION_FIELD = new ParseField("precision");
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     /**
      * Create a new geohash filter for a given set of geohashes. In general this method
@@ -107,6 +114,8 @@ public class GeohashCellQuery {
         private Integer levels = null;
         private boolean neighbors = DEFAULT_NEIGHBORS;
 
+        private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
+
         public Builder(String field, GeoPoint point) {
             this(field, point == null ? null : point.geohash(), false);
         }
@@ -136,6 +145,7 @@ public class GeohashCellQuery {
             geohash = in.readString();
             levels = in.readOptionalVInt();
             neighbors = in.readBoolean();
+            ignoreUnmapped = in.readBoolean();
         }
 
         @Override
@@ -144,6 +154,7 @@ public class GeohashCellQuery {
             out.writeString(geohash);
             out.writeOptionalVInt(levels);
             out.writeBoolean(neighbors);
+            out.writeBoolean(ignoreUnmapped);
         }
 
         public Builder point(GeoPoint point) {
@@ -200,12 +211,35 @@ public class GeohashCellQuery {
             return fieldName;
         }
 
+        /**
+         * Sets whether the query builder should ignore unmapped fields (and run
+         * a {@link MatchNoDocsQuery} in place of this query) or throw an
+         * exception if the field is unmapped.
+         */
+        public GeohashCellQuery.Builder ignoreUnmapped(boolean ignoreUnmapped) {
+            this.ignoreUnmapped = ignoreUnmapped;
+            return this;
+        }
+
+        /**
+         * Gets whether the query builder will ignore unmapped fields (and run a
+         * {@link MatchNoDocsQuery} in place of this query) or throw an
+         * exception if the field is unmapped.
+         */
+        public boolean ignoreUnmapped() {
+            return ignoreUnmapped;
+        }
+
         @Override
         protected Query doToQuery(QueryShardContext context) throws IOException {
             MappedFieldType fieldType = context.fieldMapper(fieldName);
             if (fieldType == null) {
-                throw new QueryShardException(context, "failed to parse [{}] query. missing [{}] field [{}]", NAME,
-                        BaseGeoPointFieldMapper.CONTENT_TYPE, fieldName);
+                if (ignoreUnmapped) {
+                    return new MatchNoDocsQuery();
+                } else {
+                    throw new QueryShardException(context, "failed to parse [{}] query. missing [{}] field [{}]", NAME,
+                            BaseGeoPointFieldMapper.CONTENT_TYPE, fieldName);
+                }
             }
 
             if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
@@ -241,6 +275,7 @@ public class GeohashCellQuery {
                 builder.field(PRECISION_FIELD.getPreferredName(), levels);
             }
             builder.field(fieldName, geohash);
+            builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
             printBoostAndQueryName(builder);
             builder.endObject();
         }
@@ -254,6 +289,7 @@ public class GeohashCellQuery {
             Boolean neighbors = null;
             String queryName = null;
             Float boost = null;
+            boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
             XContentParser.Token token;
             if ((token = parser.currentToken()) != Token.START_OBJECT) {
@@ -280,6 +316,9 @@ public class GeohashCellQuery {
                     } else if (parseContext.parseFieldMatcher().match(field, AbstractQueryBuilder.NAME_FIELD)) {
                         parser.nextToken();
                         queryName = parser.text();
+                    } else if (parseContext.parseFieldMatcher().match(field, IGNORE_UNMAPPED_FIELD)) {
+                        parser.nextToken();
+                        ignoreUnmapped = parser.booleanValue();
                     } else if (parseContext.parseFieldMatcher().match(field, AbstractQueryBuilder.BOOST_FIELD)) {
                         parser.nextToken();
                         boost = parser.floatValue();
@@ -322,6 +361,7 @@ public class GeohashCellQuery {
             if (boost != null) {
                 builder.boost(boost);
             }
+            builder.ignoreUnmapped(ignoreUnmapped);
             return builder;
         }
 
@@ -330,12 +370,13 @@ public class GeohashCellQuery {
             return Objects.equals(fieldName, other.fieldName)
                     && Objects.equals(geohash, other.geohash)
                     && Objects.equals(levels, other.levels)
-                    && Objects.equals(neighbors, other.neighbors);
+                    && Objects.equals(neighbors, other.neighbors)
+                    && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
         }
 
         @Override
         protected int doHashCode() {
-            return Objects.hash(fieldName, geohash, levels, neighbors);
+            return Objects.hash(fieldName, geohash, levels, neighbors, ignoreUnmapped);
         }
 
         @Override

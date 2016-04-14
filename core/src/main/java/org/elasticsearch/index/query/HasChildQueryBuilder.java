@@ -45,7 +45,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * A query builder for <tt>has_child</tt> queries.
+ * A query builder for <tt>has_child</tt> query.
  */
 public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
 
@@ -68,10 +68,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * The default value for ignore_unmapped.
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
-    /*
-     * The default score mode that is used to combine score coming from multiple parent documents.
-     */
-    public static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.None;
 
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
     private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
@@ -82,42 +78,25 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final QueryBuilder<?> query;
-
     private final String type;
-
-    private ScoreMode scoreMode = DEFAULT_SCORE_MODE;
-
-    private int minChildren = DEFAULT_MIN_CHILDREN;
-
-    private int maxChildren = DEFAULT_MAX_CHILDREN;
-
+    private final ScoreMode scoreMode;
     private InnerHitBuilder innerHitBuilder;
-
+    private int minChildren = DEFAULT_MIN_CHILDREN;
+    private int maxChildren = DEFAULT_MAX_CHILDREN;
     private boolean ignoreUnmapped = false;
 
-
-    public HasChildQueryBuilder(String type, QueryBuilder<?> query, int maxChildren, int minChildren, ScoreMode scoreMode,
-                                InnerHitBuilder innerHitBuilder) {
-        this(type, query);
-        scoreMode(scoreMode);
-        this.maxChildren = maxChildren;
-        this.minChildren = minChildren;
-        this.innerHitBuilder = innerHitBuilder;
-        if (this.innerHitBuilder != null) {
-            this.innerHitBuilder.setParentChildType(type);
-            this.innerHitBuilder.setQuery(query);
-        }
+    public HasChildQueryBuilder(String type, QueryBuilder<?> query, ScoreMode scoreMode) {
+        this(type, query, DEFAULT_MIN_CHILDREN, DEFAULT_MAX_CHILDREN, scoreMode, null);
     }
 
-    public HasChildQueryBuilder(String type, QueryBuilder<?> query) {
-        if (type == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'type' field");
-        }
-        if (query == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'query' field");
-        }
-        this.type = type;
-        this.query = query;
+    private HasChildQueryBuilder(String type, QueryBuilder<?> query, int minChildren, int maxChildren, ScoreMode scoreMode,
+                                InnerHitBuilder innerHitBuilder) {
+        this.type = requireValue(type, "[" + NAME + "] requires 'type' field");
+        this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
+        this.scoreMode = requireValue(scoreMode, "[" + NAME + "] requires 'score_mode' field");
+        this.innerHitBuilder = innerHitBuilder;
+        this.minChildren = minChildren;
+        this.maxChildren = maxChildren;
     }
 
     /**
@@ -137,8 +116,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(type);
-        out.writeInt(minChildren());
-        out.writeInt(maxChildren());
+        out.writeInt(minChildren);
+        out.writeInt(maxChildren);
         out.writeVInt(scoreMode.ordinal());
         out.writeQuery(query);
         out.writeOptionalWriteable(innerHitBuilder);
@@ -146,45 +125,21 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     /**
-     * Defines how the scores from the matching child documents are mapped into the parent document.
+     * Defines the minimum number of children that are required to match for the parent to be considered a match and
+     * the maximum number of children that are required to match for the parent to be considered a match.
      */
-    public HasChildQueryBuilder scoreMode(ScoreMode scoreMode) {
-        if (scoreMode == null) {
-            throw new IllegalArgumentException("[" + NAME + "]  requires 'score_mode' field");
-        }
-        this.scoreMode = scoreMode;
-        return this;
-    }
-
-    /**
-     * Defines the minimum number of children that are required to match for the parent to be considered a match.
-     */
-    public HasChildQueryBuilder minChildren(int minChildren) {
+    public HasChildQueryBuilder minMaxChildren(int minChildren, int maxChildren) {
         if (minChildren < 0) {
-            throw new IllegalArgumentException("[" + NAME + "]  requires non-negative 'min_children' field");
+            throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
+        }
+        if (maxChildren < 0) {
+            throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");
+        }
+        if (maxChildren < minChildren) {
+            throw new IllegalArgumentException("[" + NAME + "] 'max_children' is less than 'min_children'");
         }
         this.minChildren = minChildren;
-        return this;
-    }
-
-    /**
-     * Defines the maximum number of children that are required to match for the parent to be considered a match.
-     */
-    public HasChildQueryBuilder maxChildren(int maxChildren) {
-        if (maxChildren < 0) {
-            throw new IllegalArgumentException("[" + NAME + "]  requires non-negative 'max_children' field");
-        }
         this.maxChildren = maxChildren;
-        return this;
-    }
-
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public HasChildQueryBuilder innerHit(InnerHitBuilder innerHitBuilder) {
-        this.innerHitBuilder = Objects.requireNonNull(innerHitBuilder);
-        this.innerHitBuilder.setParentChildType(type);
-        this.innerHitBuilder.setQuery(query);
         return this;
     }
 
@@ -193,6 +148,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public InnerHitBuilder innerHit() {
         return innerHitBuilder;
+    }
+
+    public HasChildQueryBuilder innerHit(InnerHitBuilder innerHit) {
+        innerHit.setParentChildType(type);
+        innerHit.setQuery(query);
+        this.innerHitBuilder = innerHit;
+        return this;
     }
 
     /**
@@ -270,7 +232,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
-        ScoreMode scoreMode = HasChildQueryBuilder.DEFAULT_SCORE_MODE;
+        ScoreMode scoreMode = ScoreMode.None;
         int minChildren = HasChildQueryBuilder.DEFAULT_MIN_CHILDREN;
         int maxChildren = HasChildQueryBuilder.DEFAULT_MAX_CHILDREN;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
@@ -312,7 +274,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 }
             }
         }
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren,
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, minChildren, maxChildren,
                 scoreMode, innerHitBuilder);
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
@@ -384,10 +346,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         if (parentDocMapper == null) {
             throw new QueryShardException(context,
                     "[" + NAME + "] Type [" + type + "] points to a non existent parent type [" + parentType + "]");
-        }
-
-        if (maxChildren > 0 && maxChildren < minChildren) {
-            throw new QueryShardException(context, "[" + NAME + "] 'max_children' is less than 'min_children'");
         }
 
         // wrap the query with type query
@@ -502,7 +460,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 && Objects.equals(scoreMode, that.scoreMode)
                 && Objects.equals(minChildren, that.minChildren)
                 && Objects.equals(maxChildren, that.maxChildren)
-                && Objects.equals(innerHitBuilder, that.innerHitBuilder) 
+                && Objects.equals(innerHitBuilder, that.innerHitBuilder)
                 && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
@@ -515,12 +473,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder<?> rewrite = query.rewrite(queryRewriteContext);
         if (rewrite != query) {
-            HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(type, rewrite);
-            hasChildQueryBuilder.minChildren(minChildren);
-            hasChildQueryBuilder.maxChildren(maxChildren);
-            hasChildQueryBuilder.scoreMode(scoreMode);
-            hasChildQueryBuilder.innerHit(innerHitBuilder);
-            return hasChildQueryBuilder;
+            return new HasChildQueryBuilder(type, rewrite, minChildren, minChildren, scoreMode, innerHitBuilder);
         }
         return this;
     }

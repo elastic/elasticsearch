@@ -433,7 +433,7 @@ public class BulkTests extends ESIntegTestCase {
 
         //we check that the _parent field was set on the child document by using the has parent query
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery()))
+                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
                 .get();
 
         assertNoFailures(searchResponse);
@@ -468,7 +468,7 @@ public class BulkTests extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery()))
+                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
                 .get();
 
         assertSearchHits(searchResponse, "child1");

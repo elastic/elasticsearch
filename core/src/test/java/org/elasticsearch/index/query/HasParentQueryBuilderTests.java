@@ -107,12 +107,16 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
      */
     @Override
     protected HasParentQueryBuilder doCreateTestQueryBuilder() {
-        return new HasParentQueryBuilder(PARENT_TYPE,
-                RandomQueryBuilder.createQuery(random()),randomBoolean(),
-                randomBoolean() ? null : new InnerHitBuilder()
-                        .setName(randomAsciiOfLengthBetween(1, 10))
-                        .setSize(randomIntBetween(0, 100))
-                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC))).ignoreUnmapped(randomBoolean());
+        HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_TYPE,
+                RandomQueryBuilder.createQuery(random()),randomBoolean());
+        if (randomBoolean()) {
+            hqb.innerHit(new InnerHitBuilder()
+                    .setName(randomAsciiOfLengthBetween(1, 10))
+                    .setSize(randomIntBetween(0, 100))
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+        }
+        hqb.ignoreUnmapped(randomBoolean());
+        return hqb;
     }
 
     @Override
@@ -144,25 +148,18 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     public void testIllegalValues() throws IOException {
         QueryBuilder query = RandomQueryBuilder.createQuery(random());
-        try {
-            new HasParentQueryBuilder(null, query);
-            fail("must not be null");
-        } catch (IllegalArgumentException ex) {
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> QueryBuilders.hasParentQuery(null, query, false));
+        assertThat(e.getMessage(), equalTo("[has_parent] requires 'type' field"));
 
-        try {
-            new HasParentQueryBuilder("foo", null);
-            fail("must not be null");
-        } catch (IllegalArgumentException ex) {
-        }
+        e = expectThrows(IllegalArgumentException.class,
+                () -> QueryBuilders.hasParentQuery("foo", null, false));
+        assertThat(e.getMessage(), equalTo("[has_parent] requires 'query' field"));
 
         QueryShardContext context = createShardContext();
-        HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder("just_a_type", new MatchAllQueryBuilder());
-        try {
-            queryBuilder.doToQuery(context);
-        } catch (QueryShardException e) {
-            assertThat(e.getMessage(), equalTo("[has_parent] no child types found for type [just_a_type]"));
-        }
+        HasParentQueryBuilder qb = QueryBuilders.hasParentQuery("just_a_type", new MatchAllQueryBuilder(), false);
+        QueryShardException qse = expectThrows(QueryShardException.class, () -> qb.doToQuery(context));
+        assertThat(qse.getMessage(), equalTo("[has_parent] no child types found for type [just_a_type]"));
     }
 
     public void testDeprecatedXContent() throws IOException {
@@ -210,7 +207,8 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         String[] searchTypes = new String[]{CHILD_TYPE};
         QueryShardContext shardContext = createShardContext();
         shardContext.setTypes(searchTypes);
-        HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(PARENT_TYPE, new IdsQueryBuilder().addIds("id"));
+        HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(PARENT_TYPE, new IdsQueryBuilder().addIds("id"),
+                false);
         Query query = hasParentQueryBuilder.toQuery(shardContext);
         //verify that the context types are still the same as the ones we previously set
         assertThat(shardContext.getTypes(), equalTo(searchTypes));
@@ -271,13 +269,13 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     public void testIgnoreUnmapped() throws IOException {
-        final HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        final HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder("unmapped", new MatchAllQueryBuilder(), false);
         queryBuilder.ignoreUnmapped(true);
         Query query = queryBuilder.toQuery(queryShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
-        final HasParentQueryBuilder failingQueryBuilder = new HasParentQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        final HasParentQueryBuilder failingQueryBuilder = new HasParentQueryBuilder("unmapped", new MatchAllQueryBuilder(), false);
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
         assertThat(e.getMessage(),

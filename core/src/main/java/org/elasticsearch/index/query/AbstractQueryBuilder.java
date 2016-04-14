@@ -272,4 +272,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
     }
+
+    // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException
+    protected static <T> T requireValue(T value, String message) {
+        if (value == null) {
+            throw new IllegalArgumentException(message);
+        }
+        return value;
+    }
 }

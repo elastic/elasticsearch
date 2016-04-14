@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
@@ -483,25 +485,27 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * Constructs a new NON scoring child query, with the child type and the query to run on the child documents. The
+     * Constructs a new has_child query, with the child type and the query to run on the child documents. The
      * results of this query are the parent docs that those child docs matched.
      *
-     * @param type  The child type.
-     * @param query The query.
+     * @param type      The child type.
+     * @param query     The query.
+     * @param scoreMode How the scores from the children hits should be aggregated into the parent hit.
      */
-    public static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder query) {
-        return new HasChildQueryBuilder(type, query);
+    public static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder query, ScoreMode scoreMode) {
+        return new HasChildQueryBuilder(type, query, scoreMode);
     }
 
     /**
-     * Constructs a new NON scoring parent query, with the parent type and the query to run on the parent documents. The
+     * Constructs a new parent query, with the parent type and the query to run on the parent documents. The
      * results of this query are the children docs that those parent docs matched.
      *
-     * @param type  The parent type.
-     * @param query The query.
+     * @param type      The parent type.
+     * @param query     The query.
+     * @param score     Whether the score from the parent hit should propogate to the child hit
      */
-    public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query) {
-        return new HasParentQueryBuilder(type, query);
+    public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query, boolean score) {
+        return new HasParentQueryBuilder(type, query, score);
     }
 
     /**
@@ -512,8 +516,8 @@ public abstract class QueryBuilders {
         return new ParentIdQueryBuilder(type, id);
     }
 
-    public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query) {
-        return new NestedQueryBuilder(path, query);
+    public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query, ScoreMode scoreMode) {
+        return new NestedQueryBuilder(path, query, scoreMode);
     }
 
     /**

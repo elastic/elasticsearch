@@ -44,12 +44,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      */
     public static final String NAME = "nested";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-
-    /**
-     * The default score mode for nested queries.
-     */
-    public static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.Avg;
-
     /**
      * The default value for ignore_unmapped.
      */
@@ -61,35 +55,21 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
-    private final QueryBuilder<?> query;
-
     private final String path;
-
-    private ScoreMode scoreMode = DEFAULT_SCORE_MODE;
-
+    private final ScoreMode scoreMode;
+    private final QueryBuilder<?> query;
     private InnerHitBuilder innerHitBuilder;
-
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
-    public NestedQueryBuilder(String path, QueryBuilder<?> query) {
-        if (path == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'path' field");
-        }
-        if (query == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'query' field");
-        }
-        this.path = path;
-        this.query = query;
+    public NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode) {
+        this(path, query, scoreMode, null);
     }
 
-    public NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode, InnerHitBuilder innerHitBuilder) {
-        this(path, query);
-        scoreMode(scoreMode);
+    private NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode, InnerHitBuilder innerHitBuilder) {
+        this.path = requireValue(path, "[" + NAME + "] requires 'path' field");
+        this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
+        this.scoreMode = requireValue(scoreMode, "[" + NAME + "] requires 'score_mode' field");
         this.innerHitBuilder = innerHitBuilder;
-        if (this.innerHitBuilder != null) {
-            this.innerHitBuilder.setNestedPath(path);
-            this.innerHitBuilder.setQuery(query);
-        }
     }
 
     /**
@@ -114,24 +94,32 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     /**
-     * The score mode how the scores from the matching child documents are mapped into the nested parent document.
+     * Returns the nested query to execute.
      */
-    public NestedQueryBuilder scoreMode(ScoreMode scoreMode) {
-        if (scoreMode == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'score_mode' field");
-        }
-        this.scoreMode = scoreMode;
+    public QueryBuilder query() {
+        return query;
+    }
+
+    /**
+     * Returns inner hit definition in the scope of this query and reusing the defined type and query.
+     */
+
+    public InnerHitBuilder innerHit() {
+        return innerHitBuilder;
+    }
+
+    public NestedQueryBuilder innerHit(InnerHitBuilder innerHit) {
+        innerHit.setNestedPath(path);
+        innerHit.setQuery(query);
+        this.innerHitBuilder = innerHit;
         return this;
     }
 
     /**
-     * Sets inner hit definition in the scope of this nested query and reusing the defined path and query.
+     * Returns how the scores from the matching child documents are mapped into the nested parent document.
      */
-    public NestedQueryBuilder innerHit(InnerHitBuilder innerHit) {
-        this.innerHitBuilder = Objects.requireNonNull(innerHit);
-        this.innerHitBuilder.setNestedPath(path);
-        this.innerHitBuilder.setQuery(query);
-        return this;
+    public ScoreMode scoreMode() {
+        return scoreMode;
     }
 
     /**
@@ -151,27 +139,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      */
     public boolean ignoreUnmapped() {
         return ignoreUnmapped;
-    }
-
-    /**
-     * Returns the nested query to execute.
-     */
-    public QueryBuilder query() {
-        return query;
-    }
-
-    /**
-     * Returns inner hit definition in the scope of this query and reusing the defined type and query.
-     */
-    public InnerHitBuilder innerHit() {
-        return innerHitBuilder;
-    }
-
-    /**
-     * Returns how the scores from the matching child documents are mapped into the nested parent document.
-     */
-    public ScoreMode scoreMode() {
-        return scoreMode;
     }
 
     @Override
@@ -194,7 +161,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     public static NestedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        ScoreMode scoreMode = NestedQueryBuilder.DEFAULT_SCORE_MODE;
+        ScoreMode scoreMode = ScoreMode.Avg;
         String queryName = null;
         QueryBuilder query = null;
         String path = null;
@@ -243,7 +210,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         return Objects.equals(query, that.query)
                 && Objects.equals(path, that.path)
                 && Objects.equals(scoreMode, that.scoreMode)
-                && Objects.equals(innerHitBuilder, that.innerHitBuilder) 
+                && Objects.equals(innerHitBuilder, that.innerHitBuilder)
                 && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
@@ -294,7 +261,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrite = query.rewrite(queryRewriteContext);
         if (rewrite != query) {
-            return new NestedQueryBuilder(path, rewrite).scoreMode(scoreMode).innerHit(innerHitBuilder);
+            return new NestedQueryBuilder(path, rewrite, scoreMode, innerHitBuilder);
         }
         return this;
     }

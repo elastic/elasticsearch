@@ -1564,7 +1564,7 @@ public class PercolatorIT extends ESIntegTestCase {
         ensureGreen("nestedindex");
 
         client().prepareIndex("nestedindex", PercolatorFieldMapper.TYPE_NAME, "Q").setSource(jsonBuilder().startObject()
-                .field("query", QueryBuilders.nestedQuery("employee", QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND)).scoreMode(ScoreMode.Avg)).endObject()).get();
+                .field("query", QueryBuilders.nestedQuery("employee", QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND), ScoreMode.Avg)).endObject()).get();
 
         refresh();
 
@@ -1788,7 +1788,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index").addMapping("mapping", mapping));
         try {
             client().prepareIndex("index", PercolatorFieldMapper.TYPE_NAME, "1")
-                    .setSource(jsonBuilder().startObject().field("query", nestedQuery("nested", matchQuery("nested.name", "value")).innerHit(new InnerHitBuilder())).endObject())
+                    .setSource(jsonBuilder().startObject().field("query", nestedQuery("nested", matchQuery("nested.name", "value"), ScoreMode.Avg).innerHit(new InnerHitBuilder())).endObject())
                     .execute().actionGet();
             fail("Expected a parse error, because inner_hits isn't supported in the percolate api");
         } catch (Exception e) {
@@ -1803,7 +1803,7 @@ public class PercolatorIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent").addMapping("parent"));
         client().prepareIndex("index", PercolatorFieldMapper.TYPE_NAME, "1")
-                .setSource(jsonBuilder().startObject().field("query", hasChildQuery("child", matchAllQuery())).endObject())
+                .setSource(jsonBuilder().startObject().field("query", hasChildQuery("child", matchAllQuery(), ScoreMode.None)).endObject())
                 .execute().actionGet();
     }
 

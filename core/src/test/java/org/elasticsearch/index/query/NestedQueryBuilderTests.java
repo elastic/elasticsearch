@@ -86,12 +86,16 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
      */
     @Override
     protected NestedQueryBuilder doCreateTestQueryBuilder() {
-        return new NestedQueryBuilder("nested1", RandomQueryBuilder.createQuery(random()),
-                RandomPicks.randomFrom(random(), ScoreMode.values()),
-                SearchContext.current() == null ? null : new InnerHitBuilder()
-                        .setName(randomAsciiOfLengthBetween(1, 10))
-                        .setSize(randomIntBetween(0, 100))
-                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME).order(SortOrder.ASC))).ignoreUnmapped(randomBoolean());
+        NestedQueryBuilder nqb = new NestedQueryBuilder("nested1", RandomQueryBuilder.createQuery(random()),
+                RandomPicks.randomFrom(random(), ScoreMode.values()));
+        if (SearchContext.current() != null) {
+            nqb.innerHit(new InnerHitBuilder()
+                    .setName(randomAsciiOfLengthBetween(1, 10))
+                    .setSize(randomIntBetween(0, 100))
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME).order(SortOrder.ASC)));
+        }
+        nqb.ignoreUnmapped(randomBoolean());
+        return nqb;
     }
 
     @Override
@@ -121,27 +125,16 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testValidate() {
-        try {
-            new NestedQueryBuilder(null, new MatchAllQueryBuilder());
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        QueryBuilder<?> innerQuery = RandomQueryBuilder.createQuery(random());
+        IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> QueryBuilders.nestedQuery(null, innerQuery, ScoreMode.Avg));
+        assertThat(e.getMessage(), equalTo("[nested] requires 'path' field"));
 
-        try {
-            new NestedQueryBuilder("path", null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> QueryBuilders.nestedQuery("foo", null, ScoreMode.Avg));
+        assertThat(e.getMessage(), equalTo("[nested] requires 'query' field"));
 
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder());
-        try {
-            nestedQueryBuilder.scoreMode(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> QueryBuilders.nestedQuery("foo", innerQuery, null));
+        assertThat(e.getMessage(), equalTo("[nested] requires 'score_mode' field"));
     }
 
     public void testFromJson() throws IOException {
@@ -193,13 +186,13 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testIgnoreUnmapped() throws IOException {
-        final NestedQueryBuilder queryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        final NestedQueryBuilder queryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
         queryBuilder.ignoreUnmapped(true);
         Query query = queryBuilder.toQuery(queryShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
-        final NestedQueryBuilder failingQueryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder());
+        final NestedQueryBuilder failingQueryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
         failingQueryBuilder.ignoreUnmapped(false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
         assertThat(e.getMessage(), containsString("[" + NestedQueryBuilder.NAME + "] failed to find nested object under path [unmapped]"));

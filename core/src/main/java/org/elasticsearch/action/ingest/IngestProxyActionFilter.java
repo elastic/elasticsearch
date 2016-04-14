@@ -83,13 +83,7 @@ public final class IngestProxyActionFilter implements ActionFilter {
 
     @SuppressWarnings("unchecked")
     private void forwardIngestRequest(Action<?, ?, ?> action, ActionRequest request, ActionListener<?> listener) {
-        transportService.sendRequest(randomIngestNode(), action.name(), request, new ActionListenerResponseHandler(listener) {
-            @Override
-            public TransportResponse newInstance() {
-                return action.newResponse();
-            }
-
-        });
+        transportService.sendRequest(randomIngestNode(), action.name(), request, new ActionListenerResponseHandler(listener, action::newResponse));
     }
 
     @Override

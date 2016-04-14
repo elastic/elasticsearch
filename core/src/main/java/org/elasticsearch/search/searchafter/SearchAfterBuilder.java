@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -80,13 +81,27 @@ public class SearchAfterBuilder implements ToXContent, Writeable<SearchAfterBuil
         if (values.length == 0) {
             throw new IllegalArgumentException("Values must contains at least one value.");
         }
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == null) continue;
+            if (values[i] instanceof String) continue;
+            if (values[i] instanceof Text) continue;
+            if (values[i] instanceof Long) continue;
+            if (values[i] instanceof Integer) continue;
+            if (values[i] instanceof Short) continue;
+            if (values[i] instanceof Byte) continue;
+            if (values[i] instanceof Double) continue;
+            if (values[i] instanceof Float) continue;
+            if (values[i] instanceof Boolean) continue;
+            if (values[i] instanceof Boolean) continue;
+            throw new IllegalArgumentException("Can't handle " + SEARCH_AFTER + " field value of type [" + values[i].getClass() + "]");
+        }
         sortValues = new Object[values.length];
         System.arraycopy(values, 0, sortValues, 0, values.length);
         return this;
     }
 
     public Object[] getSortValues() {
-        return sortValues;
+        return Arrays.copyOf(sortValues, sortValues.length);
     }
 
     public static FieldDoc buildFieldDoc(Sort sort, Object[] values) {

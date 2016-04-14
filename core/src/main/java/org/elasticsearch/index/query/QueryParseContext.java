@@ -21,13 +21,14 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
 import java.io.IOException;
 
-public class QueryParseContext {
+public class QueryParseContext implements ParseFieldMatcherSupplier {
 
     private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
@@ -44,9 +45,6 @@ public class QueryParseContext {
     public void reset(XContentParser jp) {
         this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
         this.parser = jp;
-        if (parser != null) {
-            this.parser.setParseFieldMatcher(parseFieldMatcher);
-        }
     }
 
     public XContentParser parser() {
@@ -56,9 +54,6 @@ public class QueryParseContext {
     public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
         if (parseFieldMatcher == null) {
             throw new IllegalArgumentException("parseFieldMatcher must not be null");
-        }
-        if (parser != null) {
-            parser.setParseFieldMatcher(parseFieldMatcher);
         }
         this.parseFieldMatcher = parseFieldMatcher;
     }
@@ -120,7 +115,7 @@ public class QueryParseContext {
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
-        QueryBuilder<?> result = indicesQueriesRegistry.lookup(queryName, parser).fromXContent(this);
+        QueryBuilder<?> result = indicesQueriesRegistry.lookup(queryName, parser, parseFieldMatcher).fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
@@ -128,6 +123,7 @@ public class QueryParseContext {
         return result;
     }
 
+    @Override
     public ParseFieldMatcher parseFieldMatcher() {
         return parseFieldMatcher;
     }

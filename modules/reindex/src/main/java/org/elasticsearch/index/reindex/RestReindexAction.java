@@ -33,6 +33,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -80,7 +82,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             search.source().parseXContent(context.queryParseContext, context.aggParsers, context.suggesters);
         };
 
-        ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
+        ObjectParser<IndexRequest, ParseFieldMatcherSupplier> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString(IndexRequest::type, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
@@ -94,7 +96,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 new ParseField("ttl"));
 
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSearchRequest(), c), new ParseField("source"), ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), null), new ParseField("dest"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.queryParseContext.parseFieldMatcher())), new ParseField("script"),
                 ValueType.OBJECT);
@@ -169,7 +171,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
     }
 
-    private class ReindexParseContext {
+    private class ReindexParseContext implements ParseFieldMatcherSupplier{
         private final QueryParseContext queryParseContext;
         private final AggregatorParsers aggParsers;
         private final Suggesters suggesters;
@@ -179,6 +181,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             this.queryParseContext = queryParseContext;
             this.aggParsers = aggParsers;
             this.suggesters = suggesters;
+        }
+
+        @Override
+        public ParseFieldMatcher getParseFieldMatcher() {
+            return queryParseContext.parseFieldMatcher();
         }
     }
 }

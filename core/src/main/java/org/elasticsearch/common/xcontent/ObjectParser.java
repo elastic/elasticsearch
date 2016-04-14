@@ -20,6 +20,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
@@ -51,7 +52,7 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
  * use the high level declare methods like {@link #declareString(BiConsumer, ParseField)} instead of {@link #declareField} which can be used
  * to implement exceptional parsing operations not covered by the high level methods.
  */
-public final class ObjectParser<Value, Context> implements BiFunction<XContentParser, Context, Value> {
+public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier> implements BiFunction<XContentParser, Context, Value> {
     /**
      * Adapts an array (or varags) setter into a list setter.
      */
@@ -87,32 +88,22 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
     /**
      * Parses a Value from the given {@link XContentParser}
      * @param parser the parser to build a value from
+     * @param context must at least provide a {@link ParseFieldMatcher}
      * @return a new value instance drawn from the provided value supplier on {@link #ObjectParser(String, Supplier)}
      * @throws IOException if an IOException occurs.
      */
-    public Value parse(XContentParser parser) throws IOException {
+    public Value parse(XContentParser parser, Context context) throws IOException {
         if (valueSupplier == null) {
             throw new NullPointerException("valueSupplier is not set");
         }
-        return parse(parser, valueSupplier.get(), null);
+        return parse(parser, valueSupplier.get(), context);
     }
 
     /**
      * Parses a Value from the given {@link XContentParser}
      * @param parser the parser to build a value from
      * @param value the value to fill from the parser
-     * @return the parsed value
-     * @throws IOException if an IOException occurs.
-     */
-    public Value parse(XContentParser parser, Value value) throws IOException {
-        return parse(parser, value, null);
-    }
-
-    /**
-     * Parses a Value from the given {@link XContentParser}
-     * @param parser the parser to build a value from
-     * @param value the value to fill from the parser
-     * @param context an optional context that is passed along to all declared field parsers
+     * @param context a context that is passed along to all declared field parsers
      * @return the parsed value
      * @throws IOException if an IOException occurs.
      */
@@ -138,7 +129,7 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
                     throw new IllegalStateException("[" + name  + "] no field found");
                 }
                 assert fieldParser != null;
-                fieldParser.assertSupports(name, token, currentFieldName, parser.getParseFieldMatcher());
+                fieldParser.assertSupports(name, token, currentFieldName, context.parseFieldMatcher());
                 parseSub(parser, fieldParser, currentFieldName, value, context);
                 fieldParser = null;
             }

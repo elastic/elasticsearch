@@ -29,6 +29,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,7 +50,6 @@ import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.support.InnerHitBuilder;
-import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -69,7 +69,7 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Context object used to create lucene queries on the shard level.
  */
-public class QueryShardContext extends QueryRewriteContext {
+public class QueryShardContext extends QueryRewriteContext implements ParseFieldMatcherSupplier {
 
     private final MapperService mapperService;
     private final SimilarityService similarityService;
@@ -118,6 +118,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.parseContext.parseFieldMatcher(parseFieldMatcher);
     }
 
+    @Override
     public ParseFieldMatcher parseFieldMatcher() {
         return parseContext.parseFieldMatcher();
     }

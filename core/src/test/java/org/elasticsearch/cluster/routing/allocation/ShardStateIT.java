@@ -50,8 +50,8 @@ public class ShardStateIT extends ESIntegTestCase {
         logger.info("--> waiting for a yellow index");
         // JDK 9 type inference gets confused, so we have to help the
         // type inference
-        assertBusy(() -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(),
-            equalTo(ClusterHealthStatus.YELLOW)));
+        assertBusy(((Runnable) () -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW))));
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;

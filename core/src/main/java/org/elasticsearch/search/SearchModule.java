@@ -120,8 +120,8 @@ import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingParser;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
-import org.elasticsearch.search.aggregations.bucket.nested.NestedParser;
-import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedParser;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
@@ -474,8 +474,9 @@ public class SearchModule extends AbstractModule {
                 DateHistogramAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregatorParser(new GeoDistanceParser());
         registerAggregatorParser(new GeoHashGridParser());
-        registerAggregatorParser(new NestedParser());
-        registerAggregatorParser(new ReverseNestedParser());
+        registerAggregation(NestedAggregatorBuilder::new, NestedAggregatorBuilder::parse, NestedAggregatorBuilder.AGGREGATION_FIELD_NAME);
+        registerAggregation(ReverseNestedAggregatorBuilder::new, ReverseNestedAggregatorBuilder::parse,
+                ReverseNestedAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregatorParser(new TopHitsParser());
         registerAggregatorParser(new GeoBoundsParser());
         registerAggregatorParser(new GeoCentroidParser());

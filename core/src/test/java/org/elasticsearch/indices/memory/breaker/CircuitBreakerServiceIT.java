@@ -215,6 +215,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
      * this case, the fielddata breaker borrows space from the request breaker
      */
     @Test
+    @AwaitsFix(bugUrl = "way too unstable request size. Needs a proper and more stable fix.")
     public void testParentChecking() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");

@@ -123,11 +123,14 @@ import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested
 import org.elasticsearch.search.aggregations.bucket.nested.NestedParser;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedParser;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
+import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedSamplerParser;
@@ -457,9 +460,9 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new DiversifiedSamplerParser());
         registerAggregatorParser(new TermsParser());
         registerAggregatorParser(new SignificantTermsParser(significanceHeuristicParserMapper, queryParserRegistry));
-        registerAggregatorParser(new RangeParser());
-        registerAggregatorParser(new DateRangeParser());
-        registerAggregatorParser(new IpRangeParser());
+        registerAggregation(RangeAggregatorBuilder::new, new RangeParser(), RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(DateRangeAggregatorBuilder::new, new DateRangeParser(), DateRangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(IPv4RangeAggregatorBuilder::new, new IpRangeParser(), IPv4RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(HistogramAggregatorBuilder::new, new HistogramParser(), HistogramAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(DateHistogramAggregatorBuilder::new, new DateHistogramParser(),
                 DateHistogramAggregatorBuilder.AGGREGATION_NAME_FIELD);

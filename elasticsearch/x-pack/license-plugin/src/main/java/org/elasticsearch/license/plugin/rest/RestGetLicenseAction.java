@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetLicenseAction extends BaseRestHandler {
@@ -58,14 +59,15 @@ public class RestGetLicenseAction extends BaseRestHandler {
                         if (!request.hasParam("pretty")) {
                             builder.prettyPrint().lfAtEnd();
                         }
+                        boolean hasLicense = response.license() != null;
                         builder.startObject();
-                        if (response.license() != null) {
+                        if (hasLicense) {
                             builder.startObject("license");
                             response.license().toInnerXContent(builder, params);
                             builder.endObject();
                         }
                         builder.endObject();
-                        return new BytesRestResponse(OK, builder);
+                        return new BytesRestResponse(hasLicense ? OK : NOT_FOUND, builder);
                     }
                 });
     }

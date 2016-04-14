@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.graph.rest.action;
 
-import static org.elasticsearch.graph.action.GraphExploreAction.INSTANCE;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -38,6 +29,15 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+
+import static org.elasticsearch.graph.action.GraphExploreAction.INSTANCE;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * @see GraphExploreRequest
@@ -128,7 +128,7 @@ public class RestGraphAction extends BaseRestHandler {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (context.getParseFieldMatcher().match(fieldName, QUERY_FIELD)) {
-                    currentHop.guidingQuery(context.parseInnerQueryBuilder());
+                    context.parseInnerQueryBuilder().ifPresent(currentHop::guidingQuery);
                 } else if (context.getParseFieldMatcher().match(fieldName, CONNECTIONS_FIELD)) {
                     parseHop(parser, context, graphRequest.createNextHop(null), graphRequest);
                 } else if (context.getParseFieldMatcher().match(fieldName, CONTROLS_FIELD)) {

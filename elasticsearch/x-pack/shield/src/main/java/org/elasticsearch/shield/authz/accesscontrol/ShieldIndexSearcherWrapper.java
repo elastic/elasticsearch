@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
@@ -122,9 +123,11 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
                 for (BytesReference bytesReference : permissions.getQueries()) {
                     QueryShardContext queryShardContext = copyQueryShardContext(this.queryShardContext);
                     try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
-                        QueryBuilder queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
-                        ParsedQuery parsedQuery = queryShardContext.toQuery(queryBuilder);
-                        filter.add(parsedQuery.query(), SHOULD);
+                        Optional<QueryBuilder> queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
+                        if (queryBuilder.isPresent()) {
+                            ParsedQuery parsedQuery = queryShardContext.toQuery(queryBuilder.get());
+                            filter.add(parsedQuery.query(), SHOULD);
+                        }
                     }
                 }
                 // at least one of the queries should match

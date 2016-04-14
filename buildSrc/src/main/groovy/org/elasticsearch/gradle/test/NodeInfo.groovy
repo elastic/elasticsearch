@@ -129,11 +129,11 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = [
-            'JAVA_HOME' : project.javaHome
-        ]
+        env = [ 'JAVA_HOME' : project.javaHome ]
         args.addAll("-E", "es.node.portsfile=true")
-        env.put('ES_JAVA_OPTS', config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" "))
+        String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
+        String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
+        env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.getKey().startsWith('es.')) {
                 args.add("-E")

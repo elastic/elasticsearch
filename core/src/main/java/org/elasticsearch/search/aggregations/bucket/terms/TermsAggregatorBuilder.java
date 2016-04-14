@@ -38,13 +38,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-/**
- *
- */
-/**
- *
- */
 public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, TermsAggregatorBuilder> {
+    public static final String NAME = StringTerms.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
     public static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
@@ -57,8 +53,6 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
-    static final TermsAggregatorBuilder PROTOTYPE = new TermsAggregatorBuilder("", null);
-
     private Terms.Order order = Terms.Order.compound(Terms.Order.count(false), Terms.Order.term(true));
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
@@ -69,6 +63,45 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
 
     public TermsAggregatorBuilder(String name, ValueType valueType) {
         super(name, StringTerms.TYPE, ValuesSourceType.ANY, valueType);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public TermsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, StringTerms.TYPE, ValuesSourceType.ANY);
+        bucketCountThresholds = BucketCountThresholds.readFromStream(in);
+        collectMode = SubAggCollectionMode.BREADTH_FIRST.readFrom(in);
+        executionHint = in.readOptionalString();
+        if (in.readBoolean()) {
+            includeExclude = IncludeExclude.readFromStream(in);
+        }
+        order = InternalOrder.Streams.readOrder(in);
+        showTermDocCountError = in.readBoolean();
+    }
+
+    @Override
+    protected boolean serializeTargetValueType() {
+        return true;
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        bucketCountThresholds.writeTo(out);
+        collectMode.writeTo(out);
+        out.writeOptionalString(executionHint);
+        boolean hasIncExc = includeExclude != null;
+        out.writeBoolean(hasIncExc);
+        if (hasIncExc) {
+            includeExclude.writeTo(out);
+        }
+        InternalOrder.Streams.writeOrder(order, out);
+        out.writeBoolean(showTermDocCountError);
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
@@ -252,35 +285,6 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     }
 
     @Override
-    protected TermsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        TermsAggregatorBuilder factory = new TermsAggregatorBuilder(name, targetValueType);
-        factory.bucketCountThresholds = BucketCountThresholds.readFromStream(in);
-        factory.collectMode = SubAggCollectionMode.BREADTH_FIRST.readFrom(in);
-        factory.executionHint = in.readOptionalString();
-        if (in.readBoolean()) {
-            factory.includeExclude = IncludeExclude.readFromStream(in);
-        }
-        factory.order = InternalOrder.Streams.readOrder(in);
-        factory.showTermDocCountError = in.readBoolean();
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        bucketCountThresholds.writeTo(out);
-        collectMode.writeTo(out);
-        out.writeOptionalString(executionHint);
-        boolean hasIncExc = includeExclude != null;
-        out.writeBoolean(hasIncExc);
-        if (hasIncExc) {
-            includeExclude.writeTo(out);
-        }
-        InternalOrder.Streams.writeOrder(order, out);
-        out.writeBoolean(showTermDocCountError);
-    }
-
-    @Override
     protected int innerHashCode() {
         return Objects.hash(bucketCountThresholds, collectMode, executionHint, includeExclude, order, showTermDocCountError);
     }
@@ -296,4 +300,8 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
                 && Objects.equals(showTermDocCountError, other.showTermDocCountError);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

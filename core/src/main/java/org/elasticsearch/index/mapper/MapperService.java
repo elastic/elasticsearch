@@ -63,7 +63,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public class MapperService extends AbstractIndexComponent implements Closeable {
+public class MapperService extends AbstractIndexComponent {
 
     /**
      * The reason why a mapping is being merged.
@@ -163,13 +163,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             logger.trace("using dynamic[{}], default mapping source[{}], default percolator mapping source[{}]", dynamic, defaultMappingSource, defaultPercolatorMappingSource);
         } else if (logger.isDebugEnabled()) {
             logger.debug("using dynamic[{}]", dynamic);
-        }
-    }
-
-    @Override
-    public void close() {
-        for (DocumentMapper documentMapper : mappers.values()) {
-            documentMapper.close();
         }
     }
 

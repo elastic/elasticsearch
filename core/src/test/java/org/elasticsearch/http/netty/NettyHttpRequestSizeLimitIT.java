@@ -80,7 +80,6 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
             ().boundAddresses());
 
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
-            @SuppressWarnings("unchecked")
             Collection<HttpResponse> singleResponse = nettyHttpClient.post(inetSocketTransportAddress.address(), requests[0]);
             assertThat(singleResponse, hasSize(1));
             assertAtLeastOnceExpectedStatus(singleResponse, HttpResponseStatus.OK);

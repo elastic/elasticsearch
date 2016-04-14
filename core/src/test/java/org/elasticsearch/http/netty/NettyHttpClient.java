@@ -28,7 +28,6 @@ import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.ChannelStateEvent;
 import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
@@ -55,7 +54,7 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.HOST;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 /**
- * Tiny helper
+ * Tiny helper to send http requests over netty.
  */
 public class NettyHttpClient implements Closeable {
 
@@ -92,7 +91,8 @@ public class NettyHttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    public Collection<HttpResponse> post(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
+    @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
+    public final Collection<HttpResponse> post(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
             throws InterruptedException {
         Collection<HttpRequest> requests = new ArrayList<>(urisAndBodies.length);
         for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {

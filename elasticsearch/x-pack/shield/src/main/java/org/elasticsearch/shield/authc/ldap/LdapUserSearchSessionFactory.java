@@ -40,12 +40,12 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
     static final String DEFAULT_USERNAME_ATTRIBUTE = "uid";
     static final TimeValue DEFAULT_HEALTH_CHECK_INTERVAL = TimeValue.timeValueSeconds(60L);
 
-    private final GroupsResolver groupResolver;
     private final String userSearchBaseDn;
     private final LdapSearchScope scope;
     private final String userAttribute;
 
     private LDAPConnectionPool connectionPool;
+    private GroupsResolver groupResolver;
 
     public LdapUserSearchSessionFactory(RealmConfig config, ClientSSLService sslService) {
         super(config, sslService);
@@ -56,8 +56,14 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         }
         scope = LdapSearchScope.resolve(settings.get("user_search.scope"), LdapSearchScope.SUB_TREE);
         userAttribute = settings.get("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE);
+    }
+
+    @Override
+    public LdapUserSearchSessionFactory init() {
+        super.init();
         connectionPool = createConnectionPool(config, serverSet, timeout, logger);
-        groupResolver = groupResolver(settings);
+        groupResolver = groupResolver(config.settings());
+        return this;
     }
 
     private synchronized LDAPConnectionPool connectionPool() throws IOException {
@@ -119,7 +125,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     @Override
-    public LdapSession session(String user, SecuredString password) throws Exception {
+    protected LdapSession getSession(String user, SecuredString password) throws Exception {
         try {
             String dn = findUserDN(user);
             tryBind(dn, password);

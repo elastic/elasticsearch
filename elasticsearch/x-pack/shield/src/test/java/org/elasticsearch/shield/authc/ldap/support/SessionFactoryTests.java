@@ -60,9 +60,9 @@ public class SessionFactoryTests extends ESTestCase {
         return new SessionFactory(new RealmConfig("_name", Settings.builder().put("url", "ldap://localhost:389").build(), global), null) {
 
             @Override
-            public LdapSession session(String user, SecuredString password) {
+            protected LdapSession getSession(String user, SecuredString password) {
                 return null;
             }
-        };
+        }.init();
     }
 }

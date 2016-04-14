@@ -41,7 +41,7 @@ public class ActiveDirectoryRealm extends AbstractLdapRealm {
 
         @Override
         public ActiveDirectoryRealm create(RealmConfig config) {
-            ActiveDirectorySessionFactory connectionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
+            ActiveDirectorySessionFactory connectionFactory = new ActiveDirectorySessionFactory(config, clientSSLService).init();
             DnRoleMapper roleMapper = new DnRoleMapper(TYPE, config, watcherService, null);
             return new ActiveDirectoryRealm(config, connectionFactory, roleMapper);
         }

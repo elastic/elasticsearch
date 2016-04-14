@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativeParser;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -157,7 +156,7 @@ public class BucketHelpers {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
             if (propertyValue == null) {
-                throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
+                throw new AggregationExecutionException(PipelineAggregatorBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");
             } else {
                 double value;
@@ -166,7 +165,7 @@ public class BucketHelpers {
                 } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
                 } else {
-                    throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
+                    throw new AggregationExecutionException(PipelineAggregatorBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                             + " must reference either a number value or a single value numeric metric aggregation, got: "
                             + propertyValue.getClass().getCanonicalName());
                 }

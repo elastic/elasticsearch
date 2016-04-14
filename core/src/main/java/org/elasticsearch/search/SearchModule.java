@@ -202,8 +202,8 @@ import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelec
 import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumParser;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativeParser;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
@@ -478,7 +478,8 @@ public class SearchModule extends AbstractModule {
         registerAggregation(ChildrenAggregatorBuilder::new, ChildrenAggregatorBuilder::parse,
                 ChildrenAggregatorBuilder.AGGREGATION_NAME_FIELD);
 
-        registerPipelineParser(new DerivativeParser());
+        registerPipelineAggregation(DerivativePipelineAggregatorBuilder::new, DerivativePipelineAggregatorBuilder::parse,
+                DerivativePipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineParser(new MaxBucketParser());
         registerPipelineParser(new MinBucketParser());
         registerPipelineParser(new AvgBucketParser());

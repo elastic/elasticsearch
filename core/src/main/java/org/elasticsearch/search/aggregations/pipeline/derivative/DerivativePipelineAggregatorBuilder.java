@@ -19,11 +19,15 @@
 
 package org.elasticsearch.search.aggregations.pipeline.derivative;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
@@ -34,13 +38,18 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuilder<DerivativePipelineAggregatorBuilder> {
-
-    static final DerivativePipelineAggregatorBuilder PROTOTYPE = new DerivativePipelineAggregatorBuilder("", "");
+    public static final String NAME = DerivativePipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+    
+    private static final ParseField FORMAT_FIELD = new ParseField("format");
+    private static final ParseField GAP_POLICY_FIELD = new ParseField("gap_policy");
+    private static final ParseField UNIT_FIELD = new ParseField("unit");
 
     private String format;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -52,6 +61,34 @@ public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuild
 
     private DerivativePipelineAggregatorBuilder(String name, String[] bucketsPaths) {
         super(name, DerivativePipelineAggregator.TYPE.name(), bucketsPaths);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public DerivativePipelineAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, DerivativePipelineAggregator.TYPE.name());
+        format = in.readOptionalString();
+        if (in.readBoolean()) {
+            gapPolicy = GapPolicy.readFrom(in);
+        }
+        units = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(format);
+        boolean hasGapPolicy = gapPolicy != null;
+        out.writeBoolean(hasGapPolicy);
+        if (hasGapPolicy) {
+            gapPolicy.writeTo(out);
+        }
+        out.writeOptionalString(units);
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     public DerivativePipelineAggregatorBuilder format(String format) {
@@ -141,39 +178,79 @@ public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuild
     }
 
     @Override
-    protected DerivativePipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        DerivativePipelineAggregatorBuilder factory = new DerivativePipelineAggregatorBuilder(name, bucketsPaths);
-        factory.format = in.readOptionalString();
-        if (in.readBoolean()) {
-            factory.gapPolicy = GapPolicy.readFrom(in);
-        }
-        factory.units = in.readOptionalString();
-        return factory;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(format);
-        boolean hasGapPolicy = gapPolicy != null;
-        out.writeBoolean(hasGapPolicy);
-        if (hasGapPolicy) {
-            gapPolicy.writeTo(out);
-        }
-        out.writeOptionalString(units);
-    }
-
-    @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (format != null) {
-            builder.field(DerivativeParser.FORMAT.getPreferredName(), format);
+            builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
         if (gapPolicy != null) {
-            builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
+            builder.field(GAP_POLICY_FIELD.getPreferredName(), gapPolicy.getName());
         }
         if (units != null) {
-            builder.field(DerivativeParser.UNIT.getPreferredName(), units);
+            builder.field(FORMAT_FIELD.getPreferredName(), units);
         }
         return builder;
+    }
+
+    public static DerivativePipelineAggregatorBuilder parse(String pipelineAggregatorName, QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
+        XContentParser.Token token;
+        String currentFieldName = null;
+        String[] bucketsPaths = null;
+        String format = null;
+        String units = null;
+        GapPolicy gapPolicy = null;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (context.parseFieldMatcher().match(currentFieldName, FORMAT_FIELD)) {
+                    format = parser.text();
+                } else if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH_FIELD)) {
+                    bucketsPaths = new String[] { parser.text() };
+                } else if (context.parseFieldMatcher().match(currentFieldName, GAP_POLICY_FIELD)) {
+                    gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
+                } else if (context.parseFieldMatcher().match(currentFieldName, UNIT_FIELD)) {
+                    units = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH_FIELD)) {
+                    List<String> paths = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        String path = parser.text();
+                        paths.add(path);
+                    }
+                    bucketsPaths = paths.toArray(new String[paths.size()]);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Unexpected token " + token + " in [" + pipelineAggregatorName + "].");
+            }
+        }
+
+        if (bucketsPaths == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH_FIELD.getPreferredName()
+                    + "] for derivative aggregation [" + pipelineAggregatorName + "]");
+        }
+
+        DerivativePipelineAggregatorBuilder factory =
+                new DerivativePipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        if (format != null) {
+            factory.format(format);
+        }
+        if (gapPolicy != null) {
+            factory.gapPolicy(gapPolicy);
+        }
+        if (units != null) {
+            factory.unit(units);
+        }
+        return factory;
     }
 
     @Override

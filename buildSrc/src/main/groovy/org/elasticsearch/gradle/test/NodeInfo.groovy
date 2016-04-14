@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 import org.gradle.api.Task

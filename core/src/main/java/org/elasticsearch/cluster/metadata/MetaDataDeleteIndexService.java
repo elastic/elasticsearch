@@ -117,7 +117,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                 }
                 final int numPurged = graveyardBuilder.purge(SETTING_MAX_TOMBSTONES.get(settings)); // purge tombstone entries if needed
                 final IndexGraveyard currentGraveyard = graveyardBuilder.build();
-                final int currentGraveyardSize = currentGraveyard.tombstones().size();
+                final int currentGraveyardSize = currentGraveyard.getTombstones().size();
                 metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
                 logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
                              numPurged, previousGraveyardSize, currentGraveyardSize);

@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -227,8 +228,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         try {
             indicesService.verifyIndexIsDeleted(index, csWithIndex);
             fail("Should not be able to delete index contents when the index is part of the cluster state.");
-        } catch (AssertionError e) {
-            // this is what we expect
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("Cannot delete index"));
         }
 
         final ClusterState withoutIndex = new ClusterState.Builder(csWithIndex)

@@ -101,7 +101,7 @@ final public class IndexGraveyard implements MetaData.Custom {
     /**
      * Get the current unmodifiable index tombstone list.
      */
-    public List<Tombstone> tombstones() {
+    public List<Tombstone> getTombstones() {
         return tombstones;
     }
 
@@ -166,7 +166,7 @@ final public class IndexGraveyard implements MetaData.Custom {
         }
 
         private Builder(IndexGraveyard that) {
-            tombstones = new ArrayList<>(that.tombstones());
+            tombstones = new ArrayList<>(that.getTombstones());
         }
 
         private Builder(final List<Tombstone> tombstones) {

@@ -87,8 +87,8 @@ public class IndexGraveyardTests extends ESTestCase {
             assertThat(graveyard2, equalTo(graveyard1));
         } else {
             assertThat(graveyard2, not(graveyard1));
-            assertThat(graveyard1.tombstones().size(), lessThan(graveyard2.tombstones().size()));
-            assertThat(Collections.indexOfSubList(graveyard2.tombstones(), graveyard1.tombstones()), equalTo(0));
+            assertThat(graveyard1.getTombstones().size(), lessThan(graveyard2.getTombstones().size()));
+            assertThat(Collections.indexOfSubList(graveyard2.getTombstones(), graveyard1.getTombstones()), equalTo(0));
         }
     }
 
@@ -129,7 +129,7 @@ public class IndexGraveyardTests extends ESTestCase {
         assertThat(diff.getRemovedCount(), equalTo(removals.size()));
     }
 
-    protected static IndexGraveyard createRandom() {
+    public static IndexGraveyard createRandom() {
         final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
         final int numTombstones = randomIntBetween(0, 4);
         for (int i = 0; i < numTombstones; i++) {

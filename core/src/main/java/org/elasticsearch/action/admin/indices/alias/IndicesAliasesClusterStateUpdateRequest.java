@@ -46,11 +46,4 @@ public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateR
         this.actions = actions;
         return this;
     }
-
-    /**
-     * Creates a new alias request from the given alias actions.
-     */
-    public static IndicesAliasesClusterStateUpdateRequest createRequest(AliasAction[] actions) {
-        return new IndicesAliasesClusterStateUpdateRequest().actions(actions);
-    }
 }

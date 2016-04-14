@@ -721,7 +721,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                              .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
                                              .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                                              .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                                             .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                                              .build();
         assertAcked(prepareCreate(name).setSettings(idxSettings).get());
     }

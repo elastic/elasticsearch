@@ -683,7 +683,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     @Nullable
     public IndexMetaData verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
         // this method should only be called when we know the index is not part of the cluster state
-        assert clusterState.metaData().hasIndex(index.getName()) == false;
+        if (clusterState.metaData().hasIndex(index.getName())) {
+            throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
+        }
         if (nodeEnv.hasNodeFile() && FileSystemUtils.exists(nodeEnv.indexPaths(index))) {
             final IndexMetaData metaData;
             try {

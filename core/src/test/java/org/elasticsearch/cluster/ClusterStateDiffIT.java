@@ -604,7 +604,12 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public MetaData.Builder remove(MetaData.Builder builder, String name) {
-                return builder.removeCustom(name);
+                if (IndexGraveyard.TYPE.equals(name)) {
+                    // there must always be at least an empty graveyard
+                    return builder.indexGraveyard(IndexGraveyard.builder().build());
+                } else {
+                    return builder.removeCustom(name);
+                }
             }
 
             @Override
@@ -612,7 +617,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     return new RepositoriesMetaData();
                 } else {
-                    return IndexGraveyard.builder().build();
+                    return IndexGraveyardTests.createRandom();
                 }
             }
 

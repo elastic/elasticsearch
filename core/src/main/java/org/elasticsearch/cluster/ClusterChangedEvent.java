@@ -249,7 +249,7 @@ public class ClusterChangedEvent {
         // to re-process the same deletes or process deletes about indices it never knew about.  This is not
         // an issue because there are safeguards in place in the delete store operation in case the index
         // folder doesn't exist on the file system.
-        List<IndexGraveyard.Tombstone> tombstones = state.metaData().indexGraveyard().tombstones();
+        List<IndexGraveyard.Tombstone> tombstones = state.metaData().indexGraveyard().getTombstones();
         return tombstones.stream().map(IndexGraveyard.Tombstone::getIndex).collect(Collectors.toList());
     }
 

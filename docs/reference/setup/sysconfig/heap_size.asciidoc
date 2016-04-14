@@ -61,7 +61,7 @@ in the jvm.options file and setting these values via `ES_JAVA_OPTS`:
 [source,sh]
 ------------------
 ES_JAVA_OPTS="-Xms2g -Xmx2g" ./bin/elasticsearch <1>
-ES_JAVA_OPTS="-Xmx4000mb -Xmx4000mb" ./bin/elasticsearch <2>
+ES_JAVA_OPTS="-Xms4000mb -Xmx4000mb" ./bin/elasticsearch <2>
 ------------------
 <1> Set the minimum and maximum heap size to 2 GB.
 <2> Set the minimum and maximum heap size to 4000 MB.

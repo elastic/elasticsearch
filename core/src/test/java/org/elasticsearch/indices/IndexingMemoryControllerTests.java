@@ -181,7 +181,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
 
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "4mb").build());
+                                                       .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), "4mb").build());
         IndexShard shard0 = test.getShard(0);
         controller.simulateIndexing(shard0);
         controller.assertBuffer(shard0, 1);
@@ -214,8 +214,8 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
 
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "5mb")
-                .build());
+                                                       .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), "5mb")
+                                                       .build());
 
         IndexShard shard0 = test.getShard(0);
         controller.simulateIndexing(shard0);
@@ -248,16 +248,16 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
     public void testMinBufferSizes() {
         MockController controller = new MockController(Settings.builder()
-            .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "0.001%")
-            .put(IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
+                                                       .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), "0.001%")
+                                                       .put(IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING.getKey(), "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
     }
 
     public void testMaxBufferSizes() {
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "90%")
-                .put(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
+                                                       .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), "90%")
+                                                       .put(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING.getKey(), "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
     }
@@ -268,7 +268,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
 
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "4mb").build());
+                                                       .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), "4mb").build());
         IndexShard shard0 = test.getShard(0);
         IndexShard shard1 = test.getShard(1);
         IndexShard shard2 = test.getShard(2);
@@ -347,7 +347,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         assertNoFailures(r);
 
         // Make a shell of an IMC to check up on indexing buffer usage:
-        Settings settings = Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
+        Settings settings = Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), "1kb").build();
 
         // TODO: would be cleaner if I could pass this 1kb setting to the single node this test created....
         IndexingMemoryController imc = new IndexingMemoryController(settings, null, null) {
@@ -408,7 +408,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
-        Settings settings = Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "50kb").build();
+        Settings settings = Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), "50kb").build();
         Iterable<IndexShard> iterable = () -> (shardRef.get() == null) ? Collections.<IndexShard>emptyList().iterator()
             : Collections.singleton(shardRef.get()).iterator();
         AtomicInteger flushes = new AtomicInteger();

@@ -39,7 +39,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
             .startObject()
             .field("text", "THIS IS A TEST")
             .field("tokenizer", "keyword")
-            .array("filters", "lowercase")
+            .array("filter", "lowercase")
             .endObject().bytes();
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
@@ -97,6 +97,58 @@ public class RestAnalyzeActionTests extends ESTestCase {
             assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), startsWith("explain must be either 'true' or 'false'"));
         }
+    }
+
+    @Test
+    public void testDeprecatedParams() throws Exception {
+        BytesReference content =  XContentFactory.jsonBuilder()
+            .startObject()
+            .field("text", "THIS IS A TEST")
+            .field("tokenizer", "keyword")
+            .array("filters", "lowercase")
+            .endObject().bytes();
+
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
+
+        RestAnalyzeAction.buildFromContent(content, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
+
+        assertThat(analyzeRequest.text().length, equalTo(1));
+        assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
+        assertThat(analyzeRequest.tokenizer(), equalTo("keyword"));
+        assertThat(analyzeRequest.tokenFilters(), equalTo(new String[]{"lowercase"}));
+
+
+        content =  XContentFactory.jsonBuilder()
+            .startObject()
+            .field("text", "THIS IS A TEST")
+            .field("tokenizer", "keyword")
+            .array("token_filters", "lowercase")
+            .endObject().bytes();
+
+        analyzeRequest = new AnalyzeRequest("for test");
+
+        RestAnalyzeAction.buildFromContent(content, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
+
+        assertThat(analyzeRequest.text().length, equalTo(1));
+        assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
+        assertThat(analyzeRequest.tokenizer(), equalTo("keyword"));
+        assertThat(analyzeRequest.tokenFilters(), equalTo(new String[]{"lowercase"}));
+
+        content =  XContentFactory.jsonBuilder()
+            .startObject()
+            .field("text", "THIS IS A TEST")
+            .field("tokenizer", "keyword")
+            .array("char_filters", "lowercase")
+            .endObject().bytes();
+
+        analyzeRequest = new AnalyzeRequest("for test");
+
+        RestAnalyzeAction.buildFromContent(content, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
+
+        assertThat(analyzeRequest.text().length, equalTo(1));
+        assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
+        assertThat(analyzeRequest.tokenizer(), equalTo("keyword"));
+        assertThat(analyzeRequest.charFilters(), equalTo(new String[]{"lowercase"}));
     }
 
 

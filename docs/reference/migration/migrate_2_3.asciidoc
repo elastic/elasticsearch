@@ -43,3 +43,10 @@ Elasticsearch. Aside from the inherent difficulties in managing such a
 large set of dependencies, this also increases the surface area for
 security issues. This dependency has been reduced to the core Groovy
 language `org.codehaus.groovy:groovy` artifact.
+
+[float]
+=== Analyze API changes
+
+The deprecated `filters`/`token_filters`/`char_filters` parameter has been
+renamed `filter`/`token_filter`/`char_filter`.
+And `filters`/`token_filters`/`char_filters` has been removed in 5.0.0

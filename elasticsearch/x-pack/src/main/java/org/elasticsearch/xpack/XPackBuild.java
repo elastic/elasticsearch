@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield;
+package org.elasticsearch.xpack;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,16 +17,17 @@ import java.util.Properties;
 /**
  *
  */
-public class ShieldBuild {
+public class XPackBuild {
 
-    public static final ShieldBuild CURRENT;
+
+    public static final XPackBuild CURRENT;
 
     static {
         String hash = "NA";
         String hashShort = "NA";
         String timestamp = "NA";
 
-        try (InputStream is = ShieldBuild.class.getResourceAsStream("/shield-build.properties")) {
+        try (InputStream is = XPackBuild.class.getResourceAsStream("/xpack-build.properties")) {
             Properties props = new Properties();
             props.load(is);
             hash = props.getProperty("hash", hash);
@@ -41,14 +42,14 @@ public class ShieldBuild {
             // just ignore...
         }
 
-        CURRENT = new ShieldBuild(hash, hashShort, timestamp);
+        CURRENT = new XPackBuild(hash, hashShort, timestamp);
     }
 
     private String hash;
     private String hashShort;
     private String timestamp;
 
-    ShieldBuild(String hash, String hashShort, String timestamp) {
+    XPackBuild(String hash, String hashShort, String timestamp) {
         this.hash = hash;
         this.hashShort = hashShort;
         this.timestamp = timestamp;
@@ -66,14 +67,14 @@ public class ShieldBuild {
         return timestamp;
     }
 
-    public static ShieldBuild readBuild(StreamInput in) throws IOException {
+    public static XPackBuild readBuild(StreamInput in) throws IOException {
         String hash = in.readString();
         String hashShort = in.readString();
         String timestamp = in.readString();
-        return new ShieldBuild(hash, hashShort, timestamp);
+        return new XPackBuild(hash, hashShort, timestamp);
     }
 
-    public static void writeBuild(ShieldBuild build, StreamOutput out) throws IOException {
+    public static void writeBuild(XPackBuild build, StreamOutput out) throws IOException {
         out.writeString(build.hash());
         out.writeString(build.hashShort());
         out.writeString(build.timestamp());

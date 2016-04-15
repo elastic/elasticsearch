@@ -73,6 +73,7 @@ indices:data/write/index
 indices:data/write/script/delete
 indices:data/write/script/put
 indices:data/write/update
+cluster:monitor/xpack/info
 cluster:monitor/xpack/license/get
 cluster:admin/xpack/license/delete
 cluster:admin/xpack/license/put

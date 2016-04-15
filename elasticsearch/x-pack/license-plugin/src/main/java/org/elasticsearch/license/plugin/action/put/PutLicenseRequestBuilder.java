@@ -14,6 +14,10 @@ import org.elasticsearch.license.core.License;
  */
 public class PutLicenseRequestBuilder extends AcknowledgedRequestBuilder<PutLicenseRequest, PutLicenseResponse, PutLicenseRequestBuilder> {
 
+    public PutLicenseRequestBuilder(ElasticsearchClient client) {
+        this(client, PutLicenseAction.INSTANCE);
+    }
+
     /**
      * Constructs register license request
      *

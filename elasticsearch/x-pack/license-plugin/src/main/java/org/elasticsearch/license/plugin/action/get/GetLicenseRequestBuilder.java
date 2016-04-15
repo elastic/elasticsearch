@@ -11,6 +11,10 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class GetLicenseRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetLicenseRequest, GetLicenseResponse,
         GetLicenseRequestBuilder> {
 
+    public GetLicenseRequestBuilder(ElasticsearchClient client) {
+        this(client, GetLicenseAction.INSTANCE);
+    }
+
     /**
      * Creates new get licenses request builder
      *

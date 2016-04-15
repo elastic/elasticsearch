@@ -1,12 +1,12 @@
 ---
 "Test watcher is protected by shield":
   - do:
-    headers: {es-shield-runas-user: powerless_user}
+    headers: { es-shield-runas-user: powerless_user }
     catch: forbidden
-    watcher.info: {}
+    watcher.stats: {}
   # there seems to be a bug in the yaml parser we use, where a single element list
   # has the END_LIST token skipped...so here we just rerun the same request without
   # the impersonation to show it works
   - do:
-    watcher.info: {}
-  - is_true: version.build_hash
+    watcher.stats: {}
+  - match: { watcher_state: started }

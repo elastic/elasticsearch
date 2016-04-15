@@ -685,6 +685,7 @@ public class License implements ToXContent {
     }
 
     public enum Status {
+
         ACTIVE("active"),
         INVALID("invalid"),
         EXPIRED("expired");
@@ -697,6 +698,24 @@ public class License implements ToXContent {
 
         public String label() {
             return label;
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(label);
+        }
+
+        public static Status readFrom(StreamInput in) throws IOException {
+            String value = in.readString();
+            switch (value) {
+                case "active":
+                    return ACTIVE;
+                case "invalid":
+                    return INVALID;
+                case "expired":
+                    return EXPIRED;
+                default:
+                    throw new IllegalArgumentException("unknown license status [" + value + "]");
+            }
         }
     }
 }

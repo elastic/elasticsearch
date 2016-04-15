@@ -477,7 +477,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     // we try to parse a score function. If there is no score function for the current field name,
                     // getScoreFunction will throw.
                     ScoreFunctionBuilder<?> scoreFunction = scoreFunctionsRegistry
-                            .lookup(currentFieldName, parseContext.parser(), parseContext.getParseFieldMatcher())
+                            .lookup(currentFieldName, parseContext.getParseFieldMatcher(), parser.getTokenLocation())
                             .fromXContent(parseContext);
                     filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));
                 }
@@ -582,8 +582,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                                         "failed to parse function_score functions. already found [{}], now encountering [{}].",
                                         scoreFunction.getName(), currentFieldName);
                             }
-                            scoreFunction = scoreFunctionsRegistry.lookup(currentFieldName, parser, parseContext.getParseFieldMatcher())
-                                    .fromXContent(parseContext);
+                            scoreFunction = scoreFunctionsRegistry.lookup(currentFieldName, parseContext.getParseFieldMatcher(),
+                                    parser.getTokenLocation()).fromXContent(parseContext);
                         }
                     } else if (token.isValue()) {
                         if (parseContext.getParseFieldMatcher().match(currentFieldName, WEIGHT_FIELD)) {

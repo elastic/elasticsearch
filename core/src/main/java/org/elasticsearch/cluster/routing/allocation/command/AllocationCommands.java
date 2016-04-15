@@ -159,7 +159,7 @@ public class AllocationCommands {
                 token = parser.nextToken();
                 String commandName = parser.currentName();
                 token = parser.nextToken();
-                commands.add(registry.lookup(commandName, parser, parseFieldMatcher).fromXContent(parser));
+                commands.add(registry.lookup(commandName, parseFieldMatcher, parser.getTokenLocation()).fromXContent(parser));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got [{}] instead", token);

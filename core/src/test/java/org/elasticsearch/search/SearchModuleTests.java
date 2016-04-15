@@ -99,16 +99,16 @@ public class SearchModuleTests extends ModuleTestCase {
         IndicesQueriesRegistry indicesQueriesRegistry = module.getQueryParserRegistry();
         XContentParser dummyParser = XContentHelper.createParser(new BytesArray("{}"));
         for (String queryName : supportedQueries) {
-            indicesQueriesRegistry.lookup(queryName, dummyParser, ParseFieldMatcher.EMPTY);
+            indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.EMPTY, dummyParser.getTokenLocation());
         }
 
         for (String queryName : NON_DEPRECATED_QUERIES) {
-            QueryParser<?> queryParser = indicesQueriesRegistry.lookup(queryName, dummyParser, ParseFieldMatcher.STRICT);
+            QueryParser<?> queryParser = indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.STRICT, dummyParser.getTokenLocation());
             assertThat(queryParser, notNullValue());
         }
         for (String queryName : DEPRECATED_QUERIES) {
             try {
-                indicesQueriesRegistry.lookup(queryName, dummyParser, ParseFieldMatcher.STRICT);
+                indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.STRICT, dummyParser.getTokenLocation());
                 fail("query is deprecated, getQueryParser should have failed in strict mode");
             } catch(IllegalArgumentException e) {
                 assertThat(e.getMessage(), containsString("Deprecated field [" + queryName + "] used"));

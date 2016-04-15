@@ -145,15 +145,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             .orElse(null);
     }
 
-    public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {
-        RoutingTableValidation validation = validate(metaData);
-        if (!validation.valid()) {
-            throw new RoutingValidationException(validation);
-        }
-        return this;
-    }
-
-    private RoutingTableValidation validate(MetaData metaData) {
+    public RoutingTableValidation validate(MetaData metaData) {
         RoutingTableValidation validation = new RoutingTableValidation();
         for (IndexRoutingTable indexRoutingTable : this) {
             indexRoutingTable.validate(validation, metaData);

@@ -120,7 +120,8 @@ public class AllocationService extends AbstractComponent {
                                                           RoutingExplanations explanations) {
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(newRoutingNodes).build();
         MetaData newMetaData = updateMetaDataWithRoutingTable(oldMetaData, oldRoutingTable, newRoutingTable);
-        return new RoutingAllocation.Result(true, newRoutingTable.validateRaiseException(newMetaData), newMetaData, explanations);
+        assert newRoutingTable.validate(newMetaData).valid();
+        return new RoutingAllocation.Result(true, newRoutingTable, newMetaData, explanations);
     }
 
     /**

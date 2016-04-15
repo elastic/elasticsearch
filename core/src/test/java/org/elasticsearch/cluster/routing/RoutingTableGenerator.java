@@ -42,11 +42,14 @@ public class RoutingTableGenerator {
 
         switch (state) {
             case STARTED:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.STARTED);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
+                                                        null, null, primary, ShardRoutingState.STARTED);
             case INITIALIZING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.INITIALIZING);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
+                                                        null, null, primary, ShardRoutingState.INITIALIZING);
             case RELOCATING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
+                                                        "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING);
             default:
                 throw new ElasticsearchException("Unknown state: " + state.name());
         }
@@ -70,7 +73,8 @@ public class RoutingTableGenerator {
     public IndexRoutingTable genIndexRoutingTable(IndexMetaData indexMetaData, ShardCounter counter) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.getIndex());
         for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
-            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex().getName(), shard, indexMetaData.getNumberOfReplicas(), counter));
+            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex().getName(), shard,
+                                  indexMetaData.getNumberOfReplicas(), counter));
         }
         return builder.build();
     }

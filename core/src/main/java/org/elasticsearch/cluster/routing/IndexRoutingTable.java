@@ -502,7 +502,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             return this;
         }
 
-        public IndexRoutingTable build() throws RoutingValidationException {
+        public IndexRoutingTable build() {
             return new IndexRoutingTable(index, shards.build());
         }
     }

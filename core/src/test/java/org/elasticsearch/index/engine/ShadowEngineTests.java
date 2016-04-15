@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -170,6 +171,7 @@ public class ShadowEngineTests extends ESTestCase {
         Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
         document.add(versionField);
+        document.add(new LongPoint("point_field", 42)); // so that points report memory/disk usage
         return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
     }
 
@@ -300,6 +302,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0L));
         assertThat(stats.getNormsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getPointsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0L));
         assertThat(segments.get(0).isCommitted(), equalTo(false));
         assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -317,6 +320,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(stats.getStoredFieldsMemoryInBytes(), equalTo(0L));
         assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0L));
         assertThat(stats.getNormsMemoryInBytes(), equalTo(0L));
+        assertThat(stats.getPointsMemoryInBytes(), equalTo(0L));
         assertThat(stats.getDocValuesMemoryInBytes(), equalTo(0L));
         assertThat(segments.size(), equalTo(0));
 
@@ -356,6 +360,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(primaryEngine.segmentsStats(false).getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
         assertThat(primaryEngine.segmentsStats(false).getTermVectorsMemoryInBytes(), equalTo(0L));
         assertThat(primaryEngine.segmentsStats(false).getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getPointsMemoryInBytes(), greaterThan(stats.getPointsMemoryInBytes()));
         assertThat(primaryEngine.segmentsStats(false).getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
@@ -380,6 +385,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(replicaEngine.segmentsStats(false).getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
         assertThat(replicaEngine.segmentsStats(false).getTermVectorsMemoryInBytes(), equalTo(0L));
         assertThat(replicaEngine.segmentsStats(false).getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getPointsMemoryInBytes(), greaterThan(stats.getPointsMemoryInBytes()));
         assertThat(replicaEngine.segmentsStats(false).getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));

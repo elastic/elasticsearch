@@ -41,14 +41,9 @@ public class IpRangeParser extends RangeParser {
     }
 
     @Override
-    public String type() {
-        return InternalIPv4Range.TYPE.name();
-    }
-
-    @Override
     protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
         return IPv4RangeAggregatorBuilder.Range.PROTOTYPE.fromXContent(parser, parseFieldMatcher);
-            }
+    }
 
     @Override
     protected IPv4RangeAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
@@ -65,11 +60,5 @@ public class IpRangeParser extends RangeParser {
             factory.keyed(keyed);
         }
         return factory;
-        }
-
-    @Override
-    public IPv4RangeAggregatorBuilder getFactoryPrototypes() {
-        return IPv4RangeAggregatorBuilder.PROTOTYPE;
     }
-
 }

@@ -102,7 +102,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_QUERY_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, INNER_QUERY_FIELD)) {
                     if (queryFound) {
                         throw new ParsingException(parser.getTokenLocation(), "[" + ConstantScoreQueryBuilder.NAME + "]"
                                 + " accepts only one 'filter' element.");
@@ -114,9 +114,9 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
                             "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

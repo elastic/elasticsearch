@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +47,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public static PipelineConfiguration readPipelineConfiguration(StreamInput in) throws IOException {
         return PROTOTYPE.readFrom(in);
     }
-    private final static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
+    private final static ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {
@@ -56,7 +57,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
     }
 
-    public static BiFunction<XContentParser, Void,PipelineConfiguration> getParser() {
+    public static BiFunction<XContentParser, ParseFieldMatcherSupplier, PipelineConfiguration> getParser() {
         return (p, c) -> PARSER.apply(p ,c).build();
     }
     private static class Builder {
@@ -110,6 +111,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         return new PipelineConfiguration(in.readString(), in.readBytesReference());
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);

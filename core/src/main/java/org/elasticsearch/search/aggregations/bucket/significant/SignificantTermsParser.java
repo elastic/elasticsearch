@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -47,7 +46,6 @@ public class SignificantTermsParser extends AbstractTermsParser {
     private final SignificanceHeuristicParserMapper significanceHeuristicParserMapper;
     private final IndicesQueriesRegistry queriesRegistry;
 
-    @Inject
     public SignificantTermsParser(SignificanceHeuristicParserMapper significanceHeuristicParserMapper,
             IndicesQueriesRegistry queriesRegistry) {
         this.significanceHeuristicParserMapper = significanceHeuristicParserMapper;

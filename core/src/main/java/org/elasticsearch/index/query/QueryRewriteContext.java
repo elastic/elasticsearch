@@ -20,6 +20,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -28,7 +30,7 @@ import org.elasticsearch.script.ScriptService;
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
-public class QueryRewriteContext {
+public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final MapperService mapperService;
     protected final ScriptService scriptService;
     protected final IndexSettings indexSettings;
@@ -80,12 +82,21 @@ public class QueryRewriteContext {
         return reader;
     }
 
+    public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
+        this.parseContext.parseFieldMatcher(parseFieldMatcher);
+    }
+
+    @Override
+    public ParseFieldMatcher getParseFieldMatcher() {
+        return parseContext.getParseFieldMatcher();
+    }
+
     /**
      * Returns a new {@link QueryParseContext} to parse template or wrapped queries.
      */
     public QueryParseContext newParseContext() {
         QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
-        queryParseContext.parseFieldMatcher(parseContext.parseFieldMatcher());
+        queryParseContext.parseFieldMatcher(parseContext.getParseFieldMatcher());
         return queryParseContext;
     }
 }

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -37,10 +37,9 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, DiversifiedAggregatorBuilder> {
-
-    public static final Type TYPE = new Type("diversified_sampler");
-
-    static final DiversifiedAggregatorBuilder PROTOTYPE = new DiversifiedAggregatorBuilder("");
+    public static final String NAME = "diversified_sampler";
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+    public static final Type TYPE = new Type(NAME);
 
     public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
 
@@ -50,6 +49,28 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
 
     public DiversifiedAggregatorBuilder(String name) {
         super(name, TYPE, ValuesSourceType.ANY, null);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public DiversifiedAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, TYPE, ValuesSourceType.ANY, null);
+        shardSize = in.readVInt();
+        maxDocsPerValue = in.readVInt();
+        executionHint = in.readOptionalString();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(shardSize);
+        out.writeVInt(maxDocsPerValue);
+        out.writeOptionalString(executionHint);
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     /**
@@ -123,23 +144,6 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
     }
 
     @Override
-    protected DiversifiedAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        DiversifiedAggregatorBuilder factory = new DiversifiedAggregatorBuilder(name);
-        factory.shardSize = in.readVInt();
-        factory.maxDocsPerValue = in.readVInt();
-        factory.executionHint = in.readOptionalString();
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(shardSize);
-        out.writeVInt(maxDocsPerValue);
-        out.writeOptionalString(executionHint);
-    }
-
-    @Override
     protected int innerHashCode() {
         return Objects.hash(shardSize, maxDocsPerValue, executionHint);
     }
@@ -150,5 +154,10 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
         return Objects.equals(shardSize, other.shardSize)
                 && Objects.equals(maxDocsPerValue, other.maxDocsPerValue)
                 && Objects.equals(executionHint, other.executionHint);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

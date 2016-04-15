@@ -124,7 +124,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
-        if (! parseContext.parseFieldMatcher().match(fieldName, QUERY_FIELD)) {
+        if (! parseContext.getParseFieldMatcher().match(fieldName, QUERY_FIELD)) {
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was" + fieldName);
         }
         parser.nextToken();

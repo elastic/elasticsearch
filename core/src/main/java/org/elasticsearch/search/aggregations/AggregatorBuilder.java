@@ -191,6 +191,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
     @Override
     public String getWriteableName() {
         // NORELEASE remove this before 5.0.0GA - all builders will implement this method on their own.
+        assert usesNewStyleSerialization() == false: "migrated aggregations should just return their NAME";
         return type.stream().toUtf8();
     }
 

@@ -157,15 +157,15 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     innerQuery = parseContext.parseInnerQueryBuilder();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
                     noMatchQuery = parseContext.parseInnerQueryBuilder();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, INDICES_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, INDICES_FIELD)) {
                     if (indices.isEmpty() == false) {
                         throw new ParsingException(parser.getTokenLocation(), "[indices] indices or index already specified");
                     }
@@ -180,16 +180,16 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, INDEX_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, INDEX_FIELD)) {
                     if (indices.isEmpty() == false) {
                         throw new ParsingException(parser.getTokenLocation(), "[indices] indices or index already specified");
                     }
                     indices.add(parser.text());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
                     noMatchQuery = parseNoMatchQuery(parser.text());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");

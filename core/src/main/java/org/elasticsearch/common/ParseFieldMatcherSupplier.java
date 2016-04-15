@@ -17,17 +17,20 @@
  * under the License.
  */
 
-task buildTar(type: Tar) {
-  baseName = 'elasticsearch'
-  extension = 'tar.gz'
-  with archivesFiles
-  compression = Compression.GZIP
-}
+package org.elasticsearch.common;
 
-artifacts {
-  'default' buildTar
-  project.afterEvaluate {
-    // gradle is broken for extensions that contain a dot, so we must be explicit about the name of the .asc file
-    project.signArchives.singleSignature.type = 'tar.gz.asc'
-  }
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+
+/**
+ * This interface should be implemented by classes like {@link QueryParseContext} or {@link QueryShardContext} that
+ * are able to carry a {@link ParseFieldMatcher}.
+ */
+@FunctionalInterface
+public interface ParseFieldMatcherSupplier {
+
+    /**
+     * @return the parseFieldMatcher
+     */
+    ParseFieldMatcher getParseFieldMatcher();
 }

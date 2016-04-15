@@ -122,7 +122,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public static TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        Template template = parse(parser, parseContext.parseFieldMatcher());
+        Template template = parse(parser, parseContext.getParseFieldMatcher());
         return new TemplateQueryBuilder(template);
     }
 

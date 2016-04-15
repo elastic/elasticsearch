@@ -23,6 +23,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -48,7 +49,8 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
      *     "max_determinized_states" : INT
      * }
      */
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(), Builder::new);
+    private static ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(REGEX_OPTIONS.getPreferredName(),
+            Builder::new);
     static {
         PARSER.declareInt(Builder::setMaxDeterminizedStates, MAX_DETERMINIZED_STATES);
         PARSER.declareField((parser, builder, aVoid) -> {
@@ -105,8 +107,8 @@ public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
         return new Builder();
     }
 
-    static RegexOptions parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser).build();
+    static RegexOptions parse(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
+        return PARSER.parse(parser, context).build();
     }
 
     @Override

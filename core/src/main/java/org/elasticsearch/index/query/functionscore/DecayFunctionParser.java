@@ -112,7 +112,7 @@ public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> im
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.copyCurrentStructure(parser);
                 functionBytes = builder.bytes();
-            } else if (context.parseFieldMatcher().match(currentFieldName, MULTI_VALUE_MODE)) {
+            } else if (context.getParseFieldMatcher().match(currentFieldName, MULTI_VALUE_MODE)) {
                 multiValueMode = MultiValueMode.fromString(parser.text());
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "malformed score function score parameters.");

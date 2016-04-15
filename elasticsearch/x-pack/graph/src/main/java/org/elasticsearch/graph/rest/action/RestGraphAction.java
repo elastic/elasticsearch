@@ -5,6 +5,15 @@
  */
 package org.elasticsearch.graph.rest.action;
 
+import static org.elasticsearch.graph.action.GraphExploreAction.INSTANCE;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -17,10 +26,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.graph.action.GraphExploreRequest;
+import org.elasticsearch.graph.action.GraphExploreRequest.TermBoost;
 import org.elasticsearch.graph.action.GraphExploreResponse;
 import org.elasticsearch.graph.action.Hop;
 import org.elasticsearch.graph.action.VertexRequest;
-import org.elasticsearch.graph.action.GraphExploreRequest.TermBoost;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -29,15 +38,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-
-import static org.elasticsearch.graph.action.GraphExploreAction.INSTANCE;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * @see GraphExploreRequest
@@ -85,14 +85,12 @@ public class RestGraphAction extends BaseRestHandler {
         if (!RestActions.hasBodyContent(request)) {
             throw new ElasticsearchParseException("Body missing for graph request");
         }
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         BytesReference qBytes = RestActions.getRestContent(request);
 
         Hop currentHop = graphRequest.createNextHop(null);
 
         try(XContentParser parser = XContentFactory.xContent(qBytes).createParser(qBytes)) {
-            
-            context.parser(parser);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
 
             XContentParser.Token token = parser.nextToken();
 
@@ -107,7 +105,7 @@ public class RestGraphAction extends BaseRestHandler {
         client.execute(INSTANCE, graphRequest, new RestToXContentListener<GraphExploreResponse>(channel));
     }
 
-    private void parseHop(XContentParser parser, QueryParseContext context, Hop currentHop, 
+    private void parseHop(XContentParser parser, QueryParseContext context, Hop currentHop,
             GraphExploreRequest graphRequest) throws IOException {
         String fieldName = null;
         XContentParser.Token token;
@@ -198,7 +196,7 @@ public class RestGraphAction extends BaseRestHandler {
                                                 }
                                             } else {
                                                 throw new ElasticsearchParseException(
-                                                        "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() + 
+                                                        "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() +
                                                         " clause has invalid property type:"+ token.name());
 
                                             }
@@ -206,7 +204,7 @@ public class RestGraphAction extends BaseRestHandler {
                                     }
                                     if (includeTerm == null) {
                                         throw new ElasticsearchParseException(
-                                                "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() + 
+                                                "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() +
                                                 " clause has missing object property for term");
                                     }
                                     includes.put(includeTerm, new TermBoost(includeTerm, boost));
@@ -215,7 +213,7 @@ public class RestGraphAction extends BaseRestHandler {
                                     includes.put(term, new TermBoost(term, 1f));
                                 } else {
                                     throw new ElasticsearchParseException(
-                                            "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() + 
+                                            "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() +
                                             " clauses must be string terms or Objects with terms and boosts, not"
                                                     + token.name());
                                 }

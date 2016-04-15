@@ -101,6 +101,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         if (maxRetries != null) {
             // If not explicitly set, default to 3 with exponential backoff policy
             clientConfiguration.setMaxErrorRetry(maxRetries);
+            clientConfiguration.setUseThrottleRetries(AwsS3Service.CLOUD_S3.THROTTLE_RETRIES_SETTING.get(settings));
         }
 
         // #155: we might have 3rd party users using older S3 API version

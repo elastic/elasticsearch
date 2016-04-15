@@ -112,6 +112,7 @@ public class S3RepositoryPlugin extends Plugin {
         settingsModule.registerSetting(AwsS3Service.CLOUD_S3.SIGNER_SETTING);
         settingsModule.registerSetting(AwsS3Service.CLOUD_S3.REGION_SETTING);
         settingsModule.registerSetting(AwsS3Service.CLOUD_S3.ENDPOINT_SETTING);
+        settingsModule.registerSetting(AwsS3Service.CLOUD_S3.THROTTLE_RETRIES_SETTING);
 
         // Register S3 repositories settings: repositories.s3
         settingsModule.registerSetting(S3Repository.Repositories.KEY_SETTING);

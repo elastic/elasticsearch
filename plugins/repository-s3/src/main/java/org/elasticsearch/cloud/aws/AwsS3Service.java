@@ -151,6 +151,10 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
          * cloud.aws.s3.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
          */
         Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.s3.endpoint", Property.NodeScope);
+        /**
+         * cloud.aws.s3.throttle_retries: Set to `true` if you want to throttle retries. Defaults to `true`.
+         */
+        Setting<Boolean> THROTTLE_RETRIES_SETTING = Setting.boolSetting("cloud.aws.s3.throttle_retries", true, Property.NodeScope);
     }
 
     AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries);

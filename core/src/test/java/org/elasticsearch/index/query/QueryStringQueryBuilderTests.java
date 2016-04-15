@@ -21,6 +21,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.MapperQueryParser;
+import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -32,13 +34,18 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -298,32 +305,70 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertTermOrBoostQuery(disjuncts.get(1), STRING_FIELD_NAME_2, "test", 1.0f);
     }
 
-    public void testToQueryPrefixQuery() throws Exception {
+    public void testToQueryWildcarQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         for (Operator op : Operator.values()) {
-            Query query = queryStringQuery("foo-bar-foobar*")
-                .defaultField(STRING_FIELD_NAME)
-                .analyzeWildcard(true)
-                .analyzer("standard")
-                .defaultOperator(op)
-                .toQuery(createShardContext());
-            assertThat(query, instanceOf(BooleanQuery.class));
-            BooleanQuery bq = (BooleanQuery) query;
-            assertThat(bq.clauses().size(), equalTo(3));
-            String[] expectedTerms = new String[]{"foo", "bar", "foobar"};
-            for (int i = 0; i < bq.clauses().size(); i++) {
-                BooleanClause clause = bq.clauses().get(i);
-                if (i != bq.clauses().size() - 1) {
-                    assertTermQuery(clause.getQuery(), STRING_FIELD_NAME, expectedTerms[i]);
-                } else {
-                    assertPrefixQuery(clause.getQuery(), STRING_FIELD_NAME, expectedTerms[i]);
-                }
-                if (op == Operator.AND) {
-                    assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
-                } else {
-                    assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-                }
-            }
+            BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
+            MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
+            QueryParserSettings settings = new QueryParserSettings("first foo-bar-foobar* last");
+            settings.defaultField(STRING_FIELD_NAME);
+            settings.fieldsAndWeights(Collections.emptyMap());
+            settings.analyzeWildcard(true);
+            settings.fuzziness(Fuzziness.AUTO);
+            settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            settings.defaultOperator(op.toQueryParserOperator());
+            queryParser.reset(settings);
+            Query query = queryParser.parse("first foo-bar-foobar* last");
+            Query expectedQuery =
+                new BooleanQuery.Builder()
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "first")), defaultOp))
+                    .add(new BooleanQuery.Builder()
+                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "foo")), defaultOp))
+                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "bar")), defaultOp))
+                        .add(new BooleanClause(new PrefixQuery(new Term(STRING_FIELD_NAME, "foobar")), defaultOp))
+                        .build(), defaultOp)
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "last")), defaultOp))
+                    .build();
+            assertThat(query, Matchers.equalTo(expectedQuery));
+        }
+    }
+
+    public void testToQueryWilcardQueryWithSynonyms() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        for (Operator op : Operator.values()) {
+            BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
+            MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
+            QueryParserSettings settings = new QueryParserSettings("first foo-bar-foobar* last");
+            settings.defaultField(STRING_FIELD_NAME);
+            settings.fieldsAndWeights(Collections.emptyMap());
+            settings.analyzeWildcard(true);
+            settings.fuzziness(Fuzziness.AUTO);
+            settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            settings.defaultOperator(op.toQueryParserOperator());
+            settings.forceAnalyzer(new MockRepeatAnalyzer());
+            queryParser.reset(settings);
+            Query query = queryParser.parse("first foo-bar-foobar* last");
+
+            Query expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "first"),
+                    new Term(STRING_FIELD_NAME, "first")), defaultOp))
+                .add(new BooleanQuery.Builder()
+                    .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "foo"),
+                        new Term(STRING_FIELD_NAME, "foo")), defaultOp))
+                    .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "bar"),
+                        new Term(STRING_FIELD_NAME, "bar")), defaultOp))
+                    .add(new BooleanQuery.Builder()
+                        .add(new BooleanClause(new PrefixQuery(new Term(STRING_FIELD_NAME, "foobar")),
+                            BooleanClause.Occur.SHOULD))
+                        .add(new BooleanClause(new PrefixQuery(new Term(STRING_FIELD_NAME, "foobar")),
+                            BooleanClause.Occur.SHOULD))
+                        .setDisableCoord(true)
+                        .build(), defaultOp)
+                    .build(), defaultOp)
+                .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "last"),
+                    new Term(STRING_FIELD_NAME, "last")), defaultOp))
+                .build();
+            assertThat(query, Matchers.equalTo(expectedQuery));
         }
     }
 

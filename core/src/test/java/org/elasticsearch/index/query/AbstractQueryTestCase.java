@@ -645,13 +645,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(value.toLowerCase(Locale.ROOT)));
     }
 
-    protected static void assertPrefixQuery(Query query, String field, String value) {
-        assertThat(query, instanceOf(PrefixQuery.class));
-        PrefixQuery prefixQuery = (PrefixQuery) query;
-        assertThat(prefixQuery.getPrefix().field(), equalTo(field));
-        assertThat(prefixQuery.getPrefix().text(), equalTo(value));
-    }
-
     /**
      * Test serialization and deserialization of the test query.
      */

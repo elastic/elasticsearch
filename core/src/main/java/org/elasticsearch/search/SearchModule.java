@@ -167,8 +167,10 @@ import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggr
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidParser;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksParser;
@@ -181,10 +183,13 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.Interna
 import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
+import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsParser;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.sum.SumAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregatorBuilder;
@@ -457,11 +462,12 @@ public class SearchModule extends AbstractModule {
         SignificanceHeuristicParserMapper significanceHeuristicParserMapper = new SignificanceHeuristicParserMapper(heuristicParsers);
 
         registerAggregation(AvgAggregatorBuilder::new, new AvgParser(), AvgAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregatorParser(new SumParser());
-        registerAggregatorParser(new MinParser());
-        registerAggregatorParser(new MaxParser());
-        registerAggregatorParser(new StatsParser());
-        registerAggregatorParser(new ExtendedStatsParser());
+        registerAggregation(SumAggregatorBuilder::new, new SumParser(), SumAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MinAggregatorBuilder::new, new MinParser(), MinAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MaxAggregatorBuilder::new, new MaxParser(), MaxAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(StatsAggregatorBuilder::new, new StatsParser(), StatsAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(ExtendedStatsAggregatorBuilder::new, new ExtendedStatsParser(),
+        ExtendedStatsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(ValueCountAggregatorBuilder::new, new ValueCountParser(), ValueCountAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(PercentilesAggregatorBuilder::new, new PercentilesParser(),
                 PercentilesAggregatorBuilder.AGGREGATION_NAME_FIELD);

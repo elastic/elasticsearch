@@ -19,28 +19,40 @@
 
 package org.elasticsearch.search.aggregations.metrics.stats;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 import java.io.IOException;
 
 public class StatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, StatsAggregatorBuilder> {
-
-    static final StatsAggregatorBuilder PROTOTYPE = new StatsAggregatorBuilder("");
+    public static final String NAME = InternalStats.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public StatsAggregatorBuilder(String name) {
         super(name, InternalStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public StatsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) {
+        // Do nothing, no extra state to write to stream
     }
 
     @Override
@@ -50,14 +62,8 @@ public class StatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOn
     }
 
     @Override
-    protected StatsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) {
-        return new StatsAggregatorBuilder(name);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     @Override
@@ -73,5 +79,10 @@ public class StatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOn
     @Override
     protected boolean innerEquals(Object obj) {
         return true;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

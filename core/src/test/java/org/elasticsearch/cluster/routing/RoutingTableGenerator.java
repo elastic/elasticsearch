@@ -16,19 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.health;
+package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.index.shard.ShardId;
 
-class RoutingTableGenerator {
+public class RoutingTableGenerator {
     private static int node_id = 1;
 
     private ShardRouting genShardRouting(String index, int shardId, boolean primary) {
@@ -46,11 +42,14 @@ class RoutingTableGenerator {
 
         switch (state) {
             case STARTED:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.STARTED);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
+                                                        null, null, primary, ShardRoutingState.STARTED);
             case INITIALIZING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), null, null, primary, ShardRoutingState.INITIALIZING);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
+                                                        null, null, primary, ShardRoutingState.INITIALIZING);
             case RELOCATING:
-                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++), "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING);
+                return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
+                                                        "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING);
             default:
                 throw new ElasticsearchException("Unknown state: " + state.name());
         }
@@ -74,12 +73,13 @@ class RoutingTableGenerator {
     public IndexRoutingTable genIndexRoutingTable(IndexMetaData indexMetaData, ShardCounter counter) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.getIndex());
         for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
-            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex().getName(), shard, indexMetaData.getNumberOfReplicas(), counter));
+            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex().getName(), shard,
+                                  indexMetaData.getNumberOfReplicas(), counter));
         }
         return builder.build();
     }
 
-    static class ShardCounter {
+    public static class ShardCounter {
         public int active;
         public int relocating;
         public int initializing;

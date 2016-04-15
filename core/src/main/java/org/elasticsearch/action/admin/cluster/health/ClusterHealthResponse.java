@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -81,14 +79,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     ClusterStateHealth getClusterStateHealth() {
         return clusterStateHealth;
     }
-
-    /**
-     * The validation failures on the cluster level (without index validation failures).
-     */
-    public List<String> getValidationFailures() {
-        return clusterStateHealth.getValidationFailures();
-    }
-
 
     public int getActiveShards() {
         return clusterStateHealth.getActiveShards();
@@ -250,7 +240,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         static final String RELOCATING_SHARDS = "relocating_shards";
         static final String INITIALIZING_SHARDS = "initializing_shards";
         static final String UNASSIGNED_SHARDS = "unassigned_shards";
-        static final String VALIDATION_FAILURES = "validation_failures";
         static final String INDICES = "indices";
     }
 
@@ -274,32 +263,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
         String level = params.param("level", "cluster");
         boolean outputIndices = "indices".equals(level) || "shards".equals(level);
-
-
-        if (!getValidationFailures().isEmpty()) {
-            builder.startArray(Fields.VALIDATION_FAILURES);
-            for (String validationFailure : getValidationFailures()) {
-                builder.value(validationFailure);
-            }
-            // if we don't print index level information, still print the index validation failures
-            // so we know why the status is red
-            if (!outputIndices) {
-                for (ClusterIndexHealth indexHealth : clusterStateHealth.getIndices().values()) {
-                    builder.startObject(indexHealth.getIndex());
-
-                    if (!indexHealth.getValidationFailures().isEmpty()) {
-                        builder.startArray(Fields.VALIDATION_FAILURES);
-                        for (String validationFailure : indexHealth.getValidationFailures()) {
-                            builder.value(validationFailure);
-                        }
-                        builder.endArray();
-                    }
-
-                    builder.endObject();
-                }
-            }
-            builder.endArray();
-        }
 
         if (outputIndices) {
             builder.startObject(Fields.INDICES);

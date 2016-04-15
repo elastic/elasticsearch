@@ -29,10 +29,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -60,8 +58,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
 
     private final Map<Integer, ClusterShardHealth> shards = new HashMap<>();
 
-    private List<String> validationFailures;
-
     private ClusterIndexHealth() {
     }
 
@@ -69,7 +65,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
         this.index = indexMetaData.getIndex().getName();
         this.numberOfShards = indexMetaData.getNumberOfShards();
         this.numberOfReplicas = indexMetaData.getNumberOfReplicas();
-        this.validationFailures = indexRoutingTable.validate(indexMetaData);
 
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
             int shardId = shardRoutingTable.shardId().id();
@@ -95,19 +90,13 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
                 status = ClusterHealthStatus.YELLOW;
             }
         }
-        if (!validationFailures.isEmpty()) {
-            status = ClusterHealthStatus.RED;
-        } else if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
+        if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
             status = ClusterHealthStatus.RED;
         }
     }
 
     public String getIndex() {
         return index;
-    }
-
-    public List<String> getValidationFailures() {
-        return this.validationFailures;
     }
 
     public int getNumberOfShards() {
@@ -174,7 +163,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
             ClusterShardHealth shardHealth = readClusterShardHealth(in);
             shards.put(shardHealth.getId(), shardHealth);
         }
-        validationFailures = Arrays.asList(in.readStringArray());
     }
 
     @Override
@@ -193,11 +181,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
         for (ClusterShardHealth shardHealth : this) {
             shardHealth.writeTo(out);
         }
-
-        out.writeVInt(validationFailures.size());
-        for (String failure : validationFailures) {
-            out.writeString(failure);
-        }
     }
 
     static final class Fields {
@@ -209,7 +192,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
         static final String RELOCATING_SHARDS = "relocating_shards";
         static final String INITIALIZING_SHARDS = "initializing_shards";
         static final String UNASSIGNED_SHARDS = "unassigned_shards";
-        static final String VALIDATION_FAILURES = "validation_failures";
         static final String SHARDS = "shards";
         static final String PRIMARY_ACTIVE = "primary_active";
     }
@@ -224,14 +206,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
         builder.field(Fields.RELOCATING_SHARDS, getRelocatingShards());
         builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
         builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
-
-        if (!getValidationFailures().isEmpty()) {
-            builder.startArray(Fields.VALIDATION_FAILURES);
-            for (String validationFailure : getValidationFailures()) {
-                builder.value(validationFailure);
-            }
-            builder.endArray();
-        }
 
         if ("shards".equals(params.param("level", "indices"))) {
             builder.startObject(Fields.SHARDS);

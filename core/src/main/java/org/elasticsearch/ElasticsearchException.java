@@ -596,8 +596,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.common.util.concurrent.EsRejectedExecutionException::new, 59),
         EARLY_TERMINATION_EXCEPTION(org.elasticsearch.common.lucene.Lucene.EarlyTerminationException.class,
                 org.elasticsearch.common.lucene.Lucene.EarlyTerminationException::new, 60),
-        ROUTING_VALIDATION_EXCEPTION(org.elasticsearch.cluster.routing.RoutingValidationException.class,
-                org.elasticsearch.cluster.routing.RoutingValidationException::new, 61),
+        // 61 used to be for RoutingValidationException
         NOT_SERIALIZABLE_EXCEPTION_WRAPPER(org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class,
                 org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper::new, 62),
         ALIAS_FILTER_PARSING_EXCEPTION(org.elasticsearch.indices.AliasFilterParsingException.class,

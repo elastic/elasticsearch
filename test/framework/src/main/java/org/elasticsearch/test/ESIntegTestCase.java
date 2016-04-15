@@ -1479,16 +1479,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
         int numDataNodes() default -1;
 
         /**
-         * Returns the minimum number of nodes in the cluster. Default is <tt>-1</tt>.
+         * Returns the minimum number of data nodes in the cluster. Default is <tt>-1</tt>.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int minNumDataNodes() default -1;
 
         /**
-         * Returns the maximum number of nodes in the cluster.  Default is <tt>-1</tt>.
+         * Returns the maximum number of data nodes in the cluster.  Default is <tt>-1</tt>.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int maxNumDataNodes() default -1;
+
+        /**
+         * Returns the number of master nodes in the cluster. <tt>0</tt> means data nodes will sever as master nodes
+         * and there will be no dedicated master (and data) nodes. Default is <tt>-1</tt> which means
+         * a random number of nodes is used, potentially 0 (meaning data nodes will assume master role)
+         */
+        int numMasterNodes() default -1;
 
         /**
          * Returns the number of client nodes in the cluster. Default is {@link InternalTestCluster#DEFAULT_NUM_CLIENT_NODES}, a
@@ -1572,7 +1579,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return getAnnotation(clazz.getSuperclass(), annotationClass);
     }
 
-
     private Scope getCurrentClusterScope() {
         return getCurrentClusterScope(this.getClass());
     }
@@ -1581,6 +1587,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         ClusterScope annotation = getAnnotation(clazz, ClusterScope.class);
         // if we are not annotated assume suite!
         return annotation == null ? Scope.SUITE : annotation.scope();
+    }
+
+    private int getNumMasterNodes() {
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
+        return annotation == null ? -1 : annotation.numMasterNodes();
     }
 
     private int getNumDataNodes() {
@@ -1718,6 +1729,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         };
 
+        int numMasterNodes = getNumMasterNodes();
         int numDataNodes = getNumDataNodes();
         int minNumDataNodes;
         int maxNumDataNodes;
@@ -1740,7 +1752,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         Collection<Class<? extends Plugin>> mockPlugins = getMockPlugins();
 
-        return new InternalTestCluster(nodeMode, seed, createTempDir(), -1, minNumDataNodes, maxNumDataNodes,
+        return new InternalTestCluster(nodeMode, seed, createTempDir(), numMasterNodes, minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
     }

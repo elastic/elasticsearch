@@ -57,10 +57,18 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         }
 
         /**
-         * Read from a stream.
+         * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
          */
         protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
             super(in, type, valuesSourceType, targetValueType);
+        }
+
+        /**
+         * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
+         * {@link #serializeTargetValueType()} to return true.
+         */
+        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
+            super(in, type, valuesSourceType);
         }
 
         @Override

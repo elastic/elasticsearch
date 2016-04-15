@@ -35,11 +35,6 @@ public class MissingParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalMissing.TYPE.name();
-    }
-
-    @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
@@ -49,10 +44,5 @@ public class MissingParser extends AnyValuesSourceParser {
     protected MissingAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new MissingAggregatorBuilder(aggregationName, targetValueType);
-    }
-
-    @Override
-    public MissingAggregatorBuilder getFactoryPrototypes() {
-        return MissingAggregatorBuilder.PROTOTYPE;
     }
 }

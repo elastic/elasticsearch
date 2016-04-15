@@ -53,8 +53,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
         public static final ParseField TEXT = new ParseField("text");
         public static final ParseField FIELD = new ParseField("field");
         public static final ParseField TOKENIZER = new ParseField("tokenizer");
-        public static final ParseField TOKEN_FILTERS = new ParseField("token_filters", "filters");
-        public static final ParseField CHAR_FILTERS = new ParseField("char_filters");
+        public static final ParseField TOKEN_FILTERS = new ParseField("filter", "token_filter", "token_filters", "filters");
+        public static final ParseField CHAR_FILTERS = new ParseField("char_filter", "char_filters");
         public static final ParseField EXPLAIN = new ParseField("explain");
         public static final ParseField ATTRIBUTES = new ParseField("attributes");
     }
@@ -78,8 +78,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));
         analyzeRequest.tokenizer(request.param("tokenizer"));
-        analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", analyzeRequest.tokenFilters())));
-        analyzeRequest.charFilters(request.paramAsStringArray("char_filters", analyzeRequest.charFilters()));
+        analyzeRequest.tokenFilters(request.paramAsStringArray("filter", request.paramAsStringArray("token_filter",
+            request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", analyzeRequest.tokenFilters())))));
+        analyzeRequest.charFilters(request.paramAsStringArray("char_filter", request.paramAsStringArray("char_filters", analyzeRequest.charFilters())));
         analyzeRequest.explain(request.paramAsBoolean("explain", false));
         analyzeRequest.attributes(request.paramAsStringArray("attributes", analyzeRequest.attributes()));
 

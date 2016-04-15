@@ -15,10 +15,6 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.watcher.Watcher;
 
-import static org.elasticsearch.license.core.License.OperationMode.TRIAL;
-import static org.elasticsearch.license.core.License.OperationMode.GOLD;
-import static org.elasticsearch.license.core.License.OperationMode.PLATINUM;
-
 public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> {
 
     public static final String ID = Watcher.NAME;
@@ -74,7 +70,6 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
      * <ul>
      * <li>{@link OperationMode#PLATINUM}</li>
      * <li>{@link OperationMode#GOLD}</li>
-     * <li>{@link OperationMode#STANDARD}</li>
      * <li>{@link OperationMode#TRIAL}</li>
      * </ul>
      *
@@ -84,6 +79,7 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
         // status is volatile, so a local variable is used for a consistent view
         Status localStatus = status;
 
-        return localStatus.getLicenseState() != LicenseState.DISABLED && localStatus.getMode() != OperationMode.BASIC;
+        return localStatus.getLicenseState() != LicenseState.DISABLED && (localStatus.getMode() == OperationMode.TRIAL ||
+                localStatus.getMode() == OperationMode.GOLD || localStatus.getMode() == OperationMode.PLATINUM);
     }
 }

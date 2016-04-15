@@ -140,13 +140,13 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, PREFIX_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, PREFIX_FIELD)) {
                             value = parser.textOrNull();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                             rewrite = parser.textOrNull();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -176,7 +176,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), rewrite, null);
 
         Query query = null;
         MappedFieldType fieldType = context.fieldMapper(fieldName);

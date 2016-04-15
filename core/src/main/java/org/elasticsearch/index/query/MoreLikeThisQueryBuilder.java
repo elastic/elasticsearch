@@ -841,33 +841,33 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, Field.LIKE)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.LIKE)) {
                     parseLikeField(parseContext, likeTexts, likeItems);
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
                     parseLikeField(parseContext, unlikeTexts, unlikeItems);
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.LIKE_TEXT)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.LIKE_TEXT)) {
                     likeTexts.add(parser.text());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MAX_QUERY_TERMS)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MAX_QUERY_TERMS)) {
                     maxQueryTerms = parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MIN_TERM_FREQ)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MIN_TERM_FREQ)) {
                     minTermFreq =parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MIN_DOC_FREQ)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MIN_DOC_FREQ)) {
                     minDocFreq = parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MAX_DOC_FREQ)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MAX_DOC_FREQ)) {
                     maxDocFreq = parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MIN_WORD_LENGTH)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MIN_WORD_LENGTH)) {
                     minWordLength = parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MAX_WORD_LENGTH)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MAX_WORD_LENGTH)) {
                     maxWordLength = parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.ANALYZER)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.ANALYZER)) {
                     analyzer = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MINIMUM_SHOULD_MATCH)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MINIMUM_SHOULD_MATCH)) {
                     minimumShouldMatch = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.BOOST_TERMS)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.BOOST_TERMS)) {
                     boostTerms = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.INCLUDE)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.INCLUDE)) {
                     include = parser.booleanValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.FAIL_ON_UNSUPPORTED_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.FAIL_ON_UNSUPPORTED_FIELD)) {
                     failOnUnsupportedField = parser.booleanValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
@@ -877,34 +877,34 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, Field.FIELDS)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.FIELDS)) {
                     fields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         fields.add(parser.text());
                     }
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.LIKE)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.LIKE)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         parseLikeField(parseContext, likeTexts, likeItems);
                     }
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         parseLikeField(parseContext, unlikeTexts, unlikeItems);
                     }
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.IDS)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.IDS)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (!token.isValue()) {
                             throw new IllegalArgumentException("ids array element should only contain ids");
                         }
                         likeItems.add(new Item(null, null, parser.text()));
                     }
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.DOCS)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.DOCS)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token != XContentParser.Token.START_OBJECT) {
                             throw new IllegalArgumentException("docs array element should include an object");
                         }
-                        likeItems.add(Item.parse(parser, parseContext.parseFieldMatcher(), new Item()));
+                        likeItems.add(Item.parse(parser, parseContext.getParseFieldMatcher(), new Item()));
                     }
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.STOP_WORDS)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.STOP_WORDS)) {
                     stopWords = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         stopWords.add(parser.text());
@@ -913,9 +913,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, Field.LIKE)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.LIKE)) {
                     parseLikeField(parseContext, likeTexts, likeItems);
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
                     parseLikeField(parseContext, unlikeTexts, unlikeItems);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
@@ -963,7 +963,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         if (parser.currentToken().isValue()) {
             texts.add(parser.text());
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            items.add(Item.parse(parser, parseContext.parseFieldMatcher(), new Item()));
+            items.add(Item.parse(parser, parseContext.getParseFieldMatcher(), new Item()));
         } else {
             throw new IllegalArgumentException("Content of 'like' parameter should either be a string or an object");
         }

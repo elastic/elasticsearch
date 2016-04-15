@@ -19,6 +19,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline.derivative;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,20 +39,14 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuilder<DerivativePipelineAggregatorBuilder> {
     public static final String NAME = DerivativePipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
-    
+
     private static final ParseField FORMAT_FIELD = new ParseField("format");
     private static final ParseField GAP_POLICY_FIELD = new ParseField("gap_policy");
     private static final ParseField UNIT_FIELD = new ParseField("unit");
@@ -204,20 +204,20 @@ public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuild
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (context.parseFieldMatcher().match(currentFieldName, FORMAT_FIELD)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, FORMAT_FIELD)) {
                     format = parser.text();
-                } else if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH_FIELD)) {
                     bucketsPaths = new String[] { parser.text() };
-                } else if (context.parseFieldMatcher().match(currentFieldName, GAP_POLICY_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY_FIELD)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
-                } else if (context.parseFieldMatcher().match(currentFieldName, UNIT_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, UNIT_FIELD)) {
                     units = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH_FIELD)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH_FIELD)) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();

@@ -46,7 +46,7 @@ public class NestedParser implements Aggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (context.parseFieldMatcher().match(currentFieldName, NestedAggregator.PATH_FIELD)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, NestedAggregator.PATH_FIELD)) {
                     path = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

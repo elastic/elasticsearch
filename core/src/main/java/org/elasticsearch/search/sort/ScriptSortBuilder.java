@@ -231,7 +231,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         XContentParser parser = context.parser();
-        ParseFieldMatcher parseField = context.parseFieldMatcher();
+        ParseFieldMatcher parseField = context.getParseFieldMatcher();
         Script script = null;
         ScriptSortType type = null;
         SortMode sortMode = null;

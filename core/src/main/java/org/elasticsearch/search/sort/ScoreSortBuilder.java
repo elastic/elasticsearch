@@ -84,7 +84,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
      */
     public static ScoreSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         XContentParser parser = context.parser();
-        ParseFieldMatcher matcher = context.parseFieldMatcher();
+        ParseFieldMatcher matcher = context.getParseFieldMatcher();
 
         XContentParser.Token token;
         String currentName = parser.currentName();

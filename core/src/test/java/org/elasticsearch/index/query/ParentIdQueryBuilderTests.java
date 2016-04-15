@@ -47,7 +47,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        MapperService mapperService = queryShardContext().getMapperService();
+        MapperService mapperService = createShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
             STRING_FIELD_NAME, "type=text",
             INT_FIELD_NAME, "type=integer",
@@ -69,9 +69,9 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected void setSearchContext(String[] types) {
-        final MapperService mapperService = queryShardContext().getMapperService();
+        final MapperService mapperService = createShardContext().getMapperService();
         final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext()) {
+        TestSearchContext testSearchContext = new TestSearchContext(createShardContext()) {
 
             @Override
             public MapperService mapperService() {
@@ -129,13 +129,13 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     public void testIgnoreUnmapped() throws IOException {
         final ParentIdQueryBuilder queryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        Query query = queryBuilder.toQuery(createShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final ParentIdQueryBuilder failingQueryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("[" + ParentIdQueryBuilder.NAME + "] no mapping found for type [unmapped]"));
     }
 

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
-
 import com.vividsolutions.jts.geom.Coordinate;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -36,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -364,13 +363,13 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         List<GeoPoint> polygon = randomPolygon(randomIntBetween(4, 50));
         final GeoPolygonQueryBuilder queryBuilder = new GeoPolygonQueryBuilder("unmapped", polygon);
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        Query query = queryBuilder.toQuery(createShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoPolygonQueryBuilder failingQueryBuilder = new GeoPolygonQueryBuilder("unmapped", polygon);
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
     }
 }

@@ -613,7 +613,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     public void testRewrite() throws IOException {
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(
                 new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()));
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(queryShardContext());
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
     }
@@ -627,7 +627,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(firstFunction, new RandomScoreFunctionBuilder()),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder()) });
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(queryShardContext());
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
         assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder("tq", "1"));

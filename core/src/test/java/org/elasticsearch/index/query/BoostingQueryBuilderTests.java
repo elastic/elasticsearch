@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.BoostingQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 
 import java.io.IOException;
@@ -109,12 +108,12 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         QueryBuilder positive = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("pos", "bar").toString());
         QueryBuilder negative = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("neg", "bar").toString());
         BoostingQueryBuilder qb = new BoostingQueryBuilder(positive, negative);
-        QueryBuilder<?> rewrite = qb.rewrite(queryShardContext());
+        QueryBuilder<?> rewrite = qb.rewrite(createShardContext());
         if (positive instanceof MatchAllQueryBuilder && negative instanceof MatchAllQueryBuilder) {
             assertSame(rewrite, qb);
         } else {
             assertNotSame(rewrite, qb);
-            assertEquals(new BoostingQueryBuilder(positive.rewrite(queryShardContext()), negative.rewrite(queryShardContext())), rewrite);
+            assertEquals(new BoostingQueryBuilder(positive.rewrite(createShardContext()), negative.rewrite(createShardContext())), rewrite);
         }
     }
 }

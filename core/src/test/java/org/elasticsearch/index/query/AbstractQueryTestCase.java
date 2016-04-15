@@ -120,7 +120,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
@@ -157,11 +156,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static IndexFieldDataService indexFieldDataService;
     private static int queryNameId = 0;
     private static SearchModule searchModule;
-
-
-    protected static QueryShardContext queryShardContext() {
-        return queryShardContext;
-    }
 
     protected static IndexFieldDataService indexFieldDataService() {
         return indexFieldDataService;
@@ -200,13 +194,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @BeforeClass
     public static void init() throws IOException {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        indexVersionCreated = randomBoolean() ? Version.CURRENT : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
+        indexVersionCreated = randomBoolean() ? Version.CURRENT
+                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         Settings settings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         Settings indexSettings = Settings.builder()
+                .put(ParseFieldMatcher.PARSE_STRICT, true)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated).build();
         final ThreadPool threadPool = new ThreadPool(settings);
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
@@ -236,14 +232,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 Set<ScriptEngineService> engines = new HashSet<>();
                 engines.add(mockScriptEngine);
                 List<ScriptContext.Plugin> customContexts = new ArrayList<>();
-                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections
+                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
                 ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
                 bind(ScriptSettings.class).toInstance(scriptSettings);
                 try {
-                    ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+                    ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null,
+                            scriptEngineRegistry, scriptContextRegistry, scriptSettings);
                     bind(ScriptService.class).toInstance(scriptService);
                 } catch (IOException e) {
                     throw new IllegalStateException("error while binding ScriptService", e);
@@ -285,10 +283,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         ScriptService scriptService = injector.getInstance(ScriptService.class);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
-        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () -> queryShardContext);
+        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry,
+                () -> queryShardContext);
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
         });
-        indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache, injector.getInstance(CircuitBreakerService.class), mapperService);
+        indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
+                injector.getInstance(CircuitBreakerService.class), mapperService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
@@ -302,7 +302,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         });
         PercolatorQueryCache percolatorQueryCache = new PercolatorQueryCache(idxSettings, () -> queryShardContext);
         indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        queryShardContext = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, percolatorQueryCache, null);
+        queryShardContext = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
+                scriptService, indicesQueriesRegistry, percolatorQueryCache, null);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {

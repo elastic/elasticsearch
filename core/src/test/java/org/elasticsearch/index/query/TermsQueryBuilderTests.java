@@ -295,12 +295,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testMustRewrite() throws IOException {
         TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
         try {
-            termsQueryBuilder.toQuery(queryShardContext());
+            termsQueryBuilder.toQuery(createShardContext());
             fail();
         } catch (UnsupportedOperationException ex) {
             assertEquals("query must be rewritten first", ex.getMessage());
         }
-        assertEquals(termsQueryBuilder.rewrite(queryShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
+        assertEquals(termsQueryBuilder.rewrite(createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
             randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
     }
 }

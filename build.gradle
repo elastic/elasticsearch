@@ -53,10 +53,10 @@ subprojects {
       tests = false
     }
     nexus {
-      Repository repo = new RepositoryBuilder().findGitDir(new File('.')).build()
-      String shortHash = repo.resolve('HEAD')?.name?.substring(0,7)
       String buildSnapshot = System.getProperty('build.snapshot', 'true')
       if (buildSnapshot == 'false') {
+        Repository repo = new RepositoryBuilder().findGitDir(new File('.')).build()
+        String shortHash = repo.resolve('HEAD')?.name?.substring(0,7)
         repositoryUrl = project.hasProperty('build.repository') ? project.property('build.repository') : "file://${System.getenv('HOME')}/elasticsearch-releases/${version}-${shortHash}/"
       }
     }

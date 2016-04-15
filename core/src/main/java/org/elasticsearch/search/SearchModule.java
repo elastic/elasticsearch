@@ -142,6 +142,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBui
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
@@ -469,7 +470,9 @@ public class SearchModule extends AbstractModule {
         registerAggregation(DiversifiedAggregatorBuilder::new, new DiversifiedSamplerParser(),
                 DiversifiedAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(TermsAggregatorBuilder::new, new TermsParser(), TermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregatorParser(new SignificantTermsParser(significanceHeuristicParserMapper, queryParserRegistry));
+        registerAggregation(SignificantTermsAggregatorBuilder::new,
+                new SignificantTermsParser(significanceHeuristicParserMapper, queryParserRegistry),
+                SignificantTermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(RangeAggregatorBuilder::new, new RangeParser(), RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(DateRangeAggregatorBuilder::new, new DateRangeParser(), DateRangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(IPv4RangeAggregatorBuilder::new, new IpRangeParser(), IPv4RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);

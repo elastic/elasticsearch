@@ -60,7 +60,7 @@ public class ShardsResolver extends MonitoringIndexNameResolver.Timestamped<Shar
         if (shardRouting != null) {
             // ShardRouting is rendered inside a startObject() / endObject() but without a name,
             // so we must use XContentBuilder.field(String, ToXContent, ToXContent.Params) here
-            builder.field(Fields.SHARD.underscore().toString(), shardRouting, params);
+            builder.field(Fields.SHARD.value(), shardRouting, params);
         }
     }
 

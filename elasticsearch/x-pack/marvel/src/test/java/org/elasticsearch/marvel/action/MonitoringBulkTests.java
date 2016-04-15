@@ -58,9 +58,9 @@ public class MonitoringBulkTests extends MarvelIntegTestCase {
 
         for (SearchHit searchHit : searchResponse.getHits()) {
             Map<String, Object> source = searchHit.sourceAsMap();
-            assertNotNull(source.get(MonitoringBulkResolver.Fields.CLUSTER_UUID.underscore().toString()));
-            assertNotNull(source.get(MonitoringBulkResolver.Fields.TIMESTAMP.underscore().toString()));
-            assertNotNull(source.get(MonitoringBulkResolver.Fields.SOURCE_NODE.underscore().toString()));
+            assertNotNull(source.get(MonitoringBulkResolver.Fields.CLUSTER_UUID.value()));
+            assertNotNull(source.get(MonitoringBulkResolver.Fields.TIMESTAMP.value()));
+            assertNotNull(source.get(MonitoringBulkResolver.Fields.SOURCE_NODE.value()));
         }
     }
 

@@ -276,7 +276,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
     }
 
-    public void testNegative() {
+    public void testNegativeMaxIndexBufferSize() {
         Exception e = expectThrows(IllegalArgumentException.class,
                                    () -> new MockController(Settings.builder()
                                                             .put("indices.memory.max_index_buffer_size", "-6mb").build()));

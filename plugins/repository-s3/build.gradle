@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.10.33'
+  'aws': '1.10.69'
 ]
 
 dependencies {
@@ -49,11 +49,6 @@ test {
 }
 
 thirdPartyAudit.excludes = [
-  // uses internal java api: com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl
-  // uses internal java api: com.sun.org.apache.xml.internal.dtm.ref.DTMManagerDefault
-  // uses internal java api: com.sun.org.apache.xpath.internal.XPathContext
-  'com.amazonaws.util.XpathUtils',
-
   // classes are missing
   'javax.servlet.ServletContextEvent', 
   'javax.servlet.ServletContextListener', 
@@ -61,3 +56,6 @@ thirdPartyAudit.excludes = [
   'org.apache.log.Hierarchy', 
   'org.apache.log.Logger',
 ]
+
+// AWS SDK is exposing some deprecated methods which we call using a delegate
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation"

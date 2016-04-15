@@ -153,7 +153,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return this;
     }
 
-    public RoutingTableValidation validate(MetaData metaData) {
+    private RoutingTableValidation validate(MetaData metaData) {
         RoutingTableValidation validation = new RoutingTableValidation();
         for (IndexRoutingTable indexRoutingTable : this) {
             indexRoutingTable.validate(validation, metaData);
@@ -546,7 +546,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
             }
-            indexRoutingTable.validate();
             indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);
             return this;
         }

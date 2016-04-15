@@ -94,7 +94,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return index;
     }
 
-    public void validate(RoutingTableValidation validation, MetaData metaData) {
+    void validate(RoutingTableValidation validation, MetaData metaData) {
         if (!metaData.hasIndex(index.getName())) {
             validation.addIndexFailure(index.getName(), "Exists in routing does not exists in metadata");
             return;
@@ -110,10 +110,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     }
 
-    /**
-     * validate based on a meta data, returning failures found
-     */
-    public List<String> validate(IndexMetaData indexMetaData) {
+    // validate based on a meta data, returning failures found
+    List<String> validate(IndexMetaData indexMetaData) {
         ArrayList<String> failures = new ArrayList<>();
 
         // check the number of shards
@@ -306,9 +304,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         int result = index.hashCode();
         result = 31 * result + shards.hashCode();
         return result;
-    }
-
-    public void validate() throws RoutingValidationException {
     }
 
     @Override
@@ -508,9 +503,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
 
         public IndexRoutingTable build() throws RoutingValidationException {
-            IndexRoutingTable indexRoutingTable = new IndexRoutingTable(index, shards.build());
-            indexRoutingTable.validate();
-            return indexRoutingTable;
+            return new IndexRoutingTable(index, shards.build());
         }
     }
 

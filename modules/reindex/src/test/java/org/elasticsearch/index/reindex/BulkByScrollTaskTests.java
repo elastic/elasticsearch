@@ -29,8 +29,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Delayed;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -240,5 +243,65 @@ public class BulkByScrollTaskTests extends ESTestCase {
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
         assertThat(errors, empty());
+    }
+
+    public void testDelayNeverNegative() throws IOException {
+        // Thread pool that returns a ScheduledFuture that claims to have a negative delay
+        ThreadPool threadPool = new ThreadPool("test") {
+            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
+                return new ScheduledFuture<Void>() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        return -1;
+                    }
+
+                    @Override
+                    public int compareTo(Delayed o) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean cancel(boolean mayInterruptIfRunning) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean isDone() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public Void get() throws InterruptedException, ExecutionException {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public Void get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        };
+        try {
+            // Have the task use the thread pool to delay a task that does nothing
+            task.delayPrepareBulkRequest(threadPool, timeValueSeconds(0), new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                }
+                @Override
+                public void onFailure(Throwable t) {
+                    throw new UnsupportedOperationException();
+                }
+            });
+            // Even though the future returns a negative delay we just return 0 because the time is up.
+            assertEquals(timeValueSeconds(0), task.getStatus().getThrottledUntil());
+        } finally {
+            threadPool.shutdown();
+        }
     }
 }

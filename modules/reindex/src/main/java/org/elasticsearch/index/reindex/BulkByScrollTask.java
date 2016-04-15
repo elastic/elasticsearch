@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.lang.Math.max;
 import static java.lang.Math.round;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
@@ -93,7 +94,7 @@ public class BulkByScrollTask extends CancellableTask {
         if (delayed.future == null) {
             return timeValueNanos(0);
         }
-        return timeValueNanos(delayed.future.getDelay(TimeUnit.NANOSECONDS));
+        return timeValueNanos(max(0, delayed.future.getDelay(TimeUnit.NANOSECONDS)));
     }
 
     /**

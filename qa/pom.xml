@@ -71,6 +71,7 @@
                     <!-- Reindex's REST spec lives in the core because that seems to be how modules are done -->
                     <include>api/update_by_query.json</include>
                     <include>api/reindex.json</include>
+                    <include>api/reindex.rethrottle.json</include>
                 </includes>
             </testResource>
             <!-- shared test resources like log4j.properties -->

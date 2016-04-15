@@ -129,7 +129,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
                     throw new IllegalStateException("[" + name  + "] no field found");
                 }
                 assert fieldParser != null;
-                fieldParser.assertSupports(name, token, currentFieldName, context.parseFieldMatcher());
+                fieldParser.assertSupports(name, token, currentFieldName, context.getParseFieldMatcher());
                 parseSub(parser, fieldParser, currentFieldName, value, context);
                 fieldParser = null;
             }

@@ -122,15 +122,15 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.parseFieldMatcher());
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, parseContext.getParseFieldMatcher());
                 } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
                     vars = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
+                if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.getParseFieldMatcher())) {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }
             }

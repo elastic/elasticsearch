@@ -169,7 +169,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (context.parseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
+                    if (context.getParseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
                         List<String> includesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -180,7 +180,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
                             }
                         }
                         includes = includesList.toArray(new String[includesList.size()]);
-                    } else if (context.parseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
+                    } else if (context.getParseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
                         List<String> excludesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -196,9 +196,9 @@ public class FetchSourceContext implements Streamable, ToXContent {
                                 parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (context.parseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
+                    if (context.getParseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
                         includes = new String[] {parser.text()};
-                    } else if (context.parseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
+                    } else if (context.getParseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
                         excludes = new String[] {parser.text()};
                     }
                 } else {

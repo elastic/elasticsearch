@@ -140,7 +140,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
 
     public static SuggestBuilder fromXContent(QueryParseContext parseContext, Suggesters suggesters) throws IOException {
         XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         String fieldName = null;
 

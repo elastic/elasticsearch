@@ -257,7 +257,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
     static SuggestionBuilder<?> fromXContent(QueryParseContext parseContext, Suggesters suggesters)
             throws IOException {
         XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parsefieldMatcher = parseContext.parseFieldMatcher();
+        ParseFieldMatcher parsefieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String suggestText = null;

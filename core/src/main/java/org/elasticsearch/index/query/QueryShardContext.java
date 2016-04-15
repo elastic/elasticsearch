@@ -19,6 +19,14 @@
 
 package org.elasticsearch.index.query;
 
+import static java.util.Collections.unmodifiableMap;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
@@ -29,7 +37,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -58,18 +65,10 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
-
 /**
  * Context object used to create lucene queries on the shard level.
  */
-public class QueryShardContext extends QueryRewriteContext implements ParseFieldMatcherSupplier {
+public class QueryShardContext extends QueryRewriteContext {
 
     private final MapperService mapperService;
     private final SimilarityService similarityService;
@@ -112,15 +111,6 @@ public class QueryShardContext extends QueryRewriteContext implements ParseField
     public QueryShardContext(QueryShardContext source) {
         this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.percolatorQueryCache, source.reader);
         this.types = source.getTypes();
-    }
-
-    public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
-        this.parseContext.parseFieldMatcher(parseFieldMatcher);
-    }
-
-    @Override
-    public ParseFieldMatcher parseFieldMatcher() {
-        return parseContext.parseFieldMatcher();
     }
 
     public void reset() {

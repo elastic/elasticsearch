@@ -118,7 +118,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (!(query instanceof SpanQueryBuilder)) {
                         throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query must be of type span query");
@@ -129,11 +129,11 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                             + currentFieldName + "]");
                 }
             } else {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
                     field = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

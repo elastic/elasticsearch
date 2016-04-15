@@ -240,24 +240,24 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (context.parseFieldMatcher().match(currentFieldName, INIT_SCRIPT_FIELD)) {
-                    initScript = Script.parse(parser, context.parseFieldMatcher());
-                } else if (context.parseFieldMatcher().match(currentFieldName, MAP_SCRIPT_FIELD)) {
-                    mapScript = Script.parse(parser, context.parseFieldMatcher());
-                } else if (context.parseFieldMatcher().match(currentFieldName, COMBINE_SCRIPT_FIELD)) {
-                    combineScript = Script.parse(parser, context.parseFieldMatcher());
-                } else if (context.parseFieldMatcher().match(currentFieldName, REDUCE_SCRIPT_FIELD)) {
-                    reduceScript = Script.parse(parser, context.parseFieldMatcher());
-                } else if (context.parseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, INIT_SCRIPT_FIELD)) {
+                    initScript = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, MAP_SCRIPT_FIELD)) {
+                    mapScript = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, COMBINE_SCRIPT_FIELD)) {
+                    combineScript = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, REDUCE_SCRIPT_FIELD)) {
+                    reduceScript = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
                     params = parser.map();
-                } else if (context.parseFieldMatcher().match(currentFieldName, REDUCE_PARAMS_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, REDUCE_PARAMS_FIELD)) {
                   reduceParams = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token.isValue()) {
-                if (!scriptParameterParser.token(currentFieldName, token, parser, context.parseFieldMatcher())) {
+                if (!scriptParameterParser.token(currentFieldName, token, parser, context.getParseFieldMatcher())) {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }

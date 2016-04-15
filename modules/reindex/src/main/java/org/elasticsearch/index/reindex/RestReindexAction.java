@@ -98,7 +98,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSearchRequest(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
-        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.queryParseContext.parseFieldMatcher())), new ParseField("script"),
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.queryParseContext.getParseFieldMatcher())), new ParseField("script"),
                 ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
@@ -185,7 +185,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
         @Override
         public ParseFieldMatcher getParseFieldMatcher() {
-            return queryParseContext.parseFieldMatcher();
+            return queryParseContext.getParseFieldMatcher();
         }
     }
 }

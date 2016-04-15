@@ -130,15 +130,15 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     type = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ID_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ID_FIELD)) {
                     id = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[parent_id] query does not support [" + currentFieldName + "]");

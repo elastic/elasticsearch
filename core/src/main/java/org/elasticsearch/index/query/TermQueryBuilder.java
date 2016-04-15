@@ -109,13 +109,13 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.parseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
+                        if (parseContext.getParseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
                             value = parser.objectBytes();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                             value = parser.objectBytes();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),

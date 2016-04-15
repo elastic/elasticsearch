@@ -32,5 +32,5 @@ public interface ParseFieldMatcherSupplier {
     /**
      * @return the parseFieldMatcher
      */
-    ParseFieldMatcher parseFieldMatcher();
+    ParseFieldMatcher getParseFieldMatcher();
 }

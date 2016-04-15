@@ -124,7 +124,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     }
 
     @Override
-    public ParseFieldMatcher parseFieldMatcher() {
+    public ParseFieldMatcher getParseFieldMatcher() {
         return parseFieldMatcher;
     }
 

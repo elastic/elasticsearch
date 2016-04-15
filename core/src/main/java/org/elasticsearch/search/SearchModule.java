@@ -170,7 +170,9 @@ import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.min.MinParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentiles;
@@ -461,8 +463,10 @@ public class SearchModule extends AbstractModule {
         registerAggregatorParser(new StatsParser());
         registerAggregatorParser(new ExtendedStatsParser());
         registerAggregation(ValueCountAggregatorBuilder::new, new ValueCountParser(), ValueCountAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregatorParser(new PercentilesParser());
-        registerAggregatorParser(new PercentileRanksParser());
+        registerAggregation(PercentilesAggregatorBuilder::new, new PercentilesParser(),
+                PercentilesAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(PercentileRanksAggregatorBuilder::new, new PercentileRanksParser(),
+                PercentileRanksAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(CardinalityAggregatorBuilder::new, new CardinalityParser(),
                 CardinalityAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(GlobalAggregatorBuilder::new, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder.AGGREGATION_NAME_FIELD);

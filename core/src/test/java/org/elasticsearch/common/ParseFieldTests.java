@@ -27,28 +27,31 @@ public class ParseFieldTests extends ESTestCase {
 
     @Test
     public void testParse() {
-        String[] values = new String[]{"foo_bar", "fooBar"};
-        ParseField field = new ParseField(randomFrom(values));
+        String name = "foo_bar";
+        String camelCase = "fooBar";
+        ParseField field = new ParseField(name);
         String[] deprecated = new String[]{"barFoo", "bar_foo"};
         ParseField withDeprecations = field.withDeprecation("Foobar", randomFrom(deprecated));
         assertThat(field, not(sameInstance(withDeprecations)));
-        assertThat(field.match(randomFrom(values), false), is(true));
+        assertThat(field.match(name, false), is(true));
+        assertThat(field.match(camelCase, false), is(true));
         assertThat(field.match("foo bar", false), is(false));
         assertThat(field.match(randomFrom(deprecated), false), is(false));
         assertThat(field.match("barFoo", false), is(false));
 
-        assertThat(withDeprecations.match(randomFrom(values), false), is(true));
+        assertThat(withDeprecations.match(name, false), is(true));
+        assertThat(withDeprecations.match(camelCase, false), is(true));
         assertThat(withDeprecations.match("foo bar", false), is(false));
         assertThat(withDeprecations.match(randomFrom(deprecated), false), is(true));
         assertThat(withDeprecations.match("barFoo", false), is(true));
 
         // now with strict mode
-        assertThat(field.match(randomFrom(values), true), is(true));
+        assertThat(field.match(name, true), is(true));
         assertThat(field.match("foo bar", true), is(false));
         assertThat(field.match(randomFrom(deprecated), true), is(false));
         assertThat(field.match("barFoo", true), is(false));
 
-        assertThat(withDeprecations.match(randomFrom(values), true), is(true));
+        assertThat(withDeprecations.match(name, true), is(true));
         assertThat(withDeprecations.match("foo bar", true), is(false));
         try {
             withDeprecations.match(randomFrom(deprecated), true);
@@ -59,6 +62,13 @@ public class ParseFieldTests extends ESTestCase {
 
         try {
             withDeprecations.match("barFoo", true);
+            fail();
+        } catch (IllegalArgumentException ex) {
+
+        }
+
+        try {
+            withDeprecations.match(camelCase, true);
             fail();
         } catch (IllegalArgumentException ex) {
 

@@ -30,24 +30,19 @@ public class ParseField {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
 
-    private final String camelCaseName;
     private final String underscoreName;
     private final String[] deprecatedNames;
     private String allReplacedWith = null;
 
     public ParseField(String value, String... deprecatedNames) {
-        camelCaseName = Strings.toCamelCase(value);
         underscoreName = Strings.toUnderscoreCase(value);
-        if (deprecatedNames == null || deprecatedNames.length == 0) {
-            this.deprecatedNames = Strings.EMPTY_ARRAY;
-        } else {
-            final HashSet<String> set = new HashSet<>();
-            for (String depName : deprecatedNames) {
-                set.add(Strings.toCamelCase(depName));
-                set.add(Strings.toUnderscoreCase(depName));
-            }
-            this.deprecatedNames = set.toArray(new String[set.size()]);
+        final HashSet<String> set = new HashSet<>();
+        set.add(Strings.toCamelCase(value));
+        for (String depName : deprecatedNames) {
+            set.add(Strings.toCamelCase(depName));
+            set.add(Strings.toUnderscoreCase(depName));
         }
+        this.deprecatedNames = set.toArray(new String[set.size()]);
     }
 
     public String getPreferredName(){
@@ -55,11 +50,10 @@ public class ParseField {
     }
 
     public String[] getAllNamesIncludedDeprecated() {
-        String[] allNames = new String[2 + deprecatedNames.length];
-        allNames[0] = camelCaseName;
-        allNames[1] = underscoreName;
+        String[] allNames = new String[1 + deprecatedNames.length];
+        allNames[0] = underscoreName;
         for (int i = 0; i < deprecatedNames.length; i++) {
-            allNames[i + 2] = deprecatedNames[i];
+            allNames[i + 1] = deprecatedNames[i];
         }
         return allNames;
     }
@@ -78,7 +72,7 @@ public class ParseField {
     }
 
     boolean match(String currentFieldName, boolean strict) {
-        if (allReplacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
+        if (allReplacedWith == null && currentFieldName.equals(underscoreName)) {
             return true;
         }
         String msg;

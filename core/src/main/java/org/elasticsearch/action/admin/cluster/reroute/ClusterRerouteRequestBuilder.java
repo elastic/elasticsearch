@@ -22,13 +22,12 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Builder for a cluster reroute request
  */
-public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
-
+public class ClusterRerouteRequestBuilder
+        extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
     public ClusterRerouteRequestBuilder(ElasticsearchClient client, ClusterRerouteAction action) {
         super(client, action, new ClusterRerouteRequest());
     }
@@ -66,14 +65,6 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<Clu
      */
     public ClusterRerouteRequestBuilder setRetryFailed(boolean retryFailed) {
         request.setRetryFailed(retryFailed);
-        return this;
-    }
-
-    /**
-     * Sets the commands for the request to execute.
-     */
-    public ClusterRerouteRequestBuilder setCommands(AllocationCommand... commands) throws Exception {
-        request.commands(commands);
         return this;
     }
 }

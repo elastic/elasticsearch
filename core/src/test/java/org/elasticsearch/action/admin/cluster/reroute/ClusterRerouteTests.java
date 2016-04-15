@@ -59,7 +59,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         req.setRetryFailed(randomBoolean());
         req.dryRun(randomBoolean());
         req.explain(randomBoolean());
-        req.commands(new AllocateEmptyPrimaryAllocationCommand("foo", 1, "bar", randomBoolean()));
+        req.add(new AllocateEmptyPrimaryAllocationCommand("foo", 1, "bar", randomBoolean()));
         req.timeout(TimeValue.timeValueMillis(randomIntBetween(0, 100)));
         BytesStreamOutput out = new BytesStreamOutput();
         req.writeTo(out);

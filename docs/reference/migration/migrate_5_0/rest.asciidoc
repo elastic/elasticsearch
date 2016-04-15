@@ -38,5 +38,12 @@ empty, that means that the node is a coordinating only node.
 
 ==== Forbid unquoted JSON
 
-Previously, JSON documents were allowed with unquoted field names, which
-isn't strictly JSON and broke some Elasticsearch clients.
+Previously, JSON documents were allowed with unquoted field names, which isn't
+strictly JSON and broke some Elasticsearch clients. If documents were already
+indexed with unquoted fields in a previous vesrion of Elasticsearch, some
+operations may throw errors. To accompany this, a commented out JVM option has
+been added to the `jvm.options` file:
+`-Delasticsearch.json.allow_unquoted_field_names`.
+
+Note that this option is provided solely for migration purposes and will be
+removed in Elasticsearch 6.0.0.

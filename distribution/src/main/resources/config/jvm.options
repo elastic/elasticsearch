@@ -79,3 +79,11 @@
 # log GC status to a file with time stamps
 # ensure the directory exists
 #-Xloggc:${loggc}
+
+# Elasticsearch 5.0.0 will throw an exception on unquoted field names in JSON.
+# If documents were already indexed with unquoted fields in a previous version
+# of Elasticsearch, some operations may throw errors.
+#
+# WARNING: This option will be removed in Elasticsearch 6.0.0 and is provided
+# only for migration purposes.
+#-Delasticsearch.json.allow_unquoted_field_names=true

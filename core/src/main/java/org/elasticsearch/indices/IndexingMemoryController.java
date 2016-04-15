@@ -52,37 +52,27 @@ import java.util.concurrent.locks.ReentrantLock;
 public class IndexingMemoryController extends AbstractComponent implements IndexingOperationListener, Closeable {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
-    public static final Setting<String> INDEX_BUFFER_SIZE_SETTING = new Setting<String>("indices.memory.index_buffer_size", (s) -> "10%",
-                                                                                        (s) -> {
-                                                                                            if (s.endsWith("%")) {
-                                                                                                try {
-                                                                                                    Double.parseDouble(s.substring(0, s.length() - 1));
-                                                                                                } catch (NumberFormatException nfe) {
-                                                                                                    throw new IllegalArgumentException("unknown value for [indices.memory.index_buffer_size]: must be X% or a size value (e.g. XMB) but was: " + s);
-                                                                                                }
-                                                                                            } else {
-                                                                                                try {
-                                                                                                    ByteSizeValue.parseBytesSizeValue(s, "indices.memory.index_buffer_size");
-                                                                                                } catch (Throwable t) {
-                                                                                                    throw new IllegalArgumentException("unknown value for [indices.memory.index_buffer_size]: must be X% or a size value (e.g. XMB) but " + t.getMessage());
-                                                                                                }
-                                                                                            }
-
-                                                                                            return s;
-                                                                                        },
-                                                                                        Property.NodeScope);
+    public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.index_buffer_size", "10%", Property.NodeScope);
 
     /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a floor on the actual size in bytes (default: 48 MB). */
-    public static final Setting<ByteSizeValue> MIN_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.min_index_buffer_size", new ByteSizeValue(48, ByteSizeUnit.MB), Property.NodeScope);
+    public static final Setting<ByteSizeValue> MIN_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.min_index_buffer_size",
+                                                                                                       new ByteSizeValue(48, ByteSizeUnit.MB),
+                                                                                                       new ByteSizeValue(0, ByteSizeUnit.BYTES),
+                                                                                                       new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+                                                                                                       Property.NodeScope);
 
     /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a ceiling on the actual size in bytes (default: not set). */
-    public static final Setting<ByteSizeValue> MAX_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.max_index_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
+    public static final Setting<ByteSizeValue> MAX_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.max_index_buffer_size",
+                                                                                                       new ByteSizeValue(-1),
+                                                                                                       new ByteSizeValue(-1),
+                                                                                                       new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+                                                                                                       Property.NodeScope);
 
     /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
-    public static final Setting<TimeValue> SHARD_INACTIVE_TIME_SETTING = Setting.timeSetting("indices.memory.shard_inactive_time", TimeValue.timeValueMinutes(5), Property.NodeScope);
+    public static final Setting<TimeValue> SHARD_INACTIVE_TIME_SETTING = Setting.positiveTimeSetting("indices.memory.shard_inactive_time", TimeValue.timeValueMinutes(5), Property.NodeScope);
 
     /** How frequently we check indexing memory usage (default: 5 seconds). */
-    public static final Setting<TimeValue> SHARD_MEMORY_INTERVAL_TIME_SETTING = Setting.timeSetting("indices.memory.interval", TimeValue.timeValueSeconds(5), Property.NodeScope);
+    public static final Setting<TimeValue> SHARD_MEMORY_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting("indices.memory.interval", TimeValue.timeValueSeconds(5), Property.NodeScope);
 
     private final ThreadPool threadPool;
 
@@ -111,22 +101,20 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         super(settings);
         this.indexShards = indexServices;
 
-        ByteSizeValue indexingBuffer;
-        String indexingBufferSetting = INDEX_BUFFER_SIZE_SETTING.get(settings);
-        if (indexingBufferSetting.endsWith("%")) {
-            double percent = Double.parseDouble(indexingBufferSetting.substring(0, indexingBufferSetting.length() - 1));
-            indexingBuffer = new ByteSizeValue((long) (((double) jvmMemoryInBytes) * (percent / 100)));
+        ByteSizeValue indexingBuffer = INDEX_BUFFER_SIZE_SETTING.get(settings);
+
+        String indexingBufferSetting = settings.get(INDEX_BUFFER_SIZE_SETTING.getKey());
+        // null means we used the default (10%)
+        if (indexingBufferSetting == null || indexingBufferSetting.endsWith("%")) {
+            // We only apply the min/max when % value was used for the index buffer:
             ByteSizeValue minIndexingBuffer = MIN_INDEX_BUFFER_SIZE_SETTING.get(this.settings);
             ByteSizeValue maxIndexingBuffer = MAX_INDEX_BUFFER_SIZE_SETTING.get(this.settings);
-
             if (indexingBuffer.bytes() < minIndexingBuffer.bytes()) {
                 indexingBuffer = minIndexingBuffer;
             }
             if (maxIndexingBuffer.bytes() != -1 && indexingBuffer.bytes() > maxIndexingBuffer.bytes()) {
                 indexingBuffer = maxIndexingBuffer;
             }
-        } else {
-            indexingBuffer = ByteSizeValue.parseBytesSizeValue(indexingBufferSetting, INDEX_BUFFER_SIZE_SETTING.getKey());
         }
         this.indexingBuffer = indexingBuffer;
 

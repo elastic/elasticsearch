@@ -523,9 +523,9 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, ByteSizeValue minValue, ByteSizeValue maxValue,
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue defaultValue, ByteSizeValue minValue, ByteSizeValue maxValue,
                                                          Property... properties) {
-        return byteSizeSetting(key, (s) -> value.toString(), minValue, maxValue, properties);
+        return byteSizeSetting(key, (s) -> defaultValue.toString(), minValue, maxValue, properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue,

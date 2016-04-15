@@ -47,8 +47,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
-import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
-import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentBuilderTests extends ESTestCase {
@@ -167,16 +165,6 @@ public class XContentBuilderTests extends ESTestCase {
         byte[] data = bos.bytes().toBytes();
         String sData = new String(data, "UTF8");
         assertThat(sData, equalTo("{\"name\":\"something\", source : { test : \"value\" },\"name2\":\"something2\"}"));
-    }
-
-    public void testFieldCaseConversion() throws Exception {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(CAMELCASE);
-        builder.startObject().field("test_name", "value").endObject();
-        assertThat(builder.string(), equalTo("{\"testName\":\"value\"}"));
-
-        builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(UNDERSCORE);
-        builder.startObject().field("testName", "value").endObject();
-        assertThat(builder.string(), equalTo("{\"test_name\":\"value\"}"));
     }
 
     public void testByteConversion() throws Exception {

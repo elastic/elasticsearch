@@ -96,7 +96,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.startObject(getIndex());
         shardsStats.toXContent(builder, params);
         stats.toXContent(builder, params);
         builder.startObject(Fields.SHARDS);

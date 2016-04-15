@@ -176,7 +176,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
             builder.startObject(Fields.INDICES);
             for (IndexStats indexStats : getIndices().values()) {
-                builder.startObject(indexStats.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexStats.getIndex());
 
                 builder.startObject("primaries");
                 indexStats.getPrimaries().toXContent(builder, params);

@@ -166,13 +166,13 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (path != null) {
-                builder.field(Fields.PATH, path, XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(Fields.PATH, path);
             }
             if (mount != null) {
-                builder.field(Fields.MOUNT, mount, XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(Fields.MOUNT, mount);
             }
             if (type != null) {
-                builder.field(Fields.TYPE, type, XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(Fields.TYPE, type);
             }
 
             if (total != -1) {

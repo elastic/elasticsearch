@@ -335,7 +335,7 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getId(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.startObject(getId());
         builder.field("name", getName());
         builder.field("transport_address", getAddress().toString());
 

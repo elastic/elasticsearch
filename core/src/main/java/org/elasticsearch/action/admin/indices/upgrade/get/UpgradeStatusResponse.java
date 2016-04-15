@@ -126,7 +126,7 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
         if (outputIndices) {
             builder.startObject(Fields.INDICES);
             for (IndexUpgradeStatus indexUpgradeStatus : getIndices().values()) {
-                builder.startObject(indexUpgradeStatus.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexUpgradeStatus.getIndex());
 
                 builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, indexUpgradeStatus.getTotalBytes());
                 builder.byteSizeField(Fields.SIZE_TO_UPGRADE_IN_BYTES, Fields.SIZE_TO_UPGRADE, indexUpgradeStatus.getToUpgradeBytes());

@@ -43,7 +43,7 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
     public static final Fuzziness ONE = new Fuzziness(1);
     public static final Fuzziness TWO = new Fuzziness(2);
     public static final Fuzziness AUTO = new Fuzziness("AUTO");
-    public static final ParseField FIELD = new ParseField(X_FIELD_NAME.camelCase().getValue());
+    public static final ParseField FIELD = new ParseField(X_FIELD_NAME.value());
 
     private final String fuzziness;
 

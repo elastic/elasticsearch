@@ -88,7 +88,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     if (indexEntry.value.isEmpty()) {
                         continue;
                     }
-                    builder.startObject(indexEntry.key, XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(indexEntry.key);
                     builder.startObject(Fields.MAPPINGS);
                     for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
                         builder.field(typeEntry.key);

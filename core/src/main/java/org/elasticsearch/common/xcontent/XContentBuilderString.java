@@ -19,27 +19,18 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Strings;
-
 /**
- *
+ * TODO: remove this, it is just a wrapper that is no longer needed
  */
 public class XContentBuilderString {
 
-    private final XContentString underscore;
-
-    private final XContentString camelCase;
+    private final String value;
 
     public XContentBuilderString(String value) {
-        underscore = new XContentString(Strings.toUnderscoreCase(value));
-        camelCase = new XContentString(Strings.toCamelCase(value));
+        this.value = value;
     }
 
-    public XContentString underscore() {
-        return underscore;
-    }
-
-    public XContentString camelCase() {
-        return camelCase;
+    public String value() {
+        return value;
     }
 }

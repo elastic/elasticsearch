@@ -102,7 +102,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                     for (QueryExplanation explanation : response.getQueryExplanation()) {
                         builder.startObject();
                         if (explanation.getIndex() != null) {
-                            builder.field(INDEX_FIELD, explanation.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                            builder.field(INDEX_FIELD, explanation.getIndex());
                         }
                         builder.field(VALID_FIELD, explanation.isValid());
                         if (explanation.getError() != null) {

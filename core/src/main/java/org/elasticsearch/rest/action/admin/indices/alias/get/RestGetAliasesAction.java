@@ -83,7 +83,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
                 builder.startObject();
                 for (ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
-                    builder.startObject(entry.key, XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(entry.key);
                     builder.startObject(Fields.ALIASES);
                     for (AliasMetaData alias : entry.value) {
                         AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);

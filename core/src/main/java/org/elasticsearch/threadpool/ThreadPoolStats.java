@@ -112,7 +112,7 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(name, XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(name);
             if (threads != -1) {
                 builder.field(Fields.THREADS, threads);
             }

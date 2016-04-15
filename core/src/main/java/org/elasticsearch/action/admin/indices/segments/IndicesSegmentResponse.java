@@ -102,7 +102,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         builder.startObject(Fields.INDICES);
 
         for (IndexSegments indexSegments : getIndices().values()) {
-            builder.startObject(indexSegments.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexSegments.getIndex());
 
             builder.startObject(Fields.SHARDS);
             for (IndexShardSegments indexSegment : indexSegments) {
@@ -164,7 +164,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         builder.endObject();
         return builder;
     }
-    
+
     static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
         builder.startObject();
         builder.field(Fields.DESCRIPTION, tree.toString());

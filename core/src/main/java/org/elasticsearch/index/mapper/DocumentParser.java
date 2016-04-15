@@ -88,6 +88,10 @@ final class DocumentParser {
                 parser.close();
             }
         }
+        String remainingPath = context.path().pathAsText("");
+        if (remainingPath.isEmpty() == false) {
+            throw new IllegalStateException("found leftover path elements: " + remainingPath);
+        }
 
         reverseOrder(context);
 
@@ -542,6 +546,7 @@ final class DocumentParser {
                     context.addDynamicMapper(mapper);
                     context.path().add(arrayFieldName);
                     parseObjectOrField(context, mapper);
+                    context.path().remove();
                 } else {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 }

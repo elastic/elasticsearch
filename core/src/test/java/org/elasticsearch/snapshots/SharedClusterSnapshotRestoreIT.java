@@ -562,6 +562,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 }
             }
         } catch (Exception ex) {
+            logger.info("--> caught a top level exception, asserting what's expected", ex);
             assertThat(getFailureCount("test-repo"), greaterThan(0L));
             assertThat(ExceptionsHelper.detailedMessage(ex), containsString("IOException"));
         }

@@ -23,9 +23,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.XInetAddressPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -176,7 +178,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
                     if (fields.length == 2) {
                         InetAddress address = InetAddresses.forString(fields[0]);
                         int prefixLength = Integer.parseInt(fields[1]);
-                        return InetAddressPoint.newPrefixQuery(name(), address, prefixLength);
+                        return XInetAddressPoint.newPrefixQuery(name(), address, prefixLength);
                     } else {
                         throw new IllegalArgumentException("Expected [ip/prefix] but was [" + term + "]");
                     }
@@ -188,24 +190,30 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            if (includeLower == false || includeUpper == false) {
-                // TODO: should we drop range support entirely
-                throw new IllegalArgumentException("range on ip addresses only supports inclusive bounds");
-            }
             InetAddress lower;
             if (lowerTerm == null) {
-                lower = InetAddressPoint.decode(new byte[16]);
+                lower = XInetAddressPoint.MIN_VALUE;
             } else {
                 lower = parse(lowerTerm);
+                if (includeLower == false) {
+                    if (lower.equals(XInetAddressPoint.MAX_VALUE)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    lower = XInetAddressPoint.nextUp(lower);
+                }
             }
 
             InetAddress upper;
             if (upperTerm == null) {
-                byte[] bytes = new byte[16];
-                Arrays.fill(bytes, (byte) 255); 
-                upper = InetAddressPoint.decode(bytes);
+                upper = XInetAddressPoint.MAX_VALUE;
             } else {
                 upper = parse(upperTerm);
+                if (includeUpper == false) {
+                    if (upper.equals(XInetAddressPoint.MIN_VALUE)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    upper = XInetAddressPoint.nextDown(upper);
+                }
             }
 
             return InetAddressPoint.newRangeQuery(name(), lower, upper);
@@ -215,7 +223,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
             InetAddress base = parse(value);
             int mask = fuzziness.asInt();
-            return InetAddressPoint.newPrefixQuery(name(), base, mask);
+            return XInetAddressPoint.newPrefixQuery(name(), base, mask);
         }
 
         @Override

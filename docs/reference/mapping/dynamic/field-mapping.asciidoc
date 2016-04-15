@@ -61,7 +61,7 @@ GET my_index/_mapping <1>
 
 ===== Disabling date detection
 
-Dynamic date dection can be disabled by setting `date_detection` to `false`:
+Dynamic date detection can be disabled by setting `date_detection` to `false`:
 
 [source,js]
 --------------------------------------------------

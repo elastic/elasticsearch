@@ -14,6 +14,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -381,6 +382,94 @@ public final class FieldSubsetReader extends FilterLeafReader {
         @Override
         public long ord() throws IOException {
           throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * Filters the PointValues instance.
+     * <p>
+     * Like other parts of the index, fields without access will not exist.
+     */
+    // TODO: push up a similar class into lucene
+    // TODO: fix the FieldFilterReader we use in lucene tests!
+    final class FieldFilterPointValues extends PointValues {
+        private final PointValues in;
+
+        FieldFilterPointValues(PointValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public void intersect(String fieldName, IntersectVisitor visitor) throws IOException {
+            if (hasField(fieldName)) {
+                in.intersect(fieldName, visitor);
+            } else {
+                return; // behave as field does not exist
+            }
+        }
+
+        @Override
+        public byte[] getMinPackedValue(String fieldName) throws IOException {
+            if (hasField(fieldName)) {
+                return in.getMinPackedValue(fieldName);
+            } else {
+                return null; // behave as field does not exist
+            }
+        }
+
+        @Override
+        public byte[] getMaxPackedValue(String fieldName) throws IOException {
+            if (hasField(fieldName)) {
+                return in.getMaxPackedValue(fieldName);
+            } else {
+                return null; // behave as field does not exist
+            }
+        }
+
+        @Override
+        public int getNumDimensions(String fieldName) throws IOException {
+            if (hasField(fieldName)) {
+                return in.getNumDimensions(fieldName);
+            } else {
+                return 0; // behave as field does not exist
+            }
+        }
+
+        @Override
+        public int getBytesPerDimension(String fieldName) throws IOException {
+            if (hasField(fieldName)) {
+                return in.getBytesPerDimension(fieldName);
+            } else {
+                return 0; // behave as field does not exist
+            }
+        }
+
+        @Override
+        public long size(String fieldName) {
+            if (hasField(fieldName)) {
+                return in.size(fieldName);
+            } else {
+                return 0; // behave as field does not exist
+            }
+        }
+
+        @Override
+        public int getDocCount(String fieldName) {
+            if (hasField(fieldName)) {
+                return in.getDocCount(fieldName);
+            } else {
+                return 0;  // behave as field does not exist
+            }
+        }
+    }
+
+    @Override
+    public PointValues getPointValues() {
+        PointValues points = super.getPointValues();
+        if (points == null) {
+            return null;
+        } else {
+            return new FieldFilterPointValues(points);
         }
     }
 }

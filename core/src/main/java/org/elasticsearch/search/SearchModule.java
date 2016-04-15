@@ -182,7 +182,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExte
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -482,7 +482,8 @@ public class SearchModule extends AbstractModule {
         registerAggregation(NestedAggregatorBuilder::new, NestedAggregatorBuilder::parse, NestedAggregatorBuilder.AGGREGATION_FIELD_NAME);
         registerAggregation(ReverseNestedAggregatorBuilder::new, ReverseNestedAggregatorBuilder::parse,
                 ReverseNestedAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregatorParser(new TopHitsParser());
+        registerAggregation(TopHitsAggregatorBuilder::new, TopHitsAggregatorBuilder::parse,
+                TopHitsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(GeoBoundsAggregatorBuilder::new, new GeoBoundsParser(), GeoBoundsAggregatorBuilder.AGGREGATION_NAME_FIED);
         registerAggregation(GeoCentroidAggregatorBuilder::new, new GeoCentroidParser(),
                 GeoCentroidAggregatorBuilder.AGGREGATION_NAME_FIELD);

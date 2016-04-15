@@ -217,8 +217,8 @@ import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSu
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParserMapper;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
@@ -511,7 +511,9 @@ public class SearchModule extends AbstractModule {
         registerPipelineAggregation(ExtendedStatsBucketPipelineAggregatorBuilder::new, new ExtendedStatsBucketParser(),
                 ExtendedStatsBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineParser(new PercentilesBucketParser());
-        registerPipelineParser(new MovAvgParser(movAvgModelParserMapper));
+        registerPipelineAggregation(MovAvgPipelineAggregatorBuilder::new,
+                (n, c) -> MovAvgPipelineAggregatorBuilder.parse(movAvgModelParserMapper, n, c),
+                MovAvgPipelineAggregatorBuilder.AGGREGATION_FIELD_NAME);
         registerPipelineAggregation(CumulativeSumPipelineAggregatorBuilder::new, CumulativeSumPipelineAggregatorBuilder::parse,
                 CumulativeSumPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(BucketScriptPipelineAggregatorBuilder::new, BucketScriptPipelineAggregatorBuilder::parse,

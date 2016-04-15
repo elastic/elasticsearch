@@ -16,19 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster.health;
+package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.index.shard.ShardId;
 
-class RoutingTableGenerator {
+public class RoutingTableGenerator {
     private static int node_id = 1;
 
     private ShardRouting genShardRouting(String index, int shardId, boolean primary) {
@@ -79,7 +75,7 @@ class RoutingTableGenerator {
         return builder.build();
     }
 
-    static class ShardCounter {
+    public static class ShardCounter {
         public int active;
         public int relocating;
         public int initializing;

@@ -19,30 +19,45 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class StatsBucketPipelineAggregatorBuilder
-        extends BucketMetricsPipelineAggregatorBuilder<StatsBucketPipelineAggregatorBuilder> {
-
-    static final StatsBucketPipelineAggregatorBuilder PROTOTYPE = new StatsBucketPipelineAggregatorBuilder("", "");
+public class StatsBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAggregatorBuilder<StatsBucketPipelineAggregatorBuilder> {
+    public static final String NAME = StatsBucketPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public StatsBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
-        this(name, new String[] { bucketsPath });
+        super(name, StatsBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
-    private StatsBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-        super(name, StatsBucketPipelineAggregator.TYPE.name(), bucketsPaths);
+    /**
+     * Read from a stream.
+     */
+    public StatsBucketPipelineAggregatorBuilder(StreamInput in)
+            throws IOException {
+        super(in, StatsBucketPipelineAggregator.TYPE.name());
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        // Do nothing, no extra state to write to stream
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     @Override
@@ -64,16 +79,13 @@ public class StatsBucketPipelineAggregatorBuilder
         return builder;
     }
 
-    @Override
-    protected StatsBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-            throws IOException {
-        return new StatsBucketPipelineAggregatorBuilder(name, bucketsPaths);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        // Do nothing, no extra state to write to stream
-    }
+    public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
+        @Override
+        protected StatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+                String bucketsPath, Map<String, Object> unparsedParams) {
+            return new StatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        }
+    };
 
     @Override
     protected int innerHashCode() {
@@ -85,4 +97,8 @@ public class StatsBucketPipelineAggregatorBuilder
         return true;
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

@@ -273,4 +273,8 @@ public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuild
         return Objects.hash(format, gapPolicy, units);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

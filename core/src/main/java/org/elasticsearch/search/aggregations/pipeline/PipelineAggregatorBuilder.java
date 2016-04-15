@@ -163,6 +163,7 @@ public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBu
 
     @Override
     public String getWriteableName() {
+        assert false == usesNewStyleSerialization() : "Migrated aggregations should just return NAME";
         return type;
     }
 

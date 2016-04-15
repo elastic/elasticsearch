@@ -198,10 +198,11 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucke
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptParser;
@@ -501,8 +502,10 @@ public class SearchModule extends AbstractModule {
         registerPipelineParser(new MinBucketParser());
         registerPipelineParser(new AvgBucketParser());
         registerPipelineParser(new SumBucketParser());
-        registerPipelineParser(new StatsBucketParser());
-        registerPipelineParser(new ExtendedStatsBucketParser());
+        registerPipelineAggregation(StatsBucketPipelineAggregatorBuilder::new, StatsBucketPipelineAggregatorBuilder.PARSER,
+                StatsBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(ExtendedStatsBucketPipelineAggregatorBuilder::new, new ExtendedStatsBucketParser(),
+                ExtendedStatsBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineParser(new PercentilesBucketParser());
         registerPipelineParser(new MovAvgParser(movAvgModelParserMapper));
         registerPipelineParser(new CumulativeSumParser());

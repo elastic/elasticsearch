@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.io.GeohashUtils;
@@ -274,14 +275,19 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (context.indexVersionCreated().before(Version.V_2_2_0)) {
-            if (queryBuilder.type() == GeoExecType.INDEXED) {
-                assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
-            } else {
-                assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
-            }
+        MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
+        if (fieldType == null) {
+            assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         } else {
-            assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
+            if (context.indexVersionCreated().before(Version.V_2_2_0)) {
+                if (queryBuilder.type() == GeoExecType.INDEXED) {
+                    assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
+                } else {
+                    assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
+                }
+            } else {
+                assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
+            }
         }
     }
 

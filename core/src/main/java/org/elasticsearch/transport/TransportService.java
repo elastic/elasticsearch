@@ -84,12 +84,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
-    final Map<Long, TimeoutInfoHolder> timeoutInfoHandlers = Collections.synchronizedMap(new LinkedHashMap<Long, TimeoutInfoHolder>(100, .75F, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry eldest) {
-            return size() > 100;
-        }
-    });
+    final Map<Long, TimeoutInfoHolder> timeoutInfoHandlers =
+        Collections.synchronizedMap(new LinkedHashMap<Long, TimeoutInfoHolder>(100, .75F, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry eldest) {
+                return size() > 100;
+            }
+        });
 
     private final TransportService.Adapter adapter;
 
@@ -203,7 +204,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                         }
                         @Override
                         public void doRun() {
-                            holderToNotify.handler().handleException(new TransportException("transport stopped, action: " + holderToNotify.action()));
+                            TransportException ex = new TransportException("transport stopped, action: " + holderToNotify.action());
+                            holderToNotify.handler().handleException(ex);
                         }
                     });
                 }
@@ -238,7 +240,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public TransportStats stats() {
-        return new TransportStats(transport.serverOpen(), adapter.rxMetric.count(), adapter.rxMetric.sum(), adapter.txMetric.count(), adapter.txMetric.sum());
+        return new TransportStats(
+            transport.serverOpen(), adapter.rxMetric.count(), adapter.rxMetric.sum(), adapter.txMetric.count(), adapter.txMetric.sum());
     }
 
     public BoundTransportAddress boundAddress() {
@@ -288,7 +291,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
-                                                                          TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
+                                                                          TransportRequestOptions options,
+                                                                          TransportResponseHandler<T> handler) throws TransportException {
         PlainTransportFuture<T> futureHandler = new PlainTransportFuture<>(handler);
         sendRequest(node, action, request, options, futureHandler);
         return futureHandler;
@@ -313,10 +317,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             } else {
                 timeoutHandler = new TimeoutHandler(requestId);
             }
-            clientHandlers.put(requestId, new RequestHolder<>(new ContextRestoreResponseHandler<T>(threadPool.getThreadContext().newStoredContext(), handler), node, action, timeoutHandler));
+            TransportResponseHandler<T> responseHandler =
+                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().newStoredContext(), handler);
+            clientHandlers.put(requestId, new RequestHolder<>(responseHandler, node, action, timeoutHandler));
             if (lifecycle.stoppedOrClosed()) {
-                // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify the caller.
-                // it will only notify if the toStop code hasn't done the work yet.
+                // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify
+                // the caller. It will only notify if the toStop code hasn't done the work yet.
                 throw new TransportException("TransportService is closed stopped can't send request");
             }
             if (timeoutHandler != null) {
@@ -432,7 +438,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param executor       The executor the request handling will be executed on
      * @param handler        The handler itself that implements the request handling
      */
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor,
+                                                                          TransportRequestHandler<Request> handler) {
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, taskManager, handler, executor, false);
         registerRequestHandler(reg);
     }
@@ -446,7 +453,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param forceExecution Force execution on the executor queue and never reject it
      * @param handler        The handler itself that implements the request handling
      */
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request,
+                                                                          String executor, boolean forceExecution,
+                                                                          TransportRequestHandler<Request> handler) {
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, taskManager, handler, executor, forceExecution);
         registerRequestHandler(reg);
     }
@@ -487,7 +496,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
         @Override
-        public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) {
+        public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                  TransportRequestOptions options) {
             if (traceEnabled() && shouldTraceAction(action)) {
                 traceRequestSent(node, requestId, action, options);
             }
@@ -555,7 +565,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
             if (timeoutInfoHolder != null) {
                 long time = System.currentTimeMillis();
-                logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(), timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
+                logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, " +
+                    "action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(),
+                    timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
                 action = timeoutInfoHolder.action();
                 sourceNode = timeoutInfoHolder.node();
             } else {
@@ -665,7 +677,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 final RequestHolder removedHolder = clientHandlers.remove(requestId);
                 if (removedHolder != null) {
                     assert removedHolder == holder : "two different holder instances for request [" + requestId + "]";
-                    removedHolder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action(), "request_id [" + requestId + "] timed out after [" + (timeoutTime - sentTime) + "ms]"));
+                    removedHolder.handler().handleException(
+                        new ReceiveTimeoutTransportException(holder.node(), holder.action(),
+                            "request_id [" + requestId + "] timed out after [" + (timeoutTime - sentTime) + "ms]"));
                 } else {
                     // response was processed, remove timeout info.
                     timeoutInfoHandlers.remove(requestId);
@@ -678,7 +692,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
          * to make sure this doesn't run.
          */
         public void cancel() {
-            assert clientHandlers.get(requestId) == null : "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
+            assert clientHandlers.get(requestId) == null :
+                "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
             FutureUtils.cancel(future);
         }
     }

@@ -178,4 +178,22 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertTrue(barMapper instanceof ObjectMapper);
         assertNotNull(((ObjectMapper)barMapper).getMapper("baz"));
     }
+
+    public void testDynamicArrayWithTemplate() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startArray("dynamic_templates").startObject().startObject("georule")
+                .field("match", "foo*")
+                .startObject("mapping").field("type", "geo_point").endObject()
+            .endObject().endObject().endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject().startArray("foo")
+                .startArray().value(0).value(0).endArray()
+                .startArray().value(1).value(1).endArray()
+            .endArray().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(2, doc.rootDoc().getFields("foo").length);
+    }
 }

@@ -101,7 +101,8 @@ public class NettyTransportIT extends ESIntegTestCase {
 
         @Inject
         public ExceptionThrowingNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                                               Version version, NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
+                                               Version version, NamedWriteableRegistry namedWriteableRegistry,
+                                               CircuitBreakerService circuitBreakerService) {
             super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry, circuitBreakerService);
         }
 
@@ -114,15 +115,16 @@ public class NettyTransportIT extends ESIntegTestCase {
 
             private final ESLogger logger;
 
-            public ErrorPipelineFactory(ExceptionThrowingNettyTransport exceptionThrowingNettyTransport, String name, Settings groupSettings) {
-                super(exceptionThrowingNettyTransport, name, groupSettings);
-                this.logger = exceptionThrowingNettyTransport.logger;
+            public ErrorPipelineFactory(ExceptionThrowingNettyTransport nettyTransport, String name, Settings groupSettings) {
+                super(nettyTransport, name, groupSettings);
+                this.logger = nettyTransport.logger;
             }
 
             @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = super.getPipeline();
-                pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger, TransportSettings.DEFAULT_PROFILE) {
+                pipeline.replace("dispatcher", "dispatcher",
+                    new MessageChannelHandler(nettyTransport, logger, TransportSettings.DEFAULT_PROFILE) {
 
                     @Override
                     protected String handleRequest(Channel channel, Marker marker, StreamInput buffer, long requestId,

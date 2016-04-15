@@ -52,6 +52,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -107,7 +108,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     @Override
-    protected void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
+    protected final void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
+        throw new UnsupportedOperationException("task parameter is required for this operation");
+    }
+
+    @Override
+    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
@@ -143,7 +149,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
                                 try {
-                                    executeBulk(bulkRequest, startTime, listener, responses);
+                                    executeBulk(task, bulkRequest, startTime, listener, responses);
                                 } catch (Throwable t) {
                                     listener.onFailure(t);
                                 }
@@ -163,7 +169,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                             if (counter.decrementAndGet() == 0) {
                                 try {
-                                    executeBulk(bulkRequest, startTime, listener, responses);
+                                    executeBulk(task, bulkRequest, startTime, listener, responses);
                                 } catch (Throwable t) {
                                     listener.onFailure(t);
                                 }
@@ -172,12 +178,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     });
                 } else {
                     if (counter.decrementAndGet() == 0) {
-                        executeBulk(bulkRequest, startTime, listener, responses);
+                        executeBulk(task, bulkRequest, startTime, listener, responses);
                     }
                 }
             }
         } else {
-            executeBulk(bulkRequest, startTime, listener, responses);
+            executeBulk(task, bulkRequest, startTime, listener, responses);
         }
     }
 
@@ -222,14 +228,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      */
     public void executeBulk(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
         final long startTimeNanos = relativeTime();
-        executeBulk(bulkRequest, startTimeNanos, listener, new AtomicArray<>(bulkRequest.requests.size()));
+        executeBulk(null, bulkRequest, startTimeNanos, listener, new AtomicArray<>(bulkRequest.requests.size()));
     }
 
     private long buildTookInMillis(long startTimeNanos) {
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
-    void executeBulk(final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses ) {
+    void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses ) {
         final ClusterState clusterState = clusterService.state();
         // TODO use timeout to wait here if its blocked...
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
@@ -333,12 +339,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
+        String nodeId = clusterService.localNode().getId();
         for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
             final ShardId shardId = entry.getKey();
             final List<BulkItemRequest> requests = entry.getValue();
             BulkShardRequest bulkShardRequest = new BulkShardRequest(bulkRequest, shardId, bulkRequest.refresh(), requests.toArray(new BulkItemRequest[requests.size()]));
             bulkShardRequest.consistencyLevel(bulkRequest.consistencyLevel());
             bulkShardRequest.timeout(bulkRequest.timeout());
+            if (task != null) {
+                bulkShardRequest.setParentTask(nodeId, task.getId());
+            }
             shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {

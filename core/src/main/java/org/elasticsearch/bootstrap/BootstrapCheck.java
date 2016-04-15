@@ -20,6 +20,8 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +32,10 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,7 +48,6 @@ import java.util.stream.Collectors;
  * and all production limit checks must pass. This should be extended as we go to settings like:
  * - discovery.zen.ping.unicast.hosts is set if we use zen disco
  * - ensure we can write in all data directories
- * - fail if vm.max_map_count is under a certain limit (not sure if this works cross platform)
  * - fail if the default cluster.name is used, if this is setup on network a real clustername should be used?
  */
 final class BootstrapCheck {
@@ -121,6 +126,9 @@ final class BootstrapCheck {
             checks.add(new MaxSizeVirtualMemoryCheck());
         }
         checks.add(new MinMasterNodesCheck(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(settings)));
+        if (Constants.LINUX) {
+            checks.add(new MaxMapCountCheck());
+        }
         return Collections.unmodifiableList(checks);
     }
 
@@ -323,6 +331,69 @@ final class BootstrapCheck {
         // visible for testing
         long getMaxSizeVirtualMemory() {
             return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
+        }
+
+    }
+
+    static class MaxMapCountCheck implements Check {
+
+        private final long limit = 1 << 18;
+
+        @Override
+        public boolean check() {
+            return getMaxMapCount() != -1 && getMaxMapCount() < limit;
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                    Locale.ROOT,
+                    "max virtual memory areas vm.max_map_count [%d] likely too low, increase to at least [%d]",
+                    getMaxMapCount(),
+                    limit);
+        }
+
+        // visible for testing
+        long getMaxMapCount() {
+            return getMaxMapCount(Loggers.getLogger(BootstrapCheck.class));
+        }
+
+        // visible for testing
+        long getMaxMapCount(ESLogger logger) {
+            final Path path = getProcSysVmMaxMapCountPath();
+            try (final BufferedReader bufferedReader = getBufferedReader(path)) {
+                final String rawProcSysVmMaxMapCount = readProcSysVmMaxMapCount(bufferedReader);
+                if (rawProcSysVmMaxMapCount != null) {
+                    try {
+                        return parseProcSysVmMaxMapCount(rawProcSysVmMaxMapCount);
+                    } catch (final NumberFormatException e) {
+                        logger.warn("unable to parse vm.max_map_count [{}]", e, rawProcSysVmMaxMapCount);
+                    }
+                }
+            } catch (final IOException e) {
+                logger.warn("I/O exception while trying to read [{}]", e, path);
+            }
+            return -1;
+        }
+
+        @SuppressForbidden(reason = "access /proc/sys/vm/max_map_count")
+        private Path getProcSysVmMaxMapCountPath() {
+            return PathUtils.get("/proc/sys/vm/max_map_count");
+        }
+
+        // visible for testing
+        BufferedReader getBufferedReader(final Path path) throws IOException {
+            return Files.newBufferedReader(path);
+        }
+
+        // visible for testing
+        String readProcSysVmMaxMapCount(final BufferedReader bufferedReader) throws IOException {
+            return bufferedReader.readLine();
+        }
+
+        // visible for testing
+        long parseProcSysVmMaxMapCount(final String procSysVmMaxMapCount) throws NumberFormatException {
+            return Long.parseLong(procSysVmMaxMapCount);
         }
 
     }

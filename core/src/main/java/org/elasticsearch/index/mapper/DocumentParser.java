@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +27,6 @@ import java.util.List;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -38,12 +36,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
 import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
 import org.elasticsearch.index.mapper.core.LegacyIntegerFieldMapper;
-import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -57,14 +55,7 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 /** A parser for documents, given mappings from a DocumentMapper */
-final class DocumentParser implements Closeable {
-
-    private CloseableThreadLocal<ParseContext.InternalParseContext> cache = new CloseableThreadLocal<ParseContext.InternalParseContext>() {
-        @Override
-        protected ParseContext.InternalParseContext initialValue() {
-            return new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, new ContentPath(0));
-        }
-    };
+final class DocumentParser {
 
     private final IndexSettings indexSettings;
     private final DocumentMapperParser docMapperParser;
@@ -81,7 +72,7 @@ final class DocumentParser implements Closeable {
 
         source.type(docMapper.type());
         final Mapping mapping = docMapper.mapping();
-        final ParseContext.InternalParseContext context = cache.get();
+        final ParseContext.InternalParseContext context = new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, new ContentPath(0));
         XContentParser parser = null;
         try {
             parser = parser(source);
@@ -97,12 +88,14 @@ final class DocumentParser implements Closeable {
                 parser.close();
             }
         }
+        String remainingPath = context.path().pathAsText("");
+        if (remainingPath.isEmpty() == false) {
+            throw new IllegalStateException("found leftover path elements: " + remainingPath);
+        }
 
         reverseOrder(context);
 
         ParsedDocument doc = parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
-        // reset the context to free up memory
-        context.reset(null, null, null);
         return doc;
     }
 
@@ -553,6 +546,7 @@ final class DocumentParser implements Closeable {
                     context.addDynamicMapper(mapper);
                     context.path().add(arrayFieldName);
                     parseObjectOrField(context, mapper);
+                    context.path().remove();
                 } else {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 }
@@ -931,10 +925,5 @@ final class DocumentParser implements Closeable {
 
     private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper.Dynamic dynamic) {
         return dynamic == null ? ObjectMapper.Dynamic.TRUE : dynamic;
-    }
-
-    @Override
-    public void close() {
-        cache.close();
     }
 }

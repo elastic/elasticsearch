@@ -65,8 +65,10 @@ public class TransportClientIT extends ESIntegTestCase {
         try {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
-            assertThat(nodeService.connectedNodes().size(), greaterThanOrEqualTo(1)); // since we force transport clients there has to be one node started that we connect to.
-            for (DiscoveryNode discoveryNode : nodeService.connectedNodes()) {  // connected nodes have updated version
+            // since we force transport clients there has to be one node started that we connect to.
+            assertThat(nodeService.connectedNodes().size(), greaterThanOrEqualTo(1));
+            // connected nodes have updated version
+            for (DiscoveryNode discoveryNode : nodeService.connectedNodes()) {
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT));
             }
 

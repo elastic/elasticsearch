@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -61,6 +62,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -245,6 +247,55 @@ public class TasksIT extends ESIntegTestCase {
             assertParentTask(Collections.singletonList(taskInfo), sTask.get(0));
         }
     }
+
+
+    public void testTransportBulkTasks() {
+        registerTaskManageListeners(BulkAction.NAME);  // main task
+        registerTaskManageListeners(BulkAction.NAME + "[s]");  // shard task
+        registerTaskManageListeners(BulkAction.NAME + "[s][p]");  // shard task on primary
+        registerTaskManageListeners(BulkAction.NAME + "[s][r]");  // shard task on replica
+        createIndex("test");
+        ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
+        client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}")).get();
+
+        // the bulk operation should produce one main task
+        assertEquals(1, numberOfEvents(BulkAction.NAME, Tuple::v1));
+
+        // we should also get 1 or 2 [s] operation with main operation as a parent
+        // in case the primary is located on the coordinating node we will have 1 operation, otherwise - 2
+        List<TaskInfo> shardTasks = findEvents(BulkAction.NAME + "[s]", Tuple::v1);
+        assertThat(shardTasks.size(), allOf(lessThanOrEqualTo(2), greaterThanOrEqualTo(1)));
+
+        // Select the effective shard task
+        TaskInfo shardTask;
+        if (shardTasks.size() == 1) {
+            // we have only one task - it's going to be the parent task for all [s][p] and [s][r] tasks
+            shardTask = shardTasks.get(0);
+            // and it should have the main task as a parent
+            assertParentTask(shardTask, findEvents(BulkAction.NAME, Tuple::v1).get(0));
+        } else {
+            if (shardTasks.get(0).getParentTaskId().equals(shardTasks.get(1).getTaskId())) {
+                // task 1 is the parent of task 0, that means that task 0 will control [s][p] and [s][r] tasks
+                 shardTask = shardTasks.get(0);
+                // in turn the parent of the task 1 should be the main task
+                assertParentTask(shardTasks.get(1), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+            } else {
+                // otherwise task 1 will control [s][p] and [s][r] tasks
+                shardTask = shardTasks.get(1);
+                // in turn the parent of the task 0 should be the main task
+                assertParentTask(shardTasks.get(0), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+            }
+        }
+
+        // we should also get one [s][p] operation with shard operation as a parent
+        assertEquals(1, numberOfEvents(BulkAction.NAME + "[s][p]", Tuple::v1));
+        assertParentTask(findEvents(BulkAction.NAME + "[s][p]", Tuple::v1), shardTask);
+
+        // we should get as many [s][r] operations as we have replica shards
+        // they all should have the same shard task as a parent
+        assertEquals(getNumShards("test").numReplicas, numberOfEvents(BulkAction.NAME + "[s][r]", Tuple::v1));
+        assertParentTask(findEvents(BulkAction.NAME + "[s][r]", Tuple::v1), shardTask);
+}
 
     /**
      * Very basic "is it plugged in" style test that indexes a document and
@@ -487,10 +538,14 @@ public class TasksIT extends ESIntegTestCase {
      */
     private void assertParentTask(List<TaskInfo> tasks, TaskInfo parentTask) {
         for (TaskInfo task : tasks) {
-            assertTrue(task.getParentTaskId().isSet());
-            assertEquals(parentTask.getNode().getId(), task.getParentTaskId().getNodeId());
-            assertTrue(Strings.hasLength(task.getParentTaskId().getNodeId()));
-            assertEquals(parentTask.getId(), task.getParentTaskId().getId());
+            assertParentTask(task, parentTask);
         }
+    }
+
+    private void assertParentTask(TaskInfo task, TaskInfo parentTask) {
+        assertTrue(task.getParentTaskId().isSet());
+        assertEquals(parentTask.getNode().getId(), task.getParentTaskId().getNodeId());
+        assertTrue(Strings.hasLength(task.getParentTaskId().getNodeId()));
+        assertEquals(parentTask.getId(), task.getParentTaskId().getId());
     }
 }

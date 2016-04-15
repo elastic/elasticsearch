@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -1177,7 +1178,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         SearchResponse searchResponse = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
-                .setQuery(hasChildQuery("child", termQuery("field1", "yellow")))
+                .setQuery(hasChildQuery("child", termQuery("field1", "yellow"), ScoreMode.None))
                 .get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
@@ -1186,7 +1187,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         searchResponse = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
-                .setQuery(hasChildQuery("child", termQuery("field1", "yellow")))
+                .setQuery(hasChildQuery("child", termQuery("field1", "yellow"), ScoreMode.None))
                 .get();
         assertHitCount(searchResponse, 0L);
     }

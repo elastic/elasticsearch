@@ -55,3 +55,14 @@
     - length: { license: 10 }
     - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
 
+---
+"Should throw 404 after license deletion":
+
+  - do:
+    license.delete: {}
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      license.get: {}

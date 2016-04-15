@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
@@ -548,13 +549,13 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
                 .get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(hasParentQuery("parent", matchAllQuery()))
+                .setQuery(hasParentQuery("parent", matchAllQuery(), false))
                 .addSort("_uid", SortOrder.ASC)
                 .get();
         assertHitCount(searchResponse, 3L);
@@ -565,39 +566,39 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         // Both user1 and user2 can't see field1 and field2, no parent/child query should yield results:
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
-                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
                 .get();
         assertHitCount(searchResponse, 0L);
 
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
-                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
                 .get();
         assertHitCount(searchResponse, 0L);
 
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
-                .setQuery(hasParentQuery("parent", matchAllQuery()))
+                .setQuery(hasParentQuery("parent", matchAllQuery(), false))
                 .get();
         assertHitCount(searchResponse, 0L);
 
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
-                .setQuery(hasParentQuery("parent", matchAllQuery()))
+                .setQuery(hasParentQuery("parent", matchAllQuery(), false))
                 .get();
         assertHitCount(searchResponse, 0L);
 
         // user 3 can see them but not c3
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareSearch("test")
-                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
                 .get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
 
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareSearch("test")
-                .setQuery(hasParentQuery("parent", matchAllQuery()))
+                .setQuery(hasParentQuery("parent", matchAllQuery(), false))
                 .get();
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));

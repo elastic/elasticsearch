@@ -25,7 +25,7 @@ import java.util.concurrent.Callable;
  */
 public class WatcherDateTimeUtils {
 
-    public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
+    public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
     public static final DateMathParser dateMathParser = new DateMathParser(dateTimeFormatter);
 
     private WatcherDateTimeUtils() {

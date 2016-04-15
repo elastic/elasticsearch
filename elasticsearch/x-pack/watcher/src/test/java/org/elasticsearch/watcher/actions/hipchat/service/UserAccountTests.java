@@ -17,8 +17,11 @@ import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.http.Scheme;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.test.MockTextTemplateEngine;
 
 import java.io.IOException;
+import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -33,6 +36,7 @@ import static org.mockito.Mockito.when;
  *
  */
 public class UserAccountTests extends ESTestCase {
+
     public void testSettings() throws Exception {
         String accountName = "_name";
 
@@ -245,5 +249,42 @@ public class UserAccountTests extends ESTestCase {
         verify(httpClient).execute(reqR2);
         verify(httpClient).execute(reqU2);
         verify(httpClient).execute(reqU2);
+    }
+
+    public void testColorIsOptional() throws Exception {
+        Settings settings = Settings.builder()
+                .put("user", "testuser")
+                .put("auth_token", "awesome-auth-token")
+                .build();
+        UserAccount userAccount = createUserAccount(settings);
+
+        TextTemplate body = TextTemplate.inline("body").build();
+        TextTemplate[] rooms = new TextTemplate[] { TextTemplate.inline("room").build() };
+        HipChatMessage.Template template = new HipChatMessage.Template(body, rooms, null, "sender", HipChatMessage.Format.TEXT, null, true);
+
+        HipChatMessage message = userAccount.render("watchId", "actionId", new MockTextTemplateEngine(), template, new HashMap<>());
+        assertThat(message.color, is(nullValue()));
+    }
+
+    public void testFormatIsOptional() throws Exception {
+        Settings settings = Settings.builder()
+                .put("user", "testuser")
+                .put("auth_token", "awesome-auth-token")
+                .build();
+        UserAccount userAccount = createUserAccount(settings);
+
+        TextTemplate body = TextTemplate.inline("body").build();
+        TextTemplate[] rooms = new TextTemplate[] { TextTemplate.inline("room").build() };
+        HipChatMessage.Template template = new HipChatMessage.Template(body, rooms, null, "sender", null,
+                TextTemplate.inline("yellow").build(), true);
+
+        HipChatMessage message = userAccount.render("watchId", "actionId", new MockTextTemplateEngine(), template, new HashMap<>());
+        assertThat(message.format, is(nullValue()));
+    }
+
+    private UserAccount createUserAccount(Settings settings) {
+        HipChatServer hipChatServer = mock(HipChatServer.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        return new UserAccount("notify-monitoring", settings, hipChatServer, httpClient, logger);
     }
 }

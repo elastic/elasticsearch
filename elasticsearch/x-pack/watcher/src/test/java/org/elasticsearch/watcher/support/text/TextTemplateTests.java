@@ -34,6 +34,7 @@ import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -184,6 +185,10 @@ public class TextTemplateTests extends ESTestCase {
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), is("unexpected field [type]"));
         }
+    }
+
+    public void testNullObject() throws Exception {
+        assertThat(engine.render(null ,new HashMap<>()), is(nullValue()));
     }
 
     private TextTemplate.Builder templateBuilder(ScriptType type, String text) {

@@ -186,7 +186,7 @@ public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuild
             builder.field(GAP_POLICY_FIELD.getPreferredName(), gapPolicy.getName());
         }
         if (units != null) {
-            builder.field(FORMAT_FIELD.getPreferredName(), units);
+            builder.field(UNIT_FIELD.getPreferredName(), units);
         }
         return builder;
     }

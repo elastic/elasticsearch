@@ -185,7 +185,7 @@ PUT icu_sample
       "analysis": {
         "analyzer": {
           "folded": {
-            "tokenizer": "icu",
+            "tokenizer": "icu_tokenizer",
             "filter": [
               "icu_folding"
             ]

@@ -51,6 +51,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
@@ -402,6 +403,19 @@ public class NodeEnvironmentTests extends ESTestCase {
                 env2.indexPaths(index), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/" + index.getUUID())));
 
         env2.close();
+    }
+
+    public void testPersistentNodeId() throws IOException {
+        String[] paths = tmpPaths();
+        NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
+        String nodeID = env.nodeID();
+        env.close();
+        env = newNodeEnvironment(paths, Settings.EMPTY);
+        assertThat(env.nodeID(), equalTo(nodeID));
+        env.close();
+        env = newNodeEnvironment(Settings.EMPTY);
+        assertThat(env.nodeID(), not(equalTo(nodeID)));
+        env.close();
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

@@ -37,7 +37,10 @@ public class ParseField {
     public ParseField(String value, String... deprecatedNames) {
         underscoreName = Strings.toUnderscoreCase(value);
         final HashSet<String> set = new HashSet<>();
-        set.add(Strings.toCamelCase(value));
+        String camelCaseName = Strings.toCamelCase(value);
+        if (camelCaseName.equals(value) == false) {
+            set.add(camelCaseName);
+        }
         for (String depName : deprecatedNames) {
             set.add(Strings.toCamelCase(depName));
             set.add(Strings.toUnderscoreCase(depName));

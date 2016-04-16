@@ -31,10 +31,13 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -64,12 +67,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -77,6 +81,7 @@ import static java.util.Collections.unmodifiableSet;
  * A component that holds all data paths for a single node.
  */
 public final class NodeEnvironment extends AbstractComponent implements Closeable {
+
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -130,9 +135,11 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
 
     private final boolean addNodeId;
 
-    private final int localNodeId;
+    private final int nodeLockId;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<ShardId, InternalShardLock> shardLocks = new HashMap<>();
+
+    private final NodeMetaData nodeMetaData;
 
     /**
      * Maximum number of data nodes that should run in an environment.
@@ -143,8 +150,19 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     /**
      * If true automatically append node id to custom data paths.
      */
+    @Deprecated
     public static final Setting<Boolean> ADD_NODE_ID_TO_CUSTOM_PATH =
-        Setting.boolSetting("node.add_id_to_custom_path", true, Property.NodeScope);
+        Setting.boolSetting("node.add_id_to_custom_path", true, Property.Deprecated, Property.NodeScope);
+
+    public static final Setting<Boolean> ADD_NODE_LOCK_ID_TO_CUSTOM_PATH =
+        Setting.boolSetting("node.add_lock_id_to_custom_path", ADD_NODE_ID_TO_CUSTOM_PATH,
+            Property.NodeScope);
+
+
+    public static final Setting<Long> NODE_ID_SEED_SETTING =
+        // don't use node.id.seed so it won't be seen as an attribute
+        Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, Property.NodeScope);
+
 
     /**
      * If true the [verbose] SegmentInfos.infoStream logging is sent to System.out.
@@ -166,7 +184,9 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             nodePaths = null;
             sharedDataPath = null;
             locks = null;
-            localNodeId = -1;
+            nodeLockId = -1;
+            // nocommit - this a big shame for coordinating nodes..
+            nodeMetaData = new NodeMetaData(generateNodeId(settings));
             return;
         }
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
@@ -175,7 +195,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
 
         try {
             sharedDataPath = environment.sharedDataFile();
-            int localNodeId = -1;
+            int nodeLockId = -1;
             IOException lastException = null;
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
             for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
@@ -188,7 +208,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                         try {
                             locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                             nodePaths[dirIndex] = new NodePath(dir);
-                            localNodeId = possibleLockId;
+                            nodeLockId = possibleLockId;
                         } catch (LockObtainFailedException ex) {
                             logger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
                             // release all the ones that were obtained up until now
@@ -215,16 +235,18 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                     + Arrays.toString(environment.dataWithClusterFiles()), lastException);
             }
 
-            this.localNodeId = localNodeId;
+            this.nodeLockId = nodeLockId;
             this.locks = locks;
             this.nodePaths = nodePaths;
 
             if (logger.isDebugEnabled()) {
-                logger.debug("using node location [{}], local_node_id [{}]", nodePaths, localNodeId);
+                logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
             }
 
             maybeLogPathDetails();
             maybeLogHeapDetails();
+
+            this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
 
             applySegmentInfosTrace(settings);
             assertCanWrite();
@@ -234,6 +256,30 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                 IOUtils.closeWhileHandlingException(locks);
             }
         }
+    }
+
+    /**
+     * scans the node paths and loads existing metaData file. If not found a new meta data will be generated
+     * and persisted into the nodePaths
+     *
+     */
+    // package private for testing
+    static NodeMetaData loadOrCreateNodeMetaData(Settings settings, ESLogger logger,
+                                                 NodePath... nodePaths) throws IOException {
+        List<Path> pathList = Arrays.stream(nodePaths).map(np -> np.path).collect(Collectors.toList());
+        final Path[] paths = pathList.toArray(new Path[pathList.size()]);
+        NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, paths);
+        if (metaData == null) {
+            metaData = new NodeMetaData(generateNodeId(settings));
+        }
+        // we write again to make sure all paths have the latest state file
+        NodeMetaData.FORMAT.write(metaData, paths);
+        return metaData;
+    }
+
+    public static String generateNodeId(Settings settings) {
+        Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
+        return Strings.randomBase64UUID(random);
     }
 
     private static void releaseAndNullLocks(Lock[] locks) {
@@ -616,10 +662,6 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         }
     }
 
-    public int localNodeId() {
-        return this.localNodeId;
-    }
-
     public boolean hasNodeFile() {
         return nodePaths != null && locks != null;
     }
@@ -638,6 +680,17 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             paths[i] = nodePaths[i].path;
         }
         return paths;
+    }
+
+    /**
+     * returns the unique uuid describing this node. The uuid is persistent in the data folder of this node
+     * and remains across restarts.
+     **/
+    public String nodeID() {
+        // we currently only return the ID and hide the underlying nodeMetaData implementation in order to avoid
+        // confusion with other "metadata" like node settings found in elasticsearch.yml. In future
+        // we can encapsulate both (and more) in one NodeMetaData (or NodeSettings) object ala IndexSettings
+        return nodeMetaData.nodeID();
     }
 
     /**
@@ -845,7 +898,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert sharedDataPath != null;
             if (addNodeId) {
-                return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.localNodeId));
+                return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
             } else {
                 return sharedDataPath.resolve(customDataDir);
             }

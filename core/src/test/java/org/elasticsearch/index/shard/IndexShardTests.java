@@ -449,7 +449,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     public static void write(ShardStateMetaData shardStateMetaData,
                              Path... shardPaths) throws IOException {
-        ShardStateMetaData.FORMAT.write(shardStateMetaData, shardStateMetaData.legacyVersion, shardPaths);
+        ShardStateMetaData.FORMAT.write(shardStateMetaData, shardPaths);
     }
 
     public void testDurableFlagHasEffect() {

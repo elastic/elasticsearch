@@ -413,7 +413,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                  // this one is not validated ahead of time and breaks allocation
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
             ).build();
-            IndexMetaData.FORMAT.write(brokenMeta, brokenMeta.getVersion(), services.indexPaths(brokenMeta.getIndex()));
+            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -477,7 +477,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
             IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
                 .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
-            IndexMetaData.FORMAT.write(brokenMeta, brokenMeta.getVersion(), services.indexPaths(brokenMeta.getIndex()));
+            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -522,7 +522,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
-            MetaData.FORMAT.write(brokenMeta, metaData.version(), nodeEnv.nodeDataPaths());
+            MetaData.FORMAT.write(brokenMeta, nodeEnv.nodeDataPaths());
         }
         internalCluster().fullRestart();
         ensureYellow("test"); // wait for state recovery

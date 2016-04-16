@@ -29,7 +29,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -124,7 +123,7 @@ public class MetaStateService extends AbstractComponent {
         final Index index = indexMetaData.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            IndexMetaData.FORMAT.write(indexMetaData, indexMetaData.getVersion(),
+            IndexMetaData.FORMAT.write(indexMetaData,
                 nodeEnv.indexPaths(indexMetaData.getIndex()));
         } catch (Throwable ex) {
             logger.warn("[{}]: failed to write index state", ex, index);
@@ -138,7 +137,7 @@ public class MetaStateService extends AbstractComponent {
     void writeGlobalState(String reason, MetaData metaData) throws Exception {
         logger.trace("[_global] writing state, reason [{}]",  reason);
         try {
-            MetaData.FORMAT.write(metaData, metaData.version(), nodeEnv.nodeDataPaths());
+            MetaData.FORMAT.write(metaData, nodeEnv.nodeDataPaths());
         } catch (Throwable ex) {
             logger.warn("[_global]: failed to write global state", ex);
             throw new IOException("failed to write global state", ex);

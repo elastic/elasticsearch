@@ -256,7 +256,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment()) {
-            IndexMetaData.FORMAT.write(indexState, 1, nodeEnvironment.indexPaths(index));
+            IndexMetaData.FORMAT.write(indexState, nodeEnvironment.indexPaths(index));
             assertFalse(IndexFolderUpgrader.needsUpgrade(index, index.getUUID()));
         }
     }
@@ -305,7 +305,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
         for (int i = 0; i < nodePaths.length; i++) {
             oldIndexPaths[i] = nodePaths[i].indicesPath.resolve(indexSettings.getIndex().getName());
         }
-        IndexMetaData.FORMAT.write(indexSettings.getIndexMetaData(), 1, oldIndexPaths);
+        IndexMetaData.FORMAT.write(indexSettings.getIndexMetaData(), oldIndexPaths);
         for (int id = 0; id < indexSettings.getNumberOfShards(); id++) {
             Path oldIndexPath = randomFrom(oldIndexPaths);
             ShardId shardId = new ShardId(indexSettings.getIndex(), id);
@@ -316,7 +316,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
                 writeShard(shardId, oldIndexPath, numIdxFiles, numTranslogFiles);
             }
             ShardStateMetaData state = new ShardStateMetaData(true, indexSettings.getUUID(), AllocationId.newInitializing());
-            ShardStateMetaData.FORMAT.write(state, 1, oldIndexPath.resolve(String.valueOf(shardId.getId())));
+            ShardStateMetaData.FORMAT.write(state, oldIndexPath.resolve(String.valueOf(shardId.getId())));
         }
     }
 

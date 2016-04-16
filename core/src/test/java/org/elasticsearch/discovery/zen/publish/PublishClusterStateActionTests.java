@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -152,16 +153,17 @@ public class PublishClusterStateActionTests extends ESTestCase {
         return createMockNode(name, settings, version, null);
     }
 
-    public MockNode createMockNode(String name, Settings settings, Version version, @Nullable ClusterStateListener listener) throws Exception {
-        settings = Settings.builder()
+    public MockNode createMockNode(String name, Settings baseSettings, Version version, @Nullable ClusterStateListener listener) throws Exception {
+        final Settings settings = Settings.builder()
                 .put("name", name)
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .put(settings)
+                .put(baseSettings)
                 .build();
 
         MockTransportService service = buildTransportService(settings, version);
         DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(settings, version);
-        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(service.boundAddress().publishAddress());
+        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(
+            service.boundAddress().publishAddress(), () -> NodeEnvironment.generateNodeId(settings));
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
         node.action = buildPublishClusterStateAction(settings, service, () -> node.clusterState, node);
         final CountDownLatch latch = new CountDownLatch(nodes.size() * 2 + 1);

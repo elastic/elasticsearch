@@ -64,7 +64,8 @@ public abstract class MetaDataStateFormat<T> {
     public static final String STATE_DIR_NAME = "_state";
     public static final String STATE_FILE_EXTENSION = ".st";
     private static final String STATE_FILE_CODEC = "state";
-    private static final int STATE_FILE_VERSION = 0;
+    private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 0;
+    private static final int STATE_FILE_VERSION = 1;
     private static final int BUFFER_SIZE = 4096;
     private final XContentType format;
     private final String prefix;
@@ -96,11 +97,10 @@ public abstract class MetaDataStateFormat<T> {
      * it's target filename of the pattern <tt>{prefix}{version}.st</tt>.
      *
      * @param state the state object to write
-     * @param version the version of the state
      * @param locations the locations where the state should be written to.
      * @throws IOException if an IOException occurs
      */
-    public final void write(final T state, final long version, final Path... locations) throws IOException {
+    public final void write(final T state, final Path... locations) throws IOException {
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }
@@ -119,7 +119,6 @@ public abstract class MetaDataStateFormat<T> {
             try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, fileName, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(format.index());
-                out.writeLong(version);
                 try (XContentBuilder builder = newXContentBuilder(format, new IndexOutputOutputStream(out) {
                     @Override
                     public void close() throws IOException {
@@ -182,9 +181,13 @@ public abstract class MetaDataStateFormat<T> {
             try (final IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                  // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, STATE_FILE_VERSION, STATE_FILE_VERSION);
+                final int fileVersion = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, STATE_FILE_VERSION, STATE_FILE_VERSION);
                 final XContentType xContentType = XContentType.values()[indexInput.readInt()];
-                indexInput.readLong(); // version currently unused
+                if (fileVersion == 0) {
+                    // format version 0, write a version that always came from the content state file
+                    // and was never used.
+                    indexInput.readLong();
+                }
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {

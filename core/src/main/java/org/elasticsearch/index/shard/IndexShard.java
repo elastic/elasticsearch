@@ -84,7 +84,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -1386,7 +1385,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
             final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.primary(), getIndexUUID(), newRouting.allocationId());
-            ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.legacyVersion, shardPath().getShardStatePath());
+            ShardStateMetaData.FORMAT.write(newShardStateMetadata, shardPath().getShardStatePath());
         } else {
             logger.trace("{} skip writing shard state, has been written before", shardId);
         }

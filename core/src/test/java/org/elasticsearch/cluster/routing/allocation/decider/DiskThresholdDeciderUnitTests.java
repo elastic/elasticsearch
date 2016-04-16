@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
@@ -107,9 +106,9 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
         final Index index = metaData.index("test").getIndex();
 
         ShardRouting test_0 = ShardRouting.newUnassigned(index, 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        DiscoveryNode node_0 = new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        DiscoveryNode node_0 = new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
-        DiscoveryNode node_1 = new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        DiscoveryNode node_1 = new DiscoveryNode("node_1", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -146,9 +145,9 @@ public class DiskThresholdDeciderUnitTests extends ESTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
         ImmutableOpenMap.Builder<ShardRouting, String> shardRoutingMap = ImmutableOpenMap.builder();
 
-        DiscoveryNode node_0 = new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        DiscoveryNode node_0 = new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
-        DiscoveryNode node_1 = new DiscoveryNode("node_1", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        DiscoveryNode node_1 = new DiscoveryNode("node_1", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
 
         MetaData metaData = MetaData.builder()

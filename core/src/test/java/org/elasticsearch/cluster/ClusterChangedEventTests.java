@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -316,7 +316,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     // Create a new DiscoveryNode
     private static DiscoveryNode newNode(final String nodeId, Set<DiscoveryNode.Role> roles) {
-        return new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, Collections.emptyMap(), roles, Version.CURRENT);
+        return new DiscoveryNode(nodeId, nodeId, LocalTransportAddress.buildUnique(), Collections.emptyMap(), roles, Version.CURRENT);
     }
 
     // Create the metadata for a cluster state.

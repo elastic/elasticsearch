@@ -47,7 +47,6 @@ public abstract class TransportAddressSerializers {
     static {
         Map<Short, TransportAddress> registry = new HashMap<>();
         try {
-            addAddressType(registry, DummyTransportAddress.INSTANCE);
             addAddressType(registry, InetSocketTransportAddress.PROTO);
             addAddressType(registry, LocalTransportAddress.PROTO);
         } catch (Exception e) {

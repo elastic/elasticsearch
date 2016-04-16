@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -67,6 +66,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.shuffle;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -403,7 +403,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     public void testNewClusterStateOnExistingNodeJoin() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
-        final DiscoveryNode other_node = new DiscoveryNode("other_node", DummyTransportAddress.INSTANCE,
+        final DiscoveryNode other_node = new DiscoveryNode("other_node", LocalTransportAddress.buildUnique(),
                 emptyMap(), emptySet(), Version.CURRENT);
         nodesBuilder.put(other_node);
         setState(clusterService, ClusterState.builder(state).nodes(nodesBuilder));
@@ -411,6 +411,15 @@ public class NodeJoinControllerTests extends ESTestCase {
         state = clusterService.state();
         joinNode(other_node);
         assertTrue("failed to publish a new state upon existing join", clusterService.state() != state);
+    }
+
+    public void testRejectingJoinWithSameAddress() throws InterruptedException, ExecutionException {
+        ClusterState state = clusterService.state();
+        final DiscoveryNode other_node = new DiscoveryNode("other_node", state.nodes().getLocalNode().getAddress(),
+            emptyMap(), emptySet(), Version.CURRENT);
+
+        ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
+        assertThat(e.getMessage(), containsString("found existing node"));
     }
 
     public void testNormalConcurrentJoins() throws InterruptedException {

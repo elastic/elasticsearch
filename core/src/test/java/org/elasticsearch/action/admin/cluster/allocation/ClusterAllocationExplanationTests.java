@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -56,7 +56,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         Map<DiscoveryNode, Decision> nodeToDecisions = new HashMap<>();
         Map<DiscoveryNode, Float> nodeToWeight = new HashMap<>();
         for (int i = randomIntBetween(2, 5); i > 0; i--) {
-            DiscoveryNode dn = new DiscoveryNode("node-" + i, DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+            DiscoveryNode dn = new DiscoveryNode("node-" + i, LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
             Decision.Multi d = new Decision.Multi();
             d.add(Decision.single(Decision.Type.NO, "no label", "because I said no"));
             d.add(Decision.single(Decision.Type.YES, "yes label", "yes please"));

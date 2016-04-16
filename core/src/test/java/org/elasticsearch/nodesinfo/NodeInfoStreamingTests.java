@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -121,7 +121,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
 
     private NodeInfo createNodeInfo() {
         Build build = Build.CURRENT;
-        DiscoveryNode node = new DiscoveryNode("test_node", DummyTransportAddress.INSTANCE,
+        DiscoveryNode node = new DiscoveryNode("test_node", LocalTransportAddress.buildUnique(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         Map<String, String> serviceAttributes = new HashMap<>();
         serviceAttributes.put("test", "attribute");
@@ -133,7 +133,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         threadPoolInfos.add(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5));
         ThreadPoolInfo threadPoolInfo = new ThreadPoolInfo(threadPoolInfos);
         Map<String, BoundTransportAddress> profileAddresses = new HashMap<>();
-        BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(new TransportAddress[]{DummyTransportAddress.INSTANCE}, DummyTransportAddress.INSTANCE);
+        BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(new TransportAddress[]{LocalTransportAddress.buildUnique()}, LocalTransportAddress.buildUnique());
         profileAddresses.put("test_address", dummyBoundTransportAddress);
         TransportInfo transport = new TransportInfo(dummyBoundTransportAddress, profileAddresses);
         HttpInfo htttpInfo = new HttpInfo(dummyBoundTransportAddress, randomLong());

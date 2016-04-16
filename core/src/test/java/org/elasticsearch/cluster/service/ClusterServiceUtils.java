@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -45,7 +45,7 @@ public class ClusterServiceUtils {
         ClusterService clusterService = new ClusterService(Settings.EMPTY, null,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool, new ClusterName("ClusterServiceTests"));
-        clusterService.setLocalNode(new DiscoveryNode("node", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        clusterService.setLocalNode(new DiscoveryNode("node", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT));
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override

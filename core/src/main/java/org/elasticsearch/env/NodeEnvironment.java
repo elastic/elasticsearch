@@ -178,7 +178,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         super(settings);
 
-        this.addNodeId = ADD_NODE_ID_TO_CUSTOM_PATH.get(settings);
+        this.addNodeId = ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.get(settings);
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;

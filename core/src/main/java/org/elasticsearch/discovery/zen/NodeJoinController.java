@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -357,6 +358,7 @@ public class NodeJoinController extends AbstractComponent {
     class ProcessJoinsTask extends ClusterStateUpdateTask {
 
         private final List<MembershipAction.JoinCallback> joinCallbacksToRespondTo = new ArrayList<>();
+        private final List<Tuple<MembershipAction.JoinCallback, Throwable>> joinCallbacksToFail = new ArrayList<>();
         private boolean nodeAdded = false;
 
         public ProcessJoinsTask(Priority priority) {
@@ -376,20 +378,26 @@ public class NodeJoinController extends AbstractComponent {
                 while (iterator.hasNext()) {
                     Map.Entry<DiscoveryNode, List<MembershipAction.JoinCallback>> entry = iterator.next();
                     final DiscoveryNode node = entry.getKey();
-                    joinCallbacksToRespondTo.addAll(entry.getValue());
                     iterator.remove();
-                    if (currentState.nodes().nodeExists(node.getId())) {
+                    final String preflight = nodesBuilder.preflightPut(node);
+                    if (preflight != null) {
+                        Throwable failure = new IllegalStateException(preflight);
+                        for (MembershipAction.JoinCallback callback: entry.getValue()) {
+                            joinCallbacksToFail.add(new Tuple<>(callback, failure));
+                        }
+                    } else if (currentState.nodes().nodeExists(node.getId())) {
                         logger.debug("received a join request for an existing node [{}]", node);
+                        joinCallbacksToRespondTo.addAll(entry.getValue());
                     } else {
                         nodeAdded = true;
                         nodesBuilder.put(node);
-                        for (DiscoveryNode existingNode : currentState.nodes()) {
-                            if (node.getAddress().equals(existingNode.getAddress())) {
-                                nodesBuilder.remove(existingNode.getId());
-                                logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", node, existingNode);
-                            }
-                        }
+                        joinCallbacksToRespondTo.addAll(entry.getValue());
                     }
+
+                    assert entry.getValue().stream().allMatch(cb ->
+                        joinCallbacksToRespondTo.contains(cb) ^
+                            joinCallbacksToFail.stream().filter(tuple -> tuple.v1().equals(cb)).count() > 0
+                    ) : "failed to add " + entry.getValue() + "to joinCallbacksToRespondTo or joinCallbacksToFail";
                 }
             }
 
@@ -426,6 +434,13 @@ public class NodeJoinController extends AbstractComponent {
                     logger.error("error during task failure", e);
                 }
             }
+            for (Tuple<MembershipAction.JoinCallback, Throwable> tuple : joinCallbacksToFail) {
+                try {
+                    tuple.v1().onFailure(tuple.v2());
+                } catch (Exception e) {
+                    logger.error("error during task failure", e);
+                }
+            }
         }
 
         @Override
@@ -447,6 +462,13 @@ public class NodeJoinController extends AbstractComponent {
                     callback.onSuccess();
                 } catch (Exception e) {
                     logger.error("unexpected error during [{}]", e, source);
+                }
+            }
+            for (Tuple<MembershipAction.JoinCallback, Throwable> tuple : joinCallbacksToFail) {
+                try {
+                    tuple.v1().onFailure(tuple.v2());
+                } catch (Exception e) {
+                    logger.error("error during callback failure", e);
                 }
             }
         }

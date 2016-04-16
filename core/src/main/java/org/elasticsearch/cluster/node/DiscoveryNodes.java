@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.node;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Booleans;
@@ -565,6 +566,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public Builder put(DiscoveryNode node) {
+            final String preflight = preflightPut(node);
+            if (preflight != null) {
+                throw new ElasticsearchException(preflight);
+            }
             nodes.put(node.getId(), node);
             return this;
         }
@@ -582,6 +587,25 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public Builder localNodeId(String localNodeId) {
             this.localNodeId = localNodeId;
             return this;
+        }
+
+        /**
+         * Checks that a node can be safely added to this node collection.
+         *
+         * @return null if all is OK or an error message explaining why a node can not be added.
+         *
+         * Note: if this method returns a non-null value, calling {@link #put(DiscoveryNode)} will fail with an
+         * exception
+         */
+        public String preflightPut(DiscoveryNode node)  {
+            for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
+                final DiscoveryNode existingNode = cursor.value;
+                if (node.getAddress().equals(existingNode.getAddress()) &&
+                    node.equals(existingNode) == false) {
+                    return "can't add node " + node +", found existing node " + existingNode + " with same address";
+                }
+            }
+            return null;
         }
 
         public DiscoveryNodes build() {
@@ -614,5 +638,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public static DiscoveryNodes readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             return PROTO.readFrom(in, localNode);
         }
+
+
     }
 }

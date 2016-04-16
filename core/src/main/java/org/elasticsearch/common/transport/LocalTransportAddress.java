@@ -23,12 +23,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *
  */
 public final class LocalTransportAddress implements TransportAddress {
     public static final short TYPE_ID = 2;
+
+    private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
+
+
+    /** generates a new unique address */
+    static public LocalTransportAddress buildUnique() {
+        return new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
+    }
 
     private String id;
 

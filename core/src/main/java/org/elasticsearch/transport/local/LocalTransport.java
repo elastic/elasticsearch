@@ -65,7 +65,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -82,7 +81,6 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private volatile BoundTransportAddress boundAddress;
     private volatile LocalTransportAddress localAddress;
     private final static ConcurrentMap<LocalTransportAddress, LocalTransport> transports = newConcurrentMap();
-    private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
     protected final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreakerService circuitBreakerService;
@@ -121,9 +119,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     protected void doStart() {
         String address = settings.get(TRANSPORT_LOCAL_ADDRESS);
         if (address == null) {
-            address = Long.toString(transportAddressIdGenerator.incrementAndGet());
+            localAddress = LocalTransportAddress.buildUnique();
+        } else {
+            localAddress = new LocalTransportAddress(address);
         }
-        localAddress = new LocalTransportAddress(address);
         LocalTransport previous = transports.put(localAddress, this);
         if (previous != null) {
             throw new ElasticsearchException("local address [" + address + "] is already bound");

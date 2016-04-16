@@ -936,10 +936,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     public void sendErrorResponse(Version nodeVersion, Channel channel, final Exception error, final long requestId,
                                   final String action) throws IOException {
-        try(BytesStreamOutput stream = new BytesStreamOutput()) {
+        try (BytesStreamOutput stream = new BytesStreamOutput()) {
             stream.setVersion(nodeVersion);
             RemoteTransportException tx = new RemoteTransportException(
                 nodeName(), new InetSocketTransportAddress(getLocalAddress(channel)), action, error);
+            threadPool.getThreadContext().writeTo(stream);
             stream.writeException(tx);
             byte status = 0;
             status = TransportStatus.setResponse(status);
@@ -972,8 +973,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 status = TransportStatus.setCompress(status);
                 stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
+            threadPool.getThreadContext().writeTo(stream);
             stream.setVersion(nodeVersion);
-            BytesReference reference = buildMessage(requestId, status,nodeVersion, response, stream, bStream);
+            BytesReference reference = buildMessage(requestId, status, nodeVersion, response, stream, bStream);
 
             final TransportResponseOptions finalOptions = options;
             Runnable onRequestSent = () -> {
@@ -1006,8 +1008,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
         try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
             headerOutput.setVersion(protocolVersion);
-            TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion,
-                length);
+            TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion, length);
             final BytesReference bytes = headerOutput.bytes();
             assert bytes.length() == TcpHeader.HEADER_SIZE : "header size mismatch expected: " + TcpHeader.HEADER_SIZE + " but was: "
                 + bytes.length();
@@ -1174,8 +1175,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             }
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);
+            threadPool.getThreadContext().readHeaders(streamIn);
             if (TransportStatus.isRequest(status)) {
-                threadPool.getThreadContext().readHeaders(streamIn);
                 handleRequest(channel, profileName, streamIn, requestId, messageLengthBytes, version, remoteAddress);
             } else {
                 final TransportResponseHandler<?> handler = transportServiceAdapter.onResponseReceived(requestId);

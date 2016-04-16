@@ -238,6 +238,10 @@ public class Node implements Closeable {
         try {
             final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
+            DeprecationLogger.setThreadContext(threadPool.getThreadContext());
+            resourcesToClose.add(() -> DeprecationLogger.removeThreadContext(threadPool.getThreadContext()));
+
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             final List<String> additionalSettingsFilter = new ArrayList<>();
             additionalSettings.addAll(pluginsService.getPluginSettings());
@@ -313,7 +317,9 @@ public class Node implements Closeable {
                 }
             );
             injector = modules.createInjector();
+
             client.intialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
+
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);

@@ -23,6 +23,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -112,7 +113,27 @@ public class RestController extends AbstractLifecycleComponent {
     }
 
     /**
-     * Registers a rest handler to be executed when the provided method and path match the request.
+     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
+     *
+     * @param method GET, POST, etc.
+     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
+     * @param handler The handler to actually execute
+     * @param deprecationMessage The message to log and send as a header in the response
+     * @param logger The existing deprecation logger to use
+     */
+    public void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
+                                            String deprecationMessage, DeprecationLogger logger) {
+        assert (handler instanceof DeprecationRestHandler) == false;
+
+        registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, logger));
+    }
+
+    /**
+     * Registers a REST handler to be executed when the provided method and path match the request.
+     *
+     * @param method GET, POST, etc.
+     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
+     * @param handler The handler to actually execute
      */
     public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         PathTrie<RestHandler> handlers = getHandlersForMethod(method);

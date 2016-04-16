@@ -33,7 +33,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -102,16 +101,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
-        int numKeys = in.readVInt();
-        for (int i = 0; i < numKeys; i++) {
-            final String key = in.readString();
-            final int numValues = in.readVInt();
-            final ArrayList<String> values = new ArrayList<>(numValues);
-            for (int j = 0; j < numValues; j++) {
-                values.add(in.readString());
-            }
-            headers.put(key, values);
-        }
+        headers.putAll(in.readMapOfLists());
     }
 
     /**
@@ -206,14 +196,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         out.writeOptionalString(this.getMessage());
         out.writeException(this.getCause());
         writeStackTraces(this, out);
-        out.writeVInt(headers.size());
-        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().size());
-            for (String v : entry.getValue()) {
-                out.writeString(v);
-            }
-        }
+        out.writeMapOfLists(headers);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.transport.netty.NettyUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
 import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
@@ -60,6 +61,7 @@ public final class NettyHttpChannel extends AbstractRestChannel {
     private final Channel channel;
     private final org.jboss.netty.handler.codec.http.HttpRequest nettyRequest;
     private final OrderedUpstreamMessageEvent orderedUpstreamMessageEvent;
+    private final ThreadContext threadContext;
 
     /**
      * @param transport                   The corresponding <code>NettyHttpServerTransport</code> where this channel belongs to.
@@ -70,19 +72,19 @@ public final class NettyHttpChannel extends AbstractRestChannel {
      */
     public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request,
                             @Nullable OrderedUpstreamMessageEvent orderedUpstreamMessageEvent,
-                            boolean detailedErrorsEnabled) {
+                            boolean detailedErrorsEnabled, ThreadContext threadContext) {
         super(request, detailedErrorsEnabled);
         this.transport = transport;
         this.channel = request.getChannel();
         this.nettyRequest = request.request();
         this.orderedUpstreamMessageEvent = orderedUpstreamMessageEvent;
+        this.threadContext = threadContext;
     }
 
     @Override
     public BytesStreamOutput newBytesOutput() {
         return new ReleasableBytesStreamOutput(transport.bigArrays);
     }
-
 
     @Override
     public void sendResponse(RestResponse response) {
@@ -99,7 +101,8 @@ public final class NettyHttpChannel extends AbstractRestChannel {
         }
 
         // Add all custom headers
-        addCustomHeaders(response, resp);
+        addCustomHeaders(resp, response.getHeaders());
+        addCustomHeaders(resp, threadContext.getResponseHeaders());
 
         BytesReference content = response.content();
         ChannelBuffer buffer;
@@ -170,8 +173,7 @@ public final class NettyHttpChannel extends AbstractRestChannel {
         }
     }
 
-    private void addCustomHeaders(RestResponse response, HttpResponse resp) {
-        Map<String, List<String>> customHeaders = response.getHeaders();
+    private void addCustomHeaders(HttpResponse resp, Map<String, List<String>> customHeaders) {
         if (customHeaders != null) {
             for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
                 for (String headerValue : headerEntry.getValue()) {

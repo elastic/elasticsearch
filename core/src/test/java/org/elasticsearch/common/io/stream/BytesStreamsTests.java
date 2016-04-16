@@ -30,7 +30,9 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -445,7 +447,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        List<TestStreamable> loaded = in.readStreamableList(TestStreamable::new);
+        final List<TestStreamable> loaded = in.readStreamableList(TestStreamable::new);
 
         assertThat(loaded, hasSize(expected.size()));
 
@@ -459,7 +461,49 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    private abstract static class BaseNamedWriteable implements NamedWriteable {
+    public void testWriteMapOfLists() throws IOException {
+        final int size = randomIntBetween(0, 5);
+        final Map<String, List<String>> expected = new HashMap<>(size);
+
+        for (int i = 0; i < size; ++i) {
+            int listSize = randomIntBetween(0, 5);
+            List<String> list = new ArrayList<>(listSize);
+
+            for (int j = 0; j < listSize; ++j) {
+                list.add(randomAsciiOfLength(5));
+            }
+
+            expected.put(randomAsciiOfLength(2), list);
+        }
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMapOfLists(expected);
+
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+
+        final Map<String, List<String>> loaded = in.readMapOfLists();
+
+        assertThat(loaded.size(), equalTo(expected.size()));
+
+        for (Map.Entry<String, List<String>> entry : expected.entrySet()) {
+            assertThat(loaded.containsKey(entry.getKey()), equalTo(true));
+
+            List<String> loadedList = loaded.get(entry.getKey());
+
+            assertThat(loadedList, hasSize(entry.getValue().size()));
+
+            for (int i = 0; i < loadedList.size(); ++i) {
+                assertEquals(entry.getValue().get(i), loadedList.get(i));
+            }
+        }
+
+        assertEquals(0, in.available());
+
+        in.close();
+        out.close();
+    }
+
+    private static abstract class BaseNamedWriteable implements NamedWriteable {
 
     }
 

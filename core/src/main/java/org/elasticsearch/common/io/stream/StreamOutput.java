@@ -403,6 +403,21 @@ public abstract class StreamOutput extends OutputStream {
         writeGenericValue(map);
     }
 
+    /**
+     * Writes a map of strings to string lists.
+     */
+    public void writeMapOfLists(Map<String, List<String>> map) throws IOException {
+        writeVInt(map.size());
+
+        for (Map.Entry<String, List<String>> entry : map.entrySet()) {
+            writeString(entry.getKey());
+            writeVInt(entry.getValue().size());
+            for (String v : entry.getValue()) {
+                writeString(v);
+            }
+        }
+    }
+
     @FunctionalInterface
     interface Writer {
         void write(StreamOutput o, Object value) throws IOException;

@@ -53,6 +53,7 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -412,6 +413,21 @@ public abstract class StreamInput extends InputStream {
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
+    }
+
+    /**
+     * Read a map of strings to string lists.
+     */
+    public Map<String, List<String>> readMapOfLists() throws IOException {
+        int size = readVInt();
+        if (size == 0) {
+            return Collections.emptyMap();
+        }
+        Map<String, List<String>> map = new HashMap<>(size);
+        for (int i = 0; i < size; ++i) {
+            map.put(readString(), readList(StreamInput::readString));
+        }
+        return map;
     }
 
     @SuppressWarnings({"unchecked"})

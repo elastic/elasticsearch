@@ -61,7 +61,7 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
         // the netty HTTP handling always copy over the buffer to its own buffer, either in NioWorker internally
         // when reading, or using a cumalation buffer
         NettyHttpRequest httpRequest = new NettyHttpRequest(request, e.getChannel());
-        NettyHttpChannel channel = new NettyHttpChannel(serverTransport, httpRequest, oue, detailedErrorsEnabled);
+        NettyHttpChannel channel = new NettyHttpChannel(serverTransport, httpRequest, oue, detailedErrorsEnabled, threadContext);
         serverTransport.dispatchRequest(httpRequest, channel);
         super.messageReceived(ctx, e);
     }

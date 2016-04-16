@@ -20,6 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +36,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class RestControllerTests extends ESTestCase {
 
@@ -110,6 +116,26 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/do-not-trip").build()));
     }
 
+    public void testRegisterHandlerAsDeprecationHandler() {
+        RestController controller = mock(RestController.class);
+
+        RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        String path = "/_" + randomAsciiOfLengthBetween(1, 6);
+        RestHandler handler = mock(RestHandler.class);
+        String deprecationMessage = randomAsciiOfLengthBetween(1, 10);
+        DeprecationLogger logger = mock(DeprecationLogger.class);
+
+        // don't want to test everything -- just that it actually wraps the handler
+        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, handler, deprecationMessage, logger);
+
+        controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage, logger);
+
+        verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
+    }
+
+    /**
+     * Useful for testing with deprecation handler.
+     */
     private static class FakeRestHandler implements RestHandler {
         private final boolean canTripCircuitBreaker;
 

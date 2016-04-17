@@ -117,7 +117,8 @@ public class DiscoveryNodesTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, LocalTransportAddress.buildUnique(), attributes, roles, Version.CURRENT);
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, LocalTransportAddress.buildUnique(), attributes,
+            roles, Version.CURRENT);
     }
 
     private enum NodeSelector {

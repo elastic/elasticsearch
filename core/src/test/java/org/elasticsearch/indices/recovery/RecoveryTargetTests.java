@@ -339,7 +339,8 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testStageSequenceEnforcement() {
-        final DiscoveryNode discoveryNode = new DiscoveryNode("1", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode("1", LocalTransportAddress.buildUnique(), emptyMap(),
+            emptySet(), Version.CURRENT);
         Stage[] stages = Stage.values();
         int i = randomIntBetween(0, stages.length - 1);
         int j;

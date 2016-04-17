@@ -185,7 +185,6 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
-            // nocommit - this a big shame for coordinating nodes..
             nodeMetaData = new NodeMetaData(generateNodeId(settings));
             return;
         }

@@ -64,7 +64,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
     }
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
-        boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_ENABLED_SETTING.get(settings);
+        boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
         if (localStorageEnable == false &&
             (Node.NODE_DATA_SETTING.get(settings) ||
                 Node.NODE_MASTER_SETTING.get(settings))

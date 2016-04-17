@@ -241,7 +241,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         sb.put(Node.NODE_DATA_SETTING.getKey(), false);
         sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
         sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
-        sb.put(Node.NODE_LOCAL_STORAGE_ENABLED_SETTING.getKey(), false);
+        sb.put(Node.NODE_LOCAL_STORAGE_SETTING.getKey(), false);
         return sb.build();
     }
 

@@ -36,7 +36,7 @@ import java.util.Objects;
  */
 public final class NodeMetaData {
 
-    private static final String NODE_ID_KEY = "allocation_id";
+    private static final String NODE_ID_KEY = "node_id";
 
     private final String nodeID;
 

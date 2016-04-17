@@ -140,6 +140,17 @@ public class Node implements Closeable {
         new Setting<>("node.mode", "network", Function.identity(), Property.NodeScope);
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
+
+    /**
+     * controls whether the node is allowed to persist things like metadata to disk
+     * Note that this does not control whether the node store actual indices (see
+     * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
+     * and {@link #NODE_MASTER_SETTING} must also be false.
+     *
+     */
+    public static final Setting<Boolean> NODE_LOCAL_STORAGE_ENABLED_SETTING =
+        Setting.boolSetting("node.local_storage.enabled", true, Property.NodeScope);
+
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", Property.NodeScope);
 

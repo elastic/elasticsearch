@@ -123,8 +123,7 @@ public class MetaStateService extends AbstractComponent {
         final Index index = indexMetaData.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            IndexMetaData.FORMAT.write(indexMetaData,
-                nodeEnv.indexPaths(indexMetaData.getIndex()));
+            IndexMetaData.FORMAT.write(indexMetaData, nodeEnv.indexPaths(indexMetaData.getIndex()));
         } catch (Throwable ex) {
             logger.warn("[{}]: failed to write index state", ex, index);
             throw new IOException("failed to write state for [" + index + "]", ex);

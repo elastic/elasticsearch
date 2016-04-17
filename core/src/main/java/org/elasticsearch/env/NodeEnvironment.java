@@ -133,7 +133,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     private final Path sharedDataPath;
     private final Lock[] locks;
 
-    private final boolean addNodeId;
+    private final boolean addLockIdToCustomPath;
 
     private final int nodeLockId;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -178,7 +178,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         super(settings);
 
-        this.addNodeId = ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.get(settings);
+        this.addLockIdToCustomPath = ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.get(settings);
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
@@ -896,7 +896,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         if (customDataDir != null) {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert sharedDataPath != null;
-            if (addNodeId) {
+            if (addLockIdToCustomPath) {
                 return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
             } else {
                 return sharedDataPath.resolve(customDataDir);

@@ -362,7 +362,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.NODE_MODE_SETTING,
                     Node.NODE_INGEST_SETTING,
                     Node.NODE_ATTRIBUTES,
-                    Node.NODE_LOCAL_STORAGE_ENABLED_SETTING,
+                    Node.NODE_LOCAL_STORAGE_SETTING,
                     URLRepository.ALLOWED_URLS_SETTING,
                     URLRepository.REPOSITORIES_LIST_DIRECTORIES_SETTING,
                     URLRepository.REPOSITORIES_URL_SETTING,

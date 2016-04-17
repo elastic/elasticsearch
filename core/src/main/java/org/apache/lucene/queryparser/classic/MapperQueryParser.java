@@ -530,42 +530,45 @@ public class MapperQueryParser extends QueryParser {
             }
         }
 
+        if (tlist.size() == 0) {
+            return null;
+        }
 
         if (tlist.size() == 1 && tlist.get(0).size() == 1) {
             return super.getPrefixQuery(field, tlist.get(0).get(0));
-        } else {
-            // build a boolean query with prefix on the last position only.
-            List<BooleanClause> clauses = new ArrayList<>();
-            for (int pos = 0; pos < tlist.size(); pos++) {
-                List<String> plist = tlist.get(pos);
-                boolean isLastPos = (pos == tlist.size()-1);
-                Query posQuery;
-                if (plist.size() == 1) {
-                    if (isLastPos) {
-                        posQuery = getPrefixQuery(field, plist.get(0));
-                    } else {
-                        posQuery = newTermQuery(new Term(field, plist.get(0)));
-                    }
-                } else if (isLastPos == false) {
-                    // build a synonym query for terms in the same position.
-                    Term[] terms = new Term[plist.size()];
-                    for (int i = 0; i < plist.size(); i++) {
-                        terms[i] = new Term(field, plist.get(i));
-                    }
-                    posQuery = new SynonymQuery(terms);
-                } else {
-                    List<BooleanClause> innerClauses = new ArrayList<>();
-                    for (String token : plist) {
-                        innerClauses.add(new BooleanClause(getPrefixQuery(field, token),
-                            BooleanClause.Occur.SHOULD));
-                    }
-                    posQuery = getBooleanQueryCoordDisabled(innerClauses);
-                }
-                clauses.add(new BooleanClause(posQuery,
-                    getDefaultOperator() == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD));
-            }
-            return getBooleanQuery(clauses);
         }
+
+        // build a boolean query with prefix on the last position only.
+        List<BooleanClause> clauses = new ArrayList<>();
+        for (int pos = 0; pos < tlist.size(); pos++) {
+            List<String> plist = tlist.get(pos);
+            boolean isLastPos = (pos == tlist.size() - 1);
+            Query posQuery;
+            if (plist.size() == 1) {
+                if (isLastPos) {
+                    posQuery = super.getPrefixQuery(field, plist.get(0));
+                } else {
+                    posQuery = newTermQuery(new Term(field, plist.get(0)));
+                }
+            } else if (isLastPos == false) {
+                // build a synonym query for terms in the same position.
+                Term[] terms = new Term[plist.size()];
+                for (int i = 0; i < plist.size(); i++) {
+                    terms[i] = new Term(field, plist.get(i));
+                }
+                posQuery = new SynonymQuery(terms);
+            } else {
+                List<BooleanClause> innerClauses = new ArrayList<>();
+                for (String token : plist) {
+                    innerClauses.add(new BooleanClause(super.getPrefixQuery(field, token),
+                        BooleanClause.Occur.SHOULD));
+                }
+                posQuery = getBooleanQueryCoordDisabled(innerClauses);
+            }
+            clauses.add(new BooleanClause(posQuery,
+                getDefaultOperator() == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD));
+        }
+        return getBooleanQuery(clauses);
     }
 
     @Override

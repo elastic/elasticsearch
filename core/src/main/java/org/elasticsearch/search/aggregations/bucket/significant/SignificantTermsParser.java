@@ -53,11 +53,6 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public String type() {
-        return SignificantStringTerms.TYPE.name();
-    }
-
-    @Override
     protected SignificantTermsAggregatorBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
             IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
@@ -101,11 +96,6 @@ public class SignificantTermsParser extends AbstractTermsParser {
             }
         }
         return false;
-    }
-
-    @Override
-    public SignificantTermsAggregatorBuilder getFactoryPrototypes() {
-        return SignificantTermsAggregatorBuilder.PROTOTYPE;
     }
 
     @Override

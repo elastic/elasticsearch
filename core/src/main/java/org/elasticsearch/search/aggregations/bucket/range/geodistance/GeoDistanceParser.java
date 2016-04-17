@@ -53,11 +53,6 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         super(true, false);
     }
 
-    @Override
-    public String type() {
-        return InternalGeoDistance.TYPE.name();
-    }
-
     public static class Range extends RangeAggregator.Range {
 
         static final Range PROTOTYPE = new Range(null, null, null);
@@ -181,10 +176,4 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         }
         return false;
     }
-
-    @Override
-    public GeoDistanceAggregatorBuilder getFactoryPrototypes() {
-        return GeoDistanceAggregatorBuilder.PROTOTYPE;
-    }
-
 }

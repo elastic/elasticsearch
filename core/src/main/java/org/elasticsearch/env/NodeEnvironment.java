@@ -148,15 +148,10 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             Property.NodeScope);
 
     /**
-     * If true automatically append node id to custom data paths.
+     * If true automatically append node lock id to custom data paths.
      */
-    @Deprecated
-    public static final Setting<Boolean> ADD_NODE_ID_TO_CUSTOM_PATH =
-        Setting.boolSetting("node.add_id_to_custom_path", true, Property.Deprecated, Property.NodeScope);
-
     public static final Setting<Boolean> ADD_NODE_LOCK_ID_TO_CUSTOM_PATH =
-        Setting.boolSetting("node.add_lock_id_to_custom_path", ADD_NODE_ID_TO_CUSTOM_PATH,
-            Property.NodeScope);
+        Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope);
 
 
     public static final Setting<Long> NODE_ID_SEED_SETTING =

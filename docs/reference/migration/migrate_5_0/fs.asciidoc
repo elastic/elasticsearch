@@ -8,3 +8,10 @@ there is nothing to worry about since this is only address space consumption
 and the actual memory usage of Elasticsearch will stay similar to what it was
 in 2.x. See http://blog.thetaphi.de/2012/07/use-lucenes-mmapdirectory-on-64bit.html
 for more information.
+
+
+==== Local files
+
+Prior to 5.0, nodes that were marked with both `node.data: false` and `node.master: false` (or the now removed `node.client: true`)
+didn't write any files or folder to disk. 5.x added persistent node ids, requiring nodes to store that information. As such, all
+node types will write a small state file to their data folders.

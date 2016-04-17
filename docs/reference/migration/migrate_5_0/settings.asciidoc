@@ -252,3 +252,7 @@ scripts the following settings have been replaced to:
 * `script.engine.*.stored.search` has been replaced by `script.engine.*.stored.search` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
 * `script.engine.*.stored.update` has been replaced by `script.engine.*.stored.update` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
 * `script.engine.*.stored.plugin` has been replaced by `script.engine.*.stored.plugin` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+
+==== Data Path Settings
+
+The `node.add_id_to_custom_path` has been renamed to `node.add_lock_id_to_custom_path`.

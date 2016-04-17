@@ -255,11 +255,9 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     /**
      * scans the node paths and loads existing metaData file. If not found a new meta data will be generated
      * and persisted into the nodePaths
-     *
      */
-    // package private for testing
-    static NodeMetaData loadOrCreateNodeMetaData(Settings settings, ESLogger logger,
-                                                 NodePath... nodePaths) throws IOException {
+    private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, ESLogger logger,
+                                                         NodePath... nodePaths) throws IOException {
         List<Path> pathList = Arrays.stream(nodePaths).map(np -> np.path).collect(Collectors.toList());
         final Path[] paths = pathList.toArray(new Path[pathList.size()]);
         NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, paths);

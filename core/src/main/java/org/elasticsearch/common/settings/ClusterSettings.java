@@ -387,7 +387,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TribeService.TRIBE_NAME_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
-                    NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH,
+                    NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH,
                     OsService.REFRESH_INTERVAL_SETTING,
                     ProcessService.REFRESH_INTERVAL_SETTING,
                     JvmService.REFRESH_INTERVAL_SETTING,

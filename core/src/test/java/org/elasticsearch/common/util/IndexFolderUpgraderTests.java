@@ -67,7 +67,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
     public void testUpgradeCustomDataPath() throws IOException {
         Path customPath = createTempDir();
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
+            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), customPath.toAbsolutePath().toString()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
             final Index index = new Index(randomAsciiOfLength(10), Strings.randomBase64UUID());
@@ -96,7 +96,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
     public void testPartialUpgradeCustomDataPath() throws IOException {
         Path customPath = createTempDir();
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
+            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), customPath.toAbsolutePath().toString()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
             final Index index = new Index(randomAsciiOfLength(10), Strings.randomBase64UUID());
@@ -136,7 +136,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
 
     public void testUpgrade() throws IOException {
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
+            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
             final Index index = new Index(randomAsciiOfLength(10), Strings.randomBase64UUID());
             Settings settings = Settings.builder()
@@ -159,7 +159,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
 
     public void testUpgradeIndices() throws IOException {
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
+            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
             Map<IndexSettings, Tuple<Integer, Integer>>  indexSettingsMap = new HashMap<>();
             for (int i = 0; i < randomIntBetween(2, 5); i++) {

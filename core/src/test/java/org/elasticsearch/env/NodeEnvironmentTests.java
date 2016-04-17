@@ -390,7 +390,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         env.close();
         NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
-                Settings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), false).build());
+                Settings.builder().put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), false).build());
 
         assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
         assertThat(env2.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/" + index.getUUID() + "/0")));
@@ -408,7 +408,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     public void testPersistentNodeId() throws IOException {
         String[] paths = tmpPaths();
         NodeEnvironment env = newNodeEnvironment(paths, Settings.builder()
-            .put("node.local_storage.enabled", false)
+            .put("node.local_storage", false)
             .put("node.master", false)
             .put("node.data", false)
             .build());

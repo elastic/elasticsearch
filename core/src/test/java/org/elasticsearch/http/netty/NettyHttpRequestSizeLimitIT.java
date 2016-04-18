@@ -59,7 +59,7 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
         ensureGreen();
 
         // we use the limit size as a (very) rough indication on how many requests we should sent to hit the limit
-        int numRequests = LIMIT.bytesAsInt() / 50;
+        int numRequests = LIMIT.bytesAsInt() / 100;
 
         StringBuilder bulkRequest = new StringBuilder();
         for (int i = 0; i < numRequests; i++) {
@@ -71,6 +71,11 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
 
         @SuppressWarnings("unchecked")
         Tuple<String, CharSequence>[] requests = new Tuple[] {
+            Tuple.tuple("/index/type/_bulk", bulkRequest),
+            Tuple.tuple("/index/type/_bulk", bulkRequest),
+            Tuple.tuple("/index/type/_bulk", bulkRequest),
+            Tuple.tuple("/index/type/_bulk", bulkRequest),
+            Tuple.tuple("/index/type/_bulk", bulkRequest),
             Tuple.tuple("/index/type/_bulk", bulkRequest),
             Tuple.tuple("/index/type/_bulk", bulkRequest),
             Tuple.tuple("/index/type/_bulk", bulkRequest),

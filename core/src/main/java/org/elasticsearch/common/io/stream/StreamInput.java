@@ -747,13 +747,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a {@link ShapeBuilder} from the current stream
-     */
-    public ShapeBuilder readShape() throws IOException {
-        return readNamedWriteable(ShapeBuilder.class);
-    }
-
-    /**
      * Reads a {@link RescoreBuilder} from the current stream
      */
     public RescoreBuilder<?> readRescorer() throws IOException {

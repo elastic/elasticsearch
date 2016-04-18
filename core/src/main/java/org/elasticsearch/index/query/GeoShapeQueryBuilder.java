@@ -144,7 +144,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         super(in);
         fieldName = in.readString();
         if (in.readBoolean()) {
-            shape = in.readShape();
+            shape = in.readNamedWriteable(ShapeBuilder.class);
             indexedShapeId = null;
             indexedShapeType = null;
         } else {
@@ -165,7 +165,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         boolean hasShape = shape != null;
         out.writeBoolean(hasShape);
         if (hasShape) {
-            out.writeShape(shape);
+            out.writeNamedWriteable(shape);
         } else {
             out.writeOptionalString(indexedShapeId);
             out.writeOptionalString(indexedShapeType);

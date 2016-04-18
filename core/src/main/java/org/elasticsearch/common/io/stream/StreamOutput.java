@@ -712,13 +712,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a {@link ShapeBuilder} to the current stream
-     */
-    public void writeShape(ShapeBuilder shapeBuilder) throws IOException {
-        writeNamedWriteable(shapeBuilder);
-    }
-
-    /**
      * Writes a {@link ScoreFunctionBuilder} to the current stream
      */
     public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {

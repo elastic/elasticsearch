@@ -64,7 +64,7 @@ public class FsService extends AbstractComponent {
                 return probe.stats();
             } catch (IOException ex) {
                 logger.warn("Failed to fetch fs stats - returning empty instance");
-                return new FsInfo();
+                return new FsInfo(0, null);
             }
         }
     }

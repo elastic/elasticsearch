@@ -22,7 +22,7 @@ package org.elasticsearch.monitor.fs;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,9 +33,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
+public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
 
-    public static class Path implements Streamable, ToXContent {
+    public static class Path implements Writeable, ToXContent {
 
         String path;
         @Nullable
@@ -62,14 +62,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
             this.available = available;
         }
 
-        static public Path readInfoFrom(StreamInput in) throws IOException {
-            Path i = new Path();
-            i.readFrom(in);
-            return i;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        /**
+         * Read from a stream.
+         */
+        public Path(StreamInput in) throws IOException {
             path = in.readOptionalString();
             mount = in.readOptionalString();
             type = in.readOptionalString();
@@ -192,18 +188,34 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
         }
     }
 
-    long timestamp;
+    final long timestamp;
+    final Path[] paths;
     Path total;
-    Path[] paths;
-
-    FsInfo() {
-
-    }
 
     public FsInfo(long timestamp, Path[] paths) {
         this.timestamp = timestamp;
         this.paths = paths;
         this.total = null;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public FsInfo(StreamInput in) throws IOException {
+        timestamp = in.readVLong();
+        paths = new Path[in.readVInt()];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = new Path(in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(timestamp);
+        out.writeVInt(paths.length);
+        for (Path path : paths) {
+            path.writeTo(out);
+        }
     }
 
     public Path getTotal() {
@@ -235,30 +247,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
     @Override
     public Iterator<Path> iterator() {
         return Arrays.stream(paths).iterator();
-    }
-
-    public static FsInfo readFsInfo(StreamInput in) throws IOException {
-        FsInfo stats = new FsInfo();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        timestamp = in.readVLong();
-        paths = new Path[in.readVInt()];
-        for (int i = 0; i < paths.length; i++) {
-            paths[i] = Path.readInfoFrom(in);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(timestamp);
-        out.writeVInt(paths.length);
-        for (Path path : paths) {
-            path.writeTo(out);
-        }
     }
 
     static final class Fields {

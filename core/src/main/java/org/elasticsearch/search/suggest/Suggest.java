@@ -35,6 +35,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -64,6 +65,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
     public Suggest() {
+        this(Collections.emptyList());
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {

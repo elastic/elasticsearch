@@ -425,10 +425,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 if (contentType == builder.contentType()) {
                     builder.rawField(Field.DOC.getPreferredName(), this.doc);
                 } else {
-                    XContentParser parser = XContentFactory.xContent(contentType).createParser(this.doc);
-                    parser.nextToken();
-                    builder.field(Field.DOC.getPreferredName());
-                    builder.copyCurrentStructure(parser);
+                    try (XContentParser parser = XContentFactory.xContent(contentType).createParser(this.doc)) {
+                        parser.nextToken();
+                        builder.field(Field.DOC.getPreferredName());
+                        builder.copyCurrentStructure(parser);
+                    }
                 }
             }
             if (this.fields != null) {

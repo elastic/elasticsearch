@@ -382,9 +382,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         String[] pathElements = Strings.splitStringToArray(path, '.');
         int currentPathSlot = 0;
 
-        XContentParser parser = null;
-        try {
-            parser = XContentHelper.createParser(response.getSourceAsBytesRef());
+        try (XContentParser parser = XContentHelper.createParser(response.getSourceAsBytesRef())) {
             XContentParser.Token currentToken;
             while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (currentToken == XContentParser.Token.FIELD_NAME) {
@@ -400,10 +398,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                 }
             }
             throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
         }
     }
 

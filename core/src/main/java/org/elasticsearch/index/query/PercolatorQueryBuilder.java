@@ -177,10 +177,11 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
             if (contentType == builder.contentType()) {
                 builder.rawField(DOCUMENT_FIELD.getPreferredName(), document);
             } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(document);
-                parser.nextToken();
-                builder.field(DOCUMENT_FIELD.getPreferredName());
-                builder.copyCurrentStructure(parser);
+                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(document)) {
+                    parser.nextToken();
+                    builder.field(DOCUMENT_FIELD.getPreferredName());
+                    builder.copyCurrentStructure(parser);
+                }
             }
         }
         if (indexedDocumentIndex != null || indexedDocumentType != null || indexedDocumentId != null) {

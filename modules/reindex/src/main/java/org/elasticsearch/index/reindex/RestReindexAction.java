@@ -19,14 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -55,6 +47,14 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+
 /**
  * Expose IndexBySearchRequest over rest.
  */
@@ -77,8 +77,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             }
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            parser = parser.contentType().xContent().createParser(builder.bytes());
-            search.source().parseXContent(context.queryParseContext(parser), context.aggParsers, context.suggesters);
+            try (XContentParser innerParser = parser.contentType().xContent().createParser(builder.bytes())) {
+                search.source().parseXContent(context.queryParseContext(innerParser), context.aggParsers, context.suggesters);
+            }
         };
 
         ObjectParser<IndexRequest, ParseFieldMatcherSupplier> destParser = new ObjectParser<>("dest");

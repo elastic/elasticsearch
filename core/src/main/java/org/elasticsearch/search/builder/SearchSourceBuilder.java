@@ -1257,9 +1257,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (ext != null) {
             builder.field(EXT_FIELD.getPreferredName());
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(ext);
-            parser.nextToken();
-            builder.copyCurrentStructure(parser);
+            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(ext)) {
+                parser.nextToken();
+                builder.copyCurrentStructure(parser);
+            }
         }
     }
 

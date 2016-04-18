@@ -290,10 +290,10 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                     builder.field("filter", aliasMetaData.filter.compressed());
                 } else {
                     byte[] data = aliasMetaData.filter().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                    Map<String, Object> filter = parser.mapOrdered();
-                    parser.close();
-                    builder.field("filter", filter);
+                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
+                        Map<String, Object> filter = parser.mapOrdered();
+                        builder.field("filter", filter);
+                    }
                 }
             }
             if (aliasMetaData.indexRouting() != null) {

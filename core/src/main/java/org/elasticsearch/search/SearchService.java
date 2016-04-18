@@ -811,6 +811,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 }
                 XContentLocation location = extParser != null ? extParser.getTokenLocation() : null;
                 throw new SearchParseException(context, "failed to parse ext source [" + sSource + "]", location, e);
+            } finally {
+                if (extParser != null) {
+                    extParser.close();
+                }
             }
         }
         if (source.version() != null) {

@@ -122,13 +122,13 @@ public class ClusterStateTests extends MarvelIntegTestCase {
 
         logger.debug("--> checking that every document contains the expected fields");
         String[] filters = {
-                MonitoringIndexNameResolver.Fields.CLUSTER_UUID.underscore().toString(),
-                MonitoringIndexNameResolver.Fields.TIMESTAMP.underscore().toString(),
-                SOURCE_NODE.underscore().toString(),
-                ClusterStateNodeResolver.Fields.STATE_UUID.underscore().toString(),
-                ClusterStateNodeResolver.Fields.NODE.underscore().toString(),
-                ClusterStateNodeResolver.Fields.NODE.underscore().toString() + "."
-                        + ClusterStateNodeResolver.Fields.ID.underscore().toString(),
+                MonitoringIndexNameResolver.Fields.CLUSTER_UUID.value(),
+                MonitoringIndexNameResolver.Fields.TIMESTAMP.value(),
+                SOURCE_NODE.value(),
+                ClusterStateNodeResolver.Fields.STATE_UUID.value(),
+                ClusterStateNodeResolver.Fields.NODE.value(),
+                ClusterStateNodeResolver.Fields.NODE.value() + "."
+                        + ClusterStateNodeResolver.Fields.ID.value(),
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {
@@ -143,7 +143,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         assertThat(client().prepareSearch().setSize(0)
                 .setIndices(timestampedIndex)
                 .setTypes(ClusterStateNodeResolver.TYPE)
-                .setQuery(QueryBuilders.matchQuery(SOURCE_NODE.underscore().toString() + ".attributes.custom", randomInt))
+                .setQuery(QueryBuilders.matchQuery(SOURCE_NODE.value() + ".attributes.custom", randomInt))
                 .get().getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> cluster state nodes successfully collected");
@@ -167,18 +167,18 @@ public class ClusterStateTests extends MarvelIntegTestCase {
 
         logger.debug("--> checking that every document contains the expected fields");
         String[] filters = {
-                MonitoringIndexNameResolver.Fields.CLUSTER_UUID.underscore().toString(),
-                MonitoringIndexNameResolver.Fields.TIMESTAMP.underscore().toString(),
-                MonitoringIndexNameResolver.Fields.SOURCE_NODE.underscore().toString(),
-                DiscoveryNodeResolver.Fields.NODE.underscore().toString(),
-                DiscoveryNodeResolver.Fields.NODE.underscore().toString() + "."
-                        + DiscoveryNodeResolver.Fields.ID.underscore().toString(),
-                DiscoveryNodeResolver.Fields.NODE.underscore().toString() + "."
-                        + DiscoveryNodeResolver.Fields.NAME.underscore().toString(),
-                DiscoveryNodeResolver.Fields.NODE.underscore().toString() + "."
-                        + DiscoveryNodeResolver.Fields.ATTRIBUTES.underscore().toString(),
-                DiscoveryNodeResolver.Fields.NODE.underscore().toString() + "."
-                        + DiscoveryNodeResolver.Fields.TRANSPORT_ADDRESS.underscore().toString(),
+                MonitoringIndexNameResolver.Fields.CLUSTER_UUID.value(),
+                MonitoringIndexNameResolver.Fields.TIMESTAMP.value(),
+                MonitoringIndexNameResolver.Fields.SOURCE_NODE.value(),
+                DiscoveryNodeResolver.Fields.NODE.value(),
+                DiscoveryNodeResolver.Fields.NODE.value() + "."
+                        + DiscoveryNodeResolver.Fields.ID.value(),
+                DiscoveryNodeResolver.Fields.NODE.value() + "."
+                        + DiscoveryNodeResolver.Fields.NAME.value(),
+                DiscoveryNodeResolver.Fields.NODE.value() + "."
+                        + DiscoveryNodeResolver.Fields.ATTRIBUTES.value(),
+                DiscoveryNodeResolver.Fields.NODE.value() + "."
+                        + DiscoveryNodeResolver.Fields.TRANSPORT_ADDRESS.value(),
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {

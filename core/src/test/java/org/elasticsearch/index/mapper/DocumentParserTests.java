@@ -90,6 +90,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().bytes();
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertNull(doc.dynamicMappingsUpdate()); // no update!
         String[] values = doc.rootDoc().getValues("foo.bar.baz");
         assertEquals(3, values.length);
         assertEquals("123", values[0]);

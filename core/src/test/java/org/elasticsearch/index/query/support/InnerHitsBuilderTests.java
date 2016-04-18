@@ -132,7 +132,7 @@ public class InnerHitsBuilderTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return InnerHitsBuilder.PROTO.readFrom(in);
+                return new InnerHitsBuilder(in);
             }
         }
     }

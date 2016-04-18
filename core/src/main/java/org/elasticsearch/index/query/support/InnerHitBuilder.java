@@ -165,7 +165,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         query = in.readQuery();
-        innerHitsBuilder = in.readOptionalWriteable(InnerHitsBuilder.PROTO::readFrom);
+        innerHitsBuilder = in.readOptionalWriteable(InnerHitsBuilder::new);
     }
 
     @Override
@@ -431,11 +431,6 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             childInnerHits.put(entry.getKey(), childInnerHit);
         }
         innerHits.setChildInnerHits(childInnerHits);
-    }
-
-    @Override
-    public InnerHitBuilder readFrom(StreamInput in) throws IOException {
-        return new InnerHitBuilder(in);
     }
 
     private void setupInnerHitsContext(QueryShardContext context, InnerHitsContext.BaseInnerHits innerHitsContext) throws IOException {

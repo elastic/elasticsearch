@@ -211,7 +211,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             }
         }
         if (in.readBoolean()) {
-            innerHitsBuilder = InnerHitsBuilder.PROTO.readFrom(in);
+            innerHitsBuilder = new InnerHitsBuilder(in);
         }
         if (in.readBoolean()) {
             minScore = in.readFloat();

@@ -29,15 +29,11 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 public final class InnerHitsBuilder extends ToXContentToBytes implements Writeable<InnerHitsBuilder> {
-
-    public final static InnerHitsBuilder PROTO = new InnerHitsBuilder(Collections.emptyMap());
-
     private final Map<String, InnerHitBuilder> innerHitsBuilders;
 
     public InnerHitsBuilder() {
@@ -46,6 +42,26 @@ public final class InnerHitsBuilder extends ToXContentToBytes implements Writeab
 
     public InnerHitsBuilder(Map<String, InnerHitBuilder> innerHitsBuilders) {
         this.innerHitsBuilders = Objects.requireNonNull(innerHitsBuilders);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InnerHitsBuilder(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        innerHitsBuilders = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            innerHitsBuilders.put(in.readString(), new InnerHitBuilder(in));
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(innerHitsBuilders.size());
+        for (Map.Entry<String, InnerHitBuilder> entry : innerHitsBuilders.entrySet()) {
+            out.writeString(entry.getKey());
+            entry.getValue().writeTo(out);
+        }
     }
 
     public InnerHitsBuilder addInnerHit(String name, InnerHitBuilder builder) {
@@ -60,16 +76,6 @@ public final class InnerHitsBuilder extends ToXContentToBytes implements Writeab
     }
 
     @Override
-    public InnerHitsBuilder readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Map<String, InnerHitBuilder> innerHitsBuilders = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            innerHitsBuilders.put(in.readString(), new InnerHitBuilder(in));
-        }
-        return new InnerHitsBuilder(innerHitsBuilders);
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         for (Map.Entry<String, InnerHitBuilder> entry : innerHitsBuilders.entrySet()) {
@@ -77,15 +83,6 @@ public final class InnerHitsBuilder extends ToXContentToBytes implements Writeab
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(innerHitsBuilders.size());
-        for (Map.Entry<String, InnerHitBuilder> entry : innerHitsBuilders.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
     }
 
     @Override

@@ -687,7 +687,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
-    void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
+    public void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }

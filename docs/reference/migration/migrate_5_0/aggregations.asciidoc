@@ -13,3 +13,10 @@ It is recommended to use <<keyword,`keyword`>> fields instead, either directly
 or through a <<multi-fields,multi-field>> if the numeric representation is
 still needed for sorting, range queries or numeric aggregations like
 <<search-aggregations-metrics-stats-aggregation,`stats` aggregations>>.
+
+==== `ip_range` aggregations
+
+Now that Elasticsearch supports `ipv6`, `ip` addresses are encoded in the index
+using a binary representation rather than a numeric representation. As a
+consequence, the output of `ip_range` aggregations does not give numeric values
+for `from` and `to` anymore.

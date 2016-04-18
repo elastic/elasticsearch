@@ -99,11 +99,6 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
         out.writeBoolean(showTermDocCountError);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
         return bucketCountThresholds;
     }

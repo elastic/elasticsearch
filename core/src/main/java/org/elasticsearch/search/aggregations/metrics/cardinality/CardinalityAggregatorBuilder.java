@@ -67,11 +67,6 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected boolean serializeTargetValueType() {
         return true;
     }

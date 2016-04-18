@@ -56,11 +56,6 @@ public class MaxAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected MaxAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new MaxAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);

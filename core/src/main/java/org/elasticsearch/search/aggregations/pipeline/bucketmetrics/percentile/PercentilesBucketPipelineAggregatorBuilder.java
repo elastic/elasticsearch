@@ -63,11 +63,6 @@ public class PercentilesBucketPipelineAggregatorBuilder
         out.writeDoubleArray(percents);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Get the percentages to calculate percentiles for in this aggregation
      */

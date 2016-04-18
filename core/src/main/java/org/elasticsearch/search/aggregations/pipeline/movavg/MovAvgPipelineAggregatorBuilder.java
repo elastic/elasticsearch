@@ -93,11 +93,6 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
         out.writeOptionalBoolean(minimize);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Sets the format to use on the output of this aggregation.
      */

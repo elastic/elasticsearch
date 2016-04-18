@@ -60,11 +60,6 @@ public class ExtendedStatsAggregatorBuilder
         out.writeDouble(sigma);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     public ExtendedStatsAggregatorBuilder sigma(double sigma) {
         if (sigma < 0.0) {
             throw new IllegalArgumentException("[sigma] must be greater than or equal to 0. Found [" + sigma + "] in [" + name + "]");

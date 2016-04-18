@@ -62,11 +62,6 @@ public class StatsAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOn
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }

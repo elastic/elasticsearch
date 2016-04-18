@@ -49,17 +49,6 @@ public class NamedWriteableRegistry {
     }
 
     /**
-     * Registers a {@link NamedWriteable} prototype given its category.
-     * @deprecated Prefer {@link #register(Class, String, org.elasticsearch.common.io.stream.Writeable.Reader)}
-     */
-    @Deprecated
-    @SuppressWarnings("rawtypes") // TODO remove this method entirely before 5.0.0 GA
-    public synchronized <T extends NamedWriteable> void registerPrototype(Class<T> categoryClass,
-            NamedWriteable<? extends T> namedWriteable) {
-        register(categoryClass, namedWriteable.getWriteableName(), namedWriteable::readFrom);
-    }
-
-    /**
      * Returns a prototype of the {@link NamedWriteable} object identified by the name provided as argument and its category
      */
     public synchronized <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {

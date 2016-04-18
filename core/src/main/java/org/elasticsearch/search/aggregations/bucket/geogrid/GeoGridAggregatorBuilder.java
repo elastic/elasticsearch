@@ -74,11 +74,6 @@ public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
         out.writeVInt(shardSize);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     public GeoGridAggregatorBuilder precision(int precision) {
         this.precision = GeoHashGridParams.checkPrecision(precision);
         return this;

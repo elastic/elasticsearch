@@ -57,11 +57,6 @@ public class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNes
         out.writeOptionalString(path);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Set the path to use for this nested aggregation. The path must match
      * the path to a nested object in the mappings. If it is not specified

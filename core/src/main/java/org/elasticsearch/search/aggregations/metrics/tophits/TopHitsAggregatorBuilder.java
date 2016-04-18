@@ -156,11 +156,6 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         out.writeBoolean(version);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * From index to start the search from. Defaults to <tt>0</tt>.
      */

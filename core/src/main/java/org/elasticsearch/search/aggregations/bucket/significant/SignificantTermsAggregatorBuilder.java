@@ -100,11 +100,6 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected boolean serializeTargetValueType() {
         return true;
     }

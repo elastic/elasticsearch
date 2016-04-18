@@ -58,11 +58,6 @@ public class ExtendedStatsBucketPipelineAggregatorBuilder
         out.writeDouble(sigma);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Set the value of sigma to use when calculating the standard deviation
      * bounds

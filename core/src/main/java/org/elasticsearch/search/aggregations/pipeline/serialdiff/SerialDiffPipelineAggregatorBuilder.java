@@ -72,11 +72,6 @@ public class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuild
         out.writeVInt(lag);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Sets the lag to use when calculating the serial difference.
      */

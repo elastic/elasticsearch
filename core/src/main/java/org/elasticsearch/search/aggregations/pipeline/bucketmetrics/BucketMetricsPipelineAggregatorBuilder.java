@@ -54,31 +54,12 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (false == usesNewStyleSerialization()) {
-            innerWriteTo(out);
-        }
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
-        if (usesNewStyleSerialization()) {
-            innerWriteTo(out);
-        }
+        innerWriteTo(out);
     }
 
     protected abstract void innerWriteTo(StreamOutput out) throws IOException;
-
-    @Override
-    protected final PipelineAggregatorBuilder<AF> doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        BucketMetricsPipelineAggregatorBuilder<AF> factory = innerReadFrom(name, bucketsPaths, in);
-        factory.format = in.readOptionalString();
-        factory.gapPolicy = GapPolicy.readFrom(in);
-        return factory;
-    }
-
-    protected BucketMetricsPipelineAggregatorBuilder<AF> innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-            throws IOException {
-        throw new UnsupportedOperationException(); // NORELEASE remove before 5.0.0 GA
-    }
-
 
     /**
      * Sets the format to use on the output of this aggregation.

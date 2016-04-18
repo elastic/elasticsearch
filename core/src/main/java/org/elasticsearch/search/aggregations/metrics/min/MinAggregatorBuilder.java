@@ -56,11 +56,6 @@ public class MinAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected MinAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new MinAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);

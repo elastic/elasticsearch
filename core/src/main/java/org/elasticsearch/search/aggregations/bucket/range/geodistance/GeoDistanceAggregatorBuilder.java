@@ -95,11 +95,6 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
         unit.writeTo(out);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     public GeoDistanceAggregatorBuilder addRange(Range range) {
         if (range == null) {
             throw new IllegalArgumentException("[range] must not be null: [" + name + "]");

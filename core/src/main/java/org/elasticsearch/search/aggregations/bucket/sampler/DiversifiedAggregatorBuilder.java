@@ -68,11 +68,6 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
         out.writeOptionalString(executionHint);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Set the max num docs to be returned from each shard.
      */

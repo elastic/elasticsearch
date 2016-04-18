@@ -54,11 +54,6 @@ public class MinBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
         return new MinBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
     }

@@ -56,11 +56,6 @@ public class StatsBucketPipelineAggregatorBuilder extends BucketMetricsPipelineA
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
         return new StatsBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
     }

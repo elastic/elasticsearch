@@ -58,11 +58,6 @@ public class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Va
         out.writeBoolean(wrapLongitude);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Set whether to wrap longitudes. Defaults to true.
      */

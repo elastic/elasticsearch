@@ -76,11 +76,6 @@ public class PercentilesAggregatorBuilder extends LeafOnly<ValuesSource.Numeric,
         method.writeTo(out);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Set the values to compute percentiles from.
      */

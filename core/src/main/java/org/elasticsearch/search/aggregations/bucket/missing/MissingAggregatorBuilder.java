@@ -56,11 +56,6 @@ public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected boolean serializeTargetValueType() {
         return true;
     }

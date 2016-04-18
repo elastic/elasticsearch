@@ -140,18 +140,8 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (usesNewStyleSerialization()) {
-            if (serializeTargetValueType()) {
-                out.writeOptionalWriteable(targetValueType);
-            }
-        } else {
-            valuesSourceType.writeTo(out);
-            boolean hasTargetValueType = targetValueType != null;
-            out.writeBoolean(hasTargetValueType);
-            if (hasTargetValueType) {
-                targetValueType.writeTo(out);
-            }
-            innerWriteTo(out);
+        if (serializeTargetValueType()) {
+            out.writeOptionalWriteable(targetValueType);
         }
         out.writeOptionalString(field);
         boolean hasScript = script != null;
@@ -171,44 +161,13 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         if (hasTimeZone) {
             out.writeString(timeZone.getID());
         }
-        if (usesNewStyleSerialization()) {
-            innerWriteTo(out);
-        }
+        innerWriteTo(out);
     }
 
     /**
      * Write subclass's state to the stream.
      */
     protected abstract void innerWriteTo(StreamOutput out) throws IOException;
-
-    @SuppressWarnings("unchecked")
-    @Override
-    protected final AB doReadFrom(String name, StreamInput in) throws IOException {
-        ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
-        ValueType targetValueType = null;
-        if (in.readBoolean()) {
-            targetValueType = ValueType.readFromStream(in);
-        }
-        ValuesSourceAggregatorBuilder<VS, AB> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
-        factory.field = in.readOptionalString();
-        if (in.readBoolean()) {
-            factory.script = Script.readScript(in);
-        }
-        if (in.readBoolean()) {
-            factory.valueType = ValueType.readFromStream(in);
-        }
-        factory.format = in.readOptionalString();
-        factory.missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            factory.timeZone = DateTimeZone.forID(in.readString());
-        }
-        return (AB) factory;
-    }
-
-    protected ValuesSourceAggregatorBuilder<VS, AB> innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        throw new UnsupportedOperationException(); // NORELEASE remove when no longer overridden
-    }
 
     /**
      * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true should use the three

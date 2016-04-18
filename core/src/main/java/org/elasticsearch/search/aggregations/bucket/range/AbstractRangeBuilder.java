@@ -64,11 +64,6 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         out.writeBoolean(keyed);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     public AB addRange(R range) {
         if (range == null) {
             throw new IllegalArgumentException("[range] must not be null: [" + name + "]");

@@ -68,11 +68,6 @@ public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorB
         out.writeString(path);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Get the path to use for this nested aggregation.
      */

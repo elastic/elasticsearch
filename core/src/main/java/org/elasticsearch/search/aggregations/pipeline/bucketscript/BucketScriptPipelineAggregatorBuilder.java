@@ -93,11 +93,6 @@ public class BucketScriptPipelineAggregatorBuilder extends PipelineAggregatorBui
         gapPolicy.writeTo(out);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     private static Map<String, String> convertToBucketsPathMap(String[] bucketsPaths) {
         Map<String, String> bucketsPathsMap = new HashMap<>();
         for (int i = 0; i < bucketsPaths.length; i++) {

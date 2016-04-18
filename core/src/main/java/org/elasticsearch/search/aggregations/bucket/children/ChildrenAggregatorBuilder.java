@@ -81,11 +81,6 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected ValuesSourceAggregatorFactory<ParentChild, ?> innerBuild(AggregationContext context,
             ValuesSourceConfig<ParentChild> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new ChildrenAggregatorFactory(name, type, config, parentType, childFilter, parentFilter, context, parent,

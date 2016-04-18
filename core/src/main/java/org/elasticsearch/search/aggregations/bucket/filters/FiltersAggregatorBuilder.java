@@ -128,11 +128,6 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
         out.writeString(otherBucketKey);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Set whether to include a bucket for documents not matching any filter
      */

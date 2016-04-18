@@ -86,33 +86,11 @@ public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBu
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeStringArray(bucketsPaths);
-        if (usesNewStyleSerialization()) {
-            out.writeMap(metaData);
-            doWriteTo(out);
-        } else {
-            doWriteTo(out);
-            out.writeMap(metaData);
-        }
+        out.writeMap(metaData);
+        doWriteTo(out);
     }
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    protected boolean usesNewStyleSerialization() {
-        return false; // NORELEASE remove this before 5.0.0GA, when all the aggregations have been migrated
-    }
-
-    @Override
-    public PipelineAggregatorBuilder<PAB> readFrom(StreamInput in) throws IOException {
-        String name = in.readString();
-        String[] bucketsPaths = in.readStringArray();
-        PipelineAggregatorBuilder<PAB> factory = doReadFrom(name, bucketsPaths, in);
-        factory.metaData = in.readMap();
-        return factory;
-    }
-
-    protected PipelineAggregatorBuilder<PAB> doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        throw new UnsupportedOperationException(); // NORELEASE remove this before 5.0.0GA, when all the aggregations have been migrated
-    }
 
     public String name() {
         return name;
@@ -159,12 +137,6 @@ public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBu
 
     public String[] getBucketsPaths() {
         return bucketsPaths;
-    }
-
-    @Override
-    public String getWriteableName() {
-        assert false == usesNewStyleSerialization() : "Migrated aggregations should just return NAME";
-        return type;
     }
 
     @Override

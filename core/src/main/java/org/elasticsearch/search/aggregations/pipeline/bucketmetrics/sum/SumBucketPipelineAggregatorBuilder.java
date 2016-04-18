@@ -54,11 +54,6 @@ public class SumBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
         return new SumBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
     }

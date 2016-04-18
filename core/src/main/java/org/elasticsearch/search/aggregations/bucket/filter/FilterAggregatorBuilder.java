@@ -77,11 +77,6 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new FilterAggregatorFactory(name, type, filter, context, parent, subFactoriesBuilder, metaData);

@@ -56,11 +56,6 @@ public class SumAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected SumAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new SumAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);

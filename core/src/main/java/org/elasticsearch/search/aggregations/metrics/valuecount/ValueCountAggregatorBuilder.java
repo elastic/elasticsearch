@@ -55,11 +55,6 @@ public class ValueCountAggregatorBuilder extends ValuesSourceAggregatorBuilder.L
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected boolean serializeTargetValueType() {
         return true;
     }

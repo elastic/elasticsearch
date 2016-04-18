@@ -52,11 +52,6 @@ public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorB
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
         return new GlobalAggregatorFactory(name, type, context, parent, subFactoriesBuilder, metaData);

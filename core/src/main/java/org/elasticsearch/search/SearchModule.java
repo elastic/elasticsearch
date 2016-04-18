@@ -382,18 +382,6 @@ public class SearchModule extends AbstractModule {
     }
 
     /**
-     * Register an aggregation.
-     *
-     * @deprecated prefer {@link #registerPipelineAggregation(Writeable.Reader, PipelineAggregator.Parser, ParseField)}. Will be removed
-     *             before 5.0.0GA.
-     */
-    @Deprecated // NORELEASE remove this before 5.0.0GA
-    public void registerAggregatorParser(Aggregator.Parser parser) {
-        aggregationParserRegistry.register(parser, new ParseField(parser.type()));
-        namedWriteableRegistry.registerPrototype(AggregatorBuilder.class, parser.getFactoryPrototypes());
-    }
-
-    /**
      * Register a pipeline aggregation.
      *
      * @param reader reads the aggregation builder from a stream
@@ -405,18 +393,6 @@ public class SearchModule extends AbstractModule {
             PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
         pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
         namedWriteableRegistry.register(PipelineAggregatorBuilder.class, aggregationName.getPreferredName(), reader);
-    }
-
-    /**
-     * Register a pipeline aggregation.
-     *
-     * @deprecated prefer {@link #registerPipelineAggregation(Writeable.Reader, PipelineAggregator.Parser, ParseField)}. Will be removed
-     *             before 5.0.0GA.
-     */
-    @Deprecated // NORELEASE remove this before 5.0.0GA
-    public void registerPipelineParser(PipelineAggregator.Parser parser) {
-        pipelineAggregationParserRegistry.register(parser, new ParseField(parser.type()));
-        namedWriteableRegistry.registerPrototype(PipelineAggregatorBuilder.class, parser.getFactoryPrototype());
     }
 
     public AggregatorParsers getAggregatorParsers() {

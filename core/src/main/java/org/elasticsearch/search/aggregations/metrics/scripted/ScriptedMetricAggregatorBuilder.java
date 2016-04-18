@@ -89,11 +89,6 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
         }
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Set the <tt>init</tt> script.
      */

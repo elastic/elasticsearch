@@ -54,11 +54,6 @@ public class MaxBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
         return new MaxBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
     }

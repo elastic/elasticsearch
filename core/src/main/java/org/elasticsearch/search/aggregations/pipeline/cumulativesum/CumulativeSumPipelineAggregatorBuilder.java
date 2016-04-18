@@ -65,11 +65,6 @@ public class CumulativeSumPipelineAggregatorBuilder extends PipelineAggregatorBu
         out.writeOptionalString(format);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Sets the format to use on the output of this aggregation.
      */

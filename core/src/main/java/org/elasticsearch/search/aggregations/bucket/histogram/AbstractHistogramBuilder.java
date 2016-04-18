@@ -79,11 +79,6 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
         }
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     public long interval() {
         return interval;
     }

@@ -689,7 +689,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Write an optional {@link QueryBuilder} to the stream.
+     * Write an optional {@link NamedWriteable} to the stream.
      */
     public void writeOptionalNamedWriteable(@Nullable NamedWriteable<?> namedWriteable) throws IOException {
         if (namedWriteable == null) {

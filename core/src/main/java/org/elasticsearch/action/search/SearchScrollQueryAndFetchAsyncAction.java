@@ -89,6 +89,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
         shardFailures.set(shardIndex, failure);
     }
 
+    @Override
     public void start() {
         if (scrollId.getContext().length == 0) {
             listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
@@ -170,7 +171,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
     private void innerFinishHim() throws Exception {
         ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
         final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults,
-            queryFetchResults);
+                queryFetchResults, null);
         String scrollId = null;
         if (request.scroll() != null) {
             scrollId = request.scrollId();

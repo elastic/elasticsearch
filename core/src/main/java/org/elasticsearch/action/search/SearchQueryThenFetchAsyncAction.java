@@ -130,7 +130,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
             @Override
             public void doRun() throws IOException {
                 final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults,
-                    fetchResults);
+                        fetchResults, request);
                 String scrollId = null;
                 if (request.scroll() != null) {
                     scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);

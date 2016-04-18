@@ -25,11 +25,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -138,6 +141,29 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
     public final AggregatorFactory<?> build(AggregationContext context, AggregatorFactory<?> parent) throws IOException {
         AggregatorFactory<?> factory = doBuild(context, parent, factoriesBuilder);
         return factory;
+    }
+
+    /**
+     * Reduces the given addAggregation to a single one and returns it. In
+     * <b>most</b> cases, the assumption will be the all given addAggregation
+     * are of the same type (the same type as this aggregation). For best
+     * efficiency, when implementing, try reusing an existing get instance
+     * (typically the first in the given list) to save on redundant object
+     * construction.
+     */
+    public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) throws IOException {
+        InternalAggregation aggResult = doReduce(aggregations, reduceContext);
+        aggResult.metaData = metaData;
+        for (PipelineAggregatorBuilder<?> pipelineAggregatorBuilder : factoriesBuilder.buildPipelineAggregators()) {
+            PipelineAggregator pipelineAggregator = pipelineAggregatorBuilder.create();
+            aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
+        }
+        return aggResult;
+    }
+
+    // NORELEASE make this abstract when all aggs are cut over to implement this method
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        return aggregations.get(0).reduce(aggregations, reduceContext);
     }
 
     protected abstract AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,

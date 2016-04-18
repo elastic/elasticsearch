@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -291,7 +292,7 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
     public InternalSearchResponse merge(ScoreDoc[] sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResultsArr,
-                                        AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
+            AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr, SearchRequest searchRequest) throws IOException {
 
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults = queryResultsArr.asList();
         List<? extends AtomicArray.Entry<? extends FetchSearchResultProvider>> fetchResults = fetchResultsArr.asList();
@@ -393,6 +394,8 @@ public class SearchPhaseController extends AbstractComponent {
 
         // merge addAggregation
         InternalAggregations aggregations = null;
+        if (searchRequest != null && searchRequest.source() != null && searchRequest.source().aggregations() != null) {
+            AggregatorFactories.Builder aggregationBuilders = searchRequest.source().aggregations();
         if (!queryResults.isEmpty()) {
             if (firstResult.aggregations() != null && firstResult.aggregations().asList() != null) {
                 List<InternalAggregations> aggregationsList = new ArrayList<>(queryResults.size());
@@ -400,19 +403,9 @@ public class SearchPhaseController extends AbstractComponent {
                     aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
                 }
                 ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, clusterService.state());
-                aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
+                aggregations = aggregationBuilders.reduce(aggregationsList, reduceContext);
             }
         }
-
-        //Collect profile results
-        InternalProfileShardResults shardResults = null;
-        if (!queryResults.isEmpty() && firstResult.profileResults() != null) {
-            Map<String, List<ProfileShardResult>> profileResults = new HashMap<>(queryResults.size());
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
-                String key = entry.value.queryResult().shardTarget().toString();
-                profileResults.put(key, entry.value.queryResult().profileResults());
-            }
-            shardResults = new InternalProfileShardResults(profileResults);
         }
 
         if (aggregations != null) {
@@ -428,6 +421,17 @@ public class SearchPhaseController extends AbstractComponent {
                 }
                 aggregations = new InternalAggregations(newAggs);
             }
+        }
+
+        // Collect profile results
+        InternalProfileShardResults shardResults = null;
+        if (!queryResults.isEmpty() && firstResult.profileResults() != null) {
+            Map<String, List<ProfileShardResult>> profileResults = new HashMap<>(queryResults.size());
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
+                String key = entry.value.queryResult().shardTarget().toString();
+                profileResults.put(key, entry.value.queryResult().profileResults());
+            }
+            shardResults = new InternalProfileShardResults(profileResults);
         }
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);

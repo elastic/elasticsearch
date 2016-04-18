@@ -63,7 +63,7 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
                 boolean useScroll = request.scroll() != null;
                 sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
                 final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults,
-                    firstResults);
+                        firstResults, request);
                 String scrollId = null;
                 if (request.scroll() != null) {
                     scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);

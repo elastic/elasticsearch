@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -200,6 +201,47 @@ public class AggregatorFactories {
                 aggFactories[i] = aggregatorBuilders.get(i).build(context, parent);
             }
             return new AggregatorFactories(parent, aggFactories, orderedpipelineAggregators);
+        }
+
+        public List<PipelineAggregatorBuilder<?>> buildPipelineAggregators() {
+            List<PipelineAggregatorBuilder<?>> orderedpipelineAggregators = null;
+            if (skipResolveOrder) {
+                orderedpipelineAggregators = new ArrayList<>(pipelineAggregatorBuilders);
+            } else {
+                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregatorBuilders);
+            }
+            return orderedpipelineAggregators;
+        }
+
+        public InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) throws IOException {
+            if (aggregationsList.isEmpty()) {
+                return null;
+            }
+
+            // first we collect all aggregations of the same type and list them
+            // together
+
+            Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
+            for (InternalAggregations aggregations : aggregationsList) {
+                for (Aggregation aggregation : aggregations.asList()) {
+                    List<InternalAggregation> aggs = aggByName.get(aggregation.getName());
+                    if (aggs == null) {
+                        aggs = new ArrayList<>(aggregationsList.size());
+                        aggByName.put(aggregation.getName(), aggs);
+                    }
+                    aggs.add((InternalAggregation) aggregation);
+                }
+            }
+
+            // now we can use each aggregation builder to handle the
+            // reduce of its list
+
+            List<InternalAggregation> reducedAggregations = new ArrayList<>();
+            for (AggregatorBuilder<?> aggregatorBuilder : aggregatorBuilders) {
+                List<InternalAggregation> aggregations = aggByName.get(aggregatorBuilder.name);
+                reducedAggregations.add(aggregatorBuilder.reduce(aggregations, context));
+            }
+            return new InternalAggregations(reducedAggregations);
         }
 
         private List<PipelineAggregatorBuilder<?>> resolvePipelineAggregatorOrder(

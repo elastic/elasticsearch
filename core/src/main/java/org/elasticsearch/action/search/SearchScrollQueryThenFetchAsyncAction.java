@@ -36,6 +36,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -92,6 +93,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
         shardFailures.set(shardIndex, failure);
     }
 
+    @Override
     public void start() {
         if (scrollId.getContext().length == 0) {
             listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
@@ -214,8 +216,8 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
         }
     }
 
-    private void innerFinishHim() {
-        InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+    private void innerFinishHim() throws IOException {
+        InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults, null);
         String scrollId = null;
         if (request.scroll() != null) {
             scrollId = request.scrollId();

@@ -180,7 +180,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     public SearchSourceBuilder(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            aggregations = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
+            aggregations = new AggregatorFactories.Builder(in);
         }
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);

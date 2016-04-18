@@ -67,7 +67,7 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
     protected AggregatorBuilder(StreamInput in, Type type) throws IOException {
         name = in.readString();
         this.type = type;
-        factoriesBuilder = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
+        factoriesBuilder = new AggregatorFactories.Builder(in);
         metaData = in.readMap();
     }
 

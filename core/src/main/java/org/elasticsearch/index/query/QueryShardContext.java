@@ -36,7 +36,6 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -115,16 +114,10 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public void reset() {
         allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
-        this.parseFieldMatcher(ParseFieldMatcher.EMPTY);
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
         this.isFilter = false;
-    }
-
-    public void reset(XContentParser jp) {
-        this.reset();
-        this.parseContext.reset(jp);
     }
 
     public AnalysisService getAnalysisService() {
@@ -292,10 +285,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings.getIndexVersionCreated();
     }
 
-    public QueryParseContext parseContext() {
-        return this.parseContext;
-    }
-
     public boolean matchesIndices(String... indices) {
         for (String index : indices) {
             if (indexSettings.matchesIndexName(index)) {
@@ -334,38 +323,35 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     @Nullable
     public ParsedQuery parseInnerFilter(XContentParser parser) throws IOException {
-        reset(parser);
+        reset();
         try {
-            parseFieldMatcher(indexSettings.getParseFieldMatcher());
-            Query filter = QueryBuilder.rewriteQuery(parseContext().parseInnerQueryBuilder(), this).toFilter(this);
+            Query filter = QueryBuilder.rewriteQuery(newParseContext(parser).parseInnerQueryBuilder(), this).toFilter(this);
             if (filter == null) {
                 return null;
             }
             return new ParsedQuery(filter, copyNamedQueries());
         } finally {
-            reset(null);
+            reset();
         }
     }
 
 
     private ParsedQuery innerParse(XContentParser parser) throws IOException, QueryShardException {
-        reset(parser);
+        reset();
         try {
-            parseFieldMatcher(indexSettings.getParseFieldMatcher());
-            Query query = parseInnerQuery();
+            Query query = parseInnerQuery(parser);
             return new ParsedQuery(query, copyNamedQueries());
         } finally {
-            reset(null);
+            reset();
         }
     }
 
-    public Query parseInnerQuery() throws IOException {
-        return toQuery(this.parseContext().parseInnerQueryBuilder(), this);
+    public Query parseInnerQuery(XContentParser parser) throws IOException {
+        return toQuery(this.newParseContext(parser).parseInnerQueryBuilder(), this);
     }
 
     public ParsedQuery toQuery(QueryBuilder<?> queryBuilder) {
         reset();
-        parseFieldMatcher(indexSettings.getParseFieldMatcher());
         try {
             Query query = toQuery(queryBuilder, this);
             return new ParsedQuery(query, copyNamedQueries());

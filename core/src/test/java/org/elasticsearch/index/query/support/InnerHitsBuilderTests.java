@@ -72,8 +72,6 @@ public class InnerHitsBuilderTests extends ESTestCase {
     }
 
     public void testFromAndToXContent() throws Exception {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             InnerHitsBuilder innerHits = randomInnerHits();
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -83,7 +81,7 @@ public class InnerHitsBuilderTests extends ESTestCase {
             innerHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             XContentParser parser = XContentHelper.createParser(builder.bytes());
-            context.reset(parser);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             parser.nextToken();
             InnerHitsBuilder secondInnerHits = InnerHitsBuilder.fromXContent(context);
             assertThat(innerHits, not(sameInstance(secondInnerHits)));

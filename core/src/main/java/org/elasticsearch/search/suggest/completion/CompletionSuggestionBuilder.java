@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -265,7 +264,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     static CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         CompletionSuggestionBuilder.InnerBuilder builder = new CompletionSuggestionBuilder.InnerBuilder();
-        TLP_PARSER.parse(parseContext.parser(), builder, () -> ParseFieldMatcher.STRICT);
+        TLP_PARSER.parse(parseContext.parser(), builder, parseContext);
         String field = builder.field;
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
@@ -301,7 +300,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
                             if (currentToken == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = contextParser.currentName();
                                 final ContextMapping mapping = contextMappings.get(currentFieldName);
-                                queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
+                                queryContexts.put(currentFieldName, mapping.parseQueryContext(context.newParseContext(contextParser)));
                             }
                         }
                         suggestionContext.setQueryContexts(queryContexts);

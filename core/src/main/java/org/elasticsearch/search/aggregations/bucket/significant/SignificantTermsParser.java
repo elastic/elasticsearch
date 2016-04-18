@@ -87,9 +87,7 @@ public class SignificantTermsParser extends AbstractTermsParser {
                 otherOptions.put(SignificantTermsAggregatorBuilder.HEURISTIC, significanceHeuristic);
                 return true;
             } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregatorBuilder.BACKGROUND_FILTER)) {
-                QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry);
-                queryParseContext.reset(parser);
-                queryParseContext.parseFieldMatcher(parseFieldMatcher);
+                QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
                 QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
                 otherOptions.put(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER, filter);
                 return true;

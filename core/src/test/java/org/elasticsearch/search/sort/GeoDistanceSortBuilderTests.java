@@ -22,20 +22,25 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 import java.util.Arrays;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanceSortBuilder> {
 
@@ -215,8 +220,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.reset(itemParser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
 
         try {
           GeoDistanceSortBuilder.fromXContent(context, "");
@@ -237,8 +241,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.reset(itemParser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
 
         try {
           GeoDistanceSortBuilder.fromXContent(context, "");
@@ -255,14 +258,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.reset(itemParser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
 
         try {
           GeoDistanceSortBuilder item = GeoDistanceSortBuilder.fromXContent(context, "");
           item.ignoreMalformed(false);
           item.build(createMockShardContext());
-          
+
           fail("adding reverse sorting option should fail with an exception");
         } catch (ElasticsearchParseException e) {
             assertEquals("illegal latitude value [269.384765625] for [GeoDistanceSort] for field [reverse].", e.getMessage());
@@ -284,8 +286,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.reset(itemParser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
         assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
@@ -311,8 +312,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.reset(itemParser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
 
         GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(context, json);
         assertEquals("[-19.700583312660456, -2.8225036337971687, "
@@ -321,6 +321,122 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 + "-37.20467280596495, 38.71751043945551, "
                 + "-69.44606635719538, 84.25200328230858, "
                 + "-39.03717711567879, 44.74099852144718]", Arrays.toString(result.points()));
+    }
+
+    public void testGeoDistanceSortParserManyPointsNoException() throws Exception {
+        XContentBuilder sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.startArray().value(1.2).value(3).endArray().startArray().value(5).value(6).endArray();
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("mode", "max");
+        sortBuilder.endObject();
+        parse(sortBuilder);
+
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value(new GeoPoint(1.2, 3)).value(new GeoPoint(1.2, 3));
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("mode", "max");
+        sortBuilder.endObject();
+        parse(sortBuilder);
+
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value("1,2").value("3,4");
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("mode", "max");
+        sortBuilder.endObject();
+        parse(sortBuilder);
+
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value("s3y0zh7w1z0g").value("s6wjr4et3f8v");
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("mode", "max");
+        sortBuilder.endObject();
+        parse(sortBuilder);
+
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value(1.2).value(3);
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("mode", "max");
+        sortBuilder.endObject();
+        parse(sortBuilder);
+
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.field("location", new GeoPoint(1, 2));
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("mode", "max");
+        sortBuilder.endObject();
+        parse(sortBuilder);
+
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.field("location", "1,2");
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("mode", "max");
+        sortBuilder.endObject();
+        parse(sortBuilder);
+
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.field("location", "s3y0zh7w1z0g");
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("mode", "max");
+        sortBuilder.endObject();
+        parse(sortBuilder);
+
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value(new GeoPoint(1, 2)).value("s3y0zh7w1z0g").startArray().value(1).value(2).endArray().value("1,2");
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("mode", "max");
+        sortBuilder.endObject();
+        parse(sortBuilder);
+    }
+
+    public void testGeoDistanceSortDeprecatedSortModeException() throws Exception {
+        XContentBuilder sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.startArray().value(1.2).value(3).endArray().startArray().value(5).value(6).endArray();
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parse(sortBuilder));
+        assertEquals("Deprecated field [sort_mode] used, expected [mode] instead", ex.getMessage());
+    }
+
+    private static GeoDistanceSortBuilder parse(XContentBuilder sortBuilder) throws Exception {
+        XContentParser parser = XContentHelper.createParser(sortBuilder.bytes());
+        QueryParseContext parseContext = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
+        parser.nextToken();
+        return GeoDistanceSortBuilder.fromXContent(parseContext, null);
     }
 
     @Override

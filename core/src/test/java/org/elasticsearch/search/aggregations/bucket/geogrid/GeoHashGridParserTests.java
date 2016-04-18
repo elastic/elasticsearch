@@ -23,16 +23,18 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 public class GeoHashGridParserTests extends ESTestCase {
+    private static final IndicesQueriesRegistry mockRegistry = new IndicesQueriesRegistry();
+
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = JsonXContent.jsonXContent.createParser(
                 "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
-        QueryParseContext parseContext = new QueryParseContext(null);
-        parseContext.reset(stParser);
-        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(mockRegistry,
+                stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
@@ -44,9 +46,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = JsonXContent.jsonXContent.createParser(
                 "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
-        QueryParseContext parseContext = new QueryParseContext(null);
-        parseContext.reset(stParser);
-        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
@@ -56,9 +56,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseErrorOnNonIntPrecision() throws Exception {
         XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":\"2.0\"}");
-        QueryParseContext parseContext = new QueryParseContext(null);
-        parseContext.reset(stParser);
-        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
@@ -72,9 +70,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseErrorOnBooleanPrecision() throws Exception {
         XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":false}");
-        QueryParseContext parseContext = new QueryParseContext(null);
-        parseContext.reset(stParser);
-        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
@@ -88,9 +84,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
         XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":\"13\"}");
-        QueryParseContext parseContext = new QueryParseContext(null);
-        parseContext.reset(stParser);
-        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();

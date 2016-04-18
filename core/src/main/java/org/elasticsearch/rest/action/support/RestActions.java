@@ -40,9 +40,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 
@@ -135,15 +132,11 @@ public class RestActions {
     }
 
     public static QueryBuilder<?> getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry, ParseFieldMatcher parseFieldMatcher) {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
-            context.reset(requestParser);
-            context.parseFieldMatcher(parseFieldMatcher);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, requestParser, parseFieldMatcher);
             return context.parseTopLevelQueryBuilder();
         } catch (IOException e) {
             throw new ElasticsearchException("failed to parse source", e);
-        } finally {
-            context.reset(null);
         }
     }
 

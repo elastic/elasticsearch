@@ -241,9 +241,8 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry);
-                            queryParseContext.reset(parser);
-                            queryParseContext.parseFieldMatcher(context.getParseFieldMatcher());
+                            QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser,
+                                context.getParseFieldMatcher());
                             QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
                             keyedFilters.add(new FiltersAggregator.KeyedFilter(key, filter == null ? matchAllQuery() : filter));
                         }
@@ -256,9 +255,8 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
                 if (context.getParseFieldMatcher().match(currentFieldName, FILTERS_FIELD)) {
                     nonKeyedFilters = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry);
-                        queryParseContext.reset(parser);
-                        queryParseContext.parseFieldMatcher(context.getParseFieldMatcher());
+                        QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser,
+                            context.getParseFieldMatcher());
                         QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
                         nonKeyedFilters.add(filter == null ? QueryBuilders.matchAllQuery() : filter);
                     }

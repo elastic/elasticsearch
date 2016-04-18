@@ -22,7 +22,6 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -109,10 +108,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             assertEquals(builder.getFieldName(), sortField.getField());
         }
     }
-    
+
     public void testReverseOptionFails() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         String json = "{ \"post_date\" : {\"reverse\" : true} },\n";
 
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
@@ -121,7 +118,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
 
         try {
           FieldSortBuilder.fromXContent(context, "");

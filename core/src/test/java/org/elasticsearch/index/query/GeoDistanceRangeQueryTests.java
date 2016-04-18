@@ -47,7 +47,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Override
     protected GeoDistanceRangeQueryBuilder doCreateTestQueryBuilder() {
-        Version version = queryShardContext().indexVersionCreated();
+        Version version = createShardContext().indexVersionCreated();
         GeoDistanceRangeQueryBuilder builder;
         GeoPoint randomPoint = RandomGeoGenerator.randomPointIn(random(), -180.0, -89.9, 180.0, 89.9);
         if (randomBoolean()) {
@@ -307,7 +307,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     public void testNestedRangeQuery() throws IOException {
         // create a nested geo_point type with a subfield named "geohash" (explicit testing for ISSUE #15179)
-        MapperService mapperService = queryShardContext().getMapperService();
+        MapperService mapperService = createShardContext().getMapperService();
         String nestedMapping =
             "{\"nested_doc\" : {\"properties\" : {" +
             "\"locations\": {\"properties\": {" +
@@ -366,14 +366,14 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     public void testIgnoreUnmapped() throws IOException {
         final GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder("unmapped", new GeoPoint(0.0, 0.0)).from("20m");
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        Query query = queryBuilder.toQuery(createShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoDistanceRangeQueryBuilder failingQueryBuilder = new GeoDistanceRangeQueryBuilder("unmapped", new GeoPoint(0.0, 0.0))
                 .from("20m");
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
     }
 }

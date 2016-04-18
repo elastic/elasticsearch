@@ -173,9 +173,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregatorBuild
             "}";
         try {
             XContentParser parser = XContentFactory.xContent(source).createParser(source);
-            QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-            parseContext.reset(parser);
-            parseContext.parseFieldMatcher(parseFieldMatcher);
+            QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
             fail();

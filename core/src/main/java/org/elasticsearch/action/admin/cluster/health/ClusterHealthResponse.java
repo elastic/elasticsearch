@@ -305,7 +305,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (outputIndices) {
             builder.startObject(Fields.INDICES);
             for (ClusterIndexHealth indexHealth : clusterStateHealth.getIndices().values()) {
-                builder.startObject(indexHealth.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexHealth.getIndex());
                 indexHealth.toXContent(builder, params);
                 builder.endObject();
             }

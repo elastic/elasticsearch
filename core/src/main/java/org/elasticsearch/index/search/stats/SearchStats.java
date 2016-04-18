@@ -309,7 +309,7 @@ public class SearchStats implements Streamable, ToXContent {
         if (groupStats != null && !groupStats.isEmpty()) {
             builder.startObject(Fields.GROUPS);
             for (Map.Entry<String, Stats> entry : groupStats.entrySet()) {
-                builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
             }

@@ -317,7 +317,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         @SuppressWarnings("unchecked")
         public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexTemplateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexTemplateMetaData.name());
 
             builder.field("order", indexTemplateMetaData.order());
             builder.field("template", indexTemplateMetaData.template());
@@ -355,7 +355,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             }
 
             for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
-                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(cursor.key);
                 cursor.value.toXContent(builder, params);
                 builder.endObject();
             }

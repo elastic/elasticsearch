@@ -80,7 +80,7 @@ public class CompletionStats implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             out.writeVInt(fields.size());
-            
+
             assert !fields.containsKey(null);
             final Object[] keys = fields.keys;
             final long[] values = fields.values;
@@ -105,7 +105,7 @@ public class CompletionStats implements Streamable, ToXContent {
             final long[] values = fields.values;
             for (int i = 0; i < keys.length; i++) {
                 if (keys[i] != null) {
-                    builder.startObject((String) keys[i], XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject((String) keys[i]);
                     builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, values[i]);
                     builder.endObject();
                 }
@@ -137,7 +137,7 @@ public class CompletionStats implements Streamable, ToXContent {
         sizeInBytes += completion.getSizeInBytes();
 
         if (completion.fields != null) {
-            if (fields == null) { 
+            if (fields == null) {
                 fields = completion.fields.clone();
             } else {
                 assert !completion.fields.containsKey(null);

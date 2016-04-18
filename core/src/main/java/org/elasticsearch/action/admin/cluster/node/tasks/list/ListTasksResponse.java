@@ -163,7 +163,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
             builder.startObject("nodes");
             for (Map.Entry<DiscoveryNode, List<TaskInfo>> entry : getPerNodeTasks().entrySet()) {
                 DiscoveryNode node = entry.getKey();
-                builder.startObject(node.getId(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(node.getId());
                 builder.field("name", node.getName());
                 builder.field("transport_address", node.getAddress().toString());
                 builder.field("host", node.getHostName());
@@ -178,13 +178,13 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
                 if (!node.getAttributes().isEmpty()) {
                     builder.startObject("attributes");
                     for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
-                        builder.field(attrEntry.getKey(), attrEntry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                        builder.field(attrEntry.getKey(), attrEntry.getValue());
                     }
                     builder.endObject();
                 }
                 builder.startObject("tasks");
                 for(TaskInfo task : entry.getValue()) {
-                    builder.startObject(task.getTaskId().toString(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(task.getTaskId().toString());
                     task.toXContent(builder, params);
                     builder.endObject();
                 }
@@ -194,7 +194,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
         } else if ("parents".equals(groupBy)) {
             builder.startObject("tasks");
             for (TaskGroup group : getTaskGroups()) {
-                builder.startObject(group.getTaskInfo().getTaskId().toString(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(group.getTaskInfo().getTaskId().toString());
                 group.toXContent(builder, params);
                 builder.endObject();
             }

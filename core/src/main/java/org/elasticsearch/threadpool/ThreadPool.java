@@ -889,7 +889,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(name, XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(name);
             builder.field(Fields.TYPE, type.getType());
             if (min != -1) {
                 builder.field(Fields.MIN, min);

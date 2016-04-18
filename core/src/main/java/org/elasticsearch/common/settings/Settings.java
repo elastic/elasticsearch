@@ -751,7 +751,7 @@ public final class Settings implements ToXContent {
             }
         } else {
             for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(entry.getKey(), entry.getValue());
             }
         }
         return builder;

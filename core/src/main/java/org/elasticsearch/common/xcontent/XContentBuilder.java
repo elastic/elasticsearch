@@ -51,32 +51,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- *
+ * A utility to build XContent (ie json).
  */
 public final class XContentBuilder implements BytesStream, Releasable {
 
-    public enum FieldCaseConversion {
-        /**
-         * No conversion will occur.
-         */
-        NONE,
-        /**
-         * Camel Case will be converted to Underscore casing.
-         */
-        UNDERSCORE,
-        /**
-         * Underscore will be converted to Camel case.
-         */
-        CAMELCASE
-    }
-
     public final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
-
-    protected static FieldCaseConversion globalFieldCaseConversion = FieldCaseConversion.NONE;
-
-    public static void globalFieldCaseConversion(FieldCaseConversion globalFieldCaseConversion) {
-        XContentBuilder.globalFieldCaseConversion = globalFieldCaseConversion;
-    }
 
     public static XContentBuilder builder(XContent xContent) throws IOException {
         return new XContentBuilder(xContent, new BytesStreamOutput());
@@ -93,10 +72,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
     private XContentGenerator generator;
 
     private final OutputStream bos;
-
-    private FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
-
-    private StringBuilder cachedStringBuilder;
 
     private boolean humanReadable = false;
 
@@ -128,11 +103,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
     public XContentBuilder(XContent xContent, OutputStream bos, String[] filters, boolean inclusive) throws IOException {
         this.bos = bos;
         this.generator = xContent.createGenerator(bos, filters, inclusive);
-    }
-
-    public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {
-        this.fieldCaseConversion = fieldCaseConversion;
-        return this;
     }
 
     public XContentType contentType() {
@@ -176,20 +146,8 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder startObject(String name, FieldCaseConversion conversion) throws IOException {
-        field(name, conversion);
-        startObject();
-        return this;
-    }
-
     public XContentBuilder startObject(XContentBuilderString name) throws IOException {
         field(name);
-        startObject();
-        return this;
-    }
-
-    public XContentBuilder startObject(XContentBuilderString name, FieldCaseConversion conversion) throws IOException {
-        field(name, conversion);
         startObject();
         return this;
     }
@@ -240,12 +198,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder startArray(String name, FieldCaseConversion conversion) throws IOException {
-        field(name, conversion);
-        startArray();
-        return this;
-    }
-
     public XContentBuilder startArray(String name) throws IOException {
         field(name);
         startArray();
@@ -269,38 +221,12 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     public XContentBuilder field(XContentBuilderString name) throws IOException {
-        return field(name, fieldCaseConversion);
-    }
-
-    public XContentBuilder field(XContentBuilderString name, FieldCaseConversion conversion) throws IOException {
-        if (conversion == FieldCaseConversion.UNDERSCORE) {
-            generator.writeFieldName(name.underscore());
-        } else if (conversion == FieldCaseConversion.CAMELCASE) {
-            generator.writeFieldName(name.camelCase());
-        } else {
-            generator.writeFieldName(name.underscore());
-        }
-        return this;
+        return field(name.value());
     }
 
     public XContentBuilder field(String name) throws IOException {
-        return field(name, fieldCaseConversion);
-    }
-
-    public XContentBuilder field(String name, FieldCaseConversion conversion) throws IOException {
         if (name == null) {
             throw new IllegalArgumentException("field name cannot be null");
-        }
-        if (conversion == FieldCaseConversion.UNDERSCORE) {
-            if (cachedStringBuilder == null) {
-                cachedStringBuilder = new StringBuilder();
-            }
-            name = Strings.toUnderscoreCase(name, cachedStringBuilder);
-        } else if (conversion == FieldCaseConversion.CAMELCASE) {
-            if (cachedStringBuilder == null) {
-                cachedStringBuilder = new StringBuilder();
-            }
-            name = Strings.toCamelCase(name, cachedStringBuilder);
         }
         generator.writeFieldName(name);
         return this;
@@ -336,28 +262,8 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(String name, String value, FieldCaseConversion conversion) throws IOException {
-        field(name, conversion);
-        if (value == null) {
-            generator.writeNull();
-        } else {
-            generator.writeString(value);
-        }
-        return this;
-    }
-
     public XContentBuilder field(XContentBuilderString name, String value) throws IOException {
         field(name);
-        if (value == null) {
-            generator.writeNull();
-        } else {
-            generator.writeString(value);
-        }
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, String value, FieldCaseConversion conversion) throws IOException {
-        field(name, conversion);
         if (value == null) {
             generator.writeNull();
         } else {

@@ -54,7 +54,7 @@ public class FieldDataStats implements Streamable, ToXContent {
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
         if (stats.fields != null) {
-            if (fields == null) { 
+            if (fields == null) {
                 fields = stats.fields.clone();
             } else {
                 assert !stats.fields.containsKey(null);
@@ -138,7 +138,7 @@ public class FieldDataStats implements Streamable, ToXContent {
             final long[] values = fields.values;
             for (int i = 0; i < keys.length; i++) {
                 if (keys[i] != null) {
-                    builder.startObject((String) keys[i], XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject((String) keys[i]);
                     builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, values[i]);
                     builder.endObject();
                 }

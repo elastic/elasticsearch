@@ -428,7 +428,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             builder.startObject("templates");
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
                 IndexTemplateMetaData templateMetaData = cursor.value;
-                builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(templateMetaData.name());
 
                 builder.field("template", templateMetaData.template());
                 builder.field("order", templateMetaData.order());
@@ -461,7 +461,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexMetaData.getIndex().getName());
 
                 builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
@@ -527,7 +527,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             builder.startObject("routing_table");
             builder.startObject("indices");
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
-                builder.startObject(indexRoutingTable.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexRoutingTable.getIndex().getName());
                 builder.startObject("shards");
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
@@ -554,7 +554,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             builder.startObject("nodes");
             for (RoutingNode routingNode : getRoutingNodes()) {
-                builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId());
                 for (ShardRouting shardRouting : routingNode) {
                     shardRouting.toXContent(builder, params);
                 }

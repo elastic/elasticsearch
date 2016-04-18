@@ -195,7 +195,7 @@ public class JvmStats implements Streamable, ToXContent {
 
             builder.startObject(Fields.POOLS);
             for (MemoryPool pool : mem) {
-                builder.startObject(pool.getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(pool.getName());
                 builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, pool.used);
                 builder.byteSizeField(Fields.MAX_IN_BYTES, Fields.MAX, pool.max);
 
@@ -219,7 +219,7 @@ public class JvmStats implements Streamable, ToXContent {
 
             builder.startObject(Fields.COLLECTORS);
             for (GarbageCollector collector : gc) {
-                builder.startObject(collector.getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(collector.getName());
                 builder.field(Fields.COLLECTION_COUNT, collector.getCollectionCount());
                 builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, collector.collectionTime);
                 builder.endObject();
@@ -232,7 +232,7 @@ public class JvmStats implements Streamable, ToXContent {
         if (bufferPools != null) {
             builder.startObject(Fields.BUFFER_POOLS);
             for (BufferPool bufferPool : bufferPools) {
-                builder.startObject(bufferPool.getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(bufferPool.getName());
                 builder.field(Fields.COUNT, bufferPool.getCount());
                 builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, bufferPool.used);
                 builder.byteSizeField(Fields.TOTAL_CAPACITY_IN_BYTES, Fields.TOTAL_CAPACITY, bufferPool.totalCapacity);

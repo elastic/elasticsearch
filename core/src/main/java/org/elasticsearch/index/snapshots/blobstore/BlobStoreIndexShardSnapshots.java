@@ -221,7 +221,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         // Then we list all snapshots with list of all blobs that are used by the snapshot
         builder.startObject(Fields.SNAPSHOTS);
         for (SnapshotFiles snapshot : shardSnapshots) {
-            builder.startObject(snapshot.snapshot(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(snapshot.snapshot());
             builder.startArray(Fields.FILES);
             for (FileInfo fileInfo : snapshot.indexFiles()) {
                 builder.value(fileInfo.name());

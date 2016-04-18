@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
@@ -53,6 +52,8 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -125,18 +126,24 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             assertEquals(queryBuilder.scoreMode(), lpq.getScoreMode()); // WTF is this why do we have two?
         }
         if (queryBuilder.innerHit() != null) {
-            assertNotNull(SearchContext.current());
+            SearchContext searchContext = SearchContext.current();
+            assertNotNull(searchContext);
             if (query != null) {
-                assertNotNull(SearchContext.current().innerHits());
-                assertEquals(1, SearchContext.current().innerHits().getInnerHits().size());
-                assertTrue(SearchContext.current().innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+                Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+                InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+                for (InnerHitBuilder builder : innerHitBuilders.values()) {
+                    builder.build(searchContext, searchContext.innerHits());
+                }
+                assertNotNull(searchContext.innerHits());
+                assertEquals(1, searchContext.innerHits().getInnerHits().size());
+                assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
                 InnerHitsContext.BaseInnerHits innerHits =
-                        SearchContext.current().innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
+                        searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
                 assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
                 assertEquals(innerHits.sort().getSort().length, 1);
                 assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME_2);
             } else {
-                assertThat(SearchContext.current().innerHits().getInnerHits().size(), equalTo(0));
+                assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
             }
         }
     }
@@ -188,7 +195,6 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "    \"boost\" : 2.0,\n" +
                 "    \"_name\" : \"WNzYMJKRwePuRBh\",\n" +
                 "    \"inner_hits\" : {\n" +
-                "      \"type\" : \"child\",\n" +
                 "      \"name\" : \"inner_hits_name\",\n" +
                 "      \"from\" : 0,\n" +
                 "      \"size\" : 100,\n" +
@@ -199,18 +205,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "        \"mapped_string\" : {\n" +
                 "          \"order\" : \"asc\"\n" +
                 "        }\n" +
-                "      } ],\n" +
-                "      \"query\" : {\n" +
-                "        \"range\" : {\n" +
-                "          \"mapped_string\" : {\n" +
-                "            \"from\" : \"agJhRET\",\n" +
-                "            \"to\" : \"zvqIq\",\n" +
-                "            \"include_lower\" : true,\n" +
-                "            \"include_upper\" : true,\n" +
-                "            \"boost\" : 1.0\n" +
-                "          }\n" +
-                "        }\n" +
-                "      }\n" +
+                "      } ]\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -223,11 +218,11 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals(query, queryBuilder.childType(), "child");
         assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
         assertNotNull(query, queryBuilder.innerHit());
-        assertEquals(query, queryBuilder.innerHit(), new InnerHitBuilder().setParentChildType("child")
+        InnerHitBuilder expected = new InnerHitBuilder(new InnerHitBuilder(), queryBuilder.query(), "child")
                 .setName("inner_hits_name")
                 .setSize(100)
-                .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC))
-                .setQuery(queryBuilder.query()));
+                .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));
+        assertEquals(query, queryBuilder.innerHit(), expected);
 
     }
     public void testToQueryInnerQueryType() throws IOException {

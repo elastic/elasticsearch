@@ -32,9 +32,9 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
@@ -109,9 +109,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     public NestedQueryBuilder innerHit(InnerHitBuilder innerHit) {
-        innerHit.setNestedPath(path);
-        innerHit.setQuery(query);
-        this.innerHitBuilder = innerHit;
+        this.innerHitBuilder = new InnerHitBuilder(innerHit, path, query);
         return this;
     }
 
@@ -196,8 +194,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             }
         }
-        return new NestedQueryBuilder(path, query, scoreMode, innerHitBuilder).ignoreUnmapped(ignoreUnmapped).queryName(queryName)
+        NestedQueryBuilder queryBuilder =  new NestedQueryBuilder(path, query, scoreMode)
+                .ignoreUnmapped(ignoreUnmapped)
+                .queryName(queryName)
                 .boost(boost);
+        if (innerHitBuilder != null) {
+            queryBuilder.innerHit(innerHitBuilder);
+        }
+        return queryBuilder;
     }
 
     @Override
@@ -236,9 +240,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         final Query childFilter;
         final Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
-        if (innerHitBuilder != null) {
-            context.addInnerHit(innerHitBuilder);
-        }
         if (objectMapper == null) {
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         } else {
@@ -264,5 +265,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             return new NestedQueryBuilder(path, rewrite, scoreMode, innerHitBuilder);
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        if (innerHitBuilder != null) {
+            innerHitBuilder.inlineInnerHits(innerHits);
+        }
     }
 }

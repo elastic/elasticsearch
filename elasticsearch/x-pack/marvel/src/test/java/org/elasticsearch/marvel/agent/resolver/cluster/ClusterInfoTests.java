@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
@@ -39,8 +39,8 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
-                .put(MarvelSettings.COLLECTORS.getKey(), ClusterStatsCollector.NAME)
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringSettings.COLLECTORS.getKey(), ClusterStatsCollector.NAME)
                 .build();
     }
 

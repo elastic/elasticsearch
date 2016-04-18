@@ -7,7 +7,7 @@ package org.elasticsearch.marvel.cleaner;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.Exporters;
@@ -31,7 +31,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1");
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1");
         return settings.build();
     }
 
@@ -68,7 +68,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
     public void testIgnoreDataIndicesInOtherVersions() throws Exception {
         internalCluster().startNode();
 
-        createIndex(MarvelSettings.LEGACY_DATA_INDEX_NAME, now().minusYears(1));
+        createIndex(MonitoringSettings.LEGACY_DATA_INDEX_NAME, now().minusYears(1));
         createDataIndex(0, now().minusDays(10));
         createDataIndex(Integer.MAX_VALUE, now().minusDays(20));
         assertIndicesCount(3);
@@ -143,7 +143,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MarvelIntegTestCase
     public void testRetentionAsGlobalSetting() throws Exception {
         final int max = 10;
         final int retention = randomIntBetween(1, max);
-        internalCluster().startNode(Settings.builder().put(MarvelSettings.HISTORY_DURATION.getKey(),
+        internalCluster().startNode(Settings.builder().put(MonitoringSettings.HISTORY_DURATION.getKey(),
                 String.format(Locale.ROOT, "%dd", retention)));
 
         final DateTime now = now();

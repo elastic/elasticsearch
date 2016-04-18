@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.license;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeTestCase;
+import org.elasticsearch.watcher.WatcherLicensee;
 
 import static org.elasticsearch.license.core.License.OperationMode.BASIC;
 import static org.elasticsearch.license.core.License.OperationMode.GOLD;

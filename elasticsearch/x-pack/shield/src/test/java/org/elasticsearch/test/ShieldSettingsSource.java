@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.marvel.Marvel;
+import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
@@ -123,7 +123,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
                 //TODO: for now isolate shield tests from watcher & monitoring (randomize this later)
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
-                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
                 .put(AuditTrailModule.ENABLED_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())

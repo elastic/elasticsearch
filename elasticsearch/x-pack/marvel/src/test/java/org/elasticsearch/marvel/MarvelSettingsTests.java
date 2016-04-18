@@ -13,7 +13,7 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 /**
- * Tests {@link MarvelSettings}
+ * Tests {@link MonitoringSettings}
  */
 public class MarvelSettingsTests extends ESTestCase {
     @Rule
@@ -23,24 +23,24 @@ public class MarvelSettingsTests extends ESTestCase {
         TimeValue sevenDays = TimeValue.timeValueHours(7 * 24);
 
         // 7 days
-        assertEquals(sevenDays, MarvelSettings.HISTORY_DURATION.get(Settings.EMPTY));
+        assertEquals(sevenDays, MonitoringSettings.HISTORY_DURATION.get(Settings.EMPTY));
         // Note: this verifies the semantics because this is taken for granted that it never returns null!
-        assertEquals(sevenDays, MarvelSettings.HISTORY_DURATION.get(buildSettings(MarvelSettings.HISTORY_DURATION.getKey(), null)));
+        assertEquals(sevenDays, MonitoringSettings.HISTORY_DURATION.get(buildSettings(MonitoringSettings.HISTORY_DURATION.getKey(), null)));
     }
 
     public void testHistoryDurationMinimum24Hours() {
         // hit the minimum
-        assertEquals(MarvelSettings.HISTORY_DURATION_MINIMUM,
-                     MarvelSettings.HISTORY_DURATION.get(buildSettings(MarvelSettings.HISTORY_DURATION.getKey(), "24h")));
+        assertEquals(MonitoringSettings.HISTORY_DURATION_MINIMUM,
+                     MonitoringSettings.HISTORY_DURATION.get(buildSettings(MonitoringSettings.HISTORY_DURATION.getKey(), "24h")));
     }
 
     public void testHistoryDurationMinimum24HoursBlocksLower() {
         expectedException.expect(IllegalArgumentException.class);
 
         // 1 ms early!
-        String oneSecondEarly = (MarvelSettings.HISTORY_DURATION_MINIMUM.millis() - 1) + "ms";
+        String oneSecondEarly = (MonitoringSettings.HISTORY_DURATION_MINIMUM.millis() - 1) + "ms";
 
-        MarvelSettings.HISTORY_DURATION.get(buildSettings(MarvelSettings.HISTORY_DURATION.getKey(), oneSecondEarly));
+        MonitoringSettings.HISTORY_DURATION.get(buildSettings(MonitoringSettings.HISTORY_DURATION.getKey(), oneSecondEarly));
     }
 
     private Settings buildSettings(String key, String value) {

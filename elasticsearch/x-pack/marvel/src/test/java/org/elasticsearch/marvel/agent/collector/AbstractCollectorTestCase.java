@@ -23,7 +23,7 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.InternalClient;
@@ -54,7 +54,7 @@ public abstract class AbstractCollectorTestCase extends MarvelIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .build();
     }
 
@@ -126,7 +126,7 @@ public abstract class AbstractCollectorTestCase extends MarvelIntegTestCase {
     }
 
     protected static void endGracefulPeriod() {
-        long expiryDate = System.currentTimeMillis() - MarvelSettings.MAX_LICENSE_GRACE_PERIOD.millis() - timeValueMinutes(10).millis();
+        long expiryDate = System.currentTimeMillis() - MonitoringSettings.MAX_LICENSE_GRACE_PERIOD.millis() - timeValueMinutes(10).millis();
         long issueDate = expiryDate - randomDaysInMillis();
 
         final License license = createTestingLicense(issueDate, expiryDate);
@@ -139,7 +139,7 @@ public abstract class AbstractCollectorTestCase extends MarvelIntegTestCase {
     }
 
     protected static void disableLicense() {
-        long expiryDate = System.currentTimeMillis() - MarvelSettings.MAX_LICENSE_GRACE_PERIOD.millis() - randomDaysInMillis();
+        long expiryDate = System.currentTimeMillis() - MonitoringSettings.MAX_LICENSE_GRACE_PERIOD.millis() - randomDaysInMillis();
         long issueDate = expiryDate - randomDaysInMillis();
 
         final License license = createTestingLicense(issueDate, expiryDate);

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
+import java.util.EnumSet;
+
 /**
  */
 public class XPackInfoRequestBuilder extends ActionRequestBuilder<XPackInfoRequest, XPackInfoResponse, XPackInfoRequestBuilder> {
@@ -18,6 +20,17 @@ public class XPackInfoRequestBuilder extends ActionRequestBuilder<XPackInfoReque
 
     public XPackInfoRequestBuilder(ElasticsearchClient client, XPackInfoAction action) {
         super(client, action, new XPackInfoRequest());
+    }
+
+    public XPackInfoRequestBuilder setVerbose(boolean verbose) {
+        request.setVerbose(verbose);
+        return this;
+    }
+
+
+    public XPackInfoRequestBuilder setCategories(EnumSet<XPackInfoRequest.Category> categories) {
+        request.setCategories(categories);
+        return this;
     }
 
 }

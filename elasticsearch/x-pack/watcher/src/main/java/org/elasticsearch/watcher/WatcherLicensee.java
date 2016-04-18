@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.license;
+package org.elasticsearch.watcher;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -13,7 +13,6 @@ import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.watcher.Watcher;
 
 public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> {
 
@@ -51,22 +50,10 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
         return Strings.EMPTY_ARRAY;
     }
 
-    public boolean isExecutingActionsAllowed() {
-        return isPutWatchAllowed();
-    }
-
-    public boolean isGetWatchAllowed() {
-        return isPutWatchAllowed();
-    }
-
-    public boolean isPutWatchAllowed() {
-        return isWatcherTransportActionAllowed();
-    }
-
     /**
-     * Determine if Watcher should be enabled.
+     * Determine if Watcher is available based on the current license.
      * <p>
-     * Watcher is only disabled when the license has expired or if the mode is not:
+     * Watcher is available if the license is active (hasn't expired) and of one of the following types:
      * <ul>
      * <li>{@link OperationMode#PLATINUM}</li>
      * <li>{@link OperationMode#GOLD}</li>
@@ -75,11 +62,30 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
      *
      * @return {@code true} as long as the license is valid. Otherwise {@code false}.
      */
-    public boolean isWatcherTransportActionAllowed() {
+    public boolean available() {
         // status is volatile, so a local variable is used for a consistent view
         Status localStatus = status;
 
         return localStatus.getLicenseState() != LicenseState.DISABLED && (localStatus.getMode() == OperationMode.TRIAL ||
                 localStatus.getMode() == OperationMode.GOLD || localStatus.getMode() == OperationMode.PLATINUM);
     }
+
+    public boolean isExecutingActionsAllowed() {
+        return isWatcherTransportActionAllowed();
+    }
+
+    public boolean isGetWatchAllowed() {
+        return isWatcherTransportActionAllowed();
+    }
+
+    public boolean isPutWatchAllowed() {
+        return isWatcherTransportActionAllowed();
+    }
+
+
+    public boolean isWatcherTransportActionAllowed() {
+        return available();
+    }
+
+
 }

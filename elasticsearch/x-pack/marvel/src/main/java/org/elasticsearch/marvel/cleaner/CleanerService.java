@@ -13,8 +13,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringSettings;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -28,7 +28,7 @@ import java.util.concurrent.ScheduledFuture;
  */
 public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
 
-    private final MarvelLicensee licensee;
+    private final MonitoringLicensee licensee;
     private final ThreadPool threadPool;
     private final ExecutionScheduler executionScheduler;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
@@ -36,21 +36,21 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
 
     private volatile TimeValue globalRetention;
 
-    CleanerService(Settings settings, ClusterSettings clusterSettings, MarvelLicensee licensee, ThreadPool threadPool,
+    CleanerService(Settings settings, ClusterSettings clusterSettings, MonitoringLicensee licensee, ThreadPool threadPool,
                    ExecutionScheduler executionScheduler) {
         super(settings);
         this.licensee = licensee;
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;
-        this.globalRetention = MarvelSettings.HISTORY_DURATION.get(settings);
+        this.globalRetention = MonitoringSettings.HISTORY_DURATION.get(settings);
         this.runnable = new IndicesCleaner();
 
         // the validation is performed by the setting's object itself
-        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.HISTORY_DURATION, this::setGlobalRetention);
+        clusterSettings.addSettingsUpdateConsumer(MonitoringSettings.HISTORY_DURATION, this::setGlobalRetention);
     }
 
     @Inject
-    public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, MarvelLicensee licensee) {
+    public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, MonitoringLicensee licensee) {
         this(settings, clusterSettings, licensee,threadPool, new DefaultExecutionScheduler());
     }
 
@@ -85,7 +85,7 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
      * This will ignore the global retention if the license does not allow retention updates.
      *
      * @return Never {@code null}
-     * @see MarvelLicensee#allowUpdateRetention()
+     * @see MonitoringLicensee#allowUpdateRetention()
      */
     public TimeValue getRetention() {
         // we only care about their value if they are allowed to set it
@@ -93,7 +93,7 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
             return globalRetention;
         }
         else {
-            return MarvelSettings.HISTORY_DURATION.getDefault(Settings.EMPTY);
+            return MonitoringSettings.HISTORY_DURATION.getDefault(Settings.EMPTY);
         }
     }
 
@@ -108,7 +108,8 @@ public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
     public void setGlobalRetention(TimeValue globalRetention) {
         // notify the user that their setting will be ignored until they get the right license
         if (licensee.allowUpdateRetention() == false) {
-            logger.warn("[{}] setting will be ignored until an appropriate license is applied", MarvelSettings.HISTORY_DURATION.getKey());
+            logger.warn("[{}] setting will be ignored until an appropriate license is applied",
+                    MonitoringSettings.HISTORY_DURATION.getKey());
         }
 
         this.globalRetention = globalRetention;

@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.watcher.actions.throttler.Throttler;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.license.WatcherLicensee;
+import org.elasticsearch.watcher.WatcherLicensee;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.transform.ExecutableTransform;

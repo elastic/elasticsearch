@@ -53,6 +53,7 @@ import static org.joda.time.DateTimeZone.UTC;
  *
  */
 public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";
 

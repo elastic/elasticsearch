@@ -35,13 +35,13 @@ public class MarvelPluginTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .build();
     }
 
     public void testMarvelEnabled() {
         internalCluster().startNode(Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), true)
+                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), true)
                 .build());
         assertPluginIsLoaded();
         assertServiceIsBound(AgentService.class);
@@ -49,7 +49,7 @@ public class MarvelPluginTests extends MarvelIntegTestCase {
 
     public void testMarvelDisabled() {
         internalCluster().startNode(Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
                 .build());
         assertPluginIsLoaded();
         assertServiceIsNotBound(AgentService.class);
@@ -57,7 +57,7 @@ public class MarvelPluginTests extends MarvelIntegTestCase {
 
     public void testMarvelEnabledOnTribeNode() {
         internalCluster().startNode(Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Marvel.NAME), true)
+                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), true)
                 .put("tribe.name", "t1")
                 .build());
         assertPluginIsLoaded();

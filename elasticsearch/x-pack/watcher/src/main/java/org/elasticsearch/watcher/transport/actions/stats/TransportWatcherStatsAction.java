@@ -21,7 +21,7 @@ import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherLifeCycleService;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.execution.ExecutionService;
-import org.elasticsearch.watcher.license.WatcherLicensee;
+import org.elasticsearch.watcher.WatcherLicensee;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 
 /**

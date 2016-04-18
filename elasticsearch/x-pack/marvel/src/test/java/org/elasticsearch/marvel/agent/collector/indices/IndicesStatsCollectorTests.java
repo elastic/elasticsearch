@@ -13,11 +13,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Collection;
@@ -52,7 +52,7 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
     }
 
     public void testEmptyClusterAllIndices() throws Exception {
-        final String node = internalCluster().startNode(Settings.builder().put(MarvelSettings.INDICES.getKey(), MetaData.ALL));
+        final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), MetaData.ALL));
         waitForNoBlocksOnNode(node);
 
         try {
@@ -63,7 +63,7 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
     }
 
     public void testEmptyClusterMissingIndex() throws Exception {
-        final String node = internalCluster().startNode(Settings.builder().put(MarvelSettings.INDICES.getKey(), "unknown"));
+        final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), "unknown"));
         waitForNoBlocksOnNode(node);
 
         try {
@@ -215,8 +215,8 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         }
         return new IndicesStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(MarvelSettings.class, nodeId),
-                internalCluster().getInstance(MarvelLicensee.class, nodeId),
+                internalCluster().getInstance(MonitoringSettings.class, nodeId),
+                internalCluster().getInstance(MonitoringLicensee.class, nodeId),
                 securedClient(nodeId));
     }
 }

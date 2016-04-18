@@ -3,9 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.rest;
+package org.elasticsearch.xpack.rest.action;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +17,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.xpack.XPackClient;
+import org.elasticsearch.xpack.action.XPackInfoRequest;
 import org.elasticsearch.xpack.action.XPackInfoResponse;
+import org.elasticsearch.xpack.rest.XPackRestHandler;
+
+import java.util.EnumSet;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -33,7 +38,13 @@ public class RestXPackInfoAction extends XPackRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel restChannel, XPackClient client) throws Exception {
-        client.prepareInfo().execute(new RestBuilderListener<XPackInfoResponse>(restChannel) {
+
+        // we piggyback verbosity on "human" output
+        boolean verbose = request.paramAsBoolean("human", false);
+
+        EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category
+                .toSet(request.paramAsStringArray("categories", Strings.EMPTY_ARRAY));
+        client.prepareInfo().setVerbose(verbose).setCategories(categories).execute(new RestBuilderListener<XPackInfoResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(XPackInfoResponse infoResponse, XContentBuilder builder) throws Exception {
 
@@ -44,13 +55,28 @@ public class RestXPackInfoAction extends XPackRestHandler {
                 }
 
                 builder.startObject();
-                builder.field("build", infoResponse.getBuildInfo(), request);
+
+                if (infoResponse.getBuildInfo() != null) {
+                    builder.field("build", infoResponse.getBuildInfo(), request);
+                }
+
                 if (infoResponse.getLicenseInfo() != null) {
                     builder.field("license", infoResponse.getLicenseInfo(), request);
-                } else {
+                } else if (categories.contains(XPackInfoRequest.Category.LICENSE)) {
+                    // if the user requested the license info, and there is no license, we should send
+                    // back an explicit null value (indicating there is no license). This is different
+                    // than not adding the license info at all
                     builder.nullField("license");
                 }
-                builder.field("tagline", "You know, for X");
+
+                if (infoResponse.getFeatureSetsInfo() != null) {
+                    builder.field("features", infoResponse.getFeatureSetsInfo(), request);
+                }
+
+                if (verbose) {
+                    builder.field("tagline", "You know, for X");
+                }
+
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }

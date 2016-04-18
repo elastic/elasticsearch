@@ -19,6 +19,7 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -62,10 +63,10 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         assertThat(getLicensee().collectionEnabled(), is(true));
     }
 
-    private MarvelLicensee getLicensee() {
-        MarvelLicensee marvelLicensee = internalCluster().getInstance(MarvelLicensee.class);
-        assertNotNull(marvelLicensee);
-        return marvelLicensee;
+    private MonitoringLicensee getLicensee() {
+        MonitoringLicensee licensee = internalCluster().getInstance(MonitoringLicensee.class);
+        assertNotNull(licensee);
+        return licensee;
     }
 
     public static void disableLicensing() {

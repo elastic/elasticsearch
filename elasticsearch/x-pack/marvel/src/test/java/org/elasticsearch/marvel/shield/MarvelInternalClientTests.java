@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.InternalClient;
@@ -27,7 +27,7 @@ public class MarvelInternalClientTests extends MarvelIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .build();
     }
 

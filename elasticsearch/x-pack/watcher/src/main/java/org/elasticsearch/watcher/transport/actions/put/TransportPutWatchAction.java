@@ -20,7 +20,7 @@ import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherService;
-import org.elasticsearch.watcher.license.WatcherLicensee;
+import org.elasticsearch.watcher.WatcherLicensee;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.watcher.watch.WatchStore;
 

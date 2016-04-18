@@ -16,7 +16,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.exporter.ExportException;
@@ -54,12 +54,12 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
     @Inject
     public AgentService(Settings settings, ClusterSettings clusterSettings, Set<Collector> collectors, Exporters exporters) {
         super(settings);
-        this.samplingIntervalMillis = MarvelSettings.INTERVAL.get(settings).millis();
-        this.settingsCollectors = MarvelSettings.COLLECTORS.get(settings).toArray(new String[0]);
+        this.samplingIntervalMillis = MonitoringSettings.INTERVAL.get(settings).millis();
+        this.settingsCollectors = MonitoringSettings.COLLECTORS.get(settings).toArray(new String[0]);
         this.collectors = Collections.unmodifiableSet(filterCollectors(collectors, settingsCollectors));
         this.exporters = exporters;
 
-        clusterSettings.addSettingsUpdateConsumer(MarvelSettings.INTERVAL, this::setInterval);
+        clusterSettings.addSettingsUpdateConsumer(MonitoringSettings.INTERVAL, this::setInterval);
     }
 
     private void setInterval(TimeValue interval) {

@@ -15,10 +15,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.Security;
 
@@ -42,8 +42,8 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
 
     @Inject
     public IndexStatsCollector(Settings settings, ClusterService clusterService,
-                               MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+                               MonitoringSettings monitoringSettings, MonitoringLicensee licensee, InternalClient client) {
+        super(settings, NAME, clusterService, monitoringSettings, licensee);
         this.client = client;
     }
 
@@ -57,7 +57,7 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
         List<MonitoringDoc> results = new ArrayList<>();
         try {
             IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
-                    .setIndices(marvelSettings.indices())
+                    .setIndices(monitoringSettings.indices())
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .clear()
                     .setDocs(true)
@@ -68,7 +68,7 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
                     .setSegments(true)
                     .setStore(true)
                     .setRefresh(true)
-                    .get(marvelSettings.indexStatsTimeout());
+                    .get(monitoringSettings.indexStatsTimeout());
 
             long timestamp = System.currentTimeMillis();
             String clusterUUID = clusterUUID();
@@ -83,7 +83,7 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
                 results.add(indexStatsDoc);
             }
         } catch (IndexNotFoundException e) {
-            if (Security.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices()))) {
+            if (Security.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
                 logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
             } else {
                 throw e;

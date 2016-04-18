@@ -13,10 +13,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.shield.InternalClient;
 
 import java.util.ArrayList;
@@ -38,8 +38,8 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
 
     @Inject
     public ClusterStateCollector(Settings settings, ClusterService clusterService,
-                                 MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+                                 MonitoringSettings monitoringSettings, MonitoringLicensee licensee, InternalClient client) {
+        super(settings, NAME, clusterService, monitoringSettings, licensee);
         this.client = client;
     }
 
@@ -58,7 +58,7 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
         long timestamp = System.currentTimeMillis();
         DiscoveryNode sourceNode = localNode();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(marvelSettings.clusterStateTimeout());
+        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(monitoringSettings.clusterStateTimeout());
 
         // Adds a cluster_state document with associated status
         ClusterStateMonitoringDoc clusterStateDoc = new ClusterStateMonitoringDoc(monitoringId(), monitoringVersion());

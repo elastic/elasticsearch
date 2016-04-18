@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
@@ -19,7 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -311,7 +310,7 @@ public class TransportFilterTests extends ESIntegTestCase {
                 AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper,
                 ClientTransportFilter clientTransportFilter) {
             super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter,
-                    mock(ShieldLicenseState.class));
+                    mock(SecurityLicenseState.class));
             when(licenseState.securityEnabled()).thenReturn(true);
         }
 

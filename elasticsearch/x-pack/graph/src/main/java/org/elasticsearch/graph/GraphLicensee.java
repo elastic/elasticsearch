@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.graph.license;
+package org.elasticsearch.graph;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -13,7 +13,6 @@ import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.graph.Graph;
 
 public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
 
@@ -60,7 +59,7 @@ public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
      *
      * @return {@code true} as long as the license is valid. Otherwise {@code false}.
      */
-    public boolean isGraphExploreEnabled() {
+    public boolean isAvailable() {
         // status is volatile
         Status localStatus = status;
         OperationMode operationMode = localStatus.getMode();

@@ -14,7 +14,7 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.AuthorizationUtils;
 import org.elasticsearch.shield.authz.accesscontrol.RequestContext;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,7 +49,7 @@ public class ShieldServerTransportService extends TransportService {
     protected final AuthorizationService authzService;
     protected final ShieldActionMapper actionMapper;
     protected final ClientTransportFilter clientFilter;
-    protected final ShieldLicenseState licenseState;
+    protected final SecurityLicenseState licenseState;
 
     protected final Map<String, ServerTransportFilter> profileFilters;
 
@@ -59,7 +59,7 @@ public class ShieldServerTransportService extends TransportService {
                                         AuthorizationService authzService,
                                         ShieldActionMapper actionMapper,
                                         ClientTransportFilter clientTransportFilter,
-                                        ShieldLicenseState licenseState) {
+                                        SecurityLicenseState licenseState) {
         super(settings, transport, threadPool);
         this.authcService = authcService;
         this.authzService = authzService;
@@ -158,11 +158,11 @@ public class ShieldServerTransportService extends TransportService {
         protected final String action;
         protected final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
-        private final ShieldLicenseState licenseState;
+        private final SecurityLicenseState licenseState;
         private final ThreadContext threadContext;
 
         public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler,
-                                            Map<String, ServerTransportFilter> profileFilters, ShieldLicenseState licenseState,
+                                            Map<String, ServerTransportFilter> profileFilters, SecurityLicenseState licenseState,
                                             ThreadContext threadContext) {
             this.action = action;
             this.handler = handler;

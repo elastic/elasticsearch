@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authz.accesscontrol;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
@@ -33,10 +32,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -44,7 +41,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.shield.support.Exceptions;
 
 import java.io.IOException;
@@ -73,13 +70,13 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
     private final Set<String> allowedMetaFields;
     private final QueryShardContext queryShardContext;
     private final BitsetFilterCache bitsetFilterCache;
-    private final ShieldLicenseState shieldLicenseState;
+    private final SecurityLicenseState shieldLicenseState;
     private final ThreadContext threadContext;
     private final ESLogger logger;
 
     public ShieldIndexSearcherWrapper(IndexSettings indexSettings, QueryShardContext queryShardContext,
                                       MapperService mapperService, BitsetFilterCache bitsetFilterCache,
-                                      ThreadContext threadContext, ShieldLicenseState shieldLicenseState) {
+                                      ThreadContext threadContext, SecurityLicenseState shieldLicenseState) {
         this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
         this.mapperService = mapperService;
         this.queryShardContext = queryShardContext;

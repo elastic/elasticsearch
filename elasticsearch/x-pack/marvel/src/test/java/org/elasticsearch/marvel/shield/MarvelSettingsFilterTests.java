@@ -11,7 +11,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -41,7 +41,7 @@ public class MarvelSettingsFilterTests extends MarvelIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.agent.exporters._http.type", "http")
                 .put("xpack.monitoring.agent.exporters._http.enabled", false)
                 .put("xpack.monitoring.agent.exporters._http.auth.username", "_user")

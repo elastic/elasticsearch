@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.license;
+package org.elasticsearch.shield;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -13,18 +13,17 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.shield.Security;
 
 /**
  *
  */
-public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> implements Licensee {
+public class SecurityLicensee extends AbstractLicenseeComponent<SecurityLicensee> implements Licensee {
 
     private final boolean isTribeNode;
-    private final ShieldLicenseState shieldLicenseState;
+    private final SecurityLicenseState shieldLicenseState;
 
     @Inject
-    public ShieldLicensee(Settings settings, LicenseeRegistry clientService, ShieldLicenseState shieldLicenseState) {
+    public SecurityLicensee(Settings settings, LicenseeRegistry clientService, SecurityLicenseState shieldLicenseState) {
         super(settings, Security.NAME, clientService);
         this.shieldLicenseState = shieldLicenseState;
         this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;

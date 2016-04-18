@@ -25,7 +25,7 @@ import static org.elasticsearch.common.settings.Setting.groupSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
-public class MarvelSettings extends AbstractComponent {
+public class MonitoringSettings extends AbstractComponent {
 
     public static final String LEGACY_DATA_INDEX_NAME = ".marvel-es-data";
 
@@ -40,7 +40,7 @@ public class MarvelSettings extends AbstractComponent {
      * Determines whether monitoring is enabled/disabled
      */
     public static final Setting<Boolean> ENABLED =
-            new Setting<>(XPackPlugin.featureEnabledSetting(Marvel.NAME),
+            new Setting<>(XPackPlugin.featureEnabledSetting(Monitoring.NAME),
 
                     // By default, marvel is disabled on tribe nodes
                     (s) -> String.valueOf(!XPackPlugin.isTribeNode(s) && !XPackPlugin.isTribeClientNode(s)),
@@ -153,7 +153,7 @@ public class MarvelSettings extends AbstractComponent {
     private volatile String[] indices;
 
     @Inject
-    public MarvelSettings(Settings settings, ClusterSettings clusterSettings) {
+    public MonitoringSettings(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
 
         setIndexStatsTimeout(INDEX_STATS_TIMEOUT.get(settings));
@@ -233,7 +233,7 @@ public class MarvelSettings extends AbstractComponent {
      * @return The key prefixed by the product prefixes.
      */
     static String key(String key) {
-        return XPackPlugin.featureSettingPrefix(Marvel.NAME) + "." + key;
+        return XPackPlugin.featureSettingPrefix(Monitoring.NAME) + "." + key;
     }
 
 }

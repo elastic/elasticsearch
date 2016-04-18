@@ -3,18 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.graph.license;
-
-import org.elasticsearch.common.inject.AbstractModule;
+package org.elasticsearch.xpack;
 
 /**
  *
  */
-public class GraphModule extends AbstractModule {
+public interface XPackFeatureSet {
 
-    @Override
-    protected void configure() {
-        bind(GraphLicensee.class).asEagerSingleton();
-    }
+    String name();
+
+    String description();
+
+    boolean available();
+
+    boolean enabled();
 
 }

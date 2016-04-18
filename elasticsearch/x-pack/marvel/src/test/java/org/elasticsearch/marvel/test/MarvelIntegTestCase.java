@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
@@ -435,7 +435,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     protected void updateMarvelInterval(long value, TimeUnit timeUnit) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().put(MarvelSettings.INTERVAL.getKey(), value, timeUnit)));
+                Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), value, timeUnit)));
     }
 
     protected class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {

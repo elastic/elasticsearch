@@ -17,10 +17,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.shield.InternalClient;
 
 import java.util.Collection;
@@ -42,10 +42,10 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
     private final DiskThresholdDecider diskThresholdDecider;
 
     @Inject
-    public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
-                              MarvelLicensee marvelLicensee, InternalClient client,
+    public NodeStatsCollector(Settings settings, ClusterService clusterService, MonitoringSettings monitoringSettings,
+                              MonitoringLicensee licensee, InternalClient client,
                               NodeEnvironment nodeEnvironment, DiskThresholdDecider diskThresholdDecider) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+        super(settings, NAME, clusterService, monitoringSettings, licensee);
         this.client = client;
         this.nodeEnvironment = nodeEnvironment;
         this.diskThresholdDecider = diskThresholdDecider;

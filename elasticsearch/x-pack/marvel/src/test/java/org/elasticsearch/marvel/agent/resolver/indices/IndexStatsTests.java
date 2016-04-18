@@ -8,7 +8,7 @@ package org.elasticsearch.marvel.agent.resolver.indices;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
@@ -28,8 +28,8 @@ public class IndexStatsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
-                .put(MarvelSettings.COLLECTORS.getKey(), IndexStatsCollector.NAME)
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringSettings.COLLECTORS.getKey(), IndexStatsCollector.NAME)
                 .put("xpack.monitoring.agent.exporters.default_local.type", "local")
                 .build();
     }

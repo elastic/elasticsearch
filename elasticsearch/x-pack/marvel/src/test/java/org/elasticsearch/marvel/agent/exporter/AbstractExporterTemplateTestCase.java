@@ -8,7 +8,7 @@ package org.elasticsearch.marvel.agent.exporter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
@@ -31,7 +31,7 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1");
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1");
 
         for (Map.Entry<String, String> setting : exporterSettings().getAsMap().entrySet()) {
             settings.put("xpack.monitoring.agent.exporters._exporter." + setting.getKey(), setting.getValue());

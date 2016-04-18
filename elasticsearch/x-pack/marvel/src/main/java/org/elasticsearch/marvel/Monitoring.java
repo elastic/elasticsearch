@@ -18,16 +18,16 @@ import org.elasticsearch.marvel.agent.collector.CollectorModule;
 import org.elasticsearch.marvel.agent.exporter.ExporterModule;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.client.MonitoringClientModule;
-import org.elasticsearch.marvel.license.LicenseModule;
-import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.marvel.rest.action.RestMonitoringBulkAction;
 import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client or tribe client:
@@ -35,7 +35,7 @@ import java.util.Collections;
  * - transport clients: only action/transport actions are binded
  * - tribe clients: everything is disables by default but can be enabled per tribe cluster
  */
-public class Marvel {
+public class Monitoring {
 
     public static final String NAME = "monitoring";
 
@@ -43,9 +43,9 @@ public class Marvel {
     private final boolean enabled;
     private final boolean transportClientMode;
 
-    public Marvel(Settings settings) {
+    public Monitoring(Settings settings) {
         this.settings = settings;
-        this.enabled = MarvelSettings.ENABLED.get(settings);
+        this.enabled = MonitoringSettings.ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
@@ -58,29 +58,27 @@ public class Marvel {
     }
 
     public Collection<Module> nodeModules() {
-        if (enabled == false || transportClientMode) {
-            return Collections.emptyList();
+        List<Module> modules = new ArrayList<>();
+        modules.add(new MonitoringModule(enabled, transportClientMode));
+        if (enabled && transportClientMode == false) {
+            modules.add(new CollectorModule());
+            modules.add(new ExporterModule(settings));
+            modules.add(new MonitoringClientModule());
         }
-
-        return Arrays.<Module>asList(
-                new MarvelModule(),
-                new LicenseModule(),
-                new CollectorModule(),
-                new ExporterModule(settings),
-                new MonitoringClientModule());
+        return modules;
     }
 
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (enabled == false || transportClientMode) {
             return Collections.emptyList();
         }
-        return Arrays.<Class<? extends LifecycleComponent>>asList(MarvelLicensee.class,
+        return Arrays.<Class<? extends LifecycleComponent>>asList(MonitoringLicensee.class,
                 AgentService.class,
                 CleanerService.class);
     }
 
     public void onModule(SettingsModule module) {
-        MarvelSettings.register(module);
+        MonitoringSettings.register(module);
     }
 
     public void onModule(ActionModule module) {

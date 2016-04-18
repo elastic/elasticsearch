@@ -9,11 +9,13 @@ package org.elasticsearch.watcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,14 +44,24 @@ public class WatcherModule extends AbstractModule {
             new TemplateConfig(WATCHES_TEMPLATE_NAME, WATCHES_TEMPLATE_SETTING)
     };
 
-    protected final Settings settings;
+    private final boolean enabled;
+    private final boolean transportClientMode;
 
-    public WatcherModule(Settings settings) {
-        this.settings = settings;
+    public WatcherModule(boolean enabled, boolean transportClientMode) {
+        this.enabled = enabled;
+        this.transportClientMode = transportClientMode;
     }
 
     @Override
     protected void configure() {
+        XPackPlugin.bindFeatureSet(binder(), WatcherFeatureSet.class);
+
+        if (enabled == false || transportClientMode) {
+            bind(WatcherLicensee.class).toProvider(Providers.of(null));
+            return;
+        }
+
+        bind(WatcherLicensee.class).asEagerSingleton();
         bind(WatcherLifeCycleService.class).asEagerSingleton();
         bind(WatcherSettingsValidation.class).asEagerSingleton();
 

@@ -31,7 +31,7 @@ import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.AuthorizationUtils;
 import org.elasticsearch.shield.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.shield.crypto.CryptoService;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -56,12 +56,12 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     private final AuditTrail auditTrail;
     private final ShieldActionMapper actionMapper;
     private final Set<RequestInterceptor> requestInterceptors;
-    private final ShieldLicenseState licenseState;
+    private final SecurityLicenseState licenseState;
     private final ThreadContext threadContext;
 
     @Inject
     public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
-                              CryptoService cryptoService, AuditTrail auditTrail, ShieldLicenseState licenseState,
+                              CryptoService cryptoService, AuditTrail auditTrail, SecurityLicenseState licenseState,
                               ShieldActionMapper actionMapper,  Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool) {
         super(settings);
         this.authcService = authcService;

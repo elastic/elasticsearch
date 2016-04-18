@@ -38,8 +38,6 @@ import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.input.chain.ChainInputFactory;
-import org.elasticsearch.watcher.license.LicenseModule;
-import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.watcher.rest.action.RestActivateWatchAction;
 import org.elasticsearch.watcher.rest.action.RestDeleteWatchAction;
@@ -119,26 +117,25 @@ public class Watcher {
     }
 
     public Collection<Module> nodeModules() {
-        if (enabled == false|| transportClient) {
-            return Collections.emptyList();
+        List<Module> modules = new ArrayList<>();
+        modules.add(new WatcherModule(enabled, transportClient));
+        if (enabled && transportClient == false) {
+            modules.add(new WatchModule());
+            modules.add(new TextTemplateModule());
+            modules.add(new HttpClientModule());
+            modules.add(new ClockModule());
+            modules.add(new WatcherClientModule());
+            modules.add(new TransformModule());
+            modules.add(new TriggerModule(settings));
+            modules.add(new ScheduleModule());
+            modules.add(new ConditionModule());
+            modules.add(new InputModule());
+            modules.add(new WatcherActionModule());
+            modules.add(new HistoryModule());
+            modules.add(new ExecutionModule());
+            modules.add(new SecretModule(settings));
         }
-        return Arrays.<Module>asList(
-                new WatcherModule(settings),
-                new LicenseModule(),
-                new WatchModule(),
-                new TextTemplateModule(),
-                new HttpClientModule(),
-                new ClockModule(),
-                new WatcherClientModule(),
-                new TransformModule(),
-                new TriggerModule(settings),
-                new ScheduleModule(),
-                new ConditionModule(),
-                new InputModule(),
-                new WatcherActionModule(),
-                new HistoryModule(),
-                new ExecutionModule(),
-                new SecretModule(settings));
+        return modules;
     }
 
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {

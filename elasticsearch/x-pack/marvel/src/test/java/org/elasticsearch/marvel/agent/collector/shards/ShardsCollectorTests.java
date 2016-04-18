@@ -10,11 +10,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 
 import java.util.Collection;
 
@@ -39,7 +39,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INDICES.getKey(), "test-shards*")
+                .put(MonitoringSettings.INDICES.getKey(), "test-shards*")
                 .build();
     }
 
@@ -207,7 +207,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         assertNotNull(nodeId);
         return new ShardsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(MarvelSettings.class, nodeId),
-                internalCluster().getInstance(MarvelLicensee.class, nodeId));
+                internalCluster().getInstance(MonitoringSettings.class, nodeId),
+                internalCluster().getInstance(MonitoringLicensee.class, nodeId));
     }
 }

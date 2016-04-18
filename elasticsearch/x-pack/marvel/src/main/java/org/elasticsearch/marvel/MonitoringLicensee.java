@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.marvel.license;
+package org.elasticsearch.marvel;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -15,8 +15,6 @@ import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.marvel.Marvel;
-import org.elasticsearch.marvel.MarvelSettings;
 
 /**
  * {@code MarvelLicensee} determines whether certain features of Monitoring are enabled or disabled.
@@ -27,11 +25,11 @@ import org.elasticsearch.marvel.MarvelSettings;
  * <li>Cleaning up (deleting) older indices.</li>
  * </ul>
  */
-public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> implements Licensee {
+public class MonitoringLicensee extends AbstractLicenseeComponent<MonitoringLicensee> implements Licensee {
 
     @Inject
-    public MarvelLicensee(Settings settings, LicenseeRegistry clientService) {
-        super(settings, Marvel.NAME, clientService);
+    public MonitoringLicensee(Settings settings, LicenseeRegistry clientService) {
+        super(settings, Monitoring.NAME, clientService);
     }
 
     /**
@@ -67,13 +65,22 @@ public class MarvelLicensee extends AbstractLicenseeComponent<MarvelLicensee> im
                                         newLicense.type(), newLicense.type(), newLicense.type()),
                                 LoggerMessageFormat.format(
                                         "Automatic index cleanup is locked to {} days for clusters with [{}] license.",
-                                        MarvelSettings.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newLicense.type())
+                                        MonitoringSettings.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newLicense.type())
                             };
                     }
                 }
                 break;
         }
         return Strings.EMPTY_ARRAY;
+    }
+
+    /**
+     * Monitoring is always available regardless of the license type (operation mode)
+     *
+     * @return true
+     */
+    public boolean available() {
+        return true;
     }
 
     /**

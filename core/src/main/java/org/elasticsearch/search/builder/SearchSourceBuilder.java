@@ -241,7 +241,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             int size = in.readVInt();
             sorts = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                sorts.add(in.readSortBuilder());
+                sorts.add(in.readNamedWriteable(SortBuilder.class));
             }
         }
         if (in.readBoolean()) {
@@ -345,7 +345,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (hasSorts) {
             out.writeVInt(sorts.size());
             for (SortBuilder<?> sort : sorts) {
-                out.writeSortBuilder(sort);
+                out.writeNamedWriteable(sort);
             }
         }
         boolean hasStats = stats != null;

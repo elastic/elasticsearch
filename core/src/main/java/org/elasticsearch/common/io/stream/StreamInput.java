@@ -28,7 +28,6 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,8 +36,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.tasks.Task;
@@ -752,15 +749,6 @@ public abstract class StreamInput extends InputStream {
     @Deprecated
     public SuggestionBuilder<?> readSuggestion() throws IOException {
         return readNamedWriteable(SuggestionBuilder.class);
-    }
-
-    /**
-     * Reads a {@link SortBuilder} from the current stream
-     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link SortBuilder}.
-     */
-    @Deprecated
-    public SortBuilder<?> readSortBuilder() throws IOException {
-        return readNamedWriteable(SortBuilder.class);
     }
 
     /**

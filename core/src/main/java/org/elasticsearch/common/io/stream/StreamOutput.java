@@ -29,15 +29,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.tasks.Task;
@@ -780,14 +777,5 @@ public abstract class StreamOutput extends OutputStream {
     @Deprecated
     public void writeSuggestion(SuggestionBuilder<?> suggestion) throws IOException {
         writeNamedWriteable(suggestion);
-    }
-
-    /**
-     * Writes a {@link SortBuilder} to the current stream
-     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
-     */
-    @Deprecated
-    public void writeSortBuilder(SortBuilder<?> sort) throws IOException {
-        writeNamedWriteable(sort);
     }
 }

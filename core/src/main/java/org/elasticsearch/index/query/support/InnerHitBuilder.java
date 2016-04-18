@@ -160,7 +160,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             int size = in.readVInt();
             sorts = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                sorts.add(in.readSortBuilder());
+                sorts.add(in.readNamedWriteable(SortBuilder.class));
             }
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
@@ -191,7 +191,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         if (hasSorts) {
             out.writeVInt(sorts.size());
             for (SortBuilder<?> sort : sorts) {
-                out.writeSortBuilder(sort);
+                out.writeNamedWriteable(sort);
             }
         }
         out.writeOptionalWriteable(highlightBuilder);

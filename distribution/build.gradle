@@ -239,6 +239,8 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     dependsOn createEtc, createEtcScripts
     with configFiles
     into "${packagingFiles}/etc/elasticsearch"
+    fileMode 0640
+    dirMode 0750
     /* Explicitly declare the output files so this task doesn't consider itself
       up to date when the directory is created, which it would by default. And
       that'll happen when createEtc runs. */
@@ -303,6 +305,8 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     postUninstall file("${scripts}/postrm")
 
     into '/usr/share/elasticsearch'
+    fileMode 0644
+    dirMode 0755
     user 'root'
     permissionGroup 'root'
     with libFiles
@@ -344,6 +348,8 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     configurationFile project.expansions['path.env']
     into(new File(project.expansions['path.env']).getParent()) {
       from "${project.packagingFiles}/env/elasticsearch"
+      fileMode 0644
+      dirMode 0755
     }
 
     /**
@@ -351,6 +357,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
      */
     Closure suckUpEmptyDirectories = { path, u, g ->
       into(path) {
+        fileMode 0755
         from "${packagingFiles}/${path}"
         includeEmptyDirs true
         createDirectoryEntry true

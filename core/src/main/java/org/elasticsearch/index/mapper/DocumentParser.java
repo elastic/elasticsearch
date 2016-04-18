@@ -52,7 +52,6 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
@@ -467,7 +466,7 @@ final class DocumentParser {
                 context.addDynamicMapper(update);
             }
             if (fieldMapper.copyTo() != null) {
-                parseCopyFields(context, fieldMapper, fieldMapper.copyTo().copyToFields());
+                parseCopyFields(context, fieldMapper.copyTo().copyToFields());
             }
         }
     }
@@ -477,14 +476,11 @@ final class DocumentParser {
         context.path().add(currentFieldName);
 
         ObjectMapper update = null;
-        Mapper objectMapper = mapper.getMapper(currentFieldName);
+        Mapper objectMapper = getMapper(mapper, currentFieldName);
         if (objectMapper != null) {
             parseObjectOrField(context, objectMapper);
         } else {
-            ObjectMapper.Dynamic dynamic = mapper.dynamic();
-            if (dynamic == null) {
-                dynamic = dynamicOrDefault(context.root().dynamic());
-            }
+            ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context.root().dynamic());
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
@@ -493,10 +489,6 @@ final class DocumentParser {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                 if (builder == null) {
                     builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
-                    // if this is a non root object, then explicitly set the dynamic behavior if set
-                    if (!(mapper instanceof RootObjectMapper) && mapper.dynamic() != ObjectMapper.Defaults.DYNAMIC) {
-                        ((ObjectMapper.Builder) builder).dynamic(mapper.dynamic());
-                    }
                 }
                 Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
                 objectMapper = builder.build(builderContext);
@@ -515,7 +507,7 @@ final class DocumentParser {
 
     private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         String arrayFieldName = lastFieldName;
-        Mapper mapper = parentMapper.getMapper(lastFieldName);
+        Mapper mapper = getMapper(parentMapper, lastFieldName);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
@@ -527,10 +519,7 @@ final class DocumentParser {
             }
         } else {
 
-            ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
-            if (dynamic == null) {
-                dynamic = dynamicOrDefault(context.root().dynamic());
-            }
+            ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context.root().dynamic());
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
@@ -581,7 +570,7 @@ final class DocumentParser {
         if (currentFieldName == null) {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
-        Mapper mapper = parentMapper.getMapper(currentFieldName);
+        Mapper mapper = getMapper(parentMapper, currentFieldName);
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
@@ -591,7 +580,7 @@ final class DocumentParser {
 
     private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         // we can only handle null values if we have mappings for them
-        Mapper mapper = parentMapper.getMapper(lastFieldName);
+        Mapper mapper = getMapper(parentMapper, lastFieldName);
         if (mapper != null) {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
@@ -805,10 +794,7 @@ final class DocumentParser {
     }
 
     private static void parseDynamicValue(final ParseContext context, ObjectMapper parentMapper, String currentFieldName, XContentParser.Token token) throws IOException {
-        ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
-        if (dynamic == null) {
-            dynamic = dynamicOrDefault(context.root().dynamic());
-        }
+        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context.root().dynamic());
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
             throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);
         }
@@ -818,12 +804,11 @@ final class DocumentParser {
         final String path = context.path().pathAsText(currentFieldName);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
         final MappedFieldType existingFieldType = context.mapperService().fullName(path);
-        Mapper.Builder builder = null;
+        final Mapper.Builder builder;
         if (existingFieldType != null) {
             // create a builder of the same type
             builder = createBuilderFromFieldType(context, existingFieldType, currentFieldName);
-        }
-        if (builder == null) {
+        } else {
             builder = createBuilderFromDynamicValue(context, token, currentFieldName);
         }
         Mapper mapper = builder.build(builderContext);
@@ -837,7 +822,7 @@ final class DocumentParser {
     }
 
     /** Creates instances of the fields that the current field should be copied to */
-    private static void parseCopyFields(ParseContext context, FieldMapper fieldMapper, List<String> copyToFields) throws IOException {
+    private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
         if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {
@@ -882,10 +867,7 @@ final class DocumentParser {
                     mapper = context.docMapper().objectMappers().get(context.path().pathAsText(paths[i]));
                     if (mapper == null) {
                         // One mapping is missing, check if we are allowed to create a dynamic one.
-                        ObjectMapper.Dynamic dynamic = parent.dynamic();
-                        if (dynamic == null) {
-                            dynamic = dynamicOrDefault(context.root().dynamic());
-                        }
+                        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context.root().dynamic());
 
                         switch (dynamic) {
                             case STRICT:
@@ -893,10 +875,6 @@ final class DocumentParser {
                             case TRUE:
                                 Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], "object");
                                 if (builder == null) {
-                                    // if this is a non root object, then explicitly set the dynamic behavior if set
-                                    if (!(parent instanceof RootObjectMapper) && parent.dynamic() != ObjectMapper.Defaults.DYNAMIC) {
-                                        ((ObjectMapper.Builder) builder).dynamic(parent.dynamic());
-                                    }
                                     builder = new ObjectMapper.Builder(paths[i]).enabled(true);
                                 }
                                 Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
@@ -909,8 +887,6 @@ final class DocumentParser {
                             case FALSE:
                               // Maybe we should log something to tell the user that the copy_to is ignored in this case.
                               break;
-                            default:
-                                throw new AssertionError("Unexpected dynamic type " + dynamic);
 
                         }
                     }
@@ -923,7 +899,24 @@ final class DocumentParser {
         }
     }
 
-    private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper.Dynamic dynamic) {
-        return dynamic == null ? ObjectMapper.Dynamic.TRUE : dynamic;
+    private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, ObjectMapper.Dynamic dynamicDefault) {
+        ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
+        if (dynamic == null) {
+            return dynamicDefault == null ? ObjectMapper.Dynamic.TRUE : dynamicDefault;
+        }
+        return dynamic;
+    }
+
+    // looks up a child mapper, but takes into account field names that expand to objects
+    static Mapper getMapper(ObjectMapper objectMapper, String fieldName) {
+        String[] subfields = fieldName.split("\\.");
+        for (int i = 0; i < subfields.length - 1; ++i) {
+            Mapper mapper = objectMapper.getMapper(subfields[i]);
+            if (mapper == null || (mapper instanceof ObjectMapper) == false) {
+                return null;
+            }
+            objectMapper = (ObjectMapper)mapper;
+        }
+        return objectMapper.getMapper(subfields[subfields.length - 1]);
     }
 }

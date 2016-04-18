@@ -80,12 +80,12 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
 
         logger.debug("--> checking that every document contains the expected fields");
         String[] filters = {
-                MonitoringIndexNameResolver.Fields.CLUSTER_UUID.value(),
-                MonitoringIndexNameResolver.Fields.TIMESTAMP.value(),
-                MonitoringIndexNameResolver.Fields.SOURCE_NODE.value(),
-                IndexRecoveryResolver.Fields.INDEX_RECOVERY.value(),
-                IndexRecoveryResolver.Fields.INDEX_RECOVERY.value() + "."
-                        + IndexRecoveryResolver.Fields.SHARDS.value(),
+                MonitoringIndexNameResolver.Fields.CLUSTER_UUID,
+                MonitoringIndexNameResolver.Fields.TIMESTAMP,
+                MonitoringIndexNameResolver.Fields.SOURCE_NODE,
+                IndexRecoveryResolver.Fields.INDEX_RECOVERY,
+                IndexRecoveryResolver.Fields.INDEX_RECOVERY + "."
+                        + IndexRecoveryResolver.Fields.SHARDS,
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {

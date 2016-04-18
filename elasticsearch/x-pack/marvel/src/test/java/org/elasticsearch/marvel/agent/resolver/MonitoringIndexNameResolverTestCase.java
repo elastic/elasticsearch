@@ -148,9 +148,9 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
         assertNotNull(sourceFields);
 
         String[] commons = new String[]{
-                CLUSTER_UUID.value(),
-                TIMESTAMP.value(),
-                SOURCE_NODE.value(),
+                CLUSTER_UUID,
+                TIMESTAMP,
+                SOURCE_NODE,
         };
         assertThat("source must contains default fields", sourceFields.keySet(), hasItems(commons));
 

@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
@@ -937,25 +936,25 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     interface Field {
-        XContentBuilderString TIMESTAMP = new XContentBuilderString("@timestamp");
-        XContentBuilderString NODE_NAME = new XContentBuilderString("node_name");
-        XContentBuilderString NODE_HOST_NAME = new XContentBuilderString("node_host_name");
-        XContentBuilderString NODE_HOST_ADDRESS = new XContentBuilderString("node_host_address");
-        XContentBuilderString LAYER = new XContentBuilderString("layer");
-        XContentBuilderString TYPE = new XContentBuilderString("event_type");
-        XContentBuilderString ORIGIN_ADDRESS = new XContentBuilderString("origin_address");
-        XContentBuilderString ORIGIN_TYPE = new XContentBuilderString("origin_type");
-        XContentBuilderString PRINCIPAL = new XContentBuilderString("principal");
-        XContentBuilderString RUN_AS_PRINCIPAL = new XContentBuilderString("run_as_principal");
-        XContentBuilderString RUN_BY_PRINCIPAL = new XContentBuilderString("run_by_principal");
-        XContentBuilderString ACTION = new XContentBuilderString("action");
-        XContentBuilderString INDICES = new XContentBuilderString("indices");
-        XContentBuilderString REQUEST = new XContentBuilderString("request");
-        XContentBuilderString REQUEST_BODY = new XContentBuilderString("request_body");
-        XContentBuilderString URI = new XContentBuilderString("uri");
-        XContentBuilderString REALM = new XContentBuilderString("realm");
-        XContentBuilderString TRANSPORT_PROFILE = new XContentBuilderString("transport_profile");
-        XContentBuilderString RULE = new XContentBuilderString("rule");
+        String TIMESTAMP = new String("@timestamp");
+        String NODE_NAME = new String("node_name");
+        String NODE_HOST_NAME = new String("node_host_name");
+        String NODE_HOST_ADDRESS = new String("node_host_address");
+        String LAYER = new String("layer");
+        String TYPE = new String("event_type");
+        String ORIGIN_ADDRESS = new String("origin_address");
+        String ORIGIN_TYPE = new String("origin_type");
+        String PRINCIPAL = new String("principal");
+        String RUN_AS_PRINCIPAL = new String("run_as_principal");
+        String RUN_BY_PRINCIPAL = new String("run_by_principal");
+        String ACTION = new String("action");
+        String INDICES = new String("indices");
+        String REQUEST = new String("request");
+        String REQUEST_BODY = new String("request_body");
+        String URI = new String("uri");
+        String REALM = new String("realm");
+        String TRANSPORT_PROFILE = new String("transport_profile");
+        String RULE = new String("rule");
     }
 
     public enum State {

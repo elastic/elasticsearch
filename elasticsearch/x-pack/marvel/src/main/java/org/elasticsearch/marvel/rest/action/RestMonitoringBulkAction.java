@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.marvel.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.marvel.action.MonitoringBulkResponse;
 import org.elasticsearch.marvel.client.MonitoringClient;
@@ -79,8 +78,8 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
     }
 
     static final class Fields {
-        static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString ERRORS = new XContentBuilderString("errors");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
+        static final String TOOK = "took";
+        static final String ERRORS = "errors";
+        static final String ERROR = "error";
     }
 }

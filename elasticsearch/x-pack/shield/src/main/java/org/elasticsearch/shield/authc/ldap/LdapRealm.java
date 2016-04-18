@@ -60,9 +60,9 @@ public class LdapRealm extends AbstractLdapRealm {
                             "Please remove the settings for the mode you do not wish to use. For more details refer to the ldap " +
                             "authentication section of the Shield guide.");
                 }
-                return new LdapUserSearchSessionFactory(config, clientSSLService);
+                return new LdapUserSearchSessionFactory(config, clientSSLService).init();
             }
-            return new LdapSessionFactory(config, clientSSLService);
+            return new LdapSessionFactory(config, clientSSLService).init();
         }
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -79,13 +80,14 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     @Inject
     public InternalAuthorizationService(Settings settings, RolesStore rolesStore, ClusterService clusterService,
-                                        AuditTrail auditTrail, AuthenticationFailureHandler authcFailureHandler, ThreadPool threadPool) {
+                                        AuditTrail auditTrail, AuthenticationFailureHandler authcFailureHandler,
+                                        ThreadPool threadPool, IndexNameExpressionResolver nameExpressionResolver) {
         super(settings);
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
-        this.indicesAndAliasesResolvers = new IndicesAndAliasesResolver[]{
-                new DefaultIndicesAndAliasesResolver(this)
+        this.indicesAndAliasesResolvers = new IndicesAndAliasesResolver[] {
+                new DefaultIndicesAndAliasesResolver(this, nameExpressionResolver)
         };
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();

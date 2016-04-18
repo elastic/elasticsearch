@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.watcher.input.search;
 
+import java.io.IOException;
+
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -18,8 +21,6 @@ import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 
-import java.io.IOException;
-
 /**
  *
  */
@@ -30,11 +31,13 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
     private final IndicesQueriesRegistry queryRegistry;
     private final AggregatorParsers aggParsers;
     private final Suggesters suggesters;
+    private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
     public SearchInputFactory(Settings settings, WatcherClientProxy client, IndicesQueriesRegistry queryRegistry,
                               AggregatorParsers aggParsers, Suggesters suggesters) {
         super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
+        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.client = client;
         this.queryRegistry = queryRegistry;
         this.aggParsers = aggParsers;
@@ -49,8 +52,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     @Override
     public SearchInput parseInput(String watchId, XContentParser parser) throws IOException {
-        QueryParseContext context = new QueryParseContext(queryRegistry);
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
         return SearchInput.parse(watchId, parser, context, aggParsers, suggesters);
     }
 

@@ -37,24 +37,25 @@ public class ShieldPluginTests extends ShieldIntegTestCase {
     public void testThatPluginIsLoaded() throws IOException {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            logger.info("executing unauthorized request to /_shield infos");
+            logger.info("executing unauthorized request to /_xpack info");
             HttpResponse response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
                     .method("GET")
-                    .path("/_shield")
+                    .path("/_xpack")
                     .execute();
             assertThat(response.getStatusCode(), is(UNAUTHORIZED.getStatus()));
 
-            logger.info("executing authorized request to /_shield infos");
+            logger.info("executing authorized request to /_xpack infos");
             response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
                     .method("GET")
-                    .path("/_shield")
+                    .path("/_xpack")
                     .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
                             new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
                     .execute();
             assertThat(response.getStatusCode(), is(OK.getStatus()));
-            assertThat(response.getBody(), allOf(containsString("status"), containsString("cluster_name"), containsString("number"),
-                    containsString("build_hash"), containsString("build_timestamp"),  containsString("build_snapshot")));
+            assertThat(response.getBody(), allOf(containsString("status"), containsString("hash"),
+                    containsString("timestamp"),  containsString("uid"),
+                    containsString("type"),  containsString("status")));
         }
     }
 }

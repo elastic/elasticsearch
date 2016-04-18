@@ -11,3 +11,8 @@ jar {
   baseName = 'license-core'
 }
 
+modifyPom {
+  project {
+    artifactId 'license-core'
+  }
+}

@@ -58,7 +58,7 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.ONE_LEVEL), globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
@@ -75,7 +75,7 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.BASE), globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
@@ -94,7 +94,7 @@ public class OpenLdapTests extends ESTestCase {
                 .put("group_search.user_attribute", "uid")
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
         try (LdapSession ldap = sessionFactory.session("selvig", SecuredStringTests.build(PASSWORD))){
             assertThat(ldap.groups(), hasItem(containsString("Geniuses")));
@@ -111,7 +111,7 @@ public class OpenLdapTests extends ESTestCase {
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
         try (LdapSession ldap = sessionFactory.session("thor", SecuredStringTests.build(PASSWORD))) {
             // In certain cases we may have a successful bind, but a search should take longer and cause a timeout
@@ -132,7 +132,7 @@ public class OpenLdapTests extends ESTestCase {
                 .build();
 
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
         String user = "blackwidow";
         try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(PASSWORD))) {

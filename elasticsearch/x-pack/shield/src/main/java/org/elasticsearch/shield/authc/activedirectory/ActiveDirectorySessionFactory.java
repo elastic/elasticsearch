@@ -76,7 +76,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
      * @return An authenticated
      */
     @Override
-    public LdapSession session(String userName, SecuredString password) throws Exception {
+    protected LdapSession getSession(String userName, SecuredString password) throws Exception {
         LDAPConnection connection;
 
         try {

@@ -6,6 +6,17 @@
 package org.elasticsearch.watcher.support;
 
 
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
+import static org.elasticsearch.watcher.support.WatcherUtils.DEFAULT_INDICES_OPTIONS;
+import static org.elasticsearch.watcher.support.WatcherUtils.flattenModel;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -15,10 +26,9 @@ import java.util.Map;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,18 +48,6 @@ import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.joda.time.DateTime;
-
-import static java.util.Collections.singletonMap;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.watcher.support.WatcherDateTimeUtils.formatDate;
-import static org.elasticsearch.watcher.support.WatcherUtils.DEFAULT_INDICES_OPTIONS;
-import static org.elasticsearch.watcher.support.WatcherUtils.flattenModel;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -139,8 +137,7 @@ public class WatcherUtilsTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
         registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
-        QueryParseContext context = new QueryParseContext(registry);
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
         SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);
 
         assertThat(result.indices(), arrayContainingInAnyOrder(expectedRequest.indices()));
@@ -229,8 +226,7 @@ public class WatcherUtilsTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
         registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
-        QueryParseContext context = new QueryParseContext(registry);
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
         SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);
 
         assertThat(result.indices(), arrayContainingInAnyOrder(indices));

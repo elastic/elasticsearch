@@ -30,7 +30,8 @@ integTest {
      'bulk/40_fields/Fields',
      'indices.get_alias/10_basic/Get alias against closed indices',
      'ingest/70_bulk/*',
-     'ingest/10_crud/Check availability of default processors'].join(',')
+     'ingest/10_crud/Check availability of default processors',
+     'search/80_date_math_index_names/Missing index with catch'].join(',')
 
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')

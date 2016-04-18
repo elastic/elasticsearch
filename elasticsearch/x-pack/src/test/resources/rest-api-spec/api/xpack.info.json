@@ -1,0 +1,13 @@
+{
+  "xpack.info": {
+    "documentation": "Retrieve information about xpack, including buid number/timestamp and license status",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack",
+      "paths": [ "/_xpack" ],
+      "parts": {},
+      "params": {}
+    },
+    "body": null
+  }
+}

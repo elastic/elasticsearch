@@ -51,7 +51,8 @@ public abstract class SessionFactory {
     protected final ESLogger connectionLogger;
     protected final RealmConfig config;
     protected final TimeValue timeout;
-    protected final ServerSet serverSet;
+    protected final ClientSSLService sslService;
+    protected ServerSet serverSet;
 
     protected SessionFactory(RealmConfig config, ClientSSLService sslService) {
         this.config = config;
@@ -64,7 +65,7 @@ public abstract class SessionFactory {
             searchTimeout = TimeValue.timeValueSeconds(1L);
         }
         this.timeout = searchTimeout;
-        this.serverSet = serverSet(config.settings(), sslService, ldapServers(config.settings()));
+        this.sslService = sslService;
     }
 
     /**
@@ -76,7 +77,24 @@ public abstract class SessionFactory {
      * @return LdapSession representing a connection to LDAP as the provided user
      * @throws Exception if an error occurred when creating the session
      */
-    public abstract LdapSession session(String user, SecuredString password) throws Exception;
+    public final LdapSession session(String user, SecuredString password) throws Exception {
+        if (serverSet == null) {
+            throw new IllegalStateException("session factory is not initialized");
+        }
+        return getSession(user, password);
+    }
+
+    /**
+     * Implementors should create a {@link LdapSession} that will be used to Authenticates the given user. This connection
+     * should be bound to the user (meaning, all operations under the returned connection will be executed on behalf of the authenticated
+     * user.
+     *
+     * @param user     The name of the user to authenticate the connection with.
+     * @param password The password of the user
+     * @return LdapSession representing a connection to LDAP as the provided user
+     * @throws Exception if an error occurred when creating the session
+     */
+    protected abstract LdapSession getSession(String user, SecuredString password) throws Exception;
 
     /**
      * Returns a flag to indicate if this session factory supports unauthenticated sessions. This means that a session can
@@ -97,6 +115,11 @@ public abstract class SessionFactory {
      */
     public LdapSession unauthenticatedSession(String username) throws Exception {
         throw new UnsupportedOperationException("unauthenticated sessions are not supported");
+    }
+
+    public <T extends SessionFactory> T init() {
+        this.serverSet = serverSet(config.settings(), sslService, ldapServers(config.settings()));
+        return (T) this;
     }
 
     protected static LDAPConnectionOptions connectionOptions(Settings settings) {

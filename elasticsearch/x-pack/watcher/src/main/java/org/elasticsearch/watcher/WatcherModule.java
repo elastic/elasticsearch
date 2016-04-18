@@ -61,7 +61,7 @@ public class WatcherModule extends AbstractModule {
         }
     }
 
-    public static final Integer getHistoryIndexTemplateVersion() {
+    public static Integer getHistoryIndexTemplateVersion() {
         try (InputStream is = WatcherModule.class.getResourceAsStream(PROPERTIES_FILE)) {
             Properties properties = new Properties();
             properties.load(is);

@@ -25,10 +25,13 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.action.TransportXPackInfoAction;
+import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.common.init.LazyInitializationService;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
+import org.elasticsearch.xpack.rest.RestXPackInfoAction;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -75,6 +78,7 @@ public class XPackPlugin extends Plugin {
     }
 
     protected final Settings settings;
+    protected boolean transportClientMode;
     protected final XPackExtensionsService extensionsService;
 
     protected Licensing licensing;
@@ -85,6 +89,7 @@ public class XPackPlugin extends Plugin {
 
     public XPackPlugin(Settings settings) {
         this.settings = settings;
+        transportClientMode = transportClientMode(settings);
         this.licensing = new Licensing(settings);
         this.security = new Security(settings);
         this.marvel = new Marvel(settings);
@@ -166,6 +171,9 @@ public class XPackPlugin extends Plugin {
     }
 
     public void onModule(NetworkModule module) {
+        if (!transportClientMode) {
+            module.registerRestHandler(RestXPackInfoAction.class);
+        }
         licensing.onModule(module);
         marvel.onModule(module);
         security.onModule(module);
@@ -174,6 +182,9 @@ public class XPackPlugin extends Plugin {
     }
 
     public void onModule(ActionModule module) {
+        if (!transportClientMode) {
+            module.registerAction(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class);
+        }
         licensing.onModule(module);
         marvel.onModule(module);
         security.onModule(module);

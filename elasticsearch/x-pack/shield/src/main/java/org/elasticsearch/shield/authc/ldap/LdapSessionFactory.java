@@ -53,7 +53,7 @@ public class LdapSessionFactory extends SessionFactory {
      * @return authenticated exception
      */
     @Override
-    public LdapSession session(String username, SecuredString password) throws Exception {
+    protected LdapSession getSession(String username, SecuredString password) throws Exception {
         LDAPConnection connection;
 
         try {

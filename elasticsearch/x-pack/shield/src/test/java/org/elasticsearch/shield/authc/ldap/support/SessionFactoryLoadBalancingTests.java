@@ -166,7 +166,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 LdapSearchScope.SUB_TREE, loadBalancing);
         RealmConfig config = new RealmConfig("test-session-factory", settings, Settings.builder().put("path.home",
                 createTempDir()).build());
-        return new TestSessionFactory(config, null);
+        return new TestSessionFactory(config, null).init();
     }
 
     static class TestSessionFactory extends SessionFactory {
@@ -176,7 +176,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         }
 
         @Override
-        public LdapSession session(String user, SecuredString password) throws Exception {
+        protected LdapSession getSession(String user, SecuredString password) throws Exception {
             return null;
         }
     }

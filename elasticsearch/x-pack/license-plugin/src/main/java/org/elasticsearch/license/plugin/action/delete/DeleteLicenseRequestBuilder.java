@@ -11,6 +11,10 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class DeleteLicenseRequestBuilder extends AcknowledgedRequestBuilder<DeleteLicenseRequest, DeleteLicenseResponse,
         DeleteLicenseRequestBuilder> {
 
+    public DeleteLicenseRequestBuilder(ElasticsearchClient client) {
+        this(client, DeleteLicenseAction.INSTANCE);
+    }
+
     /**
      * Creates new get licenses request builder
      *

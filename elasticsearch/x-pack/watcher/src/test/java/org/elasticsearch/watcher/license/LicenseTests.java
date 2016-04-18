@@ -6,94 +6,88 @@
 package org.elasticsearch.watcher.license;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.License.OperationMode;
+import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeTestCase;
 
+import static org.elasticsearch.license.core.License.OperationMode.BASIC;
+import static org.elasticsearch.license.core.License.OperationMode.GOLD;
+import static org.elasticsearch.license.core.License.OperationMode.PLATINUM;
+import static org.elasticsearch.license.core.License.OperationMode.STANDARD;
+import static org.elasticsearch.license.core.License.OperationMode.TRIAL;
 import static org.hamcrest.Matchers.is;
 
 public class LicenseTests extends AbstractLicenseeTestCase {
 
-    private SimpleLicenseeRegistry licenseeRegistry = new SimpleLicenseeRegistry();
+    private final SimpleLicenseeRegistry licenseeRegistry = new SimpleLicenseeRegistry();
+    private WatcherLicensee watcherLicensee;
 
     public void testPlatinumGoldTrialLicenseCanDoEverything() throws Exception {
-        licenseeRegistry.setOperationMode(randomTrialStandardGoldOrPlatinumMode());
-        WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
-        licenseeRegistry.register(watcherLicensee);
-
-        assertLicenseGoldPlatinumTrialBehaviour(watcherLicensee);
+        initLicense(TRIAL, GOLD, PLATINUM);
+        assertWatcherActionsAllowed(watcherLicensee);
     }
 
-    public void testBasicLicenseIsDisabled() throws Exception {
-        licenseeRegistry.setOperationMode(OperationMode.BASIC);
-        WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
-        licenseeRegistry.register(watcherLicensee);
-
-        assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
+    public void testBasicStandardLicenseDisablesWatcher() throws Exception {
+        initLicense(BASIC, STANDARD);
+        assertWatcherActionsNotAllowed(watcherLicensee);
     }
 
-    public void testNoLicenseDoesNotWork() {
-        licenseeRegistry.setOperationMode(OperationMode.BASIC);
-        WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
-        licenseeRegistry.register(watcherLicensee);
+    public void testNoLicenseDisablesWatcher() {
+        initLicense(BASIC, STANDARD);
         licenseeRegistry.disable();
 
-        assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
+        assertWatcherActionsNotAllowed(watcherLicensee);
     }
 
-    public void testExpiredPlatinumGoldTrialLicenseIsRestricted() throws Exception {
-        licenseeRegistry.setOperationMode(randomTrialStandardGoldOrPlatinumMode());
-        WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
-        licenseeRegistry.register(watcherLicensee);
+    public void testExpiredPlatinumGoldTrialLicenseDisablesWatcher() throws Exception {
+        initLicense(TRIAL, GOLD, PLATINUM);
         licenseeRegistry.disable();
 
-        assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
+        assertWatcherActionsNotAllowed(watcherLicensee);
     }
 
-    public void testUpgradingFromBasicLicenseWorks() {
-        licenseeRegistry.setOperationMode(OperationMode.BASIC);
-        WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
-        licenseeRegistry.register(watcherLicensee);
+    public void testUpgradingFromBasicOrStandardLicenseWorks() {
+        initLicense(BASIC, STANDARD);
+        assertWatcherActionsNotAllowed(watcherLicensee);
 
-        assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
-
-        licenseeRegistry.setOperationMode(randomTrialStandardGoldOrPlatinumMode());
-        assertLicenseGoldPlatinumTrialBehaviour(watcherLicensee);
+        licenseeRegistry.setOperationMode(randomFrom(TRIAL, GOLD, PLATINUM));
+        assertWatcherActionsAllowed(watcherLicensee);
     }
 
-    public void testDowngradingToBasicLicenseWorks() {
-        licenseeRegistry.setOperationMode(randomTrialStandardGoldOrPlatinumMode());
-        WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
-        licenseeRegistry.register(watcherLicensee);
+    public void testDowngradingToBasicOrStandardLicenseWorks() {
+        initLicense(TRIAL, GOLD, PLATINUM);
+        assertWatcherActionsAllowed(watcherLicensee);
 
-        assertLicenseGoldPlatinumTrialBehaviour(watcherLicensee);
-
-        licenseeRegistry.setOperationMode(OperationMode.BASIC);
-        assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
+        licenseeRegistry.setOperationMode(randomFrom(BASIC, STANDARD));
+        assertWatcherActionsNotAllowed(watcherLicensee);
     }
 
     public void testUpgradingExpiredLicenseWorks() {
-        licenseeRegistry.setOperationMode(randomTrialStandardGoldOrPlatinumMode());
-        WatcherLicensee watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
-        licenseeRegistry.register(watcherLicensee);
+        initLicense(TRIAL, GOLD, PLATINUM);
         licenseeRegistry.disable();
 
-        assertLicenseBasicOrNoneOrExpiredBehaviour(watcherLicensee);
+        assertWatcherActionsNotAllowed(watcherLicensee);
 
-        licenseeRegistry.setOperationMode(randomTrialStandardGoldOrPlatinumMode());
-        assertLicenseGoldPlatinumTrialBehaviour(watcherLicensee);
+        licenseeRegistry.setOperationMode(randomFrom(TRIAL, GOLD, PLATINUM));
+        assertWatcherActionsAllowed(watcherLicensee);
     }
 
-    private void assertLicenseGoldPlatinumTrialBehaviour(WatcherLicensee watcherLicensee) {
+    private void assertWatcherActionsAllowed(WatcherLicensee watcherLicensee) {
         assertThat("Expected putting a watch to be allowed", watcherLicensee.isPutWatchAllowed(), is(true));
         assertThat("Expected getting a watch to be allowed", watcherLicensee.isGetWatchAllowed(), is(true));
         assertThat("Expected watcher transport actions to be allowed", watcherLicensee.isWatcherTransportActionAllowed(), is(true));
         assertThat("Expected actions of a watch to be executed", watcherLicensee.isExecutingActionsAllowed(), is(true));
     }
 
-    private void assertLicenseBasicOrNoneOrExpiredBehaviour(WatcherLicensee watcherLicensee) {
+    private void assertWatcherActionsNotAllowed(WatcherLicensee watcherLicensee) {
         assertThat("Expected putting a watch not to be allowed", watcherLicensee.isPutWatchAllowed(), is(false));
         assertThat("Expected getting a watch not to be allowed", watcherLicensee.isGetWatchAllowed(), is(false));
         assertThat("Expected watcher transport actions not to be allowed", watcherLicensee.isWatcherTransportActionAllowed(), is(false));
         assertThat("Expected actions of a watch not to be executed", watcherLicensee.isExecutingActionsAllowed(), is(false));
+    }
+
+    private void initLicense(License.OperationMode ... allowedLicenses) {
+        licenseeRegistry.setOperationMode(randomFrom(allowedLicenses));
+        watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
+        licenseeRegistry.register(watcherLicensee);
     }
 }

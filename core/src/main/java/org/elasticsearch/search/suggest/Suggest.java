@@ -65,11 +65,11 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
     public Suggest() {
-        this.name = null;
+        this(null, Collections.<Suggestion<? extends Entry<? extends Option>>>emptyList());
     }
 
     public Suggest(XContentBuilderString name) {
-        this.name = name;
+        this(name, Collections.<Suggestion<? extends Entry<? extends Option>>>emptyList());
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {

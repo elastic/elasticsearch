@@ -226,7 +226,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             int size = in.readVInt();
             rescoreBuilders = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                rescoreBuilders.add(in.readRescorer());
+                rescoreBuilders.add(in.readNamedWriteable(RescoreBuilder.class));
             }
         }
         if (in.readBoolean()) {
@@ -328,7 +328,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (hasRescoreBuilders) {
             out.writeVInt(rescoreBuilders.size());
             for (RescoreBuilder<?> rescoreBuilder : rescoreBuilders) {
-                out.writeRescorer(rescoreBuilder);
+                out.writeNamedWriteable(rescoreBuilder);
             }
         }
         boolean hasScriptFields = scriptFields != null;

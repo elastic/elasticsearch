@@ -190,13 +190,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 try (XContentParser parser = XContentFactory.xContent(slice).createParser(slice)) {
                     queryParseContext.reset(parser);
                     queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                    Template template = TemplateQueryBuilder.parse(parser, queryParseContext.parseFieldMatcher(), "params", "template");
+                    Template template = TemplateQueryBuilder.parse(parser, queryParseContext.getParseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
                 }
             } else {
                 try (XContentParser requestParser = XContentFactory.xContent(slice).createParser(slice)) {
                     queryParseContext.reset(requestParser);
-                    searchRequest.source(SearchSourceBuilder.fromXContent(requestParser, queryParseContext, aggParsers, suggesters));
+                    searchRequest.source(SearchSourceBuilder.fromXContent(queryParseContext, aggParsers, suggesters));
                 }
             }
             // move pointers

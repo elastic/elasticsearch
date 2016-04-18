@@ -19,25 +19,47 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNestedAggregatorBuilder> {
-
-    static final ReverseNestedAggregatorBuilder PROTOTYPE = new ReverseNestedAggregatorBuilder("");
+    public static final String NAME = InternalReverseNested.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private String path;
 
     public ReverseNestedAggregatorBuilder(String name) {
         super(name, InternalReverseNested.TYPE);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ReverseNestedAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalReverseNested.TYPE);
+        path = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(path);
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     /**
@@ -76,17 +98,35 @@ public class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNes
         return builder;
     }
 
-    @Override
-    protected ReverseNestedAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregatorBuilder(name);
-        factory.path = in.readOptionalString();
+    public static ReverseNestedAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        String path = null;
+
+        XContentParser.Token token;
+        String currentFieldName = null;
+        XContentParser parser = context.parser();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if ("path".equals(currentFieldName)) {
+                    path = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
+            }
+        }
+
+        ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregatorBuilder(
+                aggregationName);
+        if (path != null) {
+            factory.path(path);
+        }
         return factory;
     }
 
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(path);
-    }
 
     @Override
     protected int doHashCode() {
@@ -97,5 +137,10 @@ public class ReverseNestedAggregatorBuilder extends AggregatorBuilder<ReverseNes
     protected boolean doEquals(Object obj) {
         ReverseNestedAggregatorBuilder other = (ReverseNestedAggregatorBuilder) obj;
         return Objects.equals(path, other.path);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

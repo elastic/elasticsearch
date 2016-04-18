@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
@@ -43,14 +42,11 @@ import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestNodesAction;
 import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.Task.Status;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.sameInstance;
 
 public class NetworkModuleTests extends ModuleTestCase {
 
@@ -62,7 +58,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeTransport extends AssertingLocalTransport {
         public FakeTransport() {
-            super(null, null, null, null);
+            super(null, null, null, null, null);
         }
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
@@ -187,7 +186,7 @@ public interface XContentParser extends Releasable {
     float floatValue(boolean coerce) throws IOException;
 
     double doubleValue(boolean coerce) throws IOException;
-    
+
     short shortValue() throws IOException;
 
     int intValue() throws IOException;
@@ -241,21 +240,10 @@ public interface XContentParser extends Releasable {
     /**
      * Used for error reporting to highlight where syntax errors occur in
      * content being parsed.
-     * 
+     *
      * @return last token's location or null if cannot be determined
      */
     XContentLocation getTokenLocation();
 
     boolean isClosed();
-
-    /**
-     * Returns this parsers {@link ParseFieldMatcher}
-     */
-    ParseFieldMatcher getParseFieldMatcher();
-
-
-    /**
-     * Sets this parsers {@link ParseFieldMatcher}
-     */
-    void setParseFieldMatcher(ParseFieldMatcher matcher) ;
 }

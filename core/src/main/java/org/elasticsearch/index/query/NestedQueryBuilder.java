@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -43,44 +44,32 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      */
     public static final String NAME = "nested";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-
     /**
-     * The default score move for nested queries.
+     * The default value for ignore_unmapped.
      */
-    public static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.Avg;
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
     private static final ParseField PATH_FIELD = new ParseField("path");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
-
-    private final QueryBuilder<?> query;
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String path;
-
-    private ScoreMode scoreMode = DEFAULT_SCORE_MODE;
-
+    private final ScoreMode scoreMode;
+    private final QueryBuilder<?> query;
     private InnerHitBuilder innerHitBuilder;
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
-    public NestedQueryBuilder(String path, QueryBuilder<?> query) {
-        if (path == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'path' field");
-        }
-        if (query == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'query' field");
-        }
-        this.path = path;
-        this.query = query;
+    public NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode) {
+        this(path, query, scoreMode, null);
     }
 
-    public NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode, InnerHitBuilder innerHitBuilder) {
-        this(path, query);
-        scoreMode(scoreMode);
+    private NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode, InnerHitBuilder innerHitBuilder) {
+        this.path = requireValue(path, "[" + NAME + "] requires 'path' field");
+        this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
+        this.scoreMode = requireValue(scoreMode, "[" + NAME + "] requires 'score_mode' field");
         this.innerHitBuilder = innerHitBuilder;
-        if (this.innerHitBuilder != null) {
-            this.innerHitBuilder.setNestedPath(path);
-            this.innerHitBuilder.setQuery(query);
-        }
     }
 
     /**
@@ -92,6 +81,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         scoreMode = ScoreMode.values()[in.readVInt()];
         query = in.readQuery();
         innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+        ignoreUnmapped = in.readBoolean();
     }
 
     @Override
@@ -100,27 +90,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         out.writeVInt(scoreMode.ordinal());
         out.writeQuery(query);
         out.writeOptionalWriteable(innerHitBuilder);
-    }
-
-    /**
-     * The score mode how the scores from the matching child documents are mapped into the nested parent document.
-     */
-    public NestedQueryBuilder scoreMode(ScoreMode scoreMode) {
-        if (scoreMode == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'score_mode' field");
-        }
-        this.scoreMode = scoreMode;
-        return this;
-    }
-
-    /**
-     * Sets inner hit definition in the scope of this nested query and reusing the defined path and query.
-     */
-    public NestedQueryBuilder innerHit(InnerHitBuilder innerHit) {
-        this.innerHitBuilder = Objects.requireNonNull(innerHit);
-        this.innerHitBuilder.setNestedPath(path);
-        this.innerHitBuilder.setQuery(query);
-        return this;
+        out.writeBoolean(ignoreUnmapped);
     }
 
     /**
@@ -133,8 +103,16 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     /**
      * Returns inner hit definition in the scope of this query and reusing the defined type and query.
      */
+
     public InnerHitBuilder innerHit() {
         return innerHitBuilder;
+    }
+
+    public NestedQueryBuilder innerHit(InnerHitBuilder innerHit) {
+        innerHit.setNestedPath(path);
+        innerHit.setQuery(query);
+        this.innerHitBuilder = innerHit;
+        return this;
     }
 
     /**
@@ -144,12 +122,32 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         return scoreMode;
     }
 
+    /**
+     * Sets whether the query builder should ignore unmapped paths (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the path is unmapped.
+     */
+    public NestedQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Gets whether the query builder will ignore unmapped fields (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the path is unmapped.
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
         builder.field(PATH_FIELD.getPreferredName(), path);
+        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         if (scoreMode != null) {
             builder.field(SCORE_MODE_FIELD.getPreferredName(), HasChildQueryBuilder.scoreModeAsString(scoreMode));
         }
@@ -163,39 +161,43 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     public static NestedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        ScoreMode scoreMode = NestedQueryBuilder.DEFAULT_SCORE_MODE;
+        ScoreMode scoreMode = ScoreMode.Avg;
         String queryName = null;
-        QueryBuilder query = null;
+        QueryBuilder<?> query = null;
         String path = null;
         String currentFieldName = null;
         InnerHitBuilder innerHitBuilder = null;
+        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     query = parseContext.parseInnerQueryBuilder();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
-                    innerHitBuilder = InnerHitBuilder.fromXContent(parser, parseContext);
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
+                    innerHitBuilder = InnerHitBuilder.fromXContent(parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, PATH_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, PATH_FIELD)) {
                     path = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                    ignoreUnmapped = parser.booleanValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
                     scoreMode = HasChildQueryBuilder.parseScoreMode(parser.text());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }
             }
         }
-        return new NestedQueryBuilder(path, query, scoreMode, innerHitBuilder).queryName(queryName).boost(boost);
+        return new NestedQueryBuilder(path, query, scoreMode, innerHitBuilder).ignoreUnmapped(ignoreUnmapped).queryName(queryName)
+                .boost(boost);
     }
 
     @Override
@@ -208,19 +210,24 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         return Objects.equals(query, that.query)
                 && Objects.equals(path, that.path)
                 && Objects.equals(scoreMode, that.scoreMode)
-                && Objects.equals(innerHitBuilder, that.innerHitBuilder);
+                && Objects.equals(innerHitBuilder, that.innerHitBuilder)
+                && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, path, scoreMode, innerHitBuilder);
+        return Objects.hash(query, path, scoreMode, innerHitBuilder, ignoreUnmapped);
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         ObjectMapper nestedObjectMapper = context.getObjectMapper(path);
         if (nestedObjectMapper == null) {
-            throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
+            }
         }
         if (!nestedObjectMapper.nested().isNested()) {
             throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
@@ -254,7 +261,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrite = query.rewrite(queryRewriteContext);
         if (rewrite != query) {
-            return new NestedQueryBuilder(path, rewrite).scoreMode(scoreMode).innerHit(innerHitBuilder);
+            return new NestedQueryBuilder(path, rewrite, scoreMode, innerHitBuilder);
         }
         return this;
     }

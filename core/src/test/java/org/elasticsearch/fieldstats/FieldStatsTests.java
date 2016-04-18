@@ -25,6 +25,7 @@ import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -117,8 +118,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
         assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1f));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9f));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
     }
@@ -305,9 +306,9 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
 
     public void testDateFiltering() {
         DateTime dateTime1 = new DateTime(2014, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC);
-        String dateTime1Str = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().print(dateTime1);
+        String dateTime1Str = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().print(dateTime1);
         DateTime dateTime2 = new DateTime(2014, 1, 2, 0, 0, 0, 0, DateTimeZone.UTC);
-        String dateTime2Str = DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().print(dateTime2);
+        String dateTime2Str = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().print(dateTime2);
 
         createIndex("test1", Settings.EMPTY, "type", "value", "type=date");
         client().prepareIndex("test1", "test").setSource("value", dateTime1Str).get();

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesTermsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -33,6 +34,10 @@ import org.elasticsearch.test.TestSearchContext;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQueryBuilder> {
 
@@ -84,7 +89,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected ParentIdQueryBuilder doCreateTestQueryBuilder() {
-        return new ParentIdQueryBuilder(CHILD_TYPE, randomAsciiOfLength(4));
+        return new ParentIdQueryBuilder(CHILD_TYPE, randomAsciiOfLength(4)).ignoreUnmapped(randomBoolean());
     }
 
     @Override
@@ -108,6 +113,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
                 "  \"parent_id\" : {\n" +
                 "    \"type\" : \"child\",\n" +
                 "    \"id\" : \"123\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 3.0,\n" +
                 "    \"_name\" : \"name\"" +
                 "  }\n" +
@@ -118,6 +124,19 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         assertThat(queryBuilder.getId(), Matchers.equalTo("123"));
         assertThat(queryBuilder.boost(), Matchers.equalTo(3f));
         assertThat(queryBuilder.queryName(), Matchers.equalTo("name"));
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        final ParentIdQueryBuilder queryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(queryShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final ParentIdQueryBuilder failingQueryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
+        failingQueryBuilder.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        assertThat(e.getMessage(), containsString("[" + ParentIdQueryBuilder.NAME + "] no mapping found for type [unmapped]"));
     }
 
 }

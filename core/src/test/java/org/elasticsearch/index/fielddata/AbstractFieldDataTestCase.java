@@ -43,12 +43,12 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.core.ByteFieldMapper;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.ShortFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyByteFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyIntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyShortFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -106,17 +106,17 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         if (type.equals("string")) {
             fieldType = new StringFieldMapper.Builder(fieldName).tokenized(false).fielddata(docValues == false).docValues(docValues).build(context).fieldType();
         } else if (type.equals("float")) {
-            fieldType = new FloatFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new LegacyFloatFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
-            fieldType = new DoubleFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new LegacyDoubleFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
-            fieldType = new LongFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new LegacyLongFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
-            fieldType = new IntegerFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new LegacyIntegerFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
-            fieldType = new ShortFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new LegacyShortFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
-            fieldType = new ByteFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new LegacyByteFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
             if (indexService.getIndexSettings().getIndexVersionCreated().before(Version.V_2_2_0)) {
                 fieldType =  new GeoPointFieldMapperLegacy.Builder(fieldName).docValues(docValues).build(context).fieldType();

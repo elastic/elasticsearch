@@ -235,7 +235,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type.name(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorBuilder<?> newAgg = aggParsers.parser(testAgg.getType(), parser).parse(testAgg.name, parser, parseContext);
+        AggregatorBuilder<?> newAgg = aggParsers.parser(testAgg.getType(), ParseFieldMatcher.STRICT).parse(testAgg.name, parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -253,13 +253,12 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
     public void testSerialization() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            testAgg.writeTo(output);
+            output.writeAggregatorBuilder(testAgg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder deserializedQuery = namedWriteableRegistry.getReader(AggregatorBuilder.class, testAgg.getWriteableName())
-                        .read(in);
-                assertEquals(testAgg, deserializedQuery);
-                assertEquals(testAgg.hashCode(), deserializedQuery.hashCode());
-                assertNotSame(testAgg, deserializedQuery);
+                AggregatorBuilder deserialized = in.readAggregatorBuilder();
+                assertEquals(testAgg, deserialized);
+                assertEquals(testAgg.hashCode(), deserialized.hashCode());
+                assertNotSame(testAgg, deserialized);
             }
         }
     }

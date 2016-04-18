@@ -20,30 +20,33 @@
 package org.elasticsearch.search.aggregations.bucket.children;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.ParentChild;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.ParentChild;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<ParentChild, ChildrenAggregatorBuilder> {
-
-    static final ChildrenAggregatorBuilder PROTOTYPE = new ChildrenAggregatorBuilder("", "");
+    public static final String NAME = InternalChildren.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private String parentType;
     private final String childType;
@@ -62,6 +65,24 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
         this.childType = childType;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ChildrenAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalChildren.TYPE, ValuesSourceType.BYTES, ValueType.STRING);
+        childType = in.readString();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeString(childType);
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     @Override
@@ -105,17 +126,34 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
         return builder;
     }
 
-    @Override
-    protected ChildrenAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        String childType = in.readString();
-        ChildrenAggregatorBuilder factory = new ChildrenAggregatorBuilder(name, childType);
-        return factory;
-    }
+    public static ChildrenAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        String childType = null;
 
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeString(childType);
+        XContentParser.Token token;
+        String currentFieldName = null;
+        XContentParser parser = context.parser();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if ("type".equals(currentFieldName)) {
+                    childType = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
+            }
+        }
+
+        if (childType == null) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Missing [child_type] field for children aggregation [" + aggregationName + "]");
+        }
+
+
+        return new ChildrenAggregatorBuilder(aggregationName, childType);
     }
 
     @Override
@@ -129,4 +167,8 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
         return Objects.equals(childType, other.childType);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

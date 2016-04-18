@@ -16,26 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.mapper.core;
+
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper.NumberType;
 import org.junit.Before;
 
-public class ByteFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new ByteFieldMapper.ByteFieldType();
-    }
+import java.io.IOException;
+
+public class NumberFieldTypeTests extends FieldTypeTestCase {
+
+    NumberType type;
 
     @Before
-    public void setupProperties() {
-        setDummyNullValue((byte)10);
+    public void pickType() {
+        type = RandomPicks.randomFrom(random(), NumberFieldMapper.NumberType.values());
     }
 
-    public void testValueForSearch() {
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new NumberFieldMapper.NumberFieldType(type);
+    }
+
+    public void testIsFieldWithinQuery() throws IOException {
         MappedFieldType ft = createDefaultFieldType();
-        // bytes are stored as ints
-        assertEquals(Byte.valueOf((byte) 3), ft.valueForSearch(Integer.valueOf(3)));
+        // current impl ignores args and should always return INTERSECTS
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomDouble(), randomDouble(),
+                randomBoolean(), randomBoolean(), null, null));
     }
 }

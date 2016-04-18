@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -65,9 +64,9 @@ public class SearchModuleTests extends ModuleTestCase {
 
     public void testRegisterSuggester() {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
-        module.registerSuggester("custom", CustomSuggester.PROTOTYPE);
+        module.registerSuggester("custom", CustomSuggester.INSTANCE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> module.registerSuggester("custom", CustomSuggester.PROTOTYPE));
+                () -> module.registerSuggester("custom", CustomSuggester.INSTANCE));
         assertEquals("Can't register the same [suggester] more than once for [custom]", e.getMessage());
     }
 
@@ -99,19 +98,17 @@ public class SearchModuleTests extends ModuleTestCase {
 
         IndicesQueriesRegistry indicesQueriesRegistry = module.getQueryParserRegistry();
         XContentParser dummyParser = XContentHelper.createParser(new BytesArray("{}"));
-        dummyParser.setParseFieldMatcher(ParseFieldMatcher.EMPTY);
         for (String queryName : supportedQueries) {
-            indicesQueriesRegistry.lookup(queryName, dummyParser);
+            indicesQueriesRegistry.lookup(queryName, dummyParser, ParseFieldMatcher.EMPTY);
         }
 
-        dummyParser.setParseFieldMatcher(ParseFieldMatcher.STRICT);
         for (String queryName : NON_DEPRECATED_QUERIES) {
-            QueryParser<?> queryParser = indicesQueriesRegistry.lookup(queryName, dummyParser);
+            QueryParser<?> queryParser = indicesQueriesRegistry.lookup(queryName, dummyParser, ParseFieldMatcher.STRICT);
             assertThat(queryParser, notNullValue());
         }
         for (String queryName : DEPRECATED_QUERIES) {
             try {
-                indicesQueriesRegistry.lookup(queryName, dummyParser);
+                indicesQueriesRegistry.lookup(queryName, dummyParser, ParseFieldMatcher.STRICT);
                 fail("query is deprecated, getQueryParser should have failed in strict mode");
             } catch(IllegalArgumentException e) {
                 assertThat(e.getMessage(), containsString("Deprecated field [" + queryName + "] used"));

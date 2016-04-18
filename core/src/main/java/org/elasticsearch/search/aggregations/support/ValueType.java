@@ -64,7 +64,7 @@ public enum ValueType implements Writeable<ValueType> {
         }
     },
     DATE((byte) 5, "date", "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class,
-            new DocValueFormat.DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateTimeZone.UTC)) {
+            new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateTimeZone.UTC)) {
         @Override
         public boolean isNumeric() {
             return true;
@@ -168,8 +168,7 @@ public enum ValueType implements Writeable<ValueType> {
         return description;
     }
 
-    @Override
-    public ValueType readFrom(StreamInput in) throws IOException {
+    public static ValueType readFromStream(StreamInput in) throws IOException {
         byte id = in.readByte();
         for (ValueType valueType : values()) {
             if (id == valueType.id) {

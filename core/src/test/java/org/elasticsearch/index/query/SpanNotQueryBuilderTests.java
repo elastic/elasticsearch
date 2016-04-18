@@ -62,13 +62,13 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
 
     public void testIllegalArgument() {
         try {
-            new SpanNotQueryBuilder(null, SpanTermQueryBuilder.PROTOTYPE);
+            new SpanNotQueryBuilder(null, new SpanTermQueryBuilder("field", "value"));
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected
         }
         try {
-            new SpanNotQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, null);
+            new SpanNotQueryBuilder(new SpanTermQueryBuilder("field", "value"), null);
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected

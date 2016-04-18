@@ -59,11 +59,11 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 /**
  *
  */
-public class IntegerFieldMapper extends NumberFieldMapper {
+public class LegacyIntegerFieldMapper extends LegacyNumberFieldMapper {
 
     public static final String CONTENT_TYPE = "integer";
 
-    public static class Defaults extends NumberFieldMapper.Defaults {
+    public static class Defaults extends LegacyNumberFieldMapper.Defaults {
         public static final MappedFieldType FIELD_TYPE = new IntegerFieldType();
 
         static {
@@ -71,7 +71,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
     }
 
-    public static class Builder extends NumberFieldMapper.Builder<Builder, IntegerFieldMapper> {
+    public static class Builder extends LegacyNumberFieldMapper.Builder<Builder, LegacyIntegerFieldMapper> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_32_BIT);
@@ -84,12 +84,15 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public IntegerFieldMapper build(BuilderContext context) {
+        public LegacyIntegerFieldMapper build(BuilderContext context) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+                throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
+            }
             setupFieldType(context);
-            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(name, fieldType, defaultFieldType,
+            LegacyIntegerFieldMapper fieldMapper = new LegacyIntegerFieldMapper(name, fieldType, defaultFieldType,
                     ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (IntegerFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return (LegacyIntegerFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
         @Override
         protected int maxPrecisionStep() {
@@ -100,7 +103,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            IntegerFieldMapper.Builder builder = new IntegerFieldMapper.Builder(name);
+            LegacyIntegerFieldMapper.Builder builder = new LegacyIntegerFieldMapper.Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -190,7 +193,7 @@ public class IntegerFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected IntegerFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    protected LegacyIntegerFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);

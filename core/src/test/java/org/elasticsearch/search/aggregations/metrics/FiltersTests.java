@@ -35,8 +35,9 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregatorBuild
         FiltersAggregatorBuilder factory;
         if (randomBoolean()) {
             KeyedFilter[] filters = new KeyedFilter[size];
-            for (int i = 0; i < size; i++) {
-                filters[i] = new KeyedFilter(randomAsciiOfLengthBetween(1, 20),
+            int i = 0;
+            for (String key : randomUnique(() -> randomAsciiOfLengthBetween(1, 20), size)) {
+                filters[i++] = new KeyedFilter(key,
                         QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
             }
             factory = new FiltersAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), filters);

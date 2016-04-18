@@ -46,5 +46,7 @@ public interface TransportAddress extends Writeable<TransportAddress> {
 
     boolean sameHost(TransportAddress other);
 
+    boolean isLoopbackOrLinkLocalAddress();
+
     public String toString();
 }

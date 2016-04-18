@@ -219,7 +219,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(source)) {
             context.reset(parser);
             context.parseFieldMatcher(parseFieldMatcher);
-            searchSourceBuilder.parseXContent(parser, context, aggParsers, null);
+            searchSourceBuilder.parseXContent(context, aggParsers, null);
             searchRequest.source(searchSourceBuilder);
             return searchRequest;
         }

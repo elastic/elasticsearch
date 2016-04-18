@@ -63,7 +63,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
     @Override
     @SuppressWarnings("unchecked")
-    public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+    public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options)
+        throws IOException, TransportException {
 
         //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
         if (connectMode) {

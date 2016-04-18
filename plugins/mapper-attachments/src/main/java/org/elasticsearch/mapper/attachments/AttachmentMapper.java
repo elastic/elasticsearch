@@ -39,7 +39,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 
 import java.io.IOException;
@@ -141,7 +142,7 @@ public class AttachmentMapper extends FieldMapper {
 
         private Mapper.Builder<?, ?> contentTypeBuilder = new TextFieldMapper.Builder(FieldNames.CONTENT_TYPE);
 
-        private Mapper.Builder<?, ?> contentLengthBuilder = new IntegerFieldMapper.Builder(FieldNames.CONTENT_LENGTH);
+        private Mapper.Builder<?, ?> contentLengthBuilder = new NumberFieldMapper.Builder(FieldNames.CONTENT_LENGTH, NumberType.INTEGER);
 
         private Mapper.Builder<?, ?> languageBuilder = new TextFieldMapper.Builder(FieldNames.LANGUAGE);
 

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
@@ -32,6 +33,7 @@ import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -51,49 +53,57 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeByteValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeLongValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
  *
  */
-public class ByteFieldMapper extends NumberFieldMapper {
+public class LegacyLongFieldMapper extends LegacyNumberFieldMapper {
 
-    public static final String CONTENT_TYPE = "byte";
+    public static final String CONTENT_TYPE = "long";
 
-    public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final MappedFieldType FIELD_TYPE = new ByteFieldType();
+    public static class Defaults extends LegacyNumberFieldMapper.Defaults {
+        public static final MappedFieldType FIELD_TYPE = new LongFieldType();
 
         static {
             FIELD_TYPE.freeze();
         }
     }
 
-    public static class Builder extends NumberFieldMapper.Builder<Builder, ByteFieldMapper> {
+    public static class Builder extends LegacyNumberFieldMapper.Builder<Builder, LegacyLongFieldMapper> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_8_BIT);
+            super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_64_BIT);
             builder = this;
         }
 
+        public Builder nullValue(long nullValue) {
+            this.fieldType.setNullValue(nullValue);
+            return this;
+        }
+
         @Override
-        public ByteFieldMapper build(BuilderContext context) {
+        public LegacyLongFieldMapper build(BuilderContext context) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+                throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
+            }
             setupFieldType(context);
-            ByteFieldMapper fieldMapper = new ByteFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (ByteFieldMapper) fieldMapper.includeInAll(includeInAll);
+            LegacyLongFieldMapper fieldMapper = new LegacyLongFieldMapper(name, fieldType, defaultFieldType,
+                    ignoreMalformed(context), coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return (LegacyLongFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override
         protected int maxPrecisionStep() {
-            return 32;
+            return 64;
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ByteFieldMapper.Builder builder = new ByteFieldMapper.Builder(name);
+            LegacyLongFieldMapper.Builder builder = new LegacyLongFieldMapper.Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -103,7 +113,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(nodeByteValue(propNode));
+                    builder.nullValue(nodeLongValue(propNode));
                     iterator.remove();
                 }
             }
@@ -111,18 +121,19 @@ public class ByteFieldMapper extends NumberFieldMapper {
         }
     }
 
-    static final class ByteFieldType extends NumberFieldType {
-        public ByteFieldType() {
-            super(LegacyNumericType.INT);
+    public static class LongFieldType extends NumberFieldType {
+
+        public LongFieldType() {
+            super(LegacyNumericType.LONG);
         }
 
-        protected ByteFieldType(ByteFieldType ref) {
+        protected LongFieldType(LongFieldType ref) {
             super(ref);
         }
 
         @Override
         public NumberFieldType clone() {
-            return new ByteFieldType(this);
+            return new LongFieldType(this);
         }
 
         @Override
@@ -131,38 +142,30 @@ public class ByteFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Byte nullValue() {
-            return (Byte)super.nullValue();
-        }
-
-        @Override
-        public Byte valueForSearch(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return ((Number) value).byteValue();
+        public Long nullValue() {
+            return (Long)super.nullValue();
         }
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
-            LegacyNumericUtils.intToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
+            LegacyNumericUtils.longToPrefixCoded(parseLongValue(value), 0, bytesRef);  // 0 because of exact match
             return bytesRef.get();
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return LegacyNumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
-                lowerTerm == null ? null : (int)parseValue(lowerTerm),
-                upperTerm == null ? null : (int)parseValue(upperTerm),
+            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
+                lowerTerm == null ? null : parseLongValue(lowerTerm),
+                upperTerm == null ? null : parseLongValue(upperTerm),
                 includeLower, includeUpper);
         }
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            byte iValue = parseValue(value);
-            byte iSim = fuzziness.asByte();
-            return LegacyNumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
+            long iValue = parseLongValue(value);
+            final long iSim = fuzziness.asLong();
+            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -175,8 +178,8 @@ public class ByteFieldMapper extends NumberFieldMapper {
             if (terms == null) {
                 return null;
             }
-            long minValue = LegacyNumericUtils.getMinInt(terms);
-            long maxValue = LegacyNumericUtils.getMaxInt(terms);
+            long minValue = LegacyNumericUtils.getMinLong(terms);
+            long maxValue = LegacyNumericUtils.getMaxLong(terms);
             return new FieldStats.Long(
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
             );
@@ -185,29 +188,19 @@ public class ByteFieldMapper extends NumberFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.BYTE);
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
         }
     }
 
-    protected ByteFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    protected LegacyLongFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
-    public ByteFieldType fieldType() {
-        return (ByteFieldType) super.fieldType();
-    }
-
-    private static byte parseValue(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).byteValue();
-        }
-        if (value instanceof BytesRef) {
-            return Byte.parseByte(((BytesRef) value).utf8ToString());
-        }
-        return Byte.parseByte(value.toString());
+    public LongFieldType fieldType() {
+        return (LongFieldType) super.fieldType();
     }
 
     @Override
@@ -217,7 +210,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
 
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        byte value;
+        long value;
         float boost = fieldType().boost();
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
@@ -234,13 +227,13 @@ public class ByteFieldMapper extends NumberFieldMapper {
                     }
                     value = fieldType().nullValue();
                 } else {
-                    value = Byte.parseByte(sExternalValue);
+                    value = Long.parseLong(sExternalValue);
                 }
             } else {
-                value = ((Number) externalValue).byteValue();
+                value = ((Number) externalValue).longValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().name(), Byte.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Long.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -257,14 +250,14 @@ public class ByteFieldMapper extends NumberFieldMapper {
                     && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                Byte objValue = fieldType().nullValue();
+                Long objValue = fieldType().nullValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = (byte) parser.shortValue(coerce.value());
+                                objValue = parser.longValue(coerce.value());
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
@@ -279,14 +272,14 @@ public class ByteFieldMapper extends NumberFieldMapper {
                 }
                 value = objValue;
             } else {
-                value = (byte) parser.shortValue(coerce.value());
+                value = parser.longValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
             }
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomByteNumericField field = new CustomByteNumericField(value, fieldType());
+            CustomLongNumericField field = new CustomLongNumericField(value, fieldType());
             if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 field.setBoost(boost);
             }
@@ -306,7 +299,7 @@ public class ByteFieldMapper extends NumberFieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_8_BIT) {
+        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", fieldType().numericPrecisionStep());
         }
         if (includeDefaults || fieldType().nullValue() != null) {
@@ -319,11 +312,11 @@ public class ByteFieldMapper extends NumberFieldMapper {
         }
     }
 
-    public static class CustomByteNumericField extends CustomNumericField {
+    public static class CustomLongNumericField extends CustomNumericField {
 
-        private final byte number;
+        private final long number;
 
-        public CustomByteNumericField(byte number, MappedFieldType fieldType) {
+        public CustomLongNumericField(long number, MappedFieldType fieldType) {
             super(number, fieldType);
             this.number = number;
         }
@@ -331,14 +324,14 @@ public class ByteFieldMapper extends NumberFieldMapper {
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
             if (fieldType().indexOptions() != IndexOptions.NONE) {
-                return getCachedStream().setIntValue(number);
+                return getCachedStream().setLongValue(number);
             }
             return null;
         }
 
         @Override
         public String numericAsString() {
-            return Byte.toString(number);
+            return Long.toString(number);
         }
     }
 }

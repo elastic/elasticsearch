@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesTermsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseField;
@@ -43,11 +44,19 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     public static final String NAME = "parent_id";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
+    /**
+     * The default value for ignore_unmapped.
+     */
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField TYPE_FIELD = new ParseField("type", "child_type");
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String type;
     private final String id;
+
+    private boolean ignoreUnmapped = false;
 
     public ParentIdQueryBuilder(String type, String id) {
         this.type = type;
@@ -61,12 +70,14 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         super(in);
         type = in.readString();
         id = in.readString();
+        ignoreUnmapped = in.readBoolean();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(type);
         out.writeString(id);
+        out.writeBoolean(ignoreUnmapped);
     }
 
     public String getType() {
@@ -77,11 +88,31 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         return id;
     }
 
+    /**
+     * Sets whether the query builder should ignore unmapped types (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the type is unmapped.
+     */
+    public ParentIdQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Gets whether the query builder will ignore unmapped types (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the type is unmapped.
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(TYPE_FIELD.getPreferredName(), type);
         builder.field(ID_FIELD.getPreferredName(), id);
+        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -93,18 +124,21 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         String id = null;
         String queryName = null;
         String currentFieldName = null;
+        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     type = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ID_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ID_FIELD)) {
                     id = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                    ignoreUnmapped = parser.booleanValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[parent_id] query does not support [" + currentFieldName + "]");
@@ -116,6 +150,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         ParentIdQueryBuilder queryBuilder = new ParentIdQueryBuilder(type, id);
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
+        queryBuilder.ignoreUnmapped(ignoreUnmapped);
         return queryBuilder;
     }
 
@@ -124,7 +159,11 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     protected Query doToQuery(QueryShardContext context) throws IOException {
         DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
         if (childDocMapper == null) {
-            throw new QueryShardException(context, "[" + NAME + "] no mapping found for type [" + type + "]");
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "[" + NAME + "] no mapping found for type [" + type + "]");
+            }
         }
         ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
         if (parentFieldMapper.active() == false) {
@@ -141,12 +180,14 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
 
     @Override
     protected boolean doEquals(ParentIdQueryBuilder that) {
-        return Objects.equals(type, that.type) && Objects.equals(id, that.id);
+        return Objects.equals(type, that.type)
+                && Objects.equals(id, that.id)
+                && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(type, id);
+        return Objects.hash(type, id, ignoreUnmapped);
     }
 
     @Override

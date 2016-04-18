@@ -101,10 +101,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField PROFILE_FIELD = new ParseField("profile");
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
 
-    public static SearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers,
+    public static SearchSourceBuilder fromXContent(QueryParseContext context, AggregatorParsers aggParsers,
             Suggesters suggesters) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(parser, context, aggParsers, suggesters);
+        builder.parseXContent(context, aggParsers, suggesters);
         return builder;
     }
 
@@ -233,7 +233,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             int size = in.readVInt();
             scriptFields = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                scriptFields.add(ScriptField.PROTOTYPE.readFrom(in));
+                scriptFields.add(new ScriptField(in));
             }
         }
         size = in.readVInt();
@@ -252,7 +252,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             }
         }
         if (in.readBoolean()) {
-            suggestBuilder = SuggestBuilder.PROTOTYPE.readFrom(in);
+            suggestBuilder = new SuggestBuilder(in);
         }
         terminateAfter = in.readVInt();
         timeoutInMillis = in.readLong();
@@ -263,7 +263,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         profile = in.readBoolean();
         if (in.readBoolean()) {
-            searchAfterBuilder = SearchAfterBuilder.PROTOTYPE.readFrom(in);
+            searchAfterBuilder = new SearchAfterBuilder(in);
         }
     }
 
@@ -979,11 +979,12 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
      * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(XContentParser, QueryParseContext, AggregatorParsers, Suggesters)} if you have normal defaults.
+     * {@link #fromXContent(QueryParseContext, AggregatorParsers, Suggesters)} if you have normal defaults.
      */
-    public void parseXContent(XContentParser parser, QueryParseContext context, AggregatorParsers aggParsers, Suggesters suggesters)
+    public void parseXContent(QueryParseContext context, AggregatorParsers aggParsers, Suggesters suggesters)
         throws IOException {
 
+        XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -994,47 +995,47 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (context.parseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
                     from = parser.intValue();
-                } else if (context.parseFieldMatcher().match(currentFieldName, SIZE_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SIZE_FIELD)) {
                     size = parser.intValue();
-                } else if (context.parseFieldMatcher().match(currentFieldName, TIMEOUT_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, TIMEOUT_FIELD)) {
                     timeoutInMillis = parser.longValue();
-                } else if (context.parseFieldMatcher().match(currentFieldName, TERMINATE_AFTER_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, TERMINATE_AFTER_FIELD)) {
                     terminateAfter = parser.intValue();
-                } else if (context.parseFieldMatcher().match(currentFieldName, MIN_SCORE_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, MIN_SCORE_FIELD)) {
                     minScore = parser.floatValue();
-                } else if (context.parseFieldMatcher().match(currentFieldName, VERSION_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, VERSION_FIELD)) {
                     version = parser.booleanValue();
-                } else if (context.parseFieldMatcher().match(currentFieldName, EXPLAIN_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, EXPLAIN_FIELD)) {
                     explain = parser.booleanValue();
-                } else if (context.parseFieldMatcher().match(currentFieldName, TRACK_SCORES_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, TRACK_SCORES_FIELD)) {
                     trackScores = parser.booleanValue();
-                } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    fetchSourceContext = FetchSourceContext.parse(parser, context);
-                } else if (context.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
+                    fetchSourceContext = FetchSourceContext.parse(context);
+                } else if (context.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     field(parser.text());
-                } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     sort(parser.text());
-                } else if (context.parseFieldMatcher().match(currentFieldName, PROFILE_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, PROFILE_FIELD)) {
                     profile = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (context.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     queryBuilder = context.parseInnerQueryBuilder();
-                } else if (context.parseFieldMatcher().match(currentFieldName, POST_FILTER_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, POST_FILTER_FIELD)) {
                     postQueryBuilder = context.parseInnerQueryBuilder();
-                } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    fetchSourceContext = FetchSourceContext.parse(parser, context);
-                } else if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELDS_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
+                    fetchSourceContext = FetchSourceContext.parse(context);
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELDS_FIELD)) {
                     scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        scriptFields.add(new ScriptField(parser, context));
+                        scriptFields.add(new ScriptField(context));
                     }
-                } else if (context.parseFieldMatcher().match(currentFieldName, INDICES_BOOST_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, INDICES_BOOST_FIELD)) {
                     indexBoost = new ObjectFloatHashMap<String>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -1046,17 +1047,17 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     parser.getTokenLocation());
                         }
                     }
-                } else if (context.parseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)) {
-                    aggregations = aggParsers.parseAggregators(parser, context);
-                } else if (context.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)) {
+                    aggregations = aggParsers.parseAggregators(context);
+                } else if (context.getParseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
                     highlightBuilder = HighlightBuilder.fromXContent(context);
-                } else if (context.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
-                    innerHitsBuilder = InnerHitsBuilder.fromXContent(parser, context);
-                } else if (context.parseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
+                    innerHitsBuilder = InnerHitsBuilder.fromXContent(context);
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
                     suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
-                } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     sorts = new ArrayList<>(SortBuilder.fromXContent(context));
-                } else if (context.parseFieldMatcher().match(currentFieldName, EXT_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, EXT_FIELD)) {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                     ext = xContentBuilder.bytes();
                 } else {
@@ -1065,7 +1066,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
 
-                if (context.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     fieldNames = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -1075,7 +1076,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
-                } else if (context.parseFieldMatcher().match(currentFieldName, FIELDDATA_FIELDS_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, FIELDDATA_FIELDS_FIELD)) {
                     fieldDataFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -1085,14 +1086,14 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
-                } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     sorts = new ArrayList<>(SortBuilder.fromXContent(context));
-                } else if (context.parseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
                     rescoreBuilders = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         rescoreBuilders.add(RescoreBuilder.parseFromXContent(context));
                     }
-                } else if (context.parseFieldMatcher().match(currentFieldName, STATS_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, STATS_FIELD)) {
                     stats = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -1102,10 +1103,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
-                } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    fetchSourceContext = FetchSourceContext.parse(parser, context);
-                } else if (context.parseFieldMatcher().match(currentFieldName, SEARCH_AFTER)) {
-                    searchAfterBuilder = SearchAfterBuilder.PROTOTYPE.fromXContent(parser, context.parseFieldMatcher());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
+                    fetchSourceContext = FetchSourceContext.parse(context);
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SEARCH_AFTER)) {
+                    searchAfterBuilder = SearchAfterBuilder.fromXContent(parser, context.getParseFieldMatcher());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1264,15 +1265,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     public static class ScriptField implements Writeable<ScriptField>, ToXContent {
 
-        public static final ScriptField PROTOTYPE = new ScriptField((String) null, (Script) null);
-
         private final boolean ignoreFailure;
         private final String fieldName;
         private final Script script;
-
-        private ScriptField(String fieldName, Script script) {
-            this(fieldName, script, false);
-        }
 
         public ScriptField(String fieldName, Script script, boolean ignoreFailure) {
             this.fieldName = fieldName;
@@ -1280,8 +1275,25 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             this.ignoreFailure = ignoreFailure;
         }
 
-        public ScriptField(XContentParser parser, QueryParseContext context) throws IOException {
+        /**
+         * Read from a stream.
+         */
+        public ScriptField(StreamInput in) throws IOException {
+            fieldName = in.readString();
+            script = Script.readScript(in);
+            ignoreFailure = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(fieldName);
+            script.writeTo(out);
+            out.writeBoolean(ignoreFailure);
+        }
+
+        public ScriptField(QueryParseContext context) throws IOException {
             boolean ignoreFailure = false;
+            XContentParser parser = context.parser();
             String scriptFieldName = parser.currentName();
             Script script = null;
 
@@ -1293,17 +1305,17 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
-                        if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                            script = Script.parse(parser, context.parseFieldMatcher());
-                        } else if (context.parseFieldMatcher().match(currentFieldName, IGNORE_FAILURE_FIELD)) {
+                        if (context.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
+                            script = Script.parse(parser, context.getParseFieldMatcher());
+                        } else if (context.getParseFieldMatcher().match(currentFieldName, IGNORE_FAILURE_FIELD)) {
                             ignoreFailure = parser.booleanValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
                                     + "].", parser.getTokenLocation());
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                            script = Script.parse(parser, context.parseFieldMatcher());
+                        if (context.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
+                            script = Script.parse(parser, context.getParseFieldMatcher());
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
                                     + "].", parser.getTokenLocation());
@@ -1335,18 +1347,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
         @Override
-        public ScriptField readFrom(StreamInput in) throws IOException {
-            return new ScriptField(in.readString(), Script.readScript(in), in.readBoolean());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(fieldName);
-            script.writeTo(out);
-            out.writeBoolean(ignoreFailure);
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(fieldName);
             builder.field(SCRIPT_FIELD.getPreferredName(), script);
@@ -1375,6 +1375,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
     }
 
+    @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
                 highlightBuilder, indexBoost, innerHitsBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,

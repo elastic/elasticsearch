@@ -107,14 +107,12 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
     }
 
     @Override
-    public void doReadFrom(StreamInput in) throws IOException {
-        super.doReadFrom(in);
+    public void innerReadFrom(StreamInput in) throws IOException {
         percents = in.readDoubleArray();
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        super.doWriteTo(out);
+    public void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
     }
 

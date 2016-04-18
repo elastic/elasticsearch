@@ -16,18 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.io.stream;
 
-import java.io.IOException;
+package org.elasticsearch.common;
+
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 /**
- * Implementers can be read from {@linkplain StreamInput} by calling their {@link #readFrom(StreamInput)} method.
- *
- * Implementers of this interface that also implement {@link Writeable} should see advice there on how to do so.
+ * This interface should be implemented by classes like {@link QueryParseContext} or {@link QueryShardContext} that
+ * are able to carry a {@link ParseFieldMatcher}.
  */
-public interface StreamableReader<T> {
+@FunctionalInterface
+public interface ParseFieldMatcherSupplier {
+
     /**
-     * Reads an object of this type from the provided {@linkplain StreamInput}. The receiving instance remains unchanged.
+     * @return the parseFieldMatcher
      */
-    T readFrom(StreamInput in) throws IOException;
+    ParseFieldMatcher getParseFieldMatcher();
 }

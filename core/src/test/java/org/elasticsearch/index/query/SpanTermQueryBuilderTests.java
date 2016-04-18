@@ -26,12 +26,36 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTermQueryBuilder> {
+
+    @Override
+    protected SpanTermQueryBuilder doCreateTestQueryBuilder() {
+        String fieldName = null;
+        Object value;
+
+        if (randomBoolean()) {
+            fieldName = STRING_FIELD_NAME;
+        }
+        if (frequently()) {
+            value = randomAsciiOfLengthBetween(1, 10);
+        } else {
+            // generate unicode string in 10% of cases
+            JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+            value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
+        }
+
+        if (fieldName == null) {
+            fieldName = randomAsciiOfLengthBetween(1, 10);
+        }
+        return createQueryBuilder(fieldName, value);
+    }
 
     @Override
     protected SpanTermQueryBuilder createQueryBuilder(String fieldName, Object value) {

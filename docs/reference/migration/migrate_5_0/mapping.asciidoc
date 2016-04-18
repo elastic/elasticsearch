@@ -36,6 +36,46 @@ String mappings now have the following default mappings:
 This allows to perform full-text search on the original field name and to sort
 and run aggregations on the sub keyword field.
 
+==== Numeric fields
+
+Numeric fields are now indexed with a completely different data-structure, called
+BKD tree, that is expected to require less disk space and be faster for range
+queries than the previous way that numerics were indexed.
+
+Term queries will return constant scores now, while they used to return higher
+scores for rare terms due to the contribution of the document frequency, which
+this new BKD structure does not record. If scoring is needed, then it is advised
+to map the numeric fields as <<keyword,`keyword`s>> too.
+
+Note that this <<keyword,`keyword`>> mapping do not need to replace the numeric
+mapping. For instance if you need both sorting and scoring on your numeric field,
+you could map it both as a number and a `keyword` using <<multi-fields>>:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "my_number": {
+          "type": "long",
+          "fields": {
+            "keyword": {
+              "type":  "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Also the `precision_step` parameter is now irrelevant and will be rejected on
+indices that are created on or after 5.0.
+
 ==== `index` property
 
 On all field datatypes (except for the deprecated `string` field), the `index`

@@ -60,8 +60,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         long maxInt = Integer.MIN_VALUE;
         long minLong = Long.MAX_VALUE;
         long maxLong = Long.MIN_VALUE;
-        float minFloat = Float.MAX_VALUE;
-        float maxFloat = Float.MIN_VALUE;
+        double minFloat = Float.MAX_VALUE;
+        double maxFloat = Float.MIN_VALUE;
         double minDouble = Double.MAX_VALUE;
         double maxDouble = Double.MIN_VALUE;
         String minString = new String(Character.toChars(1114111));

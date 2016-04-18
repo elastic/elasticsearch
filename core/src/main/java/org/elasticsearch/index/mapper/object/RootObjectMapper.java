@@ -54,7 +54,7 @@ public class RootObjectMapper extends ObjectMapper {
     public static class Defaults {
         public static final FormatDateTimeFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
                 new FormatDateTimeFormatter[]{
-                        DateFieldMapper.Defaults.DATE_TIME_FORMATTER,
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                         Joda.getStrictStandardDateFormatter()
                 };
         public static final boolean DATE_DETECTION = true;

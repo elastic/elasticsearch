@@ -62,6 +62,49 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
     }
 
     /**
+     * Read from a stream.
+     */
+    protected AggregatorBuilder(StreamInput in, Type type) throws IOException {
+        name = in.readString();
+        this.type = type;
+        factoriesBuilder = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
+        metaData = in.readMap();
+    }
+
+    protected boolean usesNewStyleSerialization() { // NORELEASE remove this before 5.0.0GA, when all the aggregations have been migrated
+        return false;
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        if (false == usesNewStyleSerialization()) {
+            doWriteTo(out);
+        }
+        factoriesBuilder.writeTo(out);
+        out.writeMap(metaData);
+        if (usesNewStyleSerialization()) {
+            doWriteTo(out);
+        }
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    @Override
+    public final AB readFrom(StreamInput in) throws IOException {
+        // NORELEASE remove when all aggregations have StreamInput constructor
+        String name = in.readString();
+        AB factory = doReadFrom(name, in);
+        factory.factoriesBuilder = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
+        factory.metaData = in.readMap();
+        return factory;
+    }
+
+    protected AB doReadFrom(String name, StreamInput in) throws IOException {
+        throw new UnsupportedOperationException(); // NORELEASE remove before 5.0.0GA
+    }
+
+    /**
      * Add a sub aggregation to this aggregation.
      */
     @SuppressWarnings("unchecked")
@@ -125,27 +168,6 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
             AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
 
     @Override
-    public final AB readFrom(StreamInput in) throws IOException {
-        String name = in.readString();
-        AB factory = doReadFrom(name, in);
-        factory.factoriesBuilder = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
-        factory.metaData = in.readMap();
-        return factory;
-    }
-
-    protected abstract AB doReadFrom(String name, StreamInput in) throws IOException;
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        doWriteTo(out);
-        factoriesBuilder.writeTo(out);
-        out.writeMap(metaData);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
 
@@ -168,6 +190,8 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
 
     @Override
     public String getWriteableName() {
+        // NORELEASE remove this before 5.0.0GA - all builders will implement this method on their own.
+        assert usesNewStyleSerialization() == false: "migrated aggregations should just return their NAME";
         return type.stream().toUtf8();
     }
 

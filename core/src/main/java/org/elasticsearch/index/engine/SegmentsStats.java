@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,6 +41,7 @@ public class SegmentsStats implements Streamable, ToXContent {
     private long storedFieldsMemoryInBytes;
     private long termVectorsMemoryInBytes;
     private long normsMemoryInBytes;
+    private long pointsMemoryInBytes;
     private long docValuesMemoryInBytes;
     private long indexWriterMemoryInBytes;
     private long indexWriterMaxMemoryInBytes;
@@ -67,6 +67,8 @@ public class SegmentsStats implements Streamable, ToXContent {
             .fPut("pay", "Payloads")
             .fPut("nvd", "Norms")
             .fPut("nvm", "Norms")
+            .fPut("dii", "Points")
+            .fPut("dim", "Points")
             .fPut("dvd", "DocValues")
             .fPut("dvm", "DocValues")
             .fPut("tvx", "Term Vector Index")
@@ -96,6 +98,10 @@ public class SegmentsStats implements Streamable, ToXContent {
 
     public void addNormsMemoryInBytes(long normsMemoryInBytes) {
         this.normsMemoryInBytes += normsMemoryInBytes;
+    }
+
+    public void addPointsMemoryInBytes(long pointsMemoryInBytes) {
+        this.pointsMemoryInBytes += pointsMemoryInBytes;
     }
 
     public void addDocValuesMemoryInBytes(long docValuesMemoryInBytes) {
@@ -143,6 +149,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         addStoredFieldsMemoryInBytes(mergeStats.storedFieldsMemoryInBytes);
         addTermVectorsMemoryInBytes(mergeStats.termVectorsMemoryInBytes);
         addNormsMemoryInBytes(mergeStats.normsMemoryInBytes);
+        addPointsMemoryInBytes(mergeStats.pointsMemoryInBytes);
         addDocValuesMemoryInBytes(mergeStats.docValuesMemoryInBytes);
         addIndexWriterMemoryInBytes(mergeStats.indexWriterMemoryInBytes);
         addIndexWriterMaxMemoryInBytes(mergeStats.indexWriterMaxMemoryInBytes);
@@ -211,6 +218,17 @@ public class SegmentsStats implements Streamable, ToXContent {
 
     public ByteSizeValue getNormsMemory() {
         return new ByteSizeValue(normsMemoryInBytes);
+    }
+
+    /**
+     * Estimation of the points memory usage by a segment.
+     */
+    public long getPointsMemoryInBytes() {
+        return this.pointsMemoryInBytes;
+    }
+
+    public ByteSizeValue getPointsMemory() {
+        return new ByteSizeValue(pointsMemoryInBytes);
     }
 
     /**
@@ -287,6 +305,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.STORED_FIELDS_MEMORY_IN_BYTES, Fields.STORED_FIELDS_MEMORY, storedFieldsMemoryInBytes);
         builder.byteSizeField(Fields.TERM_VECTORS_MEMORY_IN_BYTES, Fields.TERM_VECTORS_MEMORY, termVectorsMemoryInBytes);
         builder.byteSizeField(Fields.NORMS_MEMORY_IN_BYTES, Fields.NORMS_MEMORY, normsMemoryInBytes);
+        builder.byteSizeField(Fields.POINTS_MEMORY_IN_BYTES, Fields.POINTS_MEMORY, pointsMemoryInBytes);
         builder.byteSizeField(Fields.DOC_VALUES_MEMORY_IN_BYTES, Fields.DOC_VALUES_MEMORY, docValuesMemoryInBytes);
         builder.byteSizeField(Fields.INDEX_WRITER_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MEMORY, indexWriterMemoryInBytes);
         builder.byteSizeField(Fields.INDEX_WRITER_MAX_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MAX_MEMORY, indexWriterMaxMemoryInBytes);
@@ -318,6 +337,8 @@ public class SegmentsStats implements Streamable, ToXContent {
         static final XContentBuilderString TERM_VECTORS_MEMORY_IN_BYTES = new XContentBuilderString("term_vectors_memory_in_bytes");
         static final XContentBuilderString NORMS_MEMORY = new XContentBuilderString("norms_memory");
         static final XContentBuilderString NORMS_MEMORY_IN_BYTES = new XContentBuilderString("norms_memory_in_bytes");
+        static final XContentBuilderString POINTS_MEMORY = new XContentBuilderString("points_memory");
+        static final XContentBuilderString POINTS_MEMORY_IN_BYTES = new XContentBuilderString("points_memory_in_bytes");
         static final XContentBuilderString DOC_VALUES_MEMORY = new XContentBuilderString("doc_values_memory");
         static final XContentBuilderString DOC_VALUES_MEMORY_IN_BYTES = new XContentBuilderString("doc_values_memory_in_bytes");
         static final XContentBuilderString INDEX_WRITER_MEMORY = new XContentBuilderString("index_writer_memory");
@@ -342,24 +363,21 @@ public class SegmentsStats implements Streamable, ToXContent {
         storedFieldsMemoryInBytes = in.readLong();
         termVectorsMemoryInBytes = in.readLong();
         normsMemoryInBytes = in.readLong();
+        pointsMemoryInBytes = in.readLong();
         docValuesMemoryInBytes = in.readLong();
         indexWriterMemoryInBytes = in.readLong();
         versionMapMemoryInBytes = in.readLong();
         indexWriterMaxMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
 
-        if (in.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
-            int size = in.readVInt();
-            ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(size);
-            for (int i = 0; i < size; i++) {
-                String key = in.readString();
-                Long value = in.readLong();
-                map.put(key, value);
-            }
-            fileSizes = map.build();
-        } else {
-            fileSizes = ImmutableOpenMap.of();
+        int size = in.readVInt();
+        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(size);
+        for (int i = 0; i < size; i++) {
+            String key = in.readString();
+            Long value = in.readLong();
+            map.put(key, value);
         }
+        fileSizes = map.build();
     }
 
     @Override
@@ -370,19 +388,18 @@ public class SegmentsStats implements Streamable, ToXContent {
         out.writeLong(storedFieldsMemoryInBytes);
         out.writeLong(termVectorsMemoryInBytes);
         out.writeLong(normsMemoryInBytes);
+        out.writeLong(pointsMemoryInBytes);
         out.writeLong(docValuesMemoryInBytes);
         out.writeLong(indexWriterMemoryInBytes);
         out.writeLong(versionMapMemoryInBytes);
         out.writeLong(indexWriterMaxMemoryInBytes);
         out.writeLong(bitsetMemoryInBytes);
 
-        if (out.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
-            out.writeVInt(fileSizes.size());
-            for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
-                ObjectObjectCursor<String, Long> entry = it.next();
-                out.writeString(entry.key);
-                out.writeLong(entry.value);
-            }
+        out.writeVInt(fileSizes.size());
+        for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
+            ObjectObjectCursor<String, Long> entry = it.next();
+            out.writeString(entry.key);
+            out.writeLong(entry.value);
         }
     }
 }

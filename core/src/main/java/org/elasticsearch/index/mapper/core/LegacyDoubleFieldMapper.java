@@ -35,7 +35,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,59 +53,62 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeDoubleValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 /**
  *
  */
-public class FloatFieldMapper extends NumberFieldMapper {
+public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
 
-    public static final String CONTENT_TYPE = "float";
+    public static final String CONTENT_TYPE = "double";
 
-    public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final MappedFieldType FIELD_TYPE = new FloatFieldType();
+    public static class Defaults extends LegacyNumberFieldMapper.Defaults {
+        public static final MappedFieldType FIELD_TYPE = new DoubleFieldType();
 
         static {
             FIELD_TYPE.freeze();
         }
     }
 
-    public static class Builder extends NumberFieldMapper.Builder<Builder, FloatFieldMapper> {
+    public static class Builder extends LegacyNumberFieldMapper.Builder<Builder, LegacyDoubleFieldMapper> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_32_BIT);
+            super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_64_BIT);
             builder = this;
         }
 
         @Override
-        public FloatFieldMapper build(BuilderContext context) {
+        public LegacyDoubleFieldMapper build(BuilderContext context) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+                throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
+            }
             setupFieldType(context);
-            FloatFieldMapper fieldMapper = new FloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
+            LegacyDoubleFieldMapper fieldMapper = new LegacyDoubleFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (FloatFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return (LegacyDoubleFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override
         protected int maxPrecisionStep() {
-            return 32;
+            return 64;
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FloatFieldMapper.Builder builder = new FloatFieldMapper.Builder(name);
+            LegacyDoubleFieldMapper.Builder builder = new LegacyDoubleFieldMapper.Builder(name);
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
-                if (propName.equals("null_value")) {
+                if (propName.equals("nullValue") || propName.equals("null_value")) {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(nodeFloatValue(propNode));
+                    builder.nullValue(nodeDoubleValue(propNode));
                     iterator.remove();
                 }
             }
@@ -114,19 +116,19 @@ public class FloatFieldMapper extends NumberFieldMapper {
         }
     }
 
-    static final class FloatFieldType extends NumberFieldType {
+    public static final class DoubleFieldType extends NumberFieldType {
 
-        public FloatFieldType() {
-            super(LegacyNumericType.FLOAT);
+        public DoubleFieldType() {
+            super(LegacyNumericType.DOUBLE);
         }
 
-        protected FloatFieldType(FloatFieldType ref) {
+        protected DoubleFieldType(DoubleFieldType ref) {
             super(ref);
         }
 
         @Override
         public NumberFieldType clone() {
-            return new FloatFieldType(this);
+            return new DoubleFieldType(this);
         }
 
         @Override
@@ -135,31 +137,45 @@ public class FloatFieldMapper extends NumberFieldMapper {
         }
 
         @Override
-        public Float nullValue() {
-            return (Float)super.nullValue();
+        public Double nullValue() {
+            return (Double)super.nullValue();
+        }
+
+        @Override
+        public Double valueForSearch(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof Number) {
+                return ((Number) value).doubleValue();
+            }
+            if (value instanceof BytesRef) {
+                return Numbers.bytesToDouble((BytesRef) value);
+            }
+            return Double.parseDouble(value.toString());
         }
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
-            int intValue = NumericUtils.floatToSortableInt(parseValue(value));
+            long longValue = NumericUtils.doubleToSortableLong(parseDoubleValue(value));
             BytesRefBuilder bytesRef = new BytesRefBuilder();
-            LegacyNumericUtils.intToPrefixCoded(intValue, 0, bytesRef);   // 0 because of exact match
+            LegacyNumericUtils.longToPrefixCoded(longValue, 0, bytesRef);   // 0 because of exact match
             return bytesRef.get();
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return LegacyNumericRangeQuery.newFloatRange(name(), numericPrecisionStep(),
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
+            return LegacyNumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
+                lowerTerm == null ? null : parseDoubleValue(lowerTerm),
+                upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper);
         }
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            float iValue = parseValue(value);
-            final float iSim = fuzziness.asFloat();
-            return LegacyNumericRangeQuery.newFloatRange(name(), numericPrecisionStep(),
+            double iValue = parseDoubleValue(value);
+            double iSim = fuzziness.asDouble();
+            return LegacyNumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
@@ -172,9 +188,9 @@ public class FloatFieldMapper extends NumberFieldMapper {
             if (terms == null) {
                 return null;
             }
-            float minValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMinInt(terms));
-            float maxValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMaxInt(terms));
-            return new FieldStats.Float(
+            double minValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMinLong(terms));
+            double maxValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMaxLong(terms));
+            return new FieldStats.Double(
                 maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
             );
         }
@@ -182,29 +198,18 @@ public class FloatFieldMapper extends NumberFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.FLOAT);
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.DOUBLE);
         }
     }
 
-    protected FloatFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    protected LegacyDoubleFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Explicit<Boolean> ignoreMalformed,
+                                Explicit<Boolean> coerce, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
     }
 
     @Override
-    public FloatFieldType fieldType() {
-        return (FloatFieldType) super.fieldType();
-    }
-
-    private static float parseValue(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).floatValue();
-        }
-        if (value instanceof BytesRef) {
-            return Float.parseFloat(((BytesRef) value).utf8ToString());
-        }
-        return Float.parseFloat(value.toString());
+    public DoubleFieldType fieldType() {
+        return (DoubleFieldType) super.fieldType();
     }
 
     @Override
@@ -214,7 +219,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
 
     @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        float value;
+        double value;
         float boost = fieldType().boost();
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
@@ -231,13 +236,13 @@ public class FloatFieldMapper extends NumberFieldMapper {
                     }
                     value = fieldType().nullValue();
                 } else {
-                    value = Float.parseFloat(sExternalValue);
+                    value = Double.parseDouble(sExternalValue);
                 }
             } else {
-                value = ((Number) externalValue).floatValue();
+                value = ((Number) externalValue).doubleValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().name(), Float.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), Double.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -254,14 +259,14 @@ public class FloatFieldMapper extends NumberFieldMapper {
                     && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                Float objValue = fieldType().nullValue();
+                Double objValue = fieldType().nullValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.floatValue(coerce.value());
+                                objValue = parser.doubleValue(coerce.value());
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
@@ -276,7 +281,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
                 }
                 value = objValue;
             } else {
-                value = parser.floatValue(coerce.value());
+                value = parser.doubleValue(coerce.value());
                 if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(fieldType().name(), parser.text(), boost);
                 }
@@ -284,14 +289,14 @@ public class FloatFieldMapper extends NumberFieldMapper {
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomFloatNumericField field = new CustomFloatNumericField(value, fieldType());
+            CustomDoubleNumericField field = new CustomDoubleNumericField(value, fieldType());
             if (boost != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 field.setBoost(boost);
             }
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            addDocValue(context, fields, NumericUtils.floatToSortableInt(value));
+            addDocValue(context, fields, NumericUtils.doubleToSortableLong(value));
         }
     }
 
@@ -304,7 +309,7 @@ public class FloatFieldMapper extends NumberFieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_32_BIT) {
+        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", fieldType().numericPrecisionStep());
         }
         if (includeDefaults || fieldType().nullValue() != null) {
@@ -318,11 +323,11 @@ public class FloatFieldMapper extends NumberFieldMapper {
 
     }
 
-    public static class CustomFloatNumericField extends CustomNumericField {
+    public static class CustomDoubleNumericField extends CustomNumericField {
 
-        private final float number;
+        private final double number;
 
-        public CustomFloatNumericField(float number, NumberFieldType fieldType) {
+        public CustomDoubleNumericField(double number, NumberFieldType fieldType) {
             super(number, fieldType);
             this.number = number;
         }
@@ -330,14 +335,15 @@ public class FloatFieldMapper extends NumberFieldMapper {
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
             if (fieldType().indexOptions() != IndexOptions.NONE) {
-                return getCachedStream().setFloatValue(number);
+                return getCachedStream().setDoubleValue(number);
             }
             return null;
         }
 
         @Override
         public String numericAsString() {
-            return Float.toString(number);
+            return Double.toString(number);
         }
     }
+
 }

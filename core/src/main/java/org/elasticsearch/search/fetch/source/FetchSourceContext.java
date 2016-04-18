@@ -50,9 +50,9 @@ public class FetchSourceContext implements Streamable, ToXContent {
     private String[] includes;
     private String[] excludes;
 
-    public static FetchSourceContext parse(XContentParser parser, QueryParseContext context) throws IOException {
+    public static FetchSourceContext parse(QueryParseContext context) throws IOException {
         FetchSourceContext fetchSourceContext = new FetchSourceContext();
-        fetchSourceContext.fromXContent(parser, context);
+        fetchSourceContext.fromXContent(context);
         return fetchSourceContext;
     }
 
@@ -147,7 +147,8 @@ public class FetchSourceContext implements Streamable, ToXContent {
         return null;
     }
 
-    public void fromXContent(XContentParser parser, QueryParseContext context) throws IOException {
+    public void fromXContent(QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;
@@ -168,7 +169,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (context.parseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
+                    if (context.getParseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
                         List<String> includesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -179,7 +180,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
                             }
                         }
                         includes = includesList.toArray(new String[includesList.size()]);
-                    } else if (context.parseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
+                    } else if (context.getParseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
                         List<String> excludesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -195,9 +196,9 @@ public class FetchSourceContext implements Streamable, ToXContent {
                                 parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (context.parseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
+                    if (context.getParseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
                         includes = new String[] {parser.text()};
-                    } else if (context.parseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
+                    } else if (context.getParseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
                         excludes = new String[] {parser.text()};
                     }
                 } else {

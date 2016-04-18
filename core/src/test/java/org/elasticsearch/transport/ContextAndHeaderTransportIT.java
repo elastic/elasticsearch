@@ -133,7 +133,8 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
             .setSource(jsonBuilder().startObject().field("username", "foo").endObject()).get();
         transportClient().admin().indices().prepareRefresh(queryIndex, lookupIndex).get();
 
-        TermsQueryBuilder termsLookupFilterBuilder = QueryBuilders.termsLookupQuery("username", new TermsLookup(lookupIndex, "type", "1", "followers"));
+        TermsLookup termsLookup = new TermsLookup(lookupIndex, "type", "1", "followers");
+        TermsQueryBuilder termsLookupFilterBuilder = QueryBuilders.termsLookupQuery("username", termsLookup);
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(termsLookupFilterBuilder);
 
         SearchResponse searchResponse = transportClient()
@@ -219,7 +220,9 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
     public void testThatPercolatingExistingDocumentGetRequestContainsContextAndHeaders() throws Exception {
         Client client = transportClient();
         client.prepareIndex(lookupIndex, ".percolator", "1")
-            .setSource(jsonBuilder().startObject().startObject("query").startObject("match").field("name", "star wars").endObject().endObject().endObject())
+            .setSource(
+                jsonBuilder()
+                    .startObject().startObject("query").startObject("match").field("name", "star wars").endObject().endObject().endObject())
             .get();
         client.prepareIndex(lookupIndex, "type", "1")
             .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())

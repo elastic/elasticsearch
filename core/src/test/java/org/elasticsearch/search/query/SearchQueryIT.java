@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -1773,7 +1774,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         //has_child fails if executed on "simple" index
         try {
             client().prepareSearch("simple")
-                    .setQuery(hasChildQuery("child", matchQuery("text", "value"))).get();
+                    .setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get();
             fail("Should have failed as has_child query can only be executed against parent-child types");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.shardFailures().length, greaterThan(0));
@@ -1784,7 +1785,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         //has_child doesn't get parsed for "simple" index
         SearchResponse searchResponse = client().prepareSearch("related", "simple")
-                .setQuery(indicesQuery(hasChildQuery("child", matchQuery("text", "value2")), "related")
+                .setQuery(indicesQuery(hasChildQuery("child", matchQuery("text", "value2"), ScoreMode.None), "related")
                         .noMatchQuery(matchQuery("text", "value1"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "2");

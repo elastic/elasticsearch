@@ -47,7 +47,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.endArray();
         sortBuilder.field("order", "desc");
         sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
+        sortBuilder.field("mode", "max");
         sortBuilder.endObject();
         parse(context, sortBuilder);
 
@@ -58,7 +58,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.endArray();
         sortBuilder.field("order", "desc");
         sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
+        sortBuilder.field("mode", "max");
         sortBuilder.endObject();
         parse(context, sortBuilder);
 
@@ -69,7 +69,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.endArray();
         sortBuilder.field("order", "desc");
         sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
+        sortBuilder.field("mode", "max");
         sortBuilder.endObject();
         parse(context, sortBuilder);
 
@@ -80,7 +80,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.endArray();
         sortBuilder.field("order", "desc");
         sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
+        sortBuilder.field("mode", "max");
         sortBuilder.endObject();
         parse(context, sortBuilder);
 
@@ -91,7 +91,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.endArray();
         sortBuilder.field("order", "desc");
         sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
+        sortBuilder.field("mode", "max");
         sortBuilder.endObject();
         parse(context, sortBuilder);
 
@@ -100,7 +100,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.field("location", new GeoPoint(1, 2));
         sortBuilder.field("order", "desc");
         sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
+        sortBuilder.field("mode", "max");
         sortBuilder.endObject();
         parse(context, sortBuilder);
 
@@ -109,7 +109,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.field("location", "1,2");
         sortBuilder.field("order", "desc");
         sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
+        sortBuilder.field("mode", "max");
         sortBuilder.endObject();
         parse(context, sortBuilder);
 
@@ -118,7 +118,7 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.field("location", "s3y0zh7w1z0g");
         sortBuilder.field("order", "desc");
         sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
+        sortBuilder.field("mode", "max");
         sortBuilder.endObject();
         parse(context, sortBuilder);
 
@@ -129,16 +129,36 @@ public class SortParserTests extends ESSingleNodeTestCase {
         sortBuilder.endArray();
         sortBuilder.field("order", "desc");
         sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
+        sortBuilder.field("mode", "max");
         sortBuilder.endObject();
         parse(context, sortBuilder);
+    }
+
+    public void testGeoDistanceSortDeprecatedSortModeException() throws Exception {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject().startObject("type").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject().endObject();
+        IndexService indexService = createIndex("testidx", Settings.builder().build(), "type", mapping);
+        TestSearchContext context = (TestSearchContext) createSearchContext(indexService);
+        context.getQueryShardContext().setTypes("type");
+
+        XContentBuilder sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.startArray().value(1.2).value(3).endArray().startArray().value(5).value(6).endArray();
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parse(context, sortBuilder));
+        assertEquals("Deprecated field [sort_mode] used, expected [mode] instead", ex.getMessage());
     }
 
     protected void parse(TestSearchContext context, XContentBuilder sortBuilder) throws Exception {
         QueryParseContext parseContext = context.getQueryShardContext().parseContext();
         XContentParser parser = XContentHelper.createParser(sortBuilder.bytes());
-        parser.setParseFieldMatcher(ParseFieldMatcher.STRICT);
         parseContext.reset(parser);
+        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         parser.nextToken();
         GeoDistanceSortBuilder.fromXContent(parseContext, null);
     }

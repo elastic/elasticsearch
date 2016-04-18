@@ -37,9 +37,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.string.SimpleStringMappingTests;
 import org.elasticsearch.plugins.Plugin;
@@ -58,62 +58,13 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class SimpleNumericTests extends ESSingleNodeTestCase {
+public class LegacyNumericTests extends ESSingleNodeTestCase {
+
+    private static final Settings BW_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build();
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
-    }
-
-    public void testNumericDetectionEnabled() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .field("numeric_detection", true)
-                .endObject().endObject().string();
-
-        IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
-        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
-
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("s_long", "100")
-                .field("s_double", "100.0")
-                .endObject()
-                .bytes());
-        assertNotNull(doc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
-
-        defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
-        assertThat(mapper, instanceOf(LongFieldMapper.class));
-
-        mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
-        assertThat(mapper, instanceOf(FloatFieldMapper.class));
-    }
-
-    public void testNumericDetectionDefault() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject().string();
-
-        IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
-        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
-
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("s_long", "100")
-                .field("s_double", "100.0")
-                .endObject()
-                .bytes());
-        assertNotNull(doc.dynamicMappingsUpdate());
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get());
-
-        defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
-        assertThat(mapper, instanceOf(TextFieldMapper.class));
-
-        mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
-        assertThat(mapper, instanceOf(TextFieldMapper.class));
     }
 
     public void testIgnoreMalformedOption() throws Exception {
@@ -158,7 +109,9 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         }
 
         // Unless the global ignore_malformed option is set to true
-        Settings indexSettings = Settings.builder().put("index.mapping.ignore_malformed", true).build();
+        Settings indexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0)
+                .put("index.mapping.ignore_malformed", true).build();
         defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -182,7 +135,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
     public void testCoerceOption() throws Exception {
         String [] nonFractionNumericFieldTypes={"integer","long","short"};
         //Test co-ercion policies on all non-fraction numerics
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser();
         for (String nonFractionNumericFieldType : nonFractionNumericFieldTypes) {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                     .startObject("properties")
@@ -277,7 +230,6 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         }
     }
 
-
     public void testDocValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -286,44 +238,6 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .startObject("int2")
                     .field("type", "integer")
-                    .field("index", false)
-                .endObject()
-                .startObject("double1")
-                    .field("type", "double")
-                .endObject()
-                .startObject("double2")
-                    .field("type", "integer")
-                    .field("index", false)
-                .endObject()
-                .endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("int1", "1234")
-                .field("double1", "1234")
-                .field("int2", "1234")
-                .field("double2", "1234")
-                .endObject()
-                .bytes());
-        Document doc = parsedDoc.rootDoc();
-        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int1"));
-        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double1"));
-        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int2"));
-        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double2"));
-
-    }
-
-    public void testBwCompatDocValues() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                .startObject("int1")
-                    .field("type", "integer")
-                .endObject()
-                .startObject("int2")
-                    .field("type", "integer")
                     .field("index", "no")
                 .endObject()
                 .startObject("double1")
@@ -336,8 +250,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_2_0).build();
-        DocumentMapper defaultMapper = createIndex("test", oldIndexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -368,7 +281,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertEquals("{\"type\":{\"properties\":{\"double\":{\"type\":\"double\",\"index\":false},\"int\":{\"type\":\"integer\",\"index\":false}}}}",
                 defaultMapper.mapping().toString());
@@ -427,7 +340,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument parsedDoc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -459,7 +372,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .field("date_detection", true)
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -472,10 +385,10 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         assertEquals(1, doc.docs().size());
         Document luceneDoc = doc.docs().get(0);
 
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("long"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("long"));
         assertThat(luceneDoc.getField("double").numericValue(), instanceOf(Float.class));
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_32_BIT, luceneDoc.getField("double"));
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("date"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_32_BIT, luceneDoc.getField("double"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("date"));
     }
 
     /** Test default precision step for numeric types */
@@ -510,7 +423,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -528,16 +441,16 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         assertEquals(1, doc.docs().size());
         Document luceneDoc = doc.docs().get(0);
 
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("long"));
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("double"));
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("date"));
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("ip"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("long"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("double"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("date"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("ip"));
 
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_32_BIT, luceneDoc.getField("int"));
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_32_BIT, luceneDoc.getField("float"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_32_BIT, luceneDoc.getField("int"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_32_BIT, luceneDoc.getField("float"));
 
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_16_BIT, luceneDoc.getField("short"));
-        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_8_BIT,  luceneDoc.getField("byte"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_16_BIT, luceneDoc.getField("short"));
+        assertPrecisionStepEquals(LegacyNumberFieldMapper.Defaults.PRECISION_STEP_8_BIT,  luceneDoc.getField("byte"));
     }
 
     /** Test precision step set to silly explicit values */
@@ -580,7 +493,7 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper mapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -681,21 +594,6 @@ public class SimpleNumericTests extends ESSingleNodeTestCase {
         parser.parse("type", new CompressedXContent(mappingWithTV)); // no exception
     }
 
-    public void testRejectNorms() throws IOException {
-        // not supported as of 5.0
-        for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {
-            DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                    .startObject("foo")
-                        .field("type", type)
-                        .field("norms", random().nextBoolean())
-                    .endObject()
-                .endObject().endObject().endObject().string();
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
-            assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [norms"));
-        }
-    }
 
     public void testIgnoreFielddata() throws IOException {
         for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {

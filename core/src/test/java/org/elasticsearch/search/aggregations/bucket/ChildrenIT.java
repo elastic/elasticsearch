@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -319,7 +320,7 @@ children("non-existing", "xyz")
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch(indexName).setTypes(masterType)
-                .setQuery(hasChildQuery(childType, termQuery("color", "orange")))
+                .setQuery(hasChildQuery(childType, termQuery("color", "orange"), ScoreMode.None))
 .addAggregation(children("my-refinements", childType)
                                 .subAggregation(terms("my-colors").field("color"))
                                 .subAggregation(terms("my-sizes").field("size"))

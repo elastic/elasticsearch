@@ -31,21 +31,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.WritableTestCase;
-import org.elasticsearch.search.suggest.phrase.Laplace;
-import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.search.suggest.phrase.StupidBackoff;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilderTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map.Entry;
 
 public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
@@ -134,7 +126,7 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
 
     @Override
     protected SuggestBuilder readFrom(StreamInput in) throws IOException {
-        return SuggestBuilder.PROTOTYPE.readFrom(in);
+        return new SuggestBuilder(in);
     }
 
     public static SuggestBuilder randomSuggestBuilder() {

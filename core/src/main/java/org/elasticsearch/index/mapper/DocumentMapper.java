@@ -353,10 +353,6 @@ public class DocumentMapper implements ToXContent {
         return new DocumentMapper(mapperService, updated);
     }
 
-    public void close() {
-        documentParser.close();
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return mapping.toXContent(builder, params);

@@ -34,7 +34,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_ttl";
     public static final String CONTENT_TYPE = "_ttl";
 
-    public static class Defaults extends LongFieldMapper.Defaults {
+    public static class Defaults extends LegacyLongFieldMapper.Defaults {
         public static final String NAME = TTLFieldMapper.CONTENT_TYPE;
 
         public static final TTLFieldType TTL_FIELD_TYPE = new TTLFieldType();
@@ -127,7 +127,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final class TTLFieldType extends LongFieldMapper.LongFieldType {
+    public static final class TTLFieldType extends LegacyLongFieldMapper.LongFieldType {
 
         public TTLFieldType() {
         }
@@ -226,7 +226,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
                     throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
                 }
                 // the expiration timestamp (timestamp + ttl) is set as field
-                fields.add(new LongFieldMapper.CustomLongNumericField(expire, fieldType()));
+                fields.add(new LegacyLongFieldMapper.CustomLongNumericField(expire, fieldType()));
             }
         }
     }

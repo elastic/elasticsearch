@@ -93,7 +93,7 @@ import java.util.Map;
  * <h1>Debugging Security</h1>
  * A good place to start when there is a problem is to turn on security debugging:
  * <pre>
- * JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
+ * ES_JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
  * </pre>
  * <p>
  * When running tests you have to pass it to the test runner like this:

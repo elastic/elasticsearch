@@ -53,3 +53,36 @@
       update_by_query:
         index: test
         requests_per_second: ''
+
+---
+"update_by_query without source gives useful error message":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            test:
+              _source:
+                enabled: false
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     1
+        body:   { age: 23 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /\[test\]\[test\]\[1\] didn't store _source/
+      update_by_query:
+        index: test
+
+---
+"source fields may not be modified":
+  - do:
+      catch: /fields is not supported in this context/
+      update_by_query:
+        index: test
+        body:
+          fields: [_id]

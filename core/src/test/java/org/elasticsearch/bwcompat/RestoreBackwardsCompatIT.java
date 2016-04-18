@@ -95,14 +95,12 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
 
         SortedSet<String> expectedVersions = new TreeSet<>();
-        for (java.lang.reflect.Field field : Version.class.getFields()) {
-            if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
-                Version v = (Version) field.get(Version.class);
-                if (VersionUtils.isSnapshot(v)) continue;
-                if (v.onOrBefore(Version.V_2_0_0_beta1)) continue;
-                if (v.equals(Version.CURRENT)) continue;
-                expectedVersions.add(v.toString());
-            }
+        for (Version v : VersionUtils.allVersions()) {
+            if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
+            if (v.isAlpha()) continue; // no guarantees for alpha releases
+            if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
+            if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
+            expectedVersions.add(v.toString());
         }
 
         for (String repoVersion : repoVersions) {

@@ -20,6 +20,8 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
@@ -38,6 +40,8 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
 
@@ -82,12 +86,16 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
      */
     @Override
     protected NestedQueryBuilder doCreateTestQueryBuilder() {
-        return new NestedQueryBuilder("nested1", RandomQueryBuilder.createQuery(random()),
-                RandomPicks.randomFrom(random(), ScoreMode.values()),
-                SearchContext.current() == null ? null : new InnerHitBuilder()
-                        .setName(randomAsciiOfLengthBetween(1, 10))
-                        .setSize(randomIntBetween(0, 100))
-                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME).order(SortOrder.ASC)));
+        NestedQueryBuilder nqb = new NestedQueryBuilder("nested1", RandomQueryBuilder.createQuery(random()),
+                RandomPicks.randomFrom(random(), ScoreMode.values()));
+        if (SearchContext.current() != null) {
+            nqb.innerHit(new InnerHitBuilder()
+                    .setName(randomAsciiOfLengthBetween(1, 10))
+                    .setSize(randomIntBetween(0, 100))
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME).order(SortOrder.ASC)));
+        }
+        nqb.ignoreUnmapped(randomBoolean());
+        return nqb;
     }
 
     @Override
@@ -117,27 +125,16 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testValidate() {
-        try {
-            new NestedQueryBuilder(null, EmptyQueryBuilder.PROTOTYPE);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        QueryBuilder<?> innerQuery = RandomQueryBuilder.createQuery(random());
+        IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> QueryBuilders.nestedQuery(null, innerQuery, ScoreMode.Avg));
+        assertThat(e.getMessage(), equalTo("[nested] requires 'path' field"));
 
-        try {
-            new NestedQueryBuilder("path", null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> QueryBuilders.nestedQuery("foo", null, ScoreMode.Avg));
+        assertThat(e.getMessage(), equalTo("[nested] requires 'query' field"));
 
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", EmptyQueryBuilder.PROTOTYPE);
-        try {
-            nestedQueryBuilder.scoreMode(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> QueryBuilders.nestedQuery("foo", innerQuery, null));
+        assertThat(e.getMessage(), equalTo("[nested] requires 'score_mode' field"));
     }
 
     public void testFromJson() throws IOException {
@@ -176,6 +173,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 "      }\n" +
                 "    },\n" +
                 "    \"path\" : \"obj1\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"score_mode\" : \"avg\",\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
@@ -185,5 +183,18 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, ScoreMode.Avg, parsed.scoreMode());
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        final NestedQueryBuilder queryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(queryShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final NestedQueryBuilder failingQueryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
+        failingQueryBuilder.ignoreUnmapped(false);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        assertThat(e.getMessage(), containsString("[" + NestedQueryBuilder.NAME + "] failed to find nested object under path [unmapped]"));
     }
 }

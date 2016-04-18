@@ -26,6 +26,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -126,15 +127,18 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         switch (queryBuilder.type()) {
         case BOOLEAN:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(LegacyNumericRangeQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
+                    .or(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
             break;
         case PHRASE:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(LegacyNumericRangeQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
+                    .or(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
             break;
         case PHRASE_PREFIX:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(LegacyNumericRangeQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
+                    .or(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
             break;
         }
 
@@ -213,6 +217,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
             assertEquals(value - width, numericRangeQuery.getMin().doubleValue(), width * .1);
             assertEquals(value + width, numericRangeQuery.getMax().doubleValue(), width * .1);
+        }
+
+        if (query instanceof PointRangeQuery) {
+            // TODO
         }
     }
 

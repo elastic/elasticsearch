@@ -40,7 +40,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper.DoubleFieldType;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper.Nested;
 import org.elasticsearch.index.query.QueryParseContext;

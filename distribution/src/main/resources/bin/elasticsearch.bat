@@ -6,6 +6,7 @@ TITLE Elasticsearch ${project.version}
 SET params='%*'
 
 rem TODO: remove for Elasticsearch 6.x
+set bad_env_var=0
 if not "%ES_MIN_MEM%" == "" set bad_env_var=1
 if not "%ES_MAX_MEM%" == "" set bad_env_var=1
 if not "%ES_HEAP_SIZE%" == "" set bad_env_var=1

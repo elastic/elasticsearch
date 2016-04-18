@@ -55,6 +55,12 @@ The `score_mode` allows to set how inner children matching affects
 scoring of parent. It defaults to `avg`, but can be `sum`, `min`,
 `max` and `none`.
 
+There is also an `ignore_unmapped` option which, when set to `true` will
+ignore an unmapped `path` and will not match any documents for this query.
+This can be useful when querying multiple indexes which might have different
+mappings. When set to `false` (the default value) the query will throw an
+exception if the `path` is not mapped.
+
 Multi level nesting is automatically supported, and detected, resulting
 in an inner nested query to automatically match the relevant nesting
 level (and not root) if it exists within another nested query.

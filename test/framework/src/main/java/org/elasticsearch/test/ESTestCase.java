@@ -76,6 +76,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -596,6 +597,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    /**
+     * Builds a set of unique items. Usually you'll get the requested count but you might get less than that number if the supplier returns
+     * lots of repeats. Make sure that the items properly implement equals and hashcode.
+     */
+    public static <T> Set<T> randomUnique(Supplier<T> supplier, int targetCount) {
+        Set<T> things = new HashSet<>();
+        int maxTries = targetCount * 10;
+        for (int t = 0; t < maxTries; t++) {
+            if (things.size() == targetCount) {
+                return things;
+            }
+            things.add(supplier.get());
+        }
+        // Oh well, we didn't get enough unique things. It'll be ok.
+        return things;
     }
 
     /**

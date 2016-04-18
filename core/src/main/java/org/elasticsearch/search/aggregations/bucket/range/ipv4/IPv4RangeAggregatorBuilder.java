@@ -40,16 +40,23 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAggregatorBuilder, IPv4RangeAggregatorBuilder.Range> {
-
-    static final IPv4RangeAggregatorBuilder PROTOTYPE = new IPv4RangeAggregatorBuilder("");
+    public static final String NAME = InternalIPv4Range.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public IPv4RangeAggregatorBuilder(String name) {
         super(name, InternalIPv4Range.FACTORY);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public IPv4RangeAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalIPv4Range.FACTORY, Range.PROTOTYPE::readFrom);
+    }
+
     @Override
     public String getWriteableName() {
-        return InternalIPv4Range.TYPE.name();
+        return NAME;
     }
 
     /**
@@ -130,16 +137,6 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new Ipv4RangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
-    }
-
-    @Override
-    protected IPv4RangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        int size = in.readVInt();
-        IPv4RangeAggregatorBuilder factory = new IPv4RangeAggregatorBuilder(name);
-        for (int i = 0; i < size; i++) {
-            factory.addRange(Range.PROTOTYPE.readFrom(in));
-        }
-        return factory;
     }
 
     public static class Range extends RangeAggregator.Range {

@@ -26,25 +26,27 @@ your server. Good rules of thumb are:
   object pointers (compressed oops); the exact cutoff varies but is
   near 32 GB. You can verify that you are under the limit by looking
   for a line in the logs like the following:
-
++
     heap size [1.9gb], compressed ordinary object pointers [true]
 
 * Even better, try to stay below the threshold for zero-based
   compressed oops; the exact cutoff varies but 26 GB is safe on most
-  systems, but can be as large as 30 GB on some system. You can verify
+  systems, but can be as large as 30 GB on some systems. You can verify
   that you are under the limit by starting Elasticsearch with the JVM
-  options "-XX:+UnlockDiagnosticVMOptions -XX:+PrintCompressedOopsMode"
+  options `-XX:+UnlockDiagnosticVMOptions -XX:+PrintCompressedOopsMode`
   and looking for a line like the following:
-
++
+--
     heap address: 0x000000011be00000, size: 27648 MB, zero based Compressed Oops
 
-  showing that zero-based compressed oops are enabled instead of
+showing that zero-based compressed oops are enabled instead of
 
     heap address: 0x0000000118400000, size: 28672 MB, Compressed Oops with base: 0x00000001183ff000
+--
 
 Here are examples of how to set the heap size via the jvm.options file:
 
-[source]
+[source,txt]
 ------------------
 Xms2g <1>
 Xmx2g <2>
@@ -58,8 +60,8 @@ in the jvm.options file and setting these values via `ES_JAVA_OPTS`:
 
 [source,sh]
 ------------------
-ES_JAVA_OPTS="-Xms2g -Xmx2g" ./bin/elasticsearch <3>
-ES_JAVA_OPTS="-Xmx4000mb -Xmx4000mb" ./bin/elasticsearch <4>
+ES_JAVA_OPTS="-Xms2g -Xmx2g" ./bin/elasticsearch <1>
+ES_JAVA_OPTS="-Xms4000m -Xmx4000m" ./bin/elasticsearch <2>
 ------------------
-<3> Set the minimum and maximum heap size to 2 GB.
-<4> Set the minimum and maximum heap size to 4000 MB.
+<1> Set the minimum and maximum heap size to 2 GB.
+<2> Set the minimum and maximum heap size to 4000 MB.

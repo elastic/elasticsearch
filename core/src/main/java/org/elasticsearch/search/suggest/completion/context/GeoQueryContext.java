@@ -21,6 +21,8 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -43,7 +45,6 @@ import static org.elasticsearch.search.suggest.completion.context.GeoContextMapp
  */
 public final class GeoQueryContext implements ToXContent {
     public static final String NAME = "geo";
-    public static final GeoQueryContext PROTOTYPE = new GeoQueryContext(null, 1, 12, Collections.emptyList());
 
     private final GeoPoint geoPoint;
     private final int boost;
@@ -112,7 +113,7 @@ public final class GeoQueryContext implements ToXContent {
         return new Builder();
     }
 
-    private static ObjectParser<GeoQueryContext.Builder, Void> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME, null);
+    private static ObjectParser<GeoQueryContext.Builder, ParseFieldMatcherSupplier> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME, null);
     static {
         GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext, geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)), new ParseField(CONTEXT_VALUE), ObjectParser.ValueType.OBJECT);
         GEO_CONTEXT_PARSER.declareInt(GeoQueryContext.Builder::setBoost, new ParseField(CONTEXT_BOOST));
@@ -128,7 +129,7 @@ public final class GeoQueryContext implements ToXContent {
         XContentParser.Token token = parser.currentToken();
         GeoQueryContext.Builder builder = new Builder();
         if (token == XContentParser.Token.START_OBJECT) {
-            GEO_CONTEXT_PARSER.parse(parser, builder);
+            GEO_CONTEXT_PARSER.parse(parser, builder, () -> ParseFieldMatcher.STRICT);
         } else if (token == XContentParser.Token.VALUE_STRING) {
             builder.setGeoPoint(GeoPoint.fromGeohash(parser.text()));
         } else {

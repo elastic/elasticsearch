@@ -19,10 +19,10 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 
@@ -37,7 +37,12 @@ import java.util.Objects;
  * specific type.
  */
 public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBuilder<PAB>> extends ToXContentToBytes
-        implements NamedWriteable<PipelineAggregatorBuilder<PAB>>, ToXContent {
+        implements NamedWriteable<PipelineAggregatorBuilder<PAB>> {
+
+    /**
+     * Field shared by many parsers.
+     */
+    public static final ParseField BUCKETS_PATH_FIELD = new ParseField("buckets_path");
 
     protected final String name;
     protected final String type;
@@ -52,7 +57,7 @@ public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBu
      * @param type
      *            The aggregation type
      */
-    public PipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
+    protected PipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
         }
@@ -65,6 +70,48 @@ public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBu
         this.name = name;
         this.type = type;
         this.bucketsPaths = bucketsPaths;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected PipelineAggregatorBuilder(StreamInput in, String type) throws IOException {
+        name = in.readString();
+        this.type = type;
+        bucketsPaths = in.readStringArray();
+        metaData = in.readMap();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeStringArray(bucketsPaths);
+        if (usesNewStyleSerialization()) {
+            out.writeMap(metaData);
+            doWriteTo(out);
+        } else {
+            doWriteTo(out);
+            out.writeMap(metaData);
+        }
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    protected boolean usesNewStyleSerialization() {
+        return false; // NORELEASE remove this before 5.0.0GA, when all the aggregations have been migrated
+    }
+
+    @Override
+    public PipelineAggregatorBuilder<PAB> readFrom(StreamInput in) throws IOException {
+        String name = in.readString();
+        String[] bucketsPaths = in.readStringArray();
+        PipelineAggregatorBuilder<PAB> factory = doReadFrom(name, bucketsPaths, in);
+        factory.metaData = in.readMap();
+        return factory;
+    }
+
+    protected PipelineAggregatorBuilder<PAB> doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+        throw new UnsupportedOperationException(); // NORELEASE remove this before 5.0.0GA, when all the aggregations have been migrated
     }
 
     public String name() {
@@ -115,30 +162,9 @@ public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBu
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeStringArray(bucketsPaths);
-        doWriteTo(out);
-        out.writeMap(metaData);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    @Override
     public String getWriteableName() {
         return type;
     }
-
-    @Override
-    public PipelineAggregatorBuilder<PAB> readFrom(StreamInput in) throws IOException {
-        String name = in.readString();
-        String[] bucketsPaths = in.readStringArray();
-        PipelineAggregatorBuilder<PAB> factory = doReadFrom(name, bucketsPaths, in);
-        factory.metaData = in.readMap();
-        return factory;
-    }
-
-    protected abstract PipelineAggregatorBuilder<PAB> doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

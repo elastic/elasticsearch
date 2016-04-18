@@ -308,10 +308,12 @@ public class Node implements Closeable {
         final TribeService tribeService = injector.getInstance(TribeService.class);
         tribeService.start();
 
-
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.start();
+
+        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
+
         DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class)
                 .buildLocalNode(transportService.boundAddress().publishAddress());
 
@@ -519,6 +521,20 @@ public class Node implements Closeable {
 
     public Injector injector() {
         return this.injector;
+    }
+
+    /**
+     * Hook for validating the node after network
+     * services are started but before the cluster service is started
+     * and before the network service starts accepting incoming network
+     * requests.
+     *
+     * @param settings              the fully-resolved settings
+     * @param boundTransportAddress the network addresses the node is
+     *                              bound and publishing to
+     */
+    @SuppressWarnings("unused")
+    protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
     }
 
     /** Writes a file to the logs dir containing the ports for the given transport type */

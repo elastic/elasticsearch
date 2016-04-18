@@ -26,6 +26,7 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
@@ -55,9 +56,10 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.is;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
@@ -118,13 +120,18 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     protected HasChildQueryBuilder doCreateTestQueryBuilder() {
         int min = randomIntBetween(0, Integer.MAX_VALUE / 2);
         int max = randomIntBetween(min, Integer.MAX_VALUE);
-        return new HasChildQueryBuilder(CHILD_TYPE,
-                RandomQueryBuilder.createQuery(random()), max, min,
-                RandomPicks.randomFrom(random(), ScoreMode.values()),
-                randomBoolean()  ? null : new InnerHitBuilder()
-                        .setName(randomAsciiOfLengthBetween(1, 10))
-                        .setSize(randomIntBetween(0, 100))
-                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+        HasChildQueryBuilder hqb = new HasChildQueryBuilder(CHILD_TYPE,
+                RandomQueryBuilder.createQuery(random()),
+                RandomPicks.randomFrom(random(), ScoreMode.values()));
+        hqb.minMaxChildren(min, max);
+        if (randomBoolean()) {
+            hqb.innerHit(new InnerHitBuilder()
+                    .setName(randomAsciiOfLengthBetween(1, 10))
+                    .setSize(randomIntBetween(0, 100))
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+        }
+        hqb.ignoreUnmapped(randomBoolean());
+        return hqb;
     }
 
     @Override
@@ -158,44 +165,26 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     public void testIllegalValues() {
         QueryBuilder<?> query = RandomQueryBuilder.createQuery(random());
-        try {
-            new HasChildQueryBuilder(null, query);
-            fail("must not be null");
-        } catch (IllegalArgumentException ex) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> QueryBuilders.hasChildQuery(null, query, ScoreMode.None));
+        assertEquals("[has_child] requires 'type' field", e.getMessage());
 
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> QueryBuilders.hasChildQuery("foo", null, ScoreMode.None));
+        assertEquals("[has_child] requires 'query' field", e.getMessage());
 
-        try {
-            new HasChildQueryBuilder("foo", null);
-            fail("must not be null");
-        } catch (IllegalArgumentException ex) {
+        e = expectThrows(IllegalArgumentException.class, () -> QueryBuilders.hasChildQuery("foo", query, null));
+        assertEquals("[has_child] requires 'score_mode' field", e.getMessage());
 
-        }
-        HasChildQueryBuilder foo = new HasChildQueryBuilder("foo", query);// all good
-        try {
-            foo.scoreMode(null);
-            fail("must not be null");
-        } catch (IllegalArgumentException ex) {
+        int positiveValue = randomIntBetween(0, Integer.MAX_VALUE);
+        HasChildQueryBuilder foo = QueryBuilders.hasChildQuery("foo", query, ScoreMode.None); // all good
+        e = expectThrows(IllegalArgumentException.class, () -> foo.minMaxChildren(randomIntBetween(Integer.MIN_VALUE, -1), positiveValue));
+        assertEquals("[has_child] requires non-negative 'min_children' field", e.getMessage());
 
-        }
-        final int positiveValue = randomIntBetween(0, Integer.MAX_VALUE);
-        try {
-            foo.minChildren(randomIntBetween(Integer.MIN_VALUE, -1));
-            fail("must not be negative");
-        } catch (IllegalArgumentException ex) {
+        e = expectThrows(IllegalArgumentException.class, () -> foo.minMaxChildren(positiveValue, randomIntBetween(Integer.MIN_VALUE, -1)));
+        assertEquals("[has_child] requires non-negative 'max_children' field", e.getMessage());
 
-        }
-        foo.minChildren(positiveValue);
-        assertEquals(positiveValue, foo.minChildren());
-        try {
-            foo.maxChildren(randomIntBetween(Integer.MIN_VALUE, -1));
-            fail("must not be negative");
-        } catch (IllegalArgumentException ex) {
-
-        }
-
-        foo.maxChildren(positiveValue);
-        assertEquals(positiveValue, foo.maxChildren());
+        e = expectThrows(IllegalArgumentException.class, () -> foo.minMaxChildren(positiveValue, positiveValue - 10));
+        assertEquals("[has_child] 'max_children' is less than 'min_children'", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
@@ -217,6 +206,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "    \"score_mode\" : \"avg\",\n" +
                 "    \"min_children\" : 883170873,\n" +
                 "    \"max_children\" : 1217235442,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 2.0,\n" +
                 "    \"_name\" : \"WNzYMJKRwePuRBh\",\n" +
                 "    \"inner_hits\" : {\n" +
@@ -266,7 +256,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         String[] searchTypes = new String[]{PARENT_TYPE};
         QueryShardContext shardContext = createShardContext();
         shardContext.setTypes(searchTypes);
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(CHILD_TYPE, new IdsQueryBuilder().addIds("id"));
+        HasChildQueryBuilder hasChildQueryBuilder = QueryBuilders.hasChildQuery(CHILD_TYPE, new IdsQueryBuilder().addIds("id"), ScoreMode.None);
         Query query = hasChildQueryBuilder.toQuery(shardContext);
         //verify that the context types are still the same as the ones we previously set
         assertThat(shardContext.getTypes(), equalTo(searchTypes));
@@ -332,7 +322,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     public void testNonDefaultSimilarity() throws Exception {
         QueryShardContext shardContext = createShardContext();
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(CHILD_TYPE, new TermQueryBuilder("custom_string", "value"));
+        HasChildQueryBuilder hasChildQueryBuilder = QueryBuilders.hasChildQuery(CHILD_TYPE, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
         HasChildQueryBuilder.LateParsingQuery query = (HasChildQueryBuilder.LateParsingQuery) hasChildQueryBuilder.toQuery(shardContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity).apply(similarity, Settings.EMPTY).get();
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
@@ -385,5 +375,18 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("No score mode for child query [unrecognized value] found"));
         }
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        final HasChildQueryBuilder queryBuilder = new HasChildQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(queryShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final HasChildQueryBuilder failingQueryBuilder = new HasChildQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
+        failingQueryBuilder.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        assertThat(e.getMessage(), containsString("[" + HasChildQueryBuilder.NAME + "] no mapping found for type [unmapped]"));
     }
 }

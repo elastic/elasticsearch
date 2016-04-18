@@ -149,15 +149,11 @@ public class Template extends Script {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (!super.equals(obj)) return false;
+        if (getClass() != obj.getClass()) return false;
         Template other = (Template) obj;
-        if (contentType != other.contentType)
-            return false;
+        if (contentType != other.contentType) return false;
         return true;
     }
 

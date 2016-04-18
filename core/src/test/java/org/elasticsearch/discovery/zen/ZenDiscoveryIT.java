@@ -48,6 +48,7 @@ import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
@@ -56,6 +57,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -82,6 +84,21 @@ import static org.hamcrest.Matchers.sameInstance;
 @ESIntegTestCase.SuppressLocalMode
 @TestLogging("_root:DEBUG")
 public class ZenDiscoveryIT extends ESIntegTestCase {
+
+    private Version previousMajorVersion;
+
+    @Before
+    public void computePrevMajorVersion() {
+        Version previousMajor;
+        // find a GA build whose major version is <N
+        do {
+            previousMajor = VersionUtils.randomVersion(random());
+        } while (previousMajor.onOrAfter(Version.CURRENT.minimumCompatibilityVersion())
+                || previousMajor.isAlpha()
+                || previousMajor.isBeta()
+                || previousMajor.isRC());
+        previousMajorVersion = previousMajor;
+    }
 
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
         Settings defaultSettings = Settings.builder()
@@ -201,7 +218,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
-        internalCluster().getInstance(TransportService.class, noneMasterNode).sendRequest(node, PublishClusterStateAction.SEND_ACTION_NAME, new BytesTransportRequest(bytes, Version.CURRENT), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+        internalCluster().getInstance(TransportService.class, noneMasterNode).sendRequest(node, PublishClusterStateAction.SEND_ACTION_NAME,
+                new BytesTransportRequest(bytes, Version.CURRENT), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
             @Override
             public void handleResponse(TransportResponse.Empty response) {
@@ -218,7 +236,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         });
         latch.await();
         assertThat(reference.get(), notNullValue());
-        assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master than the current one, rejecting"));
+        assertThat(ExceptionsHelper.detailedMessage(reference.get()),
+                containsString("cluster state from a different master than the current one, rejecting"));
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws UnknownHostException {
@@ -278,11 +297,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         Settings nodeSettings = Settings.builder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .build();
-        String nodeName = internalCluster().startNode(nodeSettings, Version.V_5_0_0_alpha1);
+        String nodeName = internalCluster().startNode(nodeSettings, Version.CURRENT);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
         DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0),
-                emptyMap(), emptySet(), Version.V_2_0_0);
+                emptyMap(), emptySet(), previousMajorVersion);
         final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
         zenDiscovery.handleJoinRequest(node, clusterService.state(), new MembershipAction.JoinCallback() {
             @Override
@@ -296,17 +315,20 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         });
 
         assertThat(holder.get(), notNullValue());
-        assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [2.0.0] that is lower than the minimum compatible version [" + Version.V_5_0_0_alpha1.minimumCompatibilityVersion() + "]"));
+        assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [" + previousMajorVersion
+                + "] that is lower than the minimum compatible version [" + Version.CURRENT.minimumCompatibilityVersion() + "]"));
     }
 
     public void testJoinElectedMaster_incompatibleMinVersion() {
-        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.V_5_0_0_alpha1);
+        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.CURRENT);
 
         DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(),
-                Collections.singleton(DiscoveryNode.Role.MASTER), Version.V_5_0_0_alpha1);
+                Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
         assertThat(electMasterService.electMaster(Collections.singletonList(node)), sameInstance(node));
-        node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(), emptySet(), Version.V_2_0_0);
-        assertThat("Can't join master because version 2.0.0 is lower than the minimum compatable version 5.0.0 can support", electMasterService.electMaster(Collections.singletonList(node)), nullValue());
+        node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(), emptySet(), previousMajorVersion);
+        assertThat("Can't join master because version " + previousMajorVersion
+                + " is lower than the minimum compatable version " + Version.CURRENT + " can support",
+                electMasterService.electMaster(Collections.singletonList(node)), nullValue());
     }
 
     public void testDiscoveryStats() throws IOException {

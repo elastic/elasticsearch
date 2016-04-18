@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,7 +47,8 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
     public static final String NAME = "allocate_empty_primary";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
-    private static final ObjectParser<Builder, Void> EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);
+    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand
+            .createAllocatePrimaryParser(NAME);
 
     /**
      * Creates a new {@link AllocateEmptyPrimaryAllocationCommand}
@@ -78,7 +81,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
 
         @Override
         public Builder parse(XContentParser parser) throws IOException {
-            return EMPTY_PRIMARY_PARSER.parse(parser, this);
+            return EMPTY_PRIMARY_PARSER.parse(parser, this, () -> ParseFieldMatcher.STRICT);
         }
 
         @Override

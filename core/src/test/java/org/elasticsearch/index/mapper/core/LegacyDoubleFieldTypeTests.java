@@ -20,22 +20,32 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.junit.Before;
 
-public class ShortFieldTypeTests extends FieldTypeTestCase {
+import java.io.IOException;
+
+public class LegacyDoubleFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new ShortFieldMapper.ShortFieldType();
+        return new LegacyDoubleFieldMapper.DoubleFieldType();
     }
 
     @Before
     public void setupProperties() {
-        setDummyNullValue((short)10);
+        setDummyNullValue(10.0D);
+    }
+
+    public void testIsFieldWithinQuery() throws IOException {
+        DoubleFieldType ft = new DoubleFieldType();
+        // current impl ignores args and shourd always return INTERSECTS
+        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomDouble(), randomDouble(),
+                randomBoolean(), randomBoolean(), null, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        // shorts are stored as ints
-        assertEquals(Short.valueOf((short) 3), ft.valueForSearch(Integer.valueOf(3)));
+        assertEquals(Double.valueOf(1.2), ft.valueForSearch(1.2));
     }
 }

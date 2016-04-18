@@ -19,12 +19,22 @@
 
 package org.elasticsearch.index.reindex;
 
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -44,14 +54,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 /**
  * Expose IndexBySearchRequest over rest.
@@ -77,10 +79,10 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             builder.map(source);
             parser = parser.contentType().xContent().createParser(builder.bytes());
             context.queryParseContext.reset(parser);
-            search.source().parseXContent(parser, context.queryParseContext, context.aggParsers, context.suggesters);
+            search.source().parseXContent(context.queryParseContext, context.aggParsers, context.suggesters);
         };
 
-        ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
+        ObjectParser<IndexRequest, ParseFieldMatcherSupplier> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString(IndexRequest::type, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
@@ -94,9 +96,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 new ParseField("ttl"));
 
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSearchRequest(), c), new ParseField("source"), ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), null), new ParseField("dest"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
-        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.queryParseContext.parseFieldMatcher())), new ParseField("script"),
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.queryParseContext.getParseFieldMatcher())), new ParseField("script"),
                 ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
@@ -169,7 +171,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
     }
 
-    private class ReindexParseContext {
+    private class ReindexParseContext implements ParseFieldMatcherSupplier{
         private final QueryParseContext queryParseContext;
         private final AggregatorParsers aggParsers;
         private final Suggesters suggesters;
@@ -179,6 +181,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             this.queryParseContext = queryParseContext;
             this.aggParsers = aggParsers;
             this.suggesters = suggesters;
+        }
+
+        @Override
+        public ParseFieldMatcher getParseFieldMatcher() {
+            return queryParseContext.getParseFieldMatcher();
         }
     }
 }

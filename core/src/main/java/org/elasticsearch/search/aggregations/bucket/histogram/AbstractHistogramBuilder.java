@@ -57,7 +57,7 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         if (in.readBoolean()) {
-            extendedBounds = ExtendedBounds.readFrom(in);
+            extendedBounds = new ExtendedBounds(in);
         }
     }
 

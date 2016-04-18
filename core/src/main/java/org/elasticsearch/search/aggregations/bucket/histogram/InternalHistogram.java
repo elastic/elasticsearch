@@ -211,7 +211,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             Rounding rounding = Rounding.Streams.read(in);
             InternalAggregations aggs = InternalAggregations.readAggregations(in);
             if (in.readBoolean()) {
-                return new EmptyBucketInfo(rounding, aggs, ExtendedBounds.readFrom(in));
+                return new EmptyBucketInfo(rounding, aggs, new ExtendedBounds(in));
             }
             return new EmptyBucketInfo(rounding, aggs);
         }

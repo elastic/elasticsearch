@@ -127,7 +127,7 @@ public class HistogramParser extends NumericValuesSourceParser {
                 otherOptions.put(HistogramAggregator.ORDER_FIELD, order);
                 return true;
             } else if (parseFieldMatcher.match(currentFieldName, ExtendedBounds.EXTENDED_BOUNDS_FIELD)) {
-                ExtendedBounds extendedBounds = ExtendedBounds.parse(parser, parseFieldMatcher, aggregationName);
+                ExtendedBounds extendedBounds = ExtendedBounds.fromXContent(parser, parseFieldMatcher, aggregationName);
                 otherOptions.put(ExtendedBounds.EXTENDED_BOUNDS_FIELD, extendedBounds);
                 return true;
             } else {

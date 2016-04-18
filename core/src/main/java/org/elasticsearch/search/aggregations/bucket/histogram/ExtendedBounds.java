@@ -24,27 +24,23 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
-public class ExtendedBounds implements ToXContent {
+public class ExtendedBounds implements ToXContent, Writeable<ExtendedBounds> {
 
     static final ParseField EXTENDED_BOUNDS_FIELD = new ParseField("extended_bounds");
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
-
-    private static final ExtendedBounds PROTOTYPE = new ExtendedBounds();
 
     Long min;
     Long max;
@@ -52,7 +48,7 @@ public class ExtendedBounds implements ToXContent {
     String minAsStr;
     String maxAsStr;
 
-    ExtendedBounds() {} //for serialization
+    ExtendedBounds() {} //for parsing
 
     public ExtendedBounds(Long min, Long max) {
         this.min = min;
@@ -63,6 +59,39 @@ public class ExtendedBounds implements ToXContent {
         this.minAsStr = minAsStr;
         this.maxAsStr = maxAsStr;
     }
+
+    /**
+     * Read from a stream.
+     */
+    public ExtendedBounds(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            min = in.readLong();
+        }
+        if (in.readBoolean()) {
+            max = in.readLong();
+        }
+        minAsStr = in.readOptionalString();
+        maxAsStr = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (min != null) {
+            out.writeBoolean(true);
+            out.writeLong(min);
+        } else {
+            out.writeBoolean(false);
+        }
+        if (max != null) {
+            out.writeBoolean(true);
+            out.writeLong(max);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeOptionalString(minAsStr);
+        out.writeOptionalString(maxAsStr);
+    }
+
 
     void processAndValidate(String aggName, SearchContext context, DocValueFormat format) {
         assert format != null;
@@ -83,37 +112,7 @@ public class ExtendedBounds implements ToXContent {
         return new ExtendedBounds(min != null ? rounding.round(min) : null, max != null ? rounding.round(max) : null);
     }
 
-    void writeTo(StreamOutput out) throws IOException {
-        if (min != null) {
-            out.writeBoolean(true);
-            out.writeLong(min);
-        } else {
-            out.writeBoolean(false);
-        }
-        if (max != null) {
-            out.writeBoolean(true);
-            out.writeLong(max);
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeOptionalString(minAsStr);
-        out.writeOptionalString(maxAsStr);
-    }
-
-    static ExtendedBounds readFrom(StreamInput in) throws IOException {
-        ExtendedBounds bounds = new ExtendedBounds();
-        if (in.readBoolean()) {
-            bounds.min = in.readLong();
-        }
-        if (in.readBoolean()) {
-            bounds.max = in.readLong();
-        }
-        bounds.minAsStr = in.readOptionalString();
-        bounds.maxAsStr = in.readOptionalString();
-        return bounds;
-    }
-
-    public ExtendedBounds fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
+    public static ExtendedBounds fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
             throws IOException {
         XContentParser.Token token = null;
         String currentFieldName = null;
@@ -177,10 +176,5 @@ public class ExtendedBounds implements ToXContent {
         ExtendedBounds other = (ExtendedBounds) obj;
         return Objects.equals(min, other.min)
                 && Objects.equals(min, other.min);
-    }
-
-    public static ExtendedBounds parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
-            throws IOException {
-        return PROTOTYPE.fromXContent(parser, parseFieldMatcher, aggregationName);
     }
 }

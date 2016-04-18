@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.tasks.Task;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -767,15 +766,6 @@ public abstract class StreamInput extends InputStream {
     @Deprecated
     public SmoothingModel readPhraseSuggestionSmoothingModel() throws IOException {
         return readNamedWriteable(SmoothingModel.class);
-    }
-
-    /**
-     * Reads a {@link Task.Status} from the current stream.
-     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link Task.Status}.
-     */
-    @Deprecated
-    public Task.Status readTaskStatus() throws IOException {
-        return readNamedWriteable(Task.Status.class);
     }
 
     /**

@@ -81,11 +81,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         type = in.readString();
         action = in.readString();
         description = in.readOptionalString();
-        if (in.readBoolean()) {
-            status = in.readTaskStatus();
-        } else {
-            status = null;
-        }
+        status = in.readOptionalNamedWriteable(Task.Status.class);
         startTime = in.readLong();
         runningTimeNanos = in.readLong();
         cancellable = in.readBoolean();
@@ -164,12 +160,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         out.writeString(type);
         out.writeString(action);
         out.writeOptionalString(description);
-        if (status != null) {
-            out.writeBoolean(true);
-            out.writeTaskStatus(status);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalNamedWriteable(status);
         out.writeLong(startTime);
         out.writeLong(runningTimeNanos);
         out.writeBoolean(cancellable);

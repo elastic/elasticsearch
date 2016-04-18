@@ -28,12 +28,10 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -197,7 +195,7 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
         this.minDocCount = in.readVLong();
         this.subsetSize = in.readVLong();
         this.supersetSize = in.readVLong();
-        significanceHeuristic = SignificanceHeuristicStreams.read(in);
+        significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
         int size = in.readVInt();
         List<InternalSignificantTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -215,7 +213,7 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
         out.writeVLong(minDocCount);
         out.writeVLong(subsetSize);
         out.writeVLong(supersetSize);
-        SignificanceHeuristicStreams.writeTo(significanceHeuristic, out);
+        out.writeNamedWriteable(significanceHeuristic);
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
             bucket.writeTo(out);

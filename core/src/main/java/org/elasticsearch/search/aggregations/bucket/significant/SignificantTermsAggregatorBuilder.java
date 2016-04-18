@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
@@ -55,12 +54,13 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
             3, 0, 10, -1);
+    static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
     private QueryBuilder<?> filterBuilder = null;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
-    private SignificanceHeuristic significanceHeuristic = JLHScore.PROTOTYPE;
+    private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
     public SignificantTermsAggregatorBuilder(String name, ValueType valueType) {
         super(name, SignificantStringTerms.TYPE, ValuesSourceType.ANY, valueType);
@@ -79,7 +79,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         if (in.readBoolean()) {
             includeExclude = IncludeExclude.readFromStream(in);
         }
-        significanceHeuristic = SignificanceHeuristicStreams.read(in);
+        significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
     }
 
     @Override
@@ -96,7 +96,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         if (hasIncExc) {
             includeExclude.writeTo(out);
         }
-        SignificanceHeuristicStreams.writeTo(significanceHeuristic, out);
+        out.writeNamedWriteable(significanceHeuristic);
     }
 
     @Override

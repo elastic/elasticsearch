@@ -146,8 +146,14 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantStrin
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -273,9 +279,10 @@ public class SearchModule extends AbstractModule {
     private final ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry = new ParseFieldRegistry<>(
             "pipline_aggregation");
     private final AggregatorParsers aggregatorParsers = new AggregatorParsers(aggregationParserRegistry, pipelineAggregationParserRegistry);
+    private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = new ParseFieldRegistry<>(
+            "significance_heuristic");
 
     private final Set<Class<? extends FetchSubPhase>> fetchSubPhases = new HashSet<>();
-    private final Set<SignificanceHeuristicParser> heuristicParsers = new HashSet<>();
     private final Set<MovAvgModel.AbstractModelParser> modelParsers = new HashSet<>();
 
     private final Settings settings;
@@ -294,6 +301,7 @@ public class SearchModule extends AbstractModule {
         registerBuiltinRescorers();
         registerBuiltinSorts();
         registerBuiltinValueFormats();
+        registerBuiltinSignificanceHeuristics();
     }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
@@ -359,8 +367,25 @@ public class SearchModule extends AbstractModule {
         fetchSubPhases.add(subPhase);
     }
 
-    public void registerHeuristicParser(SignificanceHeuristicParser parser) {
-        heuristicParsers.add(parser);
+    /**
+     * Register a {@link SignificanceHeuristic}.
+     * 
+     * @param heuristicName the name(s) at which the heuristic is parsed and streamed. The {@link ParseField#getPreferredName()} is the name
+     *        under which it is streamed. All names work for the parser.
+     * @param reader reads the heuristic from a stream
+     * @param parser reads the heuristic from a XContentParser
+     */
+    public void registerSignificanceHeuristic(ParseField heuristicName, Writeable.Reader<SignificanceHeuristic> reader,
+            SignificanceHeuristicParser parser) {
+        significanceHeuristicParserRegistry.register(parser, heuristicName);
+        namedWriteableRegistry.register(SignificanceHeuristic.class, heuristicName.getPreferredName(), reader);
+    }
+
+    /**
+     * The registry of {@link SignificanceHeuristic}s.
+     */
+    public ParseFieldRegistry<SignificanceHeuristicParser> getSignificanceHeuristicParserRegistry() {
+        return significanceHeuristicParserRegistry;
     }
 
     public void registerModelParser(MovAvgModel.AbstractModelParser parser) {
@@ -432,10 +457,7 @@ public class SearchModule extends AbstractModule {
     }
 
     protected void configureAggs() {
-
         MovAvgModelParserMapper movAvgModelParserMapper = new MovAvgModelParserMapper(modelParsers);
-
-        SignificanceHeuristicParserMapper significanceHeuristicParserMapper = new SignificanceHeuristicParserMapper(heuristicParsers);
 
         registerAggregation(AvgAggregatorBuilder::new, new AvgParser(), AvgAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(SumAggregatorBuilder::new, new SumParser(), SumAggregatorBuilder.AGGREGATION_NAME_FIELD);
@@ -462,7 +484,7 @@ public class SearchModule extends AbstractModule {
                 DiversifiedAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(TermsAggregatorBuilder::new, new TermsParser(), TermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(SignificantTermsAggregatorBuilder::new,
-                new SignificantTermsParser(significanceHeuristicParserMapper, queryParserRegistry),
+                new SignificantTermsParser(significanceHeuristicParserRegistry, queryParserRegistry),
                 SignificantTermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(RangeAggregatorBuilder::new, new RangeParser(), RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(DateRangeAggregatorBuilder::new, new DateRangeParser(), DateRangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
@@ -579,6 +601,15 @@ public class SearchModule extends AbstractModule {
         registerValueFormat(DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
         registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
+    }
+
+    private void registerBuiltinSignificanceHeuristics() {
+        registerSignificanceHeuristic(ChiSquare.NAMES_FIELD, ChiSquare::new, ChiSquare.PARSER);
+        registerSignificanceHeuristic(GND.NAMES_FIELD, GND::new, GND.PARSER);
+        registerSignificanceHeuristic(JLHScore.NAMES_FIELD, JLHScore::new, JLHScore::parse);
+        registerSignificanceHeuristic(MutualInformation.NAMES_FIELD, MutualInformation::new, MutualInformation.PARSER);
+        registerSignificanceHeuristic(PercentageScore.NAMES_FIELD, PercentageScore::new, PercentageScore::parse);
+        registerSignificanceHeuristic(ScriptHeuristic.NAMES_FIELD, ScriptHeuristic::new, ScriptHeuristic::parse);
     }
 
     private void registerBuiltinQueryParsers() {

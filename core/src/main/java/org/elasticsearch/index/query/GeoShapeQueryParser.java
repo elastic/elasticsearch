@@ -52,7 +52,7 @@ public class GeoShapeQueryParser implements QueryParser {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{NAME};
     }
 
     @Override

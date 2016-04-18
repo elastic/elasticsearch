@@ -22,6 +22,8 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -32,6 +34,8 @@ import java.io.IOException;
  * A channel used to construct bytes / builder based outputs, and send responses.
  */
 public abstract class RestChannel {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestChannel.class));
 
     protected final RestRequest request;
     protected final boolean detailedErrorsEnabled;
@@ -74,6 +78,10 @@ public abstract class RestChannel {
         builder.humanReadable(request.paramAsBoolean("human", builder.humanReadable()));
 
         String casing = request.param("case");
+        if (casing != null) {
+            String msg = "Parameter 'case' has been deprecated, all responses will use underscore casing in the future";
+            DEPRECATION_LOGGER.deprecated(msg);
+        }
         if (casing != null && "camelCase".equals(casing)) {
             builder.fieldCaseConversion(XContentBuilder.FieldCaseConversion.CAMELCASE);
         } else {

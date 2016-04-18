@@ -79,7 +79,7 @@ public class ScriptParameterParserTests extends ESTestCase {
             token = parser.nextToken();
         }
         paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.EMPTY), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
     }
@@ -102,7 +102,7 @@ public class ScriptParameterParserTests extends ESTestCase {
             token = parser.nextToken();
         }
         paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
+        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.EMPTY), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
     }
@@ -547,7 +547,7 @@ public class ScriptParameterParserTests extends ESTestCase {
         config = new HashMap<>();
         config.put("scriptFile", "scriptValue");
         paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.EMPTY);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -566,7 +566,7 @@ public class ScriptParameterParserTests extends ESTestCase {
         config = new HashMap<>();
         config.put("scriptId", "scriptValue");
         paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        paramParser.parseConfig(config, true, ParseFieldMatcher.EMPTY);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
@@ -586,7 +586,7 @@ public class ScriptParameterParserTests extends ESTestCase {
         config = new HashMap<>();
         config.put("scriptId", "scriptValue");
         paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, false, ParseFieldMatcher.STRICT);
+        paramParser.parseConfig(config, false, ParseFieldMatcher.EMPTY);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INDEXED);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.size(), equalTo(1));
@@ -950,7 +950,7 @@ public class ScriptParameterParserTests extends ESTestCase {
         paramParser.parseParams(params);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
-        
+
         paramParser = new ScriptParameterParser(null);
         paramParser.parseParams(params);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);

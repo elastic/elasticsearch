@@ -41,7 +41,7 @@ public class SpanWithinQueryParser implements QueryParser {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[]{NAME};
     }
 
     @Override
@@ -81,8 +81,8 @@ public class SpanWithinQueryParser implements QueryParser {
             } else {
                 throw new QueryParsingException(parseContext, "[span_within] query does not support [" + currentFieldName + "]");
             }
-        }        
-        
+        }
+
         if (big == null) {
             throw new QueryParsingException(parseContext, "span_within must include [big]");
         }

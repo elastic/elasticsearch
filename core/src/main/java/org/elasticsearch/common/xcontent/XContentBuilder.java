@@ -19,22 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.BytesStream;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -49,6 +33,21 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableInstant;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 
 /**
  * A utility to build XContent (ie json).
@@ -146,12 +145,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder startObject(XContentBuilderString name) throws IOException {
-        field(name);
-        startObject();
-        return this;
-    }
-
     public XContentBuilder startObject() throws IOException {
         generator.writeStartObject();
         return this;
@@ -171,25 +164,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder array(XContentBuilderString name, String... values) throws IOException {
-        startArray(name);
-        for (String value : values) {
-            value(value);
-        }
-        endArray();
-        return this;
-    }
-
     public XContentBuilder array(String name, Object... values) throws IOException {
-        startArray(name);
-        for (Object value : values) {
-            value(value);
-        }
-        endArray();
-        return this;
-    }
-
-    public XContentBuilder array(XContentBuilderString name, Object... values) throws IOException {
         startArray(name);
         for (Object value : values) {
             value(value);
@@ -204,12 +179,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder startArray(XContentBuilderString name) throws IOException {
-        field(name);
-        startArray();
-        return this;
-    }
-
     public XContentBuilder startArray() throws IOException {
         generator.writeStartArray();
         return this;
@@ -218,10 +187,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
     public XContentBuilder endArray() throws IOException {
         generator.writeEndArray();
         return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name) throws IOException {
-        return field(name.value());
     }
 
     public XContentBuilder field(String name) throws IOException {
@@ -242,27 +207,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, char[] value, int offset, int length) throws IOException {
-        field(name);
-        if (value == null) {
-            generator.writeNull();
-        } else {
-            generator.writeString(value, offset, length);
-        }
-        return this;
-    }
-
     public XContentBuilder field(String name, String value) throws IOException {
-        field(name);
-        if (value == null) {
-            generator.writeNull();
-        } else {
-            generator.writeString(value);
-        }
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, String value) throws IOException {
         field(name);
         if (value == null) {
             generator.writeNull();
@@ -282,23 +227,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, Integer value) throws IOException {
-        field(name);
-        if (value == null) {
-            generator.writeNull();
-        } else {
-            generator.writeNumber(value.intValue());
-        }
-        return this;
-    }
-
     public XContentBuilder field(String name, int value) throws IOException {
-        field(name);
-        generator.writeNumber(value);
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, int value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -314,23 +243,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, Long value) throws IOException {
-        field(name);
-        if (value == null) {
-            generator.writeNull();
-        } else {
-            generator.writeNumber(value.longValue());
-        }
-        return this;
-    }
-
     public XContentBuilder field(String name, long value) throws IOException {
-        field(name);
-        generator.writeNumber(value);
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, long value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -346,23 +259,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, Float value) throws IOException {
-        field(name);
-        if (value == null) {
-            generator.writeNull();
-        } else {
-            generator.writeNumber(value.floatValue());
-        }
-        return this;
-    }
-
     public XContentBuilder field(String name, float value) throws IOException {
-        field(name);
-        generator.writeNumber(value);
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, float value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -378,23 +275,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, Double value) throws IOException {
-        field(name);
-        if (value == null) {
-            generator.writeNull();
-        } else {
-            generator.writeNumber(value);
-        }
-        return this;
-    }
-
     public XContentBuilder field(String name, double value) throws IOException {
-        field(name);
-        generator.writeNumber(value);
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, double value) throws IOException {
         field(name);
         generator.writeNumber(value);
         return this;
@@ -404,29 +285,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return field(name, value, value.scale(), RoundingMode.HALF_UP, true);
     }
 
-    public XContentBuilder field(XContentBuilderString name, BigDecimal value) throws IOException {
-        return field(name, value, value.scale(), RoundingMode.HALF_UP, true);
-    }
-
     public XContentBuilder field(String name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
-        field(name);
-        if (value == null) {
-            generator.writeNull();
-        } else {
-            if (toDouble) {
-                try {
-                    generator.writeNumber(value.setScale(scale, rounding).doubleValue());
-                } catch (ArithmeticException e) {
-                    generator.writeString(value.toEngineeringString());
-                }
-            } else {
-                generator.writeString(value.toEngineeringString());
-            }
-        }
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
         field(name);
         if (value == null) {
             generator.writeNull();
@@ -455,16 +314,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     /**
-     * Writes the binary content of the given BytesRef
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder field(XContentBuilderString name, BytesRef value) throws IOException {
-        field(name);
-        generator.writeBinary(value.bytes, value.offset, value.length);
-        return this;
-    }
-
-    /**
      * Writes the binary content of the given BytesReference
      * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
      */
@@ -474,29 +323,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
             value = value.toBytesArray();
         }
         generator.writeBinary(value.array(), value.arrayOffset(), value.length());
-        return this;
-    }
-
-    /**
-     * Writes the binary content of the given BytesReference
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder field(XContentBuilderString name, BytesReference value) throws IOException {
-        field(name);
-        if (!value.hasArray()) {
-            value = value.toBytesArray();
-        }
-        generator.writeBinary(value.array(), value.arrayOffset(), value.length());
-        return this;
-    }
-
-    /**
-     * Writes the binary content of the given BytesRef as UTF-8 bytes
-     * Use {@link XContentParser#utf8Bytes()} to read the value back
-     */
-    public XContentBuilder utf8Field(XContentBuilderString name, BytesRef value) throws IOException {
-        field(name);
-        generator.writeUTF8String(value.bytes, value.offset, value.length);
         return this;
     }
 
@@ -526,22 +352,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, Text value) throws IOException {
-        field(name);
-        if (value.hasBytes() && value.bytes().hasArray()) {
-            generator.writeUTF8String(value.bytes().array(), value.bytes().arrayOffset(), value.bytes().length());
-            return this;
-        }
-        if (value.hasString()) {
-            generator.writeString(value.string());
-            return this;
-        }
-        // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a request to jackson to support InputStream as well?
-        BytesArray bytesArray = value.bytes().toBytesArray();
-        generator.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
-        return this;
-    }
-
     public XContentBuilder field(String name, byte[] value, int offset, int length) throws IOException {
         field(name);
         generator.writeBinary(value, offset, length);
@@ -554,28 +364,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, Map<String, Object> value) throws IOException {
-        field(name);
-        value(value);
-        return this;
-    }
-
     public XContentBuilder field(String name, Iterable<?> value) throws IOException {
-        if (value instanceof Path) {
-            //treat Paths as single value
-            field(name);
-            value(value);
-        } else {
-            startArray(name);
-            for (Object o : value) {
-                value(o);
-            }
-            endArray();
-        }
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, Iterable<?> value) throws IOException {
         if (value instanceof Path) {
             //treat Paths as single value
             field(name);
@@ -599,27 +388,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-
-    public XContentBuilder field(XContentBuilderString name, boolean... value) throws IOException {
-        startArray(name);
-        for (boolean o : value) {
-            value(o);
-        }
-        endArray();
-        return this;
-    }
-
     public XContentBuilder field(String name, String... value) throws IOException {
-        startArray(name);
-        for (String o : value) {
-            value(o);
-        }
-        endArray();
-        return this;
-    }
-
-
-    public XContentBuilder field(XContentBuilderString name, String... value) throws IOException {
         startArray(name);
         for (String o : value) {
             value(o);
@@ -637,35 +406,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, Object... value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
-        }
-        endArray();
-        return this;
-    }
-
     public XContentBuilder field(String name, int... value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
-        }
-        endArray();
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, int offset, int length, int... value) throws IOException {
-        assert ((offset >= 0) && (value.length > length));
-        startArray(name);
-        for (int i = offset; i < length; i++) {
-            value(value[i]);
-        }
-        endArray();
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, int... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -683,25 +424,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, long... value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
-        }
-        endArray();
-        return this;
-    }
-
     public XContentBuilder field(String name, float... value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
-        }
-        endArray();
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, float... value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
@@ -719,22 +442,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, double... value) throws IOException {
-        startArray(name);
-        for (Object o : value) {
-            value(o);
-        }
-        endArray();
-        return this;
-    }
-
     public XContentBuilder field(String name, Object value) throws IOException {
-        field(name);
-        writeValue(value);
-        return this;
-    }
-
-    public XContentBuilder field(XContentBuilderString name, Object value) throws IOException {
         field(name);
         writeValue(value);
         return this;
@@ -751,12 +459,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, boolean value) throws IOException {
-        field(name);
-        generator.writeBoolean(value);
-        return this;
-    }
-
     public XContentBuilder field(String name, byte[] value) throws IOException {
         field(name);
         if (value == null) {
@@ -767,17 +469,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, byte[] value) throws IOException {
-        field(name);
-        return value(value);
-    }
-
     public XContentBuilder field(String name, ReadableInstant date) throws IOException {
-        field(name);
-        return value(date);
-    }
-
-    public XContentBuilder field(XContentBuilderString name, ReadableInstant date) throws IOException {
         field(name);
         return value(date);
     }
@@ -787,17 +479,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return value(date, formatter);
     }
 
-    public XContentBuilder field(XContentBuilderString name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
-        field(name);
-        return value(date, formatter);
-    }
-
     public XContentBuilder field(String name, Date date) throws IOException {
-        field(name);
-        return value(date);
-    }
-
-    public XContentBuilder field(XContentBuilderString name, Date date) throws IOException {
         field(name);
         return value(date);
     }
@@ -807,19 +489,8 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return value(date, formatter);
     }
 
-    public XContentBuilder field(XContentBuilderString name, Date date, DateTimeFormatter formatter) throws IOException {
-        field(name);
-        return value(date, formatter);
-    }
-
     public XContentBuilder nullField(String name) throws IOException {
         generator.writeNullField(name);
-        return this;
-    }
-
-    public XContentBuilder nullField(XContentBuilderString name) throws IOException {
-        field(name);
-        generator.writeNull();
         return this;
     }
 
@@ -843,7 +514,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, TimeValue timeValue) throws IOException {
+    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, TimeValue timeValue) throws IOException {
         if (humanReadable) {
             field(readableFieldName, timeValue.toString());
         }
@@ -851,24 +522,12 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder timeValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawTime) throws IOException {
+    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime) throws IOException {
         if (humanReadable) {
             field(readableFieldName, new TimeValue(rawTime).toString());
         }
         field(rawFieldName, rawTime);
         return this;
-    }
-
-    public XContentBuilder dateValueField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawTimestamp) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, defaultDatePrinter.print(rawTimestamp));
-        }
-        field(rawFieldName, rawTimestamp);
-        return this;
-    }
-
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, TimeValue timeValue) throws IOException {
-        return timeValueField(rawFieldName, readableFieldName, timeValue.millis(), TimeUnit.MILLISECONDS);
     }
 
     public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime, TimeUnit timeUnit) throws
@@ -888,7 +547,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
+    public XContentBuilder byteSizeField(String rawFieldName, String readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
         if (humanReadable) {
             field(readableFieldName, byteSizeValue.toString());
         }
@@ -896,7 +555,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder byteSizeField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, long rawSize) throws IOException {
+    public XContentBuilder byteSizeField(String rawFieldName, String readableFieldName, long rawSize) throws IOException {
         if (humanReadable) {
             field(readableFieldName, new ByteSizeValue(rawSize).toString());
         }
@@ -904,7 +563,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder percentageField(XContentBuilderString rawFieldName, XContentBuilderString readableFieldName, double percentage) throws IOException {
+    public XContentBuilder percentageField(String rawFieldName, String readableFieldName, double percentage) throws IOException {
         if (humanReadable) {
             field(readableFieldName, String.format(Locale.ROOT, "%1.1f%%", percentage));
         }

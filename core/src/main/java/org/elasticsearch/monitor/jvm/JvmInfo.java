@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
@@ -359,29 +358,29 @@ public class JvmInfo implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
-        static final XContentBuilderString PID = new XContentBuilderString("pid");
-        static final XContentBuilderString VERSION = new XContentBuilderString("version");
-        static final XContentBuilderString VM_NAME = new XContentBuilderString("vm_name");
-        static final XContentBuilderString VM_VERSION = new XContentBuilderString("vm_version");
-        static final XContentBuilderString VM_VENDOR = new XContentBuilderString("vm_vendor");
-        static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
-        static final XContentBuilderString START_TIME_IN_MILLIS = new XContentBuilderString("start_time_in_millis");
+        static final String JVM = "jvm";
+        static final String PID = "pid";
+        static final String VERSION = "version";
+        static final String VM_NAME = "vm_name";
+        static final String VM_VERSION = "vm_version";
+        static final String VM_VENDOR = "vm_vendor";
+        static final String START_TIME = "start_time";
+        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
 
-        static final XContentBuilderString MEM = new XContentBuilderString("mem");
-        static final XContentBuilderString HEAP_INIT = new XContentBuilderString("heap_init");
-        static final XContentBuilderString HEAP_INIT_IN_BYTES = new XContentBuilderString("heap_init_in_bytes");
-        static final XContentBuilderString HEAP_MAX = new XContentBuilderString("heap_max");
-        static final XContentBuilderString HEAP_MAX_IN_BYTES = new XContentBuilderString("heap_max_in_bytes");
-        static final XContentBuilderString NON_HEAP_INIT = new XContentBuilderString("non_heap_init");
-        static final XContentBuilderString NON_HEAP_INIT_IN_BYTES = new XContentBuilderString("non_heap_init_in_bytes");
-        static final XContentBuilderString NON_HEAP_MAX = new XContentBuilderString("non_heap_max");
-        static final XContentBuilderString NON_HEAP_MAX_IN_BYTES = new XContentBuilderString("non_heap_max_in_bytes");
-        static final XContentBuilderString DIRECT_MAX = new XContentBuilderString("direct_max");
-        static final XContentBuilderString DIRECT_MAX_IN_BYTES = new XContentBuilderString("direct_max_in_bytes");
-        static final XContentBuilderString GC_COLLECTORS = new XContentBuilderString("gc_collectors");
-        static final XContentBuilderString MEMORY_POOLS = new XContentBuilderString("memory_pools");
-        static final XContentBuilderString USING_COMPRESSED_OOPS = new XContentBuilderString("using_compressed_ordinary_object_pointers");
+        static final String MEM = "mem";
+        static final String HEAP_INIT = "heap_init";
+        static final String HEAP_INIT_IN_BYTES = "heap_init_in_bytes";
+        static final String HEAP_MAX = "heap_max";
+        static final String HEAP_MAX_IN_BYTES = "heap_max_in_bytes";
+        static final String NON_HEAP_INIT = "non_heap_init";
+        static final String NON_HEAP_INIT_IN_BYTES = "non_heap_init_in_bytes";
+        static final String NON_HEAP_MAX = "non_heap_max";
+        static final String NON_HEAP_MAX_IN_BYTES = "non_heap_max_in_bytes";
+        static final String DIRECT_MAX = "direct_max";
+        static final String DIRECT_MAX_IN_BYTES = "direct_max_in_bytes";
+        static final String GC_COLLECTORS = "gc_collectors";
+        static final String MEMORY_POOLS = "memory_pools";
+        static final String USING_COMPRESSED_OOPS = "using_compressed_ordinary_object_pointers";
     }
 
     public static JvmInfo readJvmInfo(StreamInput in) throws IOException {

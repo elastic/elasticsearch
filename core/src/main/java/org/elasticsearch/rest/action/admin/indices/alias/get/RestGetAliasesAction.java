@@ -30,7 +30,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -113,7 +112,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     static class Fields {
 
-        static final XContentBuilderString ALIASES = new XContentBuilderString("aliases");
+        static final String ALIASES = "aliases";
 
     }
 }

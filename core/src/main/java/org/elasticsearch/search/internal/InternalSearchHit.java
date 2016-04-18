@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
@@ -407,20 +406,20 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public static class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
-        static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
-        static final XContentBuilderString SORT = new XContentBuilderString("sort");
-        static final XContentBuilderString MATCHED_QUERIES = new XContentBuilderString("matched_queries");
-        static final XContentBuilderString _EXPLANATION = new XContentBuilderString("_explanation");
-        static final XContentBuilderString VALUE = new XContentBuilderString("value");
-        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
-        static final XContentBuilderString DETAILS = new XContentBuilderString("details");
-        static final XContentBuilderString INNER_HITS = new XContentBuilderString("inner_hits");
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
+        static final String _VERSION = "_version";
+        static final String _SCORE = "_score";
+        static final String FIELDS = "fields";
+        static final String HIGHLIGHT = "highlight";
+        static final String SORT = "sort";
+        static final String MATCHED_QUERIES = "matched_queries";
+        static final String _EXPLANATION = "_explanation";
+        static final String VALUE = "value";
+        static final String DESCRIPTION = "description";
+        static final String DETAILS = "details";
+        static final String INNER_HITS = "inner_hits";
     }
 
     @Override
@@ -836,9 +835,9 @@ public class InternalSearchHit implements SearchHit {
 
         public static class Fields {
 
-            static final XContentBuilderString _NESTED = new XContentBuilderString("_nested");
-            static final XContentBuilderString _NESTED_FIELD = new XContentBuilderString("field");
-            static final XContentBuilderString _NESTED_OFFSET = new XContentBuilderString("offset");
+            static final String _NESTED = "_nested";
+            static final String _NESTED_FIELD = "field";
+            static final String _NESTED_OFFSET = "offset";
 
         }
     }

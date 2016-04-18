@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
@@ -910,11 +909,11 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         }
 
         static final class Fields {
-            static final XContentBuilderString TYPE = new XContentBuilderString("type");
-            static final XContentBuilderString MIN = new XContentBuilderString("min");
-            static final XContentBuilderString MAX = new XContentBuilderString("max");
-            static final XContentBuilderString KEEP_ALIVE = new XContentBuilderString("keep_alive");
-            static final XContentBuilderString QUEUE_SIZE = new XContentBuilderString("queue_size");
+            static final String TYPE = "type";
+            static final String MIN = "min";
+            static final String MAX = "max";
+            static final String KEEP_ALIVE = "keep_alive";
+            static final String QUEUE_SIZE = "queue_size";
         }
 
     }

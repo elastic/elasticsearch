@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -175,10 +174,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString _SCROLL_ID = new XContentBuilderString("_scroll_id");
-        static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
-        static final XContentBuilderString TERMINATED_EARLY = new XContentBuilderString("terminated_early");
+        static final String _SCROLL_ID = "_scroll_id";
+        static final String TOOK = "took";
+        static final String TIMED_OUT = "timed_out";
+        static final String TERMINATED_EARLY = "terminated_early";
     }
 
     @Override

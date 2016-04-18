@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -123,10 +122,10 @@ public class CompletionStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString COMPLETION = new XContentBuilderString("completion");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
+        static final String COMPLETION = "completion";
+        static final String SIZE_IN_BYTES = "size_in_bytes";
+        static final String SIZE = "size";
+        static final String FIELDS = "fields";
     }
 
     public void add(CompletionStats completion) {

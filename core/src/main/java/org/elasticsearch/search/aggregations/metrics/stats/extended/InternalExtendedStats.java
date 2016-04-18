@@ -22,7 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -172,16 +171,16 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
 
     static class Fields {
-        public static final XContentBuilderString SUM_OF_SQRS = new XContentBuilderString("sum_of_squares");
-        public static final XContentBuilderString SUM_OF_SQRS_AS_STRING = new XContentBuilderString("sum_of_squares_as_string");
-        public static final XContentBuilderString VARIANCE = new XContentBuilderString("variance");
-        public static final XContentBuilderString VARIANCE_AS_STRING = new XContentBuilderString("variance_as_string");
-        public static final XContentBuilderString STD_DEVIATION = new XContentBuilderString("std_deviation");
-        public static final XContentBuilderString STD_DEVIATION_AS_STRING = new XContentBuilderString("std_deviation_as_string");
-        public static final XContentBuilderString STD_DEVIATION_BOUNDS = new XContentBuilderString("std_deviation_bounds");
-        public static final XContentBuilderString STD_DEVIATION_BOUNDS_AS_STRING = new XContentBuilderString("std_deviation_bounds_as_string");
-        public static final XContentBuilderString UPPER = new XContentBuilderString("upper");
-        public static final XContentBuilderString LOWER = new XContentBuilderString("lower");
+        public static final String SUM_OF_SQRS = "sum_of_squares";
+        public static final String SUM_OF_SQRS_AS_STRING = "sum_of_squares_as_string";
+        public static final String VARIANCE = "variance";
+        public static final String VARIANCE_AS_STRING = "variance_as_string";
+        public static final String STD_DEVIATION = "std_deviation";
+        public static final String STD_DEVIATION_AS_STRING = "std_deviation_as_string";
+        public static final String STD_DEVIATION_BOUNDS = "std_deviation_bounds";
+        public static final String STD_DEVIATION_BOUNDS_AS_STRING = "std_deviation_bounds_as_string";
+        public static final String UPPER = "upper";
+        public static final String LOWER = "lower";
 
     }
 

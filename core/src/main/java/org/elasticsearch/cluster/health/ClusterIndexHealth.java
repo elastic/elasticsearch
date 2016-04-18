@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -202,17 +201,17 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
     }
 
     static final class Fields {
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString NUMBER_OF_SHARDS = new XContentBuilderString("number_of_shards");
-        static final XContentBuilderString NUMBER_OF_REPLICAS = new XContentBuilderString("number_of_replicas");
-        static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
-        static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
-        static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
-        static final XContentBuilderString INITIALIZING_SHARDS = new XContentBuilderString("initializing_shards");
-        static final XContentBuilderString UNASSIGNED_SHARDS = new XContentBuilderString("unassigned_shards");
-        static final XContentBuilderString VALIDATION_FAILURES = new XContentBuilderString("validation_failures");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString PRIMARY_ACTIVE = new XContentBuilderString("primary_active");
+        static final String STATUS = "status";
+        static final String NUMBER_OF_SHARDS = "number_of_shards";
+        static final String NUMBER_OF_REPLICAS = "number_of_replicas";
+        static final String ACTIVE_PRIMARY_SHARDS = "active_primary_shards";
+        static final String ACTIVE_SHARDS = "active_shards";
+        static final String RELOCATING_SHARDS = "relocating_shards";
+        static final String INITIALIZING_SHARDS = "initializing_shards";
+        static final String UNASSIGNED_SHARDS = "unassigned_shards";
+        static final String VALIDATION_FAILURES = "validation_failures";
+        static final String SHARDS = "shards";
+        static final String PRIMARY_ACTIVE = "primary_active";
     }
 
     @Override

@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -325,34 +324,34 @@ public class SegmentsStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString SEGMENTS = new XContentBuilderString("segments");
-        static final XContentBuilderString COUNT = new XContentBuilderString("count");
-        static final XContentBuilderString MEMORY = new XContentBuilderString("memory");
-        static final XContentBuilderString MEMORY_IN_BYTES = new XContentBuilderString("memory_in_bytes");
-        static final XContentBuilderString TERMS_MEMORY = new XContentBuilderString("terms_memory");
-        static final XContentBuilderString TERMS_MEMORY_IN_BYTES = new XContentBuilderString("terms_memory_in_bytes");
-        static final XContentBuilderString STORED_FIELDS_MEMORY = new XContentBuilderString("stored_fields_memory");
-        static final XContentBuilderString STORED_FIELDS_MEMORY_IN_BYTES = new XContentBuilderString("stored_fields_memory_in_bytes");
-        static final XContentBuilderString TERM_VECTORS_MEMORY = new XContentBuilderString("term_vectors_memory");
-        static final XContentBuilderString TERM_VECTORS_MEMORY_IN_BYTES = new XContentBuilderString("term_vectors_memory_in_bytes");
-        static final XContentBuilderString NORMS_MEMORY = new XContentBuilderString("norms_memory");
-        static final XContentBuilderString NORMS_MEMORY_IN_BYTES = new XContentBuilderString("norms_memory_in_bytes");
-        static final XContentBuilderString POINTS_MEMORY = new XContentBuilderString("points_memory");
-        static final XContentBuilderString POINTS_MEMORY_IN_BYTES = new XContentBuilderString("points_memory_in_bytes");
-        static final XContentBuilderString DOC_VALUES_MEMORY = new XContentBuilderString("doc_values_memory");
-        static final XContentBuilderString DOC_VALUES_MEMORY_IN_BYTES = new XContentBuilderString("doc_values_memory_in_bytes");
-        static final XContentBuilderString INDEX_WRITER_MEMORY = new XContentBuilderString("index_writer_memory");
-        static final XContentBuilderString INDEX_WRITER_MEMORY_IN_BYTES = new XContentBuilderString("index_writer_memory_in_bytes");
-        static final XContentBuilderString INDEX_WRITER_MAX_MEMORY = new XContentBuilderString("index_writer_max_memory");
-        static final XContentBuilderString INDEX_WRITER_MAX_MEMORY_IN_BYTES = new XContentBuilderString("index_writer_max_memory_in_bytes");
-        static final XContentBuilderString VERSION_MAP_MEMORY = new XContentBuilderString("version_map_memory");
-        static final XContentBuilderString VERSION_MAP_MEMORY_IN_BYTES = new XContentBuilderString("version_map_memory_in_bytes");
-        static final XContentBuilderString FIXED_BIT_SET = new XContentBuilderString("fixed_bit_set");
-        static final XContentBuilderString FIXED_BIT_SET_MEMORY_IN_BYTES = new XContentBuilderString("fixed_bit_set_memory_in_bytes");
-        static final XContentBuilderString FILE_SIZES = new XContentBuilderString("file_sizes");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
-        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
+        static final String SEGMENTS = "segments";
+        static final String COUNT = "count";
+        static final String MEMORY = "memory";
+        static final String MEMORY_IN_BYTES = "memory_in_bytes";
+        static final String TERMS_MEMORY = "terms_memory";
+        static final String TERMS_MEMORY_IN_BYTES = "terms_memory_in_bytes";
+        static final String STORED_FIELDS_MEMORY = "stored_fields_memory";
+        static final String STORED_FIELDS_MEMORY_IN_BYTES = "stored_fields_memory_in_bytes";
+        static final String TERM_VECTORS_MEMORY = "term_vectors_memory";
+        static final String TERM_VECTORS_MEMORY_IN_BYTES = "term_vectors_memory_in_bytes";
+        static final String NORMS_MEMORY = "norms_memory";
+        static final String NORMS_MEMORY_IN_BYTES = "norms_memory_in_bytes";
+        static final String POINTS_MEMORY = "points_memory";
+        static final String POINTS_MEMORY_IN_BYTES = "points_memory_in_bytes";
+        static final String DOC_VALUES_MEMORY = "doc_values_memory";
+        static final String DOC_VALUES_MEMORY_IN_BYTES = "doc_values_memory_in_bytes";
+        static final String INDEX_WRITER_MEMORY = "index_writer_memory";
+        static final String INDEX_WRITER_MEMORY_IN_BYTES = "index_writer_memory_in_bytes";
+        static final String INDEX_WRITER_MAX_MEMORY = "index_writer_max_memory";
+        static final String INDEX_WRITER_MAX_MEMORY_IN_BYTES = "index_writer_max_memory_in_bytes";
+        static final String VERSION_MAP_MEMORY = "version_map_memory";
+        static final String VERSION_MAP_MEMORY_IN_BYTES = "version_map_memory_in_bytes";
+        static final String FIXED_BIT_SET = "fixed_bit_set";
+        static final String FIXED_BIT_SET_MEMORY_IN_BYTES = "fixed_bit_set_memory_in_bytes";
+        static final String FILE_SIZES = "file_sizes";
+        static final String SIZE = "size";
+        static final String SIZE_IN_BYTES = "size_in_bytes";
+        static final String DESCRIPTION = "description";
     }
 
     @Override

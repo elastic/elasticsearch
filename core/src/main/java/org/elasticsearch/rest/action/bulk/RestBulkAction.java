@@ -30,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -112,10 +111,10 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     static final class Fields {
-        static final XContentBuilderString ITEMS = new XContentBuilderString("items");
-        static final XContentBuilderString ERRORS = new XContentBuilderString("errors");
-        static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString INGEST_TOOK = new XContentBuilderString("ingest_took");
+        static final String ITEMS = "items";
+        static final String ERRORS = "errors";
+        static final String TOOK = "took";
+        static final String INGEST_TOOK = "ingest_took";
     }
 
 }

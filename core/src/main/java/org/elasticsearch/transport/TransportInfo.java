@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -49,10 +48,10 @@ public class TransportInfo implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString TRANSPORT = new XContentBuilderString("transport");
-        static final XContentBuilderString BOUND_ADDRESS = new XContentBuilderString("bound_address");
-        static final XContentBuilderString PUBLISH_ADDRESS = new XContentBuilderString("publish_address");
-        static final XContentBuilderString PROFILES = new XContentBuilderString("profiles");
+        static final String TRANSPORT = "transport";
+        static final String BOUND_ADDRESS = "bound_address";
+        static final String PUBLISH_ADDRESS = "publish_address";
+        static final String PROFILES = "profiles";
     }
 
     @Override

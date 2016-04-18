@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -132,13 +131,13 @@ public class DetailAnalyzeResponse implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString FILTERED_TEXT = new XContentBuilderString("filtered_text");
-        static final XContentBuilderString CUSTOM_ANALYZER = new XContentBuilderString("custom_analyzer");
-        static final XContentBuilderString ANALYZER = new XContentBuilderString("analyzer");
-        static final XContentBuilderString CHARFILTERS = new XContentBuilderString("charfilters");
-        static final XContentBuilderString TOKENIZER = new XContentBuilderString("tokenizer");
-        static final XContentBuilderString TOKENFILTERS = new XContentBuilderString("tokenfilters");
+        static final String NAME = "name";
+        static final String FILTERED_TEXT = "filtered_text";
+        static final String CUSTOM_ANALYZER = "custom_analyzer";
+        static final String ANALYZER = "analyzer";
+        static final String CHARFILTERS = "charfilters";
+        static final String TOKENIZER = "tokenizer";
+        static final String TOKENFILTERS = "tokenfilters";
     }
 
     @Override

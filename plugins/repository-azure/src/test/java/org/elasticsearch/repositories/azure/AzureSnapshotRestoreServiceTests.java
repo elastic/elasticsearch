@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(
         scope = ESIntegTestCase.Scope.SUITE,
+        numMasterNodes = 0,
         numDataNodes = 1,
         numClientNodes = 0,
         transportClientRatio = 0.0)

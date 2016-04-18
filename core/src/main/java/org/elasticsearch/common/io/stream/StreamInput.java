@@ -740,13 +740,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a {@link PipelineAggregatorBuilder} from the current stream
-     */
-    public PipelineAggregatorBuilder<?> readPipelineAggregatorBuilder() throws IOException {
-        return readNamedWriteable(PipelineAggregatorBuilder.class);
-    }
-
-    /**
      * Reads a {@link QueryBuilder} from the current stream
      */
     public QueryBuilder<?> readQuery() throws IOException {

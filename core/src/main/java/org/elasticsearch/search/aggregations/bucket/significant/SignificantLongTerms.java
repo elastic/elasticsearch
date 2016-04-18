@@ -201,7 +201,7 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        this.format = in.readValueFormat();
+        this.format = in.readNamedWriteable(DocValueFormat.class);
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         this.subsetSize = in.readVLong();
@@ -222,7 +222,7 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
         out.writeVLong(subsetSize);

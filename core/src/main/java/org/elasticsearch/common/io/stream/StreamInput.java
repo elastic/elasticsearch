@@ -791,24 +791,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a {@link DocValueFormat} from the current stream.
-     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link DocValueFormat}.
-     */
-    @Deprecated
-    public DocValueFormat readValueFormat() throws IOException {
-        return readNamedWriteable(DocValueFormat.class);
-    }
-
-    /**
-     * Reads an {@link AllocationCommand} from the stream.
-     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link AllocationCommand}.
-     */
-    @Deprecated
-    public AllocationCommand readAllocationCommand() throws IOException {
-        return readNamedWriteable(AllocationCommand.class);
-    }
-
-    /**
      * Reads a list of objects
      */
     public <T> List<T> readList(StreamInputReader<T> reader) throws IOException {

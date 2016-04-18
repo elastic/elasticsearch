@@ -139,7 +139,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         script.writeTo(out);
-        out.writeValueFormat(formatter);
+        out.writeNamedWriteable(formatter);
         gapPolicy.writeTo(out);
         out.writeGenericValue(bucketsPathsMap);
     }
@@ -148,7 +148,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
         script = Script.readScript(in);
-        formatter = in.readValueFormat();
+        formatter = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();
     }

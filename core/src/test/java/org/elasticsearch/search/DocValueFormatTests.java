@@ -39,41 +39,41 @@ public class DocValueFormatTests extends ESTestCase {
         registry.register(DocValueFormat.class, DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.writeValueFormat(DocValueFormat.BOOLEAN);
+        out.writeNamedWriteable(DocValueFormat.BOOLEAN);
         StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes()), registry);
-        assertSame(DocValueFormat.BOOLEAN, in.readValueFormat());
+        assertSame(DocValueFormat.BOOLEAN, in.readNamedWriteable(DocValueFormat.class));
 
         DocValueFormat.Decimal decimalFormat = new DocValueFormat.Decimal("###.##");
         out = new BytesStreamOutput();
-        out.writeValueFormat(decimalFormat);
+        out.writeNamedWriteable(decimalFormat);
         in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes()), registry);
-        DocValueFormat vf = in.readValueFormat();
+        DocValueFormat vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.Decimal.class, vf.getClass());
         assertEquals("###.##", ((DocValueFormat.Decimal) vf).pattern);
 
         DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(Joda.forPattern("epoch_second"), DateTimeZone.forOffsetHours(1));
         out = new BytesStreamOutput();
-        out.writeValueFormat(dateFormat);
+        out.writeNamedWriteable(dateFormat);
         in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes()), registry);
-        vf = in.readValueFormat();
+        vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.DateTime.class, vf.getClass());
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.format());
         assertEquals(DateTimeZone.forOffsetHours(1), ((DocValueFormat.DateTime) vf).timeZone);
 
         out = new BytesStreamOutput();
-        out.writeValueFormat(DocValueFormat.GEOHASH);
+        out.writeNamedWriteable(DocValueFormat.GEOHASH);
         in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes()), registry);
-        assertSame(DocValueFormat.GEOHASH, in.readValueFormat());
+        assertSame(DocValueFormat.GEOHASH, in.readNamedWriteable(DocValueFormat.class));
 
         out = new BytesStreamOutput();
-        out.writeValueFormat(DocValueFormat.IP);
+        out.writeNamedWriteable(DocValueFormat.IP);
         in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes()), registry);
-        assertSame(DocValueFormat.IP, in.readValueFormat());
+        assertSame(DocValueFormat.IP, in.readNamedWriteable(DocValueFormat.class));
 
         out = new BytesStreamOutput();
-        out.writeValueFormat(DocValueFormat.RAW);
+        out.writeNamedWriteable(DocValueFormat.RAW);
         in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes()), registry);
-        assertSame(DocValueFormat.RAW, in.readValueFormat());
+        assertSame(DocValueFormat.RAW, in.readNamedWriteable(DocValueFormat.class));
     }
 
 }

@@ -790,22 +790,4 @@ public abstract class StreamOutput extends OutputStream {
     public void writeSortBuilder(SortBuilder<?> sort) throws IOException {
         writeNamedWriteable(sort);
     }
-
-    /**
-     * Writes a {@link DocValueFormat}.
-     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
-     */
-    @Deprecated
-    public void writeValueFormat(DocValueFormat format) throws IOException {
-        writeNamedWriteable(format);
-    }
-
-    /**
-     * Writes an {@link AllocationCommand} to the stream.
-     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
-     */
-    @Deprecated
-    public void writeAllocationCommand(AllocationCommand command) throws IOException {
-        writeNamedWriteable(command);
-    }
 }

@@ -96,7 +96,7 @@ public class AllocationCommands {
         AllocationCommands commands = new AllocationCommands();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            commands.add(in.readAllocationCommand());
+            commands.add(in.readNamedWriteable(AllocationCommand.class));
         }
         return commands;
     }
@@ -111,7 +111,7 @@ public class AllocationCommands {
     public static void writeTo(AllocationCommands commands, StreamOutput out) throws IOException {
         out.writeVInt(commands.commands.size());
         for (AllocationCommand command : commands.commands) {
-            out.writeAllocationCommand(command);
+            out.writeNamedWriteable(command);
         }
     }
 

@@ -250,7 +250,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        formatter = in.readValueFormat();
+        formatter = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readVInt();
         predict = in.readVInt();
@@ -261,7 +261,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(formatter);
+        out.writeNamedWriteable(formatter);
         gapPolicy.writeTo(out);
         out.writeVInt(window);
         out.writeVInt(predict);

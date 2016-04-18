@@ -497,7 +497,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         if (minDocCount == 0) {
             emptyBucketInfo = EmptyBucketInfo.readFrom(in);
         }
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
         int size = in.readVInt();
         List<B> buckets = new ArrayList<>(size);
@@ -528,7 +528,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         if (minDocCount == 0) {
             EmptyBucketInfo.writeTo(emptyBucketInfo, out);
         }
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
         out.writeVInt(buckets.size());
         for (B bucket : buckets) {

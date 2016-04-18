@@ -122,13 +122,13 @@ public class ClusterStateTests extends MarvelIntegTestCase {
 
         logger.debug("--> checking that every document contains the expected fields");
         String[] filters = {
-                MonitoringIndexNameResolver.Fields.CLUSTER_UUID.value(),
-                MonitoringIndexNameResolver.Fields.TIMESTAMP.value(),
-                SOURCE_NODE.value(),
-                ClusterStateNodeResolver.Fields.STATE_UUID.value(),
-                ClusterStateNodeResolver.Fields.NODE.value(),
-                ClusterStateNodeResolver.Fields.NODE.value() + "."
-                        + ClusterStateNodeResolver.Fields.ID.value(),
+                MonitoringIndexNameResolver.Fields.CLUSTER_UUID,
+                MonitoringIndexNameResolver.Fields.TIMESTAMP,
+                SOURCE_NODE,
+                ClusterStateNodeResolver.Fields.STATE_UUID,
+                ClusterStateNodeResolver.Fields.NODE,
+                ClusterStateNodeResolver.Fields.NODE + "."
+                        + ClusterStateNodeResolver.Fields.ID,
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {
@@ -143,7 +143,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         assertThat(client().prepareSearch().setSize(0)
                 .setIndices(timestampedIndex)
                 .setTypes(ClusterStateNodeResolver.TYPE)
-                .setQuery(QueryBuilders.matchQuery(SOURCE_NODE.value() + ".attributes.custom", randomInt))
+                .setQuery(QueryBuilders.matchQuery(SOURCE_NODE + ".attributes.custom", randomInt))
                 .get().getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> cluster state nodes successfully collected");
@@ -167,18 +167,18 @@ public class ClusterStateTests extends MarvelIntegTestCase {
 
         logger.debug("--> checking that every document contains the expected fields");
         String[] filters = {
-                MonitoringIndexNameResolver.Fields.CLUSTER_UUID.value(),
-                MonitoringIndexNameResolver.Fields.TIMESTAMP.value(),
-                MonitoringIndexNameResolver.Fields.SOURCE_NODE.value(),
-                DiscoveryNodeResolver.Fields.NODE.value(),
-                DiscoveryNodeResolver.Fields.NODE.value() + "."
-                        + DiscoveryNodeResolver.Fields.ID.value(),
-                DiscoveryNodeResolver.Fields.NODE.value() + "."
-                        + DiscoveryNodeResolver.Fields.NAME.value(),
-                DiscoveryNodeResolver.Fields.NODE.value() + "."
-                        + DiscoveryNodeResolver.Fields.ATTRIBUTES.value(),
-                DiscoveryNodeResolver.Fields.NODE.value() + "."
-                        + DiscoveryNodeResolver.Fields.TRANSPORT_ADDRESS.value(),
+                MonitoringIndexNameResolver.Fields.CLUSTER_UUID,
+                MonitoringIndexNameResolver.Fields.TIMESTAMP,
+                MonitoringIndexNameResolver.Fields.SOURCE_NODE,
+                DiscoveryNodeResolver.Fields.NODE,
+                DiscoveryNodeResolver.Fields.NODE + "."
+                        + DiscoveryNodeResolver.Fields.ID,
+                DiscoveryNodeResolver.Fields.NODE + "."
+                        + DiscoveryNodeResolver.Fields.NAME,
+                DiscoveryNodeResolver.Fields.NODE + "."
+                        + DiscoveryNodeResolver.Fields.ATTRIBUTES,
+                DiscoveryNodeResolver.Fields.NODE + "."
+                        + DiscoveryNodeResolver.Fields.TRANSPORT_ADDRESS,
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {

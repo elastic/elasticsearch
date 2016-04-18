@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -315,23 +314,23 @@ public class License implements ToXContent {
             version = this.version;
         }
         if (restViewMode) {
-            builder.field(XFields.STATUS, status().label());
+            builder.field(Fields.STATUS, status().label());
         }
-        builder.field(XFields.UID, uid);
-        builder.field(XFields.TYPE, type);
+        builder.field(Fields.UID, uid);
+        builder.field(Fields.TYPE, type);
         if (version == VERSION_START) {
-            builder.field(XFields.SUBSCRIPTION_TYPE, subscriptionType);
+            builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
-        builder.dateValueField(XFields.ISSUE_DATE_IN_MILLIS, XFields.ISSUE_DATE, issueDate);
+        builder.dateValueField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
         if (version == VERSION_START) {
-            builder.field(XFields.FEATURE, feature);
+            builder.field(Fields.FEATURE, feature);
         }
-        builder.dateValueField(XFields.EXPIRY_DATE_IN_MILLIS, XFields.EXPIRY_DATE, expiryDate);
-        builder.field(XFields.MAX_NODES, maxNodes);
-        builder.field(XFields.ISSUED_TO, issuedTo);
-        builder.field(XFields.ISSUER, issuer);
+        builder.dateValueField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
+        builder.field(Fields.MAX_NODES, maxNodes);
+        builder.field(Fields.ISSUED_TO, issuedTo);
+        builder.field(Fields.ISSUER, issuer);
         if (!licenseSpecMode && !restViewMode && signature != null) {
-            builder.field(XFields.SIGNATURE, signature);
+            builder.field(Fields.SIGNATURE, signature);
         }
         if (restViewMode) {
             builder.humanReadable(previouslyHumanReadable);
@@ -504,41 +503,25 @@ public class License implements ToXContent {
         return result;
     }
 
-    final static class Fields {
-        static final String STATUS = "status";
-        static final String UID = "uid";
-        static final String TYPE = "type";
-        static final String SUBSCRIPTION_TYPE = "subscription_type";
-        static final String ISSUE_DATE_IN_MILLIS = "issue_date_in_millis";
-        static final String ISSUE_DATE = "issue_date";
-        static final String FEATURE = "feature";
-        static final String EXPIRY_DATE_IN_MILLIS = "expiry_date_in_millis";
-        static final String EXPIRY_DATE = "expiry_date";
-        static final String MAX_NODES = "max_nodes";
-        static final String ISSUED_TO = "issued_to";
-        static final String ISSUER = "issuer";
-        static final String VERSION = "version";
-        static final String SIGNATURE = "signature";
+    public final static class Fields {
+        public static final String STATUS = "status";
+        public static final String UID = "uid";
+        public static final String TYPE = "type";
+        public static final String SUBSCRIPTION_TYPE = "subscription_type";
+        public static final String ISSUE_DATE_IN_MILLIS = "issue_date_in_millis";
+        public static final String ISSUE_DATE = "issue_date";
+        public static final String FEATURE = "feature";
+        public static final String EXPIRY_DATE_IN_MILLIS = "expiry_date_in_millis";
+        public static final String EXPIRY_DATE = "expiry_date";
+        public static final String MAX_NODES = "max_nodes";
+        public static final String ISSUED_TO = "issued_to";
+        public static final String ISSUER = "issuer";
+        public static final String VERSION = "version";
+        public static final String SIGNATURE = "signature";
 
-        static final String LICENSES = "licenses";
-        static final String LICENSE = "license";
+        public static final String LICENSES = "licenses";
+        public static final String LICENSE = "license";
 
-    }
-
-    public interface XFields {
-        XContentBuilderString STATUS = new XContentBuilderString(Fields.STATUS);
-        XContentBuilderString UID = new XContentBuilderString(Fields.UID);
-        XContentBuilderString TYPE = new XContentBuilderString(Fields.TYPE);
-        XContentBuilderString SUBSCRIPTION_TYPE = new XContentBuilderString(Fields.SUBSCRIPTION_TYPE);
-        XContentBuilderString ISSUE_DATE_IN_MILLIS = new XContentBuilderString(Fields.ISSUE_DATE_IN_MILLIS);
-        XContentBuilderString ISSUE_DATE = new XContentBuilderString(Fields.ISSUE_DATE);
-        XContentBuilderString FEATURE = new XContentBuilderString(Fields.FEATURE);
-        XContentBuilderString EXPIRY_DATE_IN_MILLIS = new XContentBuilderString(Fields.EXPIRY_DATE_IN_MILLIS);
-        XContentBuilderString EXPIRY_DATE = new XContentBuilderString(Fields.EXPIRY_DATE);
-        XContentBuilderString MAX_NODES = new XContentBuilderString(Fields.MAX_NODES);
-        XContentBuilderString ISSUED_TO = new XContentBuilderString(Fields.ISSUED_TO);
-        XContentBuilderString ISSUER = new XContentBuilderString(Fields.ISSUER);
-        XContentBuilderString SIGNATURE = new XContentBuilderString(Fields.SIGNATURE);
     }
 
     private static long parseDate(XContentParser parser, String description, boolean endOfTheDay) throws IOException {

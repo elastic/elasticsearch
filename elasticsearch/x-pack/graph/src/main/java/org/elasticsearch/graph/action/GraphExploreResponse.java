@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.graph.action.Connection.ConnectionId;
 import org.elasticsearch.graph.action.Vertex.VertexId;
 
@@ -149,12 +148,12 @@ public class GraphExploreResponse extends ActionResponse implements ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
-        static final XContentBuilderString INDICES = new XContentBuilderString("_indices");
-        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
-        static final XContentBuilderString VERTICES = new XContentBuilderString("vertices");
-        static final XContentBuilderString CONNECTIONS = new XContentBuilderString("connections");
+        static final String TOOK = "took";
+        static final String TIMED_OUT = "timed_out";
+        static final String INDICES = "_indices";
+        static final String FAILURES = "failures";
+        static final String VERTICES = "vertices";
+        static final String CONNECTIONS = "connections";
 
     }
 

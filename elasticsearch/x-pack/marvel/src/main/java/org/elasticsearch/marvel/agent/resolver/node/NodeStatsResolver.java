@@ -9,7 +9,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
@@ -121,11 +120,11 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
     }
 
     static final class Fields {
-        static final XContentBuilderString NODE_STATS = new XContentBuilderString(TYPE);
-        static final XContentBuilderString NODE_ID = new XContentBuilderString("node_id");
-        static final XContentBuilderString NODE_MASTER = new XContentBuilderString("node_master");
-        static final XContentBuilderString MLOCKALL = new XContentBuilderString("mlockall");
-        static final XContentBuilderString DISK_THRESHOLD_ENABLED = new XContentBuilderString("disk_threshold_enabled");
-        static final XContentBuilderString DISK_THRESHOLD_WATERMARK_HIGH = new XContentBuilderString("disk_threshold_watermark_high");
+        static final String NODE_STATS = TYPE;
+        static final String NODE_ID = "node_id";
+        static final String NODE_MASTER = "node_master";
+        static final String MLOCKALL = "mlockall";
+        static final String DISK_THRESHOLD_ENABLED = "disk_threshold_enabled";
+        static final String DISK_THRESHOLD_WATERMARK_HIGH = "disk_threshold_watermark_high";
     }
 }

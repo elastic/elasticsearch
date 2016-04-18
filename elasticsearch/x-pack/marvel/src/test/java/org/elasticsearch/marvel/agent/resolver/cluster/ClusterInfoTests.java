@@ -77,42 +77,42 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
         assertThat(response.getId(), equalTo(clusterUUID));
 
         Map<String, Object> source = response.getSource();
-        assertThat(source.get(MonitoringIndexNameResolver.Fields.CLUSTER_UUID.value()), notNullValue());
-        assertThat(source.get(MonitoringIndexNameResolver.Fields.TIMESTAMP.value()), notNullValue());
-        assertThat(source.get(MonitoringIndexNameResolver.Fields.SOURCE_NODE.value()), notNullValue());
-        assertThat(source.get(ClusterInfoResolver.Fields.CLUSTER_NAME.value()), equalTo(cluster().getClusterName()));
-        assertThat(source.get(ClusterInfoResolver.Fields.VERSION.value()), equalTo(Version.CURRENT.toString()));
+        assertThat(source.get(MonitoringIndexNameResolver.Fields.CLUSTER_UUID), notNullValue());
+        assertThat(source.get(MonitoringIndexNameResolver.Fields.TIMESTAMP), notNullValue());
+        assertThat(source.get(MonitoringIndexNameResolver.Fields.SOURCE_NODE), notNullValue());
+        assertThat(source.get(ClusterInfoResolver.Fields.CLUSTER_NAME), equalTo(cluster().getClusterName()));
+        assertThat(source.get(ClusterInfoResolver.Fields.VERSION), equalTo(Version.CURRENT.toString()));
 
         logger.debug("--> checking that the document contains license information");
-        Object licenseObj = source.get(ClusterInfoResolver.Fields.LICENSE.value());
+        Object licenseObj = source.get(ClusterInfoResolver.Fields.LICENSE);
         assertThat(licenseObj, instanceOf(Map.class));
         Map license = (Map) licenseObj;
 
         assertThat(license, instanceOf(Map.class));
 
-        String uid = (String) license.get(ClusterInfoResolver.Fields.UID.value());
+        String uid = (String) license.get(ClusterInfoResolver.Fields.UID);
         assertThat(uid, not(isEmptyOrNullString()));
 
-        String type = (String) license.get(ClusterInfoResolver.Fields.TYPE.value());
+        String type = (String) license.get(ClusterInfoResolver.Fields.TYPE);
         assertThat(type, not(isEmptyOrNullString()));
 
-        String status = (String) license.get(License.XFields.STATUS.value());
+        String status = (String) license.get(License.Fields.STATUS);
         assertThat(status, not(isEmptyOrNullString()));
 
-        Long expiryDate = (Long) license.get(License.XFields.EXPIRY_DATE_IN_MILLIS.value());
+        Long expiryDate = (Long) license.get(License.Fields.EXPIRY_DATE_IN_MILLIS);
         assertThat(expiryDate, greaterThan(0L));
 
         // We basically recompute the hash here
-        String hkey = (String) license.get(ClusterInfoResolver.Fields.HKEY.value());
+        String hkey = (String) license.get(ClusterInfoResolver.Fields.HKEY);
         String recalculated = ClusterInfoResolver.hash(status, uid, type, String.valueOf(expiryDate), clusterUUID);
         assertThat(hkey, equalTo(recalculated));
 
-        assertThat((String) license.get(License.XFields.ISSUER.value()), not(isEmptyOrNullString()));
-        assertThat((String) license.get(License.XFields.ISSUED_TO.value()), not(isEmptyOrNullString()));
-        assertThat((Long) license.get(License.XFields.ISSUE_DATE_IN_MILLIS.value()), greaterThan(0L));
-        assertThat((Integer) license.get(License.XFields.MAX_NODES.value()), greaterThan(0));
+        assertThat((String) license.get(License.Fields.ISSUER), not(isEmptyOrNullString()));
+        assertThat((String) license.get(License.Fields.ISSUED_TO), not(isEmptyOrNullString()));
+        assertThat((Long) license.get(License.Fields.ISSUE_DATE_IN_MILLIS), greaterThan(0L));
+        assertThat((Integer) license.get(License.Fields.MAX_NODES), greaterThan(0));
 
-        Object clusterStats = source.get(ClusterInfoResolver.Fields.CLUSTER_STATS.value());
+        Object clusterStats = source.get(ClusterInfoResolver.Fields.CLUSTER_STATS);
         assertNotNull(clusterStats);
         assertThat(clusterStats, instanceOf(Map.class));
         assertThat(((Map) clusterStats).size(), greaterThan(0));
@@ -128,10 +128,10 @@ public class ClusterInfoTests extends MarvelIntegTestCase {
                 .setTypes(ClusterInfoResolver.TYPE)
                 .setQuery(
                     QueryBuilders.boolQuery()
-                        .should(QueryBuilders.matchQuery(License.XFields.STATUS.value(), License.Status.ACTIVE.label()))
-                        .should(QueryBuilders.matchQuery(License.XFields.STATUS.value(), License.Status.INVALID.label()))
-                        .should(QueryBuilders.matchQuery(License.XFields.STATUS.value(), License.Status.EXPIRED.label()))
-                        .should(QueryBuilders.matchQuery(ClusterInfoResolver.Fields.CLUSTER_NAME.value(),
+                        .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.ACTIVE.label()))
+                        .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.INVALID.label()))
+                        .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.EXPIRED.label()))
+                        .should(QueryBuilders.matchQuery(ClusterInfoResolver.Fields.CLUSTER_NAME,
                                 cluster().getClusterName()))
                         .minimumNumberShouldMatch(1)
                 ).get(), 0L);

@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.actions.slack.service;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.watcher.actions.slack.service.message.SlackMessage;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpResponse;
@@ -138,13 +137,13 @@ public class SentMessages implements ToXContent, Iterable<SentMessages.SentMessa
     }
 
     interface Field {
-        XContentBuilderString ACCOUNT = new XContentBuilderString("account");
-        XContentBuilderString SENT_MESSAGES = new XContentBuilderString("sent_messages");
-        XContentBuilderString STATUS = new XContentBuilderString("status");
-        XContentBuilderString REASON = new XContentBuilderString("reason");
-        XContentBuilderString REQUEST = new XContentBuilderString("request");
-        XContentBuilderString RESPONSE = new XContentBuilderString("response");
-        XContentBuilderString MESSAGE = new XContentBuilderString("message");
-        XContentBuilderString TO = new XContentBuilderString("to");
+        String ACCOUNT = new String("account");
+        String SENT_MESSAGES = new String("sent_messages");
+        String STATUS = new String("status");
+        String REASON = new String("reason");
+        String REQUEST = new String("request");
+        String RESPONSE = new String("response");
+        String MESSAGE = new String("message");
+        String TO = new String("to");
     }
 }

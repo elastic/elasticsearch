@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
@@ -128,9 +127,9 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
     protected abstract void buildXContent(T document, XContentBuilder builder, ToXContent.Params params) throws IOException;
 
     public static final class Fields {
-        public static final XContentBuilderString CLUSTER_UUID = new XContentBuilderString("cluster_uuid");
-        public static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
-        public static final XContentBuilderString SOURCE_NODE = new XContentBuilderString("source_node");
+        public static final String CLUSTER_UUID = "cluster_uuid";
+        public static final String TIMESTAMP = "timestamp";
+        public static final String SOURCE_NODE = "source_node";
     }
 
     /**

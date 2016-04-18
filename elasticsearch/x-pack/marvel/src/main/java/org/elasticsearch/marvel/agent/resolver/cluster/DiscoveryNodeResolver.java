@@ -8,7 +8,6 @@ package org.elasticsearch.marvel.agent.resolver.cluster;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.marvel.agent.collector.cluster.DiscoveryNodeMonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 
@@ -55,10 +54,10 @@ public class DiscoveryNodeResolver extends MonitoringIndexNameResolver.Data<Disc
     }
 
     static final class Fields {
-        static final XContentBuilderString NODE = new XContentBuilderString(TYPE);
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString TRANSPORT_ADDRESS = new XContentBuilderString("transport_address");
-        static final XContentBuilderString ATTRIBUTES = new XContentBuilderString("attributes");
-        static final XContentBuilderString ID = new XContentBuilderString("id");
+        static final String NODE = TYPE;
+        static final String NAME = "name";
+        static final String TRANSPORT_ADDRESS = "transport_address";
+        static final String ATTRIBUTES = "attributes";
+        static final String ID = "id";
     }
 }

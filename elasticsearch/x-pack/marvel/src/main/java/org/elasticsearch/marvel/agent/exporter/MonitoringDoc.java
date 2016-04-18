@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -229,12 +228,12 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
         }
 
         static final class Fields {
-            static final XContentBuilderString UUID = new XContentBuilderString("uuid");
-            static final XContentBuilderString HOST = new XContentBuilderString("host");
-            static final XContentBuilderString TRANSPORT_ADDRESS = new XContentBuilderString("transport_address");
-            static final XContentBuilderString IP = new XContentBuilderString("ip");
-            static final XContentBuilderString NAME = new XContentBuilderString("name");
-            static final XContentBuilderString ATTRIBUTES = new XContentBuilderString("attributes");
+            static final String UUID = "uuid";
+            static final String HOST = "host";
+            static final String TRANSPORT_ADDRESS = "transport_address";
+            static final String IP = "ip";
+            static final String NAME = "name";
+            static final String ATTRIBUTES = "attributes";
         }
     }
 }

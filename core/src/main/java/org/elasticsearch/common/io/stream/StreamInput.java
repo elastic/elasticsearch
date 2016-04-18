@@ -737,56 +737,72 @@ public abstract class StreamInput extends InputStream {
 
     /**
      * Reads a {@link QueryBuilder} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link QueryBuilder}.
      */
+    @Deprecated
     public QueryBuilder<?> readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
     }
 
     /**
      * Reads a {@link SuggestionBuilder} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link SuggestionBuilder}.
      */
+    @Deprecated
     public SuggestionBuilder<?> readSuggestion() throws IOException {
         return readNamedWriteable(SuggestionBuilder.class);
     }
 
     /**
      * Reads a {@link SortBuilder} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link SortBuilder}.
      */
+    @Deprecated
     public SortBuilder<?> readSortBuilder() throws IOException {
         return readNamedWriteable(SortBuilder.class);
     }
 
     /**
      * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link ScoreFunctionBuilder}.
      */
+    @Deprecated
     public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
         return readNamedWriteable(ScoreFunctionBuilder.class);
     }
 
     /**
      * Reads a {@link SmoothingModel} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link SmoothingModel}.
      */
+    @Deprecated
     public SmoothingModel readPhraseSuggestionSmoothingModel() throws IOException {
         return readNamedWriteable(SmoothingModel.class);
     }
 
     /**
      * Reads a {@link Task.Status} from the current stream.
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link Task.Status}.
      */
+    @Deprecated
     public Task.Status readTaskStatus() throws IOException {
         return readNamedWriteable(Task.Status.class);
     }
 
     /**
      * Reads a {@link DocValueFormat} from the current stream.
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link DocValueFormat}.
      */
+    @Deprecated
     public DocValueFormat readValueFormat() throws IOException {
         return readNamedWriteable(DocValueFormat.class);
     }
 
     /**
      * Reads an {@link AllocationCommand} from the stream.
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link AllocationCommand}.
      */
+    @Deprecated
     public AllocationCommand readAllocationCommand() throws IOException {
         return readNamedWriteable(AllocationCommand.class);
     }

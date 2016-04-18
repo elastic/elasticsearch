@@ -702,28 +702,36 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Writes a {@link QueryBuilder} to the current stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeQuery(QueryBuilder<?> queryBuilder) throws IOException {
         writeNamedWriteable(queryBuilder);
     }
 
     /**
      * Writes a {@link ScoreFunctionBuilder} to the current stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
         writeNamedWriteable(scoreFunctionBuilder);
     }
 
     /**
      * Writes the given {@link SmoothingModel} to the stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
         writeNamedWriteable(smoothinModel);
     }
 
     /**
      * Writes a {@link Task.Status} to the current stream.
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeTaskStatus(Task.Status status) throws IOException {
         writeNamedWriteable(status);
     }
@@ -767,26 +775,36 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Writes a {@link SuggestionBuilder} to the current stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeSuggestion(SuggestionBuilder<?> suggestion) throws IOException {
         writeNamedWriteable(suggestion);
     }
 
     /**
      * Writes a {@link SortBuilder} to the current stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeSortBuilder(SortBuilder<?> sort) throws IOException {
         writeNamedWriteable(sort);
     }
 
-    /** Writes a {@link DocValueFormat}. */
+    /**
+     * Writes a {@link DocValueFormat}.
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
+     */
+    @Deprecated
     public void writeValueFormat(DocValueFormat format) throws IOException {
         writeNamedWriteable(format);
     }
 
     /**
      * Writes an {@link AllocationCommand} to the stream.
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeAllocationCommand(AllocationCommand command) throws IOException {
         writeNamedWriteable(command);
     }

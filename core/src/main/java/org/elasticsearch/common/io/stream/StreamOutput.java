@@ -705,13 +705,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a {@link AggregatorBuilder} to the current stream
-     */
-    public void writeAggregatorBuilder(AggregatorBuilder<?> builder) throws IOException {
-        writeNamedWriteable(builder);
-    }
-
-    /**
      * Writes a {@link PipelineAggregatorBuilder} to the current stream
      */
     public void writePipelineAggregatorBuilder(PipelineAggregatorBuilder<?> builder) throws IOException {

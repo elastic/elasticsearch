@@ -277,13 +277,11 @@ public class AggregatorFactories {
             Builder builder = new Builder();
             int factoriesSize = in.readVInt();
             for (int i = 0; i < factoriesSize; i++) {
-                AggregatorBuilder<?> factory = in.readAggregatorBuilder();
-                builder.addAggregator(factory);
+                builder.addAggregator(in.readNamedWriteable(AggregatorBuilder.class));
             }
             int pipelineFactoriesSize = in.readVInt();
             for (int i = 0; i < pipelineFactoriesSize; i++) {
-                PipelineAggregatorBuilder<?> factory = in.readPipelineAggregatorBuilder();
-                builder.addPipelineAggregator(factory);
+                builder.addPipelineAggregator(in.readNamedWriteable(PipelineAggregatorBuilder.class));
             }
             return builder;
         }
@@ -291,12 +289,12 @@ public class AggregatorFactories {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.aggregatorBuilders.size());
-            for (AggregatorBuilder<?> factory : aggregatorBuilders) {
-                out.writeAggregatorBuilder(factory);
+            for (AggregatorBuilder<?> builder : aggregatorBuilders) {
+                out.writeNamedWriteable(builder);
             }
             out.writeVInt(this.pipelineAggregatorBuilders.size());
-            for (PipelineAggregatorBuilder<?> factory : pipelineAggregatorBuilders) {
-                out.writePipelineAggregatorBuilder(factory);
+            for (PipelineAggregatorBuilder<?> builder : pipelineAggregatorBuilders) {
+                out.writeNamedWriteable(builder);
             }
         }
 

@@ -25,7 +25,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

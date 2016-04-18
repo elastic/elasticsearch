@@ -42,7 +42,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.startsWith;
 
-
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
     protected static SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.injector().getInstance(BigArrays.class);
@@ -222,5 +221,4 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10, true);
         assertThat(p.toString(), startsWith(index.index().toString()));
     }
-
 }

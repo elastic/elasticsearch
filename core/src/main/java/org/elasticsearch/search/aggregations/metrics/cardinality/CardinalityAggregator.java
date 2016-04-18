@@ -61,6 +61,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private HyperLogLogPlusPlus counts;
 
     private Collector collector;
+    private ValueFormatter formatter;
+    private boolean sumDirectly;
 
     public CardinalityAggregator(String name, ValuesSource valuesSource, int precision,
             AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
@@ -68,6 +70,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         this.valuesSource = valuesSource;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+    }
+
+    public boolean isSumDirectly() {
+        return sumDirectly;
+    }
+
+    public void setSumDirectly(boolean sumDirectly) {
+        this.sumDirectly = sumDirectly;
     }
 
     @Override
@@ -144,12 +154,16 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // this Aggregator (and its HLL++ counters) is released.
         HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
         copy.merge(0, counts, owningBucketOrdinal);
-        return new InternalCardinality(name, copy, pipelineAggregators(), metaData());
+        final InternalCardinality internalCardinality = new InternalCardinality(name, copy, formatter, pipelineAggregators(), metaData());
+        internalCardinality.setSumDirectly(sumDirectly);
+        return internalCardinality;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCardinality(name, null, pipelineAggregators(), metaData());
+        final InternalCardinality internalCardinality = new InternalCardinality(name, null, formatter, pipelineAggregators(), metaData());
+        internalCardinality.setSumDirectly(sumDirectly);
+        return internalCardinality;
     }
 
     @Override

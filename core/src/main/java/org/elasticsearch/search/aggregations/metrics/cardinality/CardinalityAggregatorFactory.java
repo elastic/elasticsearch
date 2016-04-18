@@ -36,26 +36,49 @@ import java.util.Map;
 
 public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, CardinalityAggregatorFactory> {
 
-    private final Long precisionThreshold;
+    private final long precisionThreshold;
+    private final boolean rehash;
+    private boolean sumDirectly ;
 
     public CardinalityAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, Long precisionThreshold,
             AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.precisionThreshold = precisionThreshold;
+        this.rehash = rehash;
+    }
+
+    public boolean isSumDirectly() {
+        return sumDirectly;
+    }
+
+    public void setSumDirectly(boolean sumDirectly) {
+        this.sumDirectly = sumDirectly;
+    }
+
+    
+    private int precision(Aggregator parent) {
+        return precisionThreshold < 0 ? defaultPrecision(parent) : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new CardinalityAggregator(name, null, precision(parent), context, parent, pipelineAggregators, metaData);
+        final CardinalityAggregator cardinalityAggregator = new CardinalityAggregator(name, null, true, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
+        cardinalityAggregator.setSumDirectly(sumDirectly);
+        return cardinalityAggregator;
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new CardinalityAggregator(name, valuesSource, precision(parent), context, parent, pipelineAggregators,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
+            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        if (!(valuesSource instanceof ValuesSource.Numeric) && !rehash) {
+            throw new AggregationExecutionException("Turning off rehashing for cardinality aggregation [" + name + "] on non-numeric values in not allowed");
+        }
+        final CardinalityAggregator cardinalityAggregator = new CardinalityAggregator(name, valuesSource, rehash, precision(parent), config.formatter(), context, parent, pipelineAggregators,
                 metaData);
+        cardinalityAggregator.setSumDirectly(sumDirectly);
+        return cardinalityAggregator;
     }
 
     private int precision(Aggregator parent) {

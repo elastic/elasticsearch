@@ -50,6 +50,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     }
 
     private HyperLogLogPlusPlus counts;
+    protected long primitiveCounts;
 
     InternalCardinality(String name, HyperLogLogPlusPlus counts, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
@@ -57,6 +58,17 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         this.counts = counts;
     }
 
+    private boolean sumDirectly;
+
+    public boolean isSumDirectly() {
+        return sumDirectly;
+    }
+
+    public void setSumDirectly(boolean sumDirectly) {
+        this.sumDirectly = sumDirectly;
+    }
+    
+    
     private InternalCardinality() {
     }
 
@@ -67,7 +79,11 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     public long getValue() {
-        return counts == null ? 0 : counts.cardinality(0);
+        if(isSumDirectly()){
+            return primitiveCounts;
+        }else{
+            return counts == null ? 0 : counts.cardinality(0);
+        }
     }
 
     @Override
@@ -77,44 +93,73 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
-        if (in.readBoolean()) {
-            counts = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
-        } else {
-            counts = null;
+        valueFormatter = ValueFormatterStreams.readOptional(in);
+        if(isSumDirectly()){
+            if (in.readBoolean()) {
+                primitiveCounts = in.readLong();
+            } else {
+                primitiveCounts = 0;
+            }
+        }else{
+            if (in.readBoolean()) {
+                counts = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
+            } else {
+                counts = null;
+            }
         }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
-        if (counts != null) {
-            out.writeBoolean(true);
-            counts.writeTo(0, out);
-        } else {
-            out.writeBoolean(false);
+        ValueFormatterStreams.writeOptional(valueFormatter, out);
+        if(isSumDirectly()){
+            if (counts != null) {
+                out.writeBoolean(true);
+                out.writeLong(counts.cardinality(0));
+            } else {
+                out.writeBoolean(false);
+            }
+        }else{
+            if (counts != null) {
+                out.writeBoolean(true);
+                counts.writeTo(0, out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
     }
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalCardinality reduced = null;
-        for (InternalAggregation aggregation : aggregations) {
-            final InternalCardinality cardinality = (InternalCardinality) aggregation;
-            if (cardinality.counts != null) {
-                if (reduced == null) {
-                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
-                            BigArrays.NON_RECYCLING_INSTANCE, 1), pipelineAggregators(), getMetaData());
+        if(isSumDirectly()){
+            reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(HyperLogLogPlusPlus.MIN_PRECISION,
+                                BigArrays.NON_RECYCLING_INSTANCE, 1), this.valueFormatter, pipelineAggregators(), getMetaData());
+            long allCnts = 0;
+            for (InternalAggregation aggregation : aggregations) {
+                allCnts += ((InternalCardinality)aggregation).primitiveCounts;
+            }
+            reduced.primitiveCounts = allCnts;
+            return reduced;
+        }else{
+            for (InternalAggregation aggregation : aggregations) {
+                final InternalCardinality cardinality = (InternalCardinality) aggregation;
+                if (cardinality.counts != null) {
+                    if (reduced == null) {
+                        reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
+                                BigArrays.NON_RECYCLING_INSTANCE, 1), this.valueFormatter, pipelineAggregators(), getMetaData());
+                    }
+                    reduced.merge(cardinality);
                 }
-                reduced.merge(cardinality);
+            }
+            if (reduced == null) { // all empty
+                return aggregations.get(0);
+            } else {
+                return reduced;
             }
         }
 
-        if (reduced == null) { // all empty
-            return aggregations.get(0);
-        } else {
-            return reduced;
-        }
+        
     }
 
     public void merge(InternalCardinality other) {

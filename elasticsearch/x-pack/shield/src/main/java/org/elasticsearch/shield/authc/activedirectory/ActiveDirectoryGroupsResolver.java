@@ -45,7 +45,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
         Filter groupSearchFilter = buildGroupQuery(connection, userDn, timeout, logger);
         logger.debug("group SID to DN search filter: [{}]", groupSearchFilter);
 
-        SearchRequest searchRequest = new SearchRequest(baseDn, scope.scope(), groupSearchFilter, Strings.EMPTY_ARRAY);
+        SearchRequest searchRequest = new SearchRequest(baseDn, scope.scope(), groupSearchFilter, SearchRequest.NO_ATTRIBUTES);
         searchRequest.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
         SearchResult results;
         try {

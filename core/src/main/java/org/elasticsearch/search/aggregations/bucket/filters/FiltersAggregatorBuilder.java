@@ -100,7 +100,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
         filters = new ArrayList<>(filtersSize);
         if (keyed) {
             for (int i = 0; i < filtersSize; i++) {
-                filters.add(KeyedFilter.PROTOTYPE.readFrom(in));
+                filters.add(new KeyedFilter(in));
             }
         } else {
             for (int i = 0; i < filtersSize; i++) {

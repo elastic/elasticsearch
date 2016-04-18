@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -39,9 +41,11 @@ import java.util.Map;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
- *
+ * Manages configuring and storing analyzers, tokenizers, char filters and token filters.
  */
 public class AnalysisService extends AbstractIndexComponent implements Closeable {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(AnalysisService.class));
 
     private final ImmutableMap<String, NamedAnalyzer> analyzers;
     private final ImmutableMap<String, TokenizerFactory> tokenizers;
@@ -90,7 +94,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
                 TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, tokenizerSettings);
                 tokenizers.put(tokenizerName, tokenizerFactory);
-                tokenizers.put(Strings.toCamelCase(tokenizerName), tokenizerFactory);
             }
         }
 
@@ -99,12 +102,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 String name = entry.getKey();
                 if (!tokenizers.containsKey(name)) {
                     tokenizers.put(name, entry.getValue().create(name, defaultSettings));
-                }
-                name = Strings.toCamelCase(entry.getKey());
-                if (!name.equals(entry.getKey())) {
-                    if (!tokenizers.containsKey(name)) {
-                        tokenizers.put(name, entry.getValue().create(name, defaultSettings));
-                    }
                 }
             }
         }
@@ -125,7 +122,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
                 CharFilterFactory tokenFilterFactory = charFilterFactoryFactory.create(charFilterName, charFilterSettings);
                 charFilters.put(charFilterName, tokenFilterFactory);
-                charFilters.put(Strings.toCamelCase(charFilterName), tokenFilterFactory);
             }
         }
 
@@ -134,12 +130,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 String name = entry.getKey();
                 if (!charFilters.containsKey(name)) {
                     charFilters.put(name, entry.getValue().create(name, defaultSettings));
-                }
-                name = Strings.toCamelCase(entry.getKey());
-                if (!name.equals(entry.getKey())) {
-                    if (!charFilters.containsKey(name)) {
-                        charFilters.put(name, entry.getValue().create(name, defaultSettings));
-                    }
                 }
             }
         }
@@ -160,7 +150,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
                 TokenFilterFactory tokenFilterFactory = tokenFilterFactoryFactory.create(tokenFilterName, tokenFilterSettings);
                 tokenFilters.put(tokenFilterName, tokenFilterFactory);
-                tokenFilters.put(Strings.toCamelCase(tokenFilterName), tokenFilterFactory);
             }
         }
 
@@ -170,12 +159,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 String name = entry.getKey();
                 if (!tokenFilters.containsKey(name)) {
                     tokenFilters.put(name, entry.getValue().create(name, defaultSettings));
-                }
-                name = Strings.toCamelCase(entry.getKey());
-                if (!name.equals(entry.getKey())) {
-                    if (!tokenFilters.containsKey(name)) {
-                        tokenFilters.put(name, entry.getValue().create(name, defaultSettings));
-                    }
                 }
             }
         }
@@ -203,10 +186,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 Version indexVersion = Version.indexCreated(indexSettings);
                 if (!analyzerProviders.containsKey(name)) {
                     analyzerProviders.put(name, entry.getValue().create(name, Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
-                }
-                String camelCaseName = Strings.toCamelCase(name);
-                if (!camelCaseName.equals(entry.getKey()) && !analyzerProviders.containsKey(camelCaseName)) {
-                    analyzerProviders.put(camelCaseName, entry.getValue().create(name, Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
                 }
             }
         }
@@ -260,7 +239,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
             }
             analyzers.put(analyzerFactory.name(), analyzer);
-            analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);
             String strAliases = indexSettings.get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
             if (strAliases != null) {
                 for (String alias : Strings.commaDelimitedListToStringArray(strAliases)) {
@@ -309,7 +287,16 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     }
 
     public NamedAnalyzer analyzer(String name) {
-        return analyzers.get(name);
+        NamedAnalyzer analyzer = analyzers.get(name);
+        if (analyzer != null) {
+            return analyzer;
+        }
+        String underscoreName = Strings.toUnderscoreCase(name);
+        analyzer = analyzers.get(underscoreName);
+        if (analyzer != null) {
+            DEPRECATION_LOGGER.deprecated("Deprecated analyzer name [" + name + "], use [" + underscoreName + "] instead");
+        }
+        return analyzer;
     }
 
     public NamedAnalyzer defaultIndexAnalyzer() {
@@ -325,14 +312,41 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     }
 
     public TokenizerFactory tokenizer(String name) {
-        return tokenizers.get(name);
+        TokenizerFactory tokenizerFactory = tokenizers.get(name);
+        if (tokenizerFactory != null) {
+            return tokenizerFactory;
+        }
+        String underscoreName = Strings.toUnderscoreCase(name);
+        tokenizerFactory = tokenizers.get(underscoreName);
+        if (tokenizerFactory != null) {
+            DEPRECATION_LOGGER.deprecated("Deprecated tokenizer name [" + name + "], use [" + underscoreName + "] instead");
+        }
+        return tokenizerFactory;
     }
 
     public CharFilterFactory charFilter(String name) {
-        return charFilters.get(name);
+        CharFilterFactory charFilterFactory = charFilters.get(name);
+        if (charFilterFactory != null) {
+            return charFilterFactory;
+        }
+        String underscoreName = Strings.toUnderscoreCase(name);
+        charFilterFactory = charFilters.get(underscoreName);
+        if (charFilterFactory != null) {
+            DEPRECATION_LOGGER.deprecated("Deprecated char_filter name [" + name + "], use [" + underscoreName + "] instead");
+        }
+        return charFilterFactory;
     }
 
     public TokenFilterFactory tokenFilter(String name) {
-        return tokenFilters.get(name);
+        TokenFilterFactory tokenFilterFactory = tokenFilters.get(name);
+        if (tokenFilterFactory != null) {
+            return tokenFilterFactory;
+        }
+        String underscoreName = Strings.toUnderscoreCase(name);
+        tokenFilterFactory = tokenFilters.get(underscoreName);
+        if (tokenFilterFactory != null) {
+            DEPRECATION_LOGGER.deprecated("Deprecated token_filter name [" + name + "], use [" + underscoreName + "] instead");
+        }
+        return tokenFilterFactory;
     }
 }

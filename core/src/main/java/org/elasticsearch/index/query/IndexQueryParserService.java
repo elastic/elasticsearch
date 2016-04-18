@@ -19,13 +19,17 @@
 
 package org.elasticsearch.index.query;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -47,6 +51,8 @@ import org.elasticsearch.script.ScriptService;
 import java.io.IOException;
 
 public class IndexQueryParserService extends AbstractIndexComponent {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndexQueryParserService.class));
 
     public static final String DEFAULT_FIELD = "index.query.default_field";
     public static final String QUERY_STRING_LENIENT = "index.query_string.lenient";
@@ -121,7 +127,18 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     public QueryParser queryParser(String name) {
-        return indicesQueriesRegistry.queryParsers().get(name);
+        ImmutableMap<String, QueryParser> queryParsers = indicesQueriesRegistry.queryParsers();
+        QueryParser queryParser = queryParsers.get(name);
+        if (queryParser != null) {
+            return queryParser;
+        }
+        String underscoreName = Strings.toUnderscoreCase(name);
+        queryParser = queryParsers.get(underscoreName);
+        if (queryParser != null) {
+            String msg = "Deprecated query parser name [" + name + "], use [" + underscoreName + "] instead";
+            DEPRECATION_LOGGER.deprecated(msg);
+        }
+        return queryParser;
     }
 
     public ParsedQuery parse(QueryBuilder queryBuilder) {

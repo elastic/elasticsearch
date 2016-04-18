@@ -72,6 +72,7 @@ public class TermVectorsService  {
     private TermVectorsService() {}
 
     public static TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request) {
+        final long startTime = System.currentTimeMillis();
         final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
 
@@ -141,6 +142,7 @@ public class TermVectorsService  {
                 // write term vectors
                 termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
             }
+            termVectorsResponse.setTookInMillis(Math.max(1, System.currentTimeMillis() - startTime));
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         } finally {

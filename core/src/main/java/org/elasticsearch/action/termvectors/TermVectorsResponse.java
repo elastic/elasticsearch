@@ -326,8 +326,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         }
     }
 
-    public void updateTookInMillis(long startTime) {
-        this.tookInMillis = Math.max(1, System.currentTimeMillis() - startTime);
+    public void setTookInMillis(long tookInMillis) {
+        this.tookInMillis = tookInMillis;
     }
 
     public TimeValue getTook() {
@@ -337,7 +337,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
     public long getTookInMillis() {
         return tookInMillis;
     }
-    
+
     private void buildScore(XContentBuilder builder, BoostAttribute boostAtt) throws IOException {
         if (hasScores) {
             builder.field(FieldStrings.SCORE, boostAtt.getBoost());
@@ -347,7 +347,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
     public boolean isExists() {
         return exists;
     }
-    
+
     public void setExists(boolean exists) {
          this.exists = exists;
     }

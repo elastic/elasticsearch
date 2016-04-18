@@ -34,7 +34,7 @@ import java.util.Collections;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0)
+@ClusterScope(scope = SUITE, numMasterNodes = 0, numDataNodes = 1, numClientNodes = 0)
 public class SettingsListenerIT extends ESIntegTestCase {
 
     @Override

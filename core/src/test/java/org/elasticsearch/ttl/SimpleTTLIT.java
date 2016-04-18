@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope= Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope= Scope.SUITE, numMasterNodes = 0, numDataNodes = 1)
 public class SimpleTTLIT extends ESIntegTestCase {
 
     static private final long PURGE_INTERVAL = 200;

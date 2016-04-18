@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.not;
 /**
  *
  */
-@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numMasterNodes = 0, numDataNodes = 1)
 public class CorsNotSetIT extends ESIntegTestCase {
 
     @Override

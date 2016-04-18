@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
+@ClusterScope(scope = Scope.TEST, numMasterNodes = 0, numDataNodes = 1)
 public class NettyPipeliningEnabledIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

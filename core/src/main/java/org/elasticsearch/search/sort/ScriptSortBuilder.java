@@ -128,7 +128,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(nestedPath);
-        out.writeOptionalQuery(nestedFilter);
+        out.writeOptionalNamedWriteable(nestedFilter);
     }
 
     /**

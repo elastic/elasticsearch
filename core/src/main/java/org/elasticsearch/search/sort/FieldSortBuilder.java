@@ -112,7 +112,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeOptionalQuery(nestedFilter);
+        out.writeOptionalNamedWriteable(nestedFilter);
         out.writeOptionalString(nestedPath);
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(order);

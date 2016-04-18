@@ -693,6 +693,18 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write an optional {@link QueryBuilder} to the stream.
+     */
+    public void writeOptionalNamedWriteable(@Nullable NamedWriteable<?> namedWriteable) throws IOException {
+        if (namedWriteable == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeNamedWriteable(namedWriteable);
+        }
+    }
+
+    /**
      * Writes a {@link AggregatorBuilder} to the current stream
      */
     public void writeAggregatorBuilder(AggregatorBuilder<?> builder) throws IOException {
@@ -711,18 +723,6 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeQuery(QueryBuilder<?> queryBuilder) throws IOException {
         writeNamedWriteable(queryBuilder);
-    }
-
-    /**
-     * Write an optional {@link QueryBuilder} to the stream.
-     */
-    public void writeOptionalQuery(@Nullable QueryBuilder<?> queryBuilder) throws IOException {
-        if (queryBuilder == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeQuery(queryBuilder);
-        }
     }
 
     /**

@@ -730,7 +730,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an optional {@link QueryBuilder}.
+     * Reads an optional {@link NamedWriteable}.
      */
     public <C extends NamedWriteable<?>> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
         if (readBoolean()) {

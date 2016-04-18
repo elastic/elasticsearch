@@ -173,7 +173,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         unit.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        out.writeOptionalQuery(nestedFilter);
+        out.writeOptionalNamedWriteable(nestedFilter);
         out.writeOptionalString(nestedPath);
         out.writeBoolean(coerce);
         out.writeBoolean(ignoreMalformed);

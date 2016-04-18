@@ -19,17 +19,11 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
-
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.Enumeration;
 
-
 public class MacAddressProvider {
-
-    private static final ESLogger logger = Loggers.getLogger(MacAddressProvider.class);
 
     private static byte[] getMacAddress() throws SocketException {
         Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
@@ -66,12 +60,10 @@ public class MacAddressProvider {
         try {
             address = getMacAddress();
         } catch (Throwable t) {
-            logger.warn("Unable to get mac address, will use a dummy address", t);
             // address will be set below
         }
 
         if (!isValidAddress(address)) {
-            logger.warn("Unable to get a valid mac address, will use a dummy address");
             address = constructDummyMulticastAddress();
         }
 

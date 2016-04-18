@@ -20,9 +20,8 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -57,7 +56,7 @@ public class DiscoveryNodeService extends AbstractComponent {
 
     public static String generateNodeId(Settings settings) {
         Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
-        return Strings.randomBase64UUID(random);
+        return UUIDs.randomBase64UUID(random);
     }
 
     public DiscoveryNodeService addCustomAttributeProvider(CustomAttributesProvider customAttributesProvider) {

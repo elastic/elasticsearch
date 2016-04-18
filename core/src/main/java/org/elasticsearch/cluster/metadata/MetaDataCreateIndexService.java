@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -301,7 +302,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
                             }
 
-                            indexSettingsBuilder.put(SETTING_INDEX_UUID, Strings.randomBase64UUID());
+                            indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
                             Settings actualIndexSettings = indexSettingsBuilder.build();
 

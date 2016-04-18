@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -518,7 +518,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         }
                         break;
                     case 2:
-                        builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
+                        builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
@@ -672,6 +672,6 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      * Generates a random name that starts with the given prefix
      */
     private String randomName(String prefix) {
-        return prefix + Strings.randomBase64UUID(random());
+        return prefix + UUIDs.randomBase64UUID(random());
     }
 }

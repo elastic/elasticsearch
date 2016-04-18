@@ -20,7 +20,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
@@ -33,7 +33,7 @@ public class IndexTests extends ESTestCase {
         assertEquals("[name]", new Index("name", ClusterState.UNKNOWN_UUID).toString());
 
         Index random = new Index(randomSimpleString(random(), 1, 100),
-                usually() ? Strings.randomBase64UUID(random()) : ClusterState.UNKNOWN_UUID);
+                usually() ? UUIDs.randomBase64UUID(random()) : ClusterState.UNKNOWN_UUID);
         assertThat(random.toString(), containsString(random.getName()));
         if (ClusterState.UNKNOWN_UUID.equals(random.getUUID())) {
             assertThat(random.toString(), not(containsString(random.getUUID())));

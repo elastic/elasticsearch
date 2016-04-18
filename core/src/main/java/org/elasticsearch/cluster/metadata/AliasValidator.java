@@ -118,8 +118,7 @@ public class AliasValidator extends AbstractComponent {
      */
     public void validateAliasFilter(String alias, String filter, QueryShardContext queryShardContext) {
         assert queryShardContext != null;
-        try {
-            XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
+        try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
             validateAliasFilter(parser, queryShardContext);
         } catch (Throwable e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
@@ -133,8 +132,7 @@ public class AliasValidator extends AbstractComponent {
      */
     public void validateAliasFilter(String alias, byte[] filter, QueryShardContext queryShardContext) {
         assert queryShardContext != null;
-        try {
-            XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
+        try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
             validateAliasFilter(parser, queryShardContext);
         } catch (Throwable e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);

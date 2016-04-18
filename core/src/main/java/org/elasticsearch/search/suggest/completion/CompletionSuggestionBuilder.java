@@ -255,9 +255,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             regexOptions.toXContent(builder, params);
         }
         if (contextBytes != null) {
-            XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes);
-            builder.field(CONTEXTS_FIELD.getPreferredName());
-            builder.copyCurrentStructure(contextParser);
+            try (XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes)) {
+                builder.field(CONTEXTS_FIELD.getPreferredName());
+                builder.copyCurrentStructure(contextParser);
+            }
         }
         return builder;
     }

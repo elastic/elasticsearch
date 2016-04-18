@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -440,8 +441,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor1 : templateMetaData.mappings()) {
                     byte[] mappingSource = cursor1.value.uncompressed();
-                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                    Map<String, Object> mapping = parser.map();
+                    Map<String, Object> mapping;
+                    try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
+                        mapping = parser.map();
+                    }
                     if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor1.key);
@@ -470,8 +473,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     byte[] mappingSource = cursor.value.source().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                    Map<String, Object> mapping = parser.map();
+                    Map<String, Object> mapping;
+                    try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
+                        mapping = parser.map();
+                    }
                     if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor.key);

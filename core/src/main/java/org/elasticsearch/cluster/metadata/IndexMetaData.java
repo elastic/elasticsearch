@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -927,10 +928,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                     builder.value(cursor.value.source().compressed());
                 } else {
                     byte[] data = cursor.value.source().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                    Map<String, Object> mapping = parser.mapOrdered();
-                    parser.close();
-                    builder.map(mapping);
+                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
+                        Map<String, Object> mapping = parser.mapOrdered();
+                        builder.map(mapping);
+                    }
                 }
             }
             builder.endArray();

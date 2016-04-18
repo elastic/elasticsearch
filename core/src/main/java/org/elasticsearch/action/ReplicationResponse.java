@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -280,24 +279,24 @@ public class ReplicationResponse extends ActionResponse {
 
             private static class Fields {
 
-                private static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-                private static final XContentBuilderString _SHARD = new XContentBuilderString("_shard");
-                private static final XContentBuilderString _NODE = new XContentBuilderString("_node");
-                private static final XContentBuilderString REASON = new XContentBuilderString("reason");
-                private static final XContentBuilderString STATUS = new XContentBuilderString("status");
-                private static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
+                private static final String _INDEX = "_index";
+                private static final String _SHARD = "_shard";
+                private static final String _NODE = "_node";
+                private static final String REASON = "reason";
+                private static final String STATUS = "status";
+                private static final String PRIMARY = "primary";
 
             }
         }
 
         private static class Fields {
 
-            private static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
-            private static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-            private static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
-            private static final XContentBuilderString PENDING = new XContentBuilderString("pending");
-            private static final XContentBuilderString FAILED = new XContentBuilderString("failed");
-            private static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
+            private static final String _SHARDS = "_shards";
+            private static final String TOTAL = "total";
+            private static final String SUCCESSFUL = "successful";
+            private static final String PENDING = "pending";
+            private static final String FAILED = "failed";
+            private static final String FAILURES = "failures";
 
         }
     }

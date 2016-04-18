@@ -25,7 +25,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -121,8 +120,8 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
     }
 
     static final class Fields {
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString CREATED = new XContentBuilderString("created");
+        static final String _VERSION = "_version";
+        static final String _ID = "_id";
+        static final String CREATED = "created";
     }
 }

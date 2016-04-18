@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentString;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
 
@@ -158,11 +157,6 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeFieldName(XContentString name) throws IOException {
-        generator.writeFieldName(name);
-    }
-
-    @Override
     public void writeString(String text) throws IOException {
         generator.writeString(text);
     }
@@ -223,20 +217,8 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeStringField(XContentString fieldName, String value) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeString(value);
-    }
-
-    @Override
     public void writeBooleanField(String fieldName, boolean value) throws IOException {
         generator.writeBooleanField(fieldName, value);
-    }
-
-    @Override
-    public void writeBooleanField(XContentString fieldName, boolean value) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeBoolean(value);
     }
 
     @Override
@@ -245,20 +227,8 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeNullField(XContentString fieldName) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeNull();
-    }
-
-    @Override
     public void writeNumberField(String fieldName, int value) throws IOException {
         generator.writeNumberField(fieldName, value);
-    }
-
-    @Override
-    public void writeNumberField(XContentString fieldName, int value) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeNumber(value);
     }
 
     @Override
@@ -267,20 +237,8 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeNumberField(XContentString fieldName, long value) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeNumber(value);
-    }
-
-    @Override
     public void writeNumberField(String fieldName, double value) throws IOException {
         generator.writeNumberField(fieldName, value);
-    }
-
-    @Override
-    public void writeNumberField(XContentString fieldName, double value) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeNumber(value);
     }
 
     @Override
@@ -289,20 +247,8 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeNumberField(XContentString fieldName, float value) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeNumber(value);
-    }
-
-    @Override
     public void writeBinaryField(String fieldName, byte[] data) throws IOException {
         generator.writeBinaryField(fieldName, data);
-    }
-
-    @Override
-    public void writeBinaryField(XContentString fieldName, byte[] value) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeBinary(value);
     }
 
     @Override
@@ -311,20 +257,8 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeArrayFieldStart(XContentString fieldName) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeStartArray();
-    }
-
-    @Override
     public void writeObjectFieldStart(String fieldName) throws IOException {
         generator.writeObjectFieldStart(fieldName);
-    }
-
-    @Override
-    public void writeObjectFieldStart(XContentString fieldName) throws IOException {
-        generator.writeFieldName(fieldName);
-        generator.writeStartObject();
     }
 
     private void writeStartRaw(String fieldName) throws IOException {

@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -150,16 +149,16 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
         }
 
         static final class Fields {
-            static final XContentBuilderString PATH = new XContentBuilderString("path");
-            static final XContentBuilderString MOUNT = new XContentBuilderString("mount");
-            static final XContentBuilderString TYPE = new XContentBuilderString("type");
-            static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-            static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
-            static final XContentBuilderString FREE = new XContentBuilderString("free");
-            static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
-            static final XContentBuilderString AVAILABLE = new XContentBuilderString("available");
-            static final XContentBuilderString AVAILABLE_IN_BYTES = new XContentBuilderString("available_in_bytes");
-            static final XContentBuilderString SPINS = new XContentBuilderString("spins");
+            static final String PATH = "path";
+            static final String MOUNT = "mount";
+            static final String TYPE = "type";
+            static final String TOTAL = "total";
+            static final String TOTAL_IN_BYTES = "total_in_bytes";
+            static final String FREE = "free";
+            static final String FREE_IN_BYTES = "free_in_bytes";
+            static final String AVAILABLE = "available";
+            static final String AVAILABLE_IN_BYTES = "available_in_bytes";
+            static final String SPINS = "spins";
         }
 
         @Override
@@ -263,10 +262,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString FS = new XContentBuilderString("fs");
-        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
-        static final XContentBuilderString DATA = new XContentBuilderString("data");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final String FS = "fs";
+        static final String TIMESTAMP = "timestamp";
+        static final String DATA = "data";
+        static final String TOTAL = "total";
     }
 
     @Override

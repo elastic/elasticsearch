@@ -30,7 +30,6 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -561,15 +560,15 @@ public abstract class FieldStats<T> implements Streamable, ToXContent {
 
     private final static class Fields {
 
-        final static XContentBuilderString MAX_DOC = new XContentBuilderString("max_doc");
-        final static XContentBuilderString DOC_COUNT = new XContentBuilderString("doc_count");
-        final static XContentBuilderString DENSITY = new XContentBuilderString("density");
-        final static XContentBuilderString SUM_DOC_FREQ = new XContentBuilderString("sum_doc_freq");
-        final static XContentBuilderString SUM_TOTAL_TERM_FREQ = new XContentBuilderString("sum_total_term_freq");
-        final static XContentBuilderString MIN_VALUE = new XContentBuilderString("min_value");
-        final static XContentBuilderString MIN_VALUE_AS_STRING = new XContentBuilderString("min_value_as_string");
-        final static XContentBuilderString MAX_VALUE = new XContentBuilderString("max_value");
-        final static XContentBuilderString MAX_VALUE_AS_STRING = new XContentBuilderString("max_value_as_string");
+        final static String MAX_DOC = new String("max_doc");
+        final static String DOC_COUNT = new String("doc_count");
+        final static String DENSITY = new String("density");
+        final static String SUM_DOC_FREQ = new String("sum_doc_freq");
+        final static String SUM_TOTAL_TERM_FREQ = new String("sum_total_term_freq");
+        final static String MIN_VALUE = new String("min_value");
+        final static String MIN_VALUE_AS_STRING = new String("min_value_as_string");
+        final static String MAX_VALUE = new String("max_value");
+        final static String MAX_VALUE_AS_STRING = new String("max_value_as_string");
 
     }
 

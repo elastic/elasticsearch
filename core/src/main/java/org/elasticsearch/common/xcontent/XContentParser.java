@@ -218,10 +218,10 @@ public interface XContentParser extends Releasable {
      *     <li>{@link XContentBuilder#field(String, byte[])}}</li>
      * </ul>
      *
-     * as well as via their <code>XContentBuilderString</code> variants of the separated value methods.
+     * as well as via their <code>String</code> variants of the separated value methods.
      * Note: Do not use this method to read values written with:
      * <ul>
-     *     <li>{@link XContentBuilder#utf8Field(XContentBuilderString, org.apache.lucene.util.BytesRef)}</li>
+     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
      *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
      * </ul>
      *

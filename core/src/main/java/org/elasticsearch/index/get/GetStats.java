@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -124,17 +123,17 @@ public class GetStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString GET = new XContentBuilderString("get");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TIME = new XContentBuilderString("getTime");
-        static final XContentBuilderString TIME_IN_MILLIS = new XContentBuilderString("time_in_millis");
-        static final XContentBuilderString EXISTS_TOTAL = new XContentBuilderString("exists_total");
-        static final XContentBuilderString EXISTS_TIME = new XContentBuilderString("exists_time");
-        static final XContentBuilderString EXISTS_TIME_IN_MILLIS = new XContentBuilderString("exists_time_in_millis");
-        static final XContentBuilderString MISSING_TOTAL = new XContentBuilderString("missing_total");
-        static final XContentBuilderString MISSING_TIME = new XContentBuilderString("missing_time");
-        static final XContentBuilderString MISSING_TIME_IN_MILLIS = new XContentBuilderString("missing_time_in_millis");
-        static final XContentBuilderString CURRENT = new XContentBuilderString("current");
+        static final String GET = "get";
+        static final String TOTAL = "total";
+        static final String TIME = "getTime";
+        static final String TIME_IN_MILLIS = "time_in_millis";
+        static final String EXISTS_TOTAL = "exists_total";
+        static final String EXISTS_TIME = "exists_time";
+        static final String EXISTS_TIME_IN_MILLIS = "exists_time_in_millis";
+        static final String MISSING_TOTAL = "missing_total";
+        static final String MISSING_TIME = "missing_time";
+        static final String MISSING_TIME_IN_MILLIS = "missing_time_in_millis";
+        static final String CURRENT = "current";
     }
 
     public static GetStats readGetStats(StreamInput in) throws IOException {

@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -412,19 +411,19 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
     }
 
     static final class Fields {
-        static final XContentBuilderString REPOSITORY = new XContentBuilderString("repository");
-        static final XContentBuilderString SNAPSHOTS = new XContentBuilderString("snapshots");
-        static final XContentBuilderString SNAPSHOT = new XContentBuilderString("snapshot");
-        static final XContentBuilderString INCLUDE_GLOBAL_STATE = new XContentBuilderString("include_global_state");
-        static final XContentBuilderString PARTIAL = new XContentBuilderString("partial");
-        static final XContentBuilderString STATE = new XContentBuilderString("state");
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString START_TIME_MILLIS = new XContentBuilderString("start_time_millis");
-        static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString INDEX = new XContentBuilderString("index");
-        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
-        static final XContentBuilderString NODE = new XContentBuilderString("node");
+        static final String REPOSITORY = "repository";
+        static final String SNAPSHOTS = "snapshots";
+        static final String SNAPSHOT = "snapshot";
+        static final String INCLUDE_GLOBAL_STATE = "include_global_state";
+        static final String PARTIAL = "partial";
+        static final String STATE = "state";
+        static final String INDICES = "indices";
+        static final String START_TIME_MILLIS = "start_time_millis";
+        static final String START_TIME = "start_time";
+        static final String SHARDS = "shards";
+        static final String INDEX = "index";
+        static final String SHARD = "shard";
+        static final String NODE = "node";
     }
 
     @Override

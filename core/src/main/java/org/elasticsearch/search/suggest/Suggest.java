@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -47,7 +46,7 @@ import java.util.Map;
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    private static final XContentBuilderString NAME = new XContentBuilderString("suggest");
+    private static final String NAME = "suggest";
 
     private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
         @Override
@@ -327,10 +326,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             static class Fields {
 
-                static final XContentBuilderString TEXT = new XContentBuilderString("text");
-                static final XContentBuilderString OFFSET = new XContentBuilderString("offset");
-                static final XContentBuilderString LENGTH = new XContentBuilderString("length");
-                static final XContentBuilderString OPTIONS = new XContentBuilderString("options");
+                static final String TEXT = "text";
+                static final String OFFSET = "offset";
+                static final String LENGTH = "length";
+                static final String OPTIONS = "options";
 
             }
 
@@ -510,10 +509,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
                 static class Fields {
 
-                    static final XContentBuilderString TEXT = new XContentBuilderString("text");
-                    static final XContentBuilderString HIGHLIGHTED = new XContentBuilderString("highlighted");
-                    static final XContentBuilderString SCORE = new XContentBuilderString("score");
-                    static final XContentBuilderString COLLATE_MATCH = new XContentBuilderString("collate_match");
+                    static final String TEXT = "text";
+                    static final String HIGHLIGHTED = "highlighted";
+                    static final String SCORE = "score";
+                    static final String COLLATE_MATCH = "collate_match";
 
                 }
 

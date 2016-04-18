@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -166,11 +165,11 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     }
 
     static final class Fields {
-        static final XContentBuilderString RESPONSES = new XContentBuilderString("responses");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
-        static final XContentBuilderString ROOT_CAUSE = new XContentBuilderString("root_cause");
+        static final String RESPONSES = "responses";
+        static final String ERROR = "error";
+        static final String ROOT_CAUSE = "root_cause";
     }
-    
+
     @Override
     public String toString() {
         try {

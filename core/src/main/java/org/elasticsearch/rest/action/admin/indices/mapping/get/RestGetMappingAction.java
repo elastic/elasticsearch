@@ -30,7 +30,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -105,6 +104,6 @@ public class RestGetMappingAction extends BaseRestHandler {
     }
 
     static class Fields {
-        static final XContentBuilderString MAPPINGS = new XContentBuilderString("mappings");
+        static final String MAPPINGS = "mappings";
     }
 }

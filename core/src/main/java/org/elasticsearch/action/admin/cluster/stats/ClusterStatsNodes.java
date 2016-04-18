@@ -35,7 +35,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.PluginInfo;
@@ -163,13 +162,13 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
     }
 
     static final class Fields {
-        static final XContentBuilderString COUNT = new XContentBuilderString("count");
-        static final XContentBuilderString VERSIONS = new XContentBuilderString("versions");
-        static final XContentBuilderString OS = new XContentBuilderString("os");
-        static final XContentBuilderString PROCESS = new XContentBuilderString("process");
-        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
-        static final XContentBuilderString FS = new XContentBuilderString("fs");
-        static final XContentBuilderString PLUGINS = new XContentBuilderString("plugins");
+        static final String COUNT = "count";
+        static final String VERSIONS = "versions";
+        static final String OS = "os";
+        static final String PROCESS = "process";
+        static final String JVM = "jvm";
+        static final String FS = "fs";
+        static final String PLUGINS = "plugins";
     }
 
     @Override
@@ -262,7 +261,7 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
         }
 
         static final class Fields {
-            static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+            static final String TOTAL = "total";
         }
 
         @Override
@@ -332,11 +331,11 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
         }
 
         static final class Fields {
-            static final XContentBuilderString AVAILABLE_PROCESSORS = new XContentBuilderString("available_processors");
-            static final XContentBuilderString ALLOCATED_PROCESSORS = new XContentBuilderString("allocated_processors");
-            static final XContentBuilderString NAME = new XContentBuilderString("name");
-            static final XContentBuilderString NAMES = new XContentBuilderString("names");
-            static final XContentBuilderString COUNT = new XContentBuilderString("count");
+            static final String AVAILABLE_PROCESSORS = "available_processors";
+            static final String ALLOCATED_PROCESSORS = "allocated_processors";
+            static final String NAME = "name";
+            static final String NAMES = "names";
+            static final String COUNT = "count";
         }
 
         @Override
@@ -444,12 +443,12 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
         }
 
         static final class Fields {
-            static final XContentBuilderString CPU = new XContentBuilderString("cpu");
-            static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
-            static final XContentBuilderString OPEN_FILE_DESCRIPTORS = new XContentBuilderString("open_file_descriptors");
-            static final XContentBuilderString MIN = new XContentBuilderString("min");
-            static final XContentBuilderString MAX = new XContentBuilderString("max");
-            static final XContentBuilderString AVG = new XContentBuilderString("avg");
+            static final String CPU = "cpu";
+            static final String PERCENT = "percent";
+            static final String OPEN_FILE_DESCRIPTORS = "open_file_descriptors";
+            static final String MIN = "min";
+            static final String MAX = "max";
+            static final String AVG = "avg";
         }
 
         @Override
@@ -567,20 +566,20 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
         }
 
         static final class Fields {
-            static final XContentBuilderString VERSIONS = new XContentBuilderString("versions");
-            static final XContentBuilderString VERSION = new XContentBuilderString("version");
-            static final XContentBuilderString VM_NAME = new XContentBuilderString("vm_name");
-            static final XContentBuilderString VM_VERSION = new XContentBuilderString("vm_version");
-            static final XContentBuilderString VM_VENDOR = new XContentBuilderString("vm_vendor");
-            static final XContentBuilderString COUNT = new XContentBuilderString("count");
-            static final XContentBuilderString THREADS = new XContentBuilderString("threads");
-            static final XContentBuilderString MAX_UPTIME = new XContentBuilderString("max_uptime");
-            static final XContentBuilderString MAX_UPTIME_IN_MILLIS = new XContentBuilderString("max_uptime_in_millis");
-            static final XContentBuilderString MEM = new XContentBuilderString("mem");
-            static final XContentBuilderString HEAP_USED = new XContentBuilderString("heap_used");
-            static final XContentBuilderString HEAP_USED_IN_BYTES = new XContentBuilderString("heap_used_in_bytes");
-            static final XContentBuilderString HEAP_MAX = new XContentBuilderString("heap_max");
-            static final XContentBuilderString HEAP_MAX_IN_BYTES = new XContentBuilderString("heap_max_in_bytes");
+            static final String VERSIONS = "versions";
+            static final String VERSION = "version";
+            static final String VM_NAME = "vm_name";
+            static final String VM_VERSION = "vm_version";
+            static final String VM_VENDOR = "vm_vendor";
+            static final String COUNT = "count";
+            static final String THREADS = "threads";
+            static final String MAX_UPTIME = "max_uptime";
+            static final String MAX_UPTIME_IN_MILLIS = "max_uptime_in_millis";
+            static final String MEM = "mem";
+            static final String HEAP_USED = "heap_used";
+            static final String HEAP_USED_IN_BYTES = "heap_used_in_bytes";
+            static final String HEAP_MAX = "heap_max";
+            static final String HEAP_MAX_IN_BYTES = "heap_max_in_bytes";
         }
 
         @Override

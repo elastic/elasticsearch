@@ -25,7 +25,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -278,9 +277,9 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
     }
 
-    public void testHandlingOfPath_XContentBuilderStringName() throws IOException {
+    public void testHandlingOfPath_StringName() throws IOException {
         Path path = PathUtils.get("path");
-        XContentBuilderString name = new XContentBuilderString("file");
+        String name = new String("file");
 
         XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         pathBuilder.startObject().field(name, path).endObject();

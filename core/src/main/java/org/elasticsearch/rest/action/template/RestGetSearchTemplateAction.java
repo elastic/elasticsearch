@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.template;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
@@ -46,9 +45,9 @@ public class RestGetSearchTemplateAction extends RestGetIndexedScriptAction {
     }
 
     @Override
-    protected XContentBuilderString getScriptFieldName() {
+    protected String getScriptFieldName() {
         return TEMPLATE;
     }
 
-    private static final XContentBuilderString TEMPLATE = new XContentBuilderString("template");
+    private static final String TEMPLATE = "template";
 }

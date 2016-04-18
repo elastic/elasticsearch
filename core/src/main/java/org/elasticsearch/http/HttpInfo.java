@@ -26,7 +26,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -47,11 +46,11 @@ public class HttpInfo implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString HTTP = new XContentBuilderString("http");
-        static final XContentBuilderString BOUND_ADDRESS = new XContentBuilderString("bound_address");
-        static final XContentBuilderString PUBLISH_ADDRESS = new XContentBuilderString("publish_address");
-        static final XContentBuilderString MAX_CONTENT_LENGTH = new XContentBuilderString("max_content_length");
-        static final XContentBuilderString MAX_CONTENT_LENGTH_IN_BYTES = new XContentBuilderString("max_content_length_in_bytes");
+        static final String HTTP = "http";
+        static final String BOUND_ADDRESS = "bound_address";
+        static final String PUBLISH_ADDRESS = "publish_address";
+        static final String MAX_CONTENT_LENGTH = "max_content_length";
+        static final String MAX_CONTENT_LENGTH_IN_BYTES = "max_content_length_in_bytes";
     }
 
     @Override

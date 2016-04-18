@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -320,25 +319,25 @@ public class SearchStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString SEARCH = new XContentBuilderString("search");
-        static final XContentBuilderString OPEN_CONTEXTS = new XContentBuilderString("open_contexts");
-        static final XContentBuilderString GROUPS = new XContentBuilderString("groups");
-        static final XContentBuilderString QUERY_TOTAL = new XContentBuilderString("query_total");
-        static final XContentBuilderString QUERY_TIME = new XContentBuilderString("query_time");
-        static final XContentBuilderString QUERY_TIME_IN_MILLIS = new XContentBuilderString("query_time_in_millis");
-        static final XContentBuilderString QUERY_CURRENT = new XContentBuilderString("query_current");
-        static final XContentBuilderString FETCH_TOTAL = new XContentBuilderString("fetch_total");
-        static final XContentBuilderString FETCH_TIME = new XContentBuilderString("fetch_time");
-        static final XContentBuilderString FETCH_TIME_IN_MILLIS = new XContentBuilderString("fetch_time_in_millis");
-        static final XContentBuilderString FETCH_CURRENT = new XContentBuilderString("fetch_current");
-        static final XContentBuilderString SCROLL_TOTAL = new XContentBuilderString("scroll_total");
-        static final XContentBuilderString SCROLL_TIME = new XContentBuilderString("scroll_time");
-        static final XContentBuilderString SCROLL_TIME_IN_MILLIS = new XContentBuilderString("scroll_time_in_millis");
-        static final XContentBuilderString SCROLL_CURRENT = new XContentBuilderString("scroll_current");
-        static final XContentBuilderString SUGGEST_TOTAL = new XContentBuilderString("suggest_total");
-        static final XContentBuilderString SUGGEST_TIME = new XContentBuilderString("suggest_time");
-        static final XContentBuilderString SUGGEST_TIME_IN_MILLIS = new XContentBuilderString("suggest_time_in_millis");
-        static final XContentBuilderString SUGGEST_CURRENT = new XContentBuilderString("suggest_current");
+        static final String SEARCH = "search";
+        static final String OPEN_CONTEXTS = "open_contexts";
+        static final String GROUPS = "groups";
+        static final String QUERY_TOTAL = "query_total";
+        static final String QUERY_TIME = "query_time";
+        static final String QUERY_TIME_IN_MILLIS = "query_time_in_millis";
+        static final String QUERY_CURRENT = "query_current";
+        static final String FETCH_TOTAL = "fetch_total";
+        static final String FETCH_TIME = "fetch_time";
+        static final String FETCH_TIME_IN_MILLIS = "fetch_time_in_millis";
+        static final String FETCH_CURRENT = "fetch_current";
+        static final String SCROLL_TOTAL = "scroll_total";
+        static final String SCROLL_TIME = "scroll_time";
+        static final String SCROLL_TIME_IN_MILLIS = "scroll_time_in_millis";
+        static final String SCROLL_CURRENT = "scroll_current";
+        static final String SUGGEST_TOTAL = "suggest_total";
+        static final String SUGGEST_TIME = "suggest_time";
+        static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
+        static final String SUGGEST_CURRENT = "suggest_current";
     }
 
     public static SearchStats readSearchStats(StreamInput in) throws IOException {

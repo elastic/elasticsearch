@@ -77,7 +77,7 @@ Simple use-case:
 {u'any': u'data', u'timestamp': u'2013-05-12T19:45:31.804229'}
 ------------------------------------
 
-[NOTE] 
+[NOTE]
 All the API calls map the raw REST api as closely as possible, including
 the distinction between required and optional arguments to the calls. This
 means that the code makes distinction between positional and keyword arguments;
@@ -111,7 +111,7 @@ some of the more engaging tasks like bulk indexing and reindexing.
 
 === License
 
-Copyright 2013-2015 Elasticsearch
+Copyright 2013-2016 Elasticsearch
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

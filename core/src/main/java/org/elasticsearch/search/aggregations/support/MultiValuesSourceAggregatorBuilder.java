@@ -26,20 +26,16 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
@@ -78,7 +74,7 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
-    private DateTimeZone timeZone;
+    private DateTimeZone timeZone = null;
 
     protected MultiValuesSourceAggregatorBuilder(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
         super(name, type);
@@ -292,7 +288,7 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
         config.missing = missing;
         config.timeZone = timeZone;
         config.script = createScript(script, context.searchContext());
-        config.format = resolveFormat(format, this.timeZone, fieldType);
+        config.format = fieldType.docValueFormat(format, timeZone);
         return config;
     }
 
@@ -301,32 +297,15 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
                 : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap());
     }
 
-    private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
         if (valueType == null) {
-            return ValueFormat.RAW; // we can't figure it out
+            return DocValueFormat.RAW; // we can't figure it out
         }
-        ValueFormat valueFormat = valueType.defaultFormat;
-        if (valueFormat != null && valueFormat instanceof ValueFormat.Patternable && format != null) {
-            return ((ValueFormat.Patternable) valueFormat).create(format);
+        DocValueFormat valueFormat = valueType.defaultFormat;
+        if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
+            valueFormat = new DocValueFormat.Decimal(format);
         }
         return valueFormat;
-    }
-
-    private static ValueFormat resolveFormat(@Nullable String format, @Nullable DateTimeZone timezone, MappedFieldType fieldType) {
-        if (fieldType instanceof DateFieldMapper.DateFieldType) {
-            return format != null ? ValueFormat.DateTime.format(format, timezone) : ValueFormat.DateTime.mapper(
-                    (DateFieldMapper.DateFieldType) fieldType, timezone);
-        }
-        if (fieldType instanceof IpFieldMapper.IpFieldType) {
-            return ValueFormat.IPv4;
-        }
-        if (fieldType instanceof BooleanFieldMapper.BooleanFieldType) {
-            return ValueFormat.BOOLEAN;
-        }
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;
-        }
-        return ValueFormat.RAW;
     }
 
     @Override

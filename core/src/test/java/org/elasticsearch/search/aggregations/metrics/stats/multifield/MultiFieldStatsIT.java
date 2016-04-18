@@ -276,6 +276,12 @@ public class MultiFieldStatsIT extends AbstractNumericTestCase {
         assertExpectedStatsResults(response.getAggregations().get(aggName), valFieldNames);
     }
 
+
+    @Override
+    public void testOrderByEmptyAggregation() throws Exception {
+        // TODO implement
+    }
+
     private void assertEmptyMultiFieldStats(MultiFieldStats multiFieldStats) {
         assertThat(multiFieldStats, notNullValue());
         assertThat(multiFieldStats.getName(), equalTo(aggName));

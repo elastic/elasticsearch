@@ -28,17 +28,24 @@ import java.io.IOException;
  *
  */
 public final class LocalTransportAddress implements TransportAddress {
-
-    public static final LocalTransportAddress PROTO = new LocalTransportAddress("_na");
+    public static final short TYPE_ID = 2;
 
     private String id;
 
+    public LocalTransportAddress(String id) {
+        this.id = id;
+    }
+
+    /**
+     * Read from a stream.
+     */
     public LocalTransportAddress(StreamInput in) throws IOException {
         id = in.readString();
     }
 
-    public LocalTransportAddress(String id) {
-        this.id = id;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(id);
     }
 
     public String id() {
@@ -47,7 +54,7 @@ public final class LocalTransportAddress implements TransportAddress {
 
     @Override
     public short uniqueAddressTypeId() {
-        return 2;
+        return TYPE_ID;
     }
 
     @Override
@@ -73,16 +80,6 @@ public final class LocalTransportAddress implements TransportAddress {
     @Override
     public int getPort() {
         return 0;
-    }
-
-    @Override
-    public LocalTransportAddress readFrom(StreamInput in) throws IOException {
-        return new LocalTransportAddress(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
     }
 
     @Override

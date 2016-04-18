@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -1214,11 +1215,11 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         ensureGreen();
 
         client().prepareIndex("test", "type1", "0").setSource("field", "foo bar").setRefresh(true).execute().get();
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         TermVectorsResponse response = client().termVectors(new TermVectorsRequest(indexOrAlias(), "type1", "0")).get();
         assertThat(response, notNullValue());
         assertThat(response.getTookInMillis(), greaterThanOrEqualTo(1L));
-        assertThat(response.getTookInMillis(), lessThanOrEqualTo(System.currentTimeMillis() - start));
+        assertThat(response.getTookInMillis(), lessThanOrEqualTo(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)));
     }
 
     private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {

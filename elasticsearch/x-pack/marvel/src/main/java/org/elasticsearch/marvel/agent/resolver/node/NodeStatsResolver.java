@@ -120,7 +120,7 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
     }
 
     static final class Fields {
-        static final String NODE_STATS = new String(TYPE);
+        static final String NODE_STATS = TYPE;
         static final String NODE_ID = "node_id";
         static final String NODE_MASTER = "node_master";
         static final String MLOCKALL = "mlockall";

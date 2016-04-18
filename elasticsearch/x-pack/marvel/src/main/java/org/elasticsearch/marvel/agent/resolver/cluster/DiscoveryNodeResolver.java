@@ -54,7 +54,7 @@ public class DiscoveryNodeResolver extends MonitoringIndexNameResolver.Data<Disc
     }
 
     static final class Fields {
-        static final String NODE = new String(TYPE);
+        static final String NODE = TYPE;
         static final String NAME = "name";
         static final String TRANSPORT_ADDRESS = "transport_address";
         static final String ATTRIBUTES = "attributes";

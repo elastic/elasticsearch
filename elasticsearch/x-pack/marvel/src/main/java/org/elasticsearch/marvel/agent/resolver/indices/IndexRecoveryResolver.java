@@ -61,7 +61,7 @@ public class IndexRecoveryResolver extends MonitoringIndexNameResolver.Timestamp
     }
 
     static final class Fields {
-        static final String INDEX_RECOVERY = new String(TYPE);
+        static final String INDEX_RECOVERY = TYPE;
         static final String SHARDS = "shards";
         static final String INDEX_NAME = "index_name";
     }

@@ -105,7 +105,7 @@ public class IndexStatsResolver extends MonitoringIndexNameResolver.Timestamped<
     }
 
     static final class Fields {
-        static final String INDEX_STATS = new String(TYPE);
+        static final String INDEX_STATS = TYPE;
         static final String INDEX = "index";
         static final String TOTAL = "total";
         static final String PRIMARIES = "primaries";

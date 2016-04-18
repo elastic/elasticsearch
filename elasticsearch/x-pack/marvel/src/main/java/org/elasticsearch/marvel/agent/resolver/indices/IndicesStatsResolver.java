@@ -66,6 +66,6 @@ public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestampe
     }
 
     static final class Fields {
-        static final String INDICES_STATS = new String(TYPE);
+        static final String INDICES_STATS = TYPE;
     }
 }

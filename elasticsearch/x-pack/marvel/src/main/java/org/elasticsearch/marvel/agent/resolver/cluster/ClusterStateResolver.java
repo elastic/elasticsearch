@@ -57,7 +57,7 @@ public class ClusterStateResolver extends MonitoringIndexNameResolver.Timestampe
     }
 
     static final class Fields {
-        static final String CLUSTER_STATE = new String(TYPE);
+        static final String CLUSTER_STATE = TYPE;
         static final String STATUS = "status";
     }
 }

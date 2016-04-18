@@ -26,11 +26,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.TestSearchContext;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -65,26 +62,6 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
             DATE_FIELD_NAME, "type=date",
             OBJECT_FIELD_NAME, "type=object"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-    }
-
-    @Override
-    protected void setSearchContext(String[] types) {
-        final MapperService mapperService = createShardContext().getMapperService();
-        final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext(createShardContext()) {
-
-            @Override
-            public MapperService mapperService() {
-                return mapperService; // need to build / parse inner hits sort fields
-            }
-
-            @Override
-            public IndexFieldDataService fieldData() {
-                return fieldData; // need to build / parse inner hits sort fields
-            }
-        };
-        testSearchContext.getQueryShardContext().setTypes(types);
-        SearchContext.setCurrent(testSearchContext);
     }
 
     @Override

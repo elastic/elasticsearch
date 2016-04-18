@@ -152,7 +152,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     private static Injector injector;
     private static IndicesQueriesRegistry indicesQueriesRegistry;
-    private static QueryShardContext queryShardContext;
     private static IndexFieldDataService indexFieldDataService;
     private static int queryNameId = 0;
     private static SearchModule searchModule;
@@ -187,6 +186,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     private static String[] randomTypes;
     private static ClientInvocationHandler clientInvocationHandler = new ClientInvocationHandler();
+    private static IndexSettings idxSettings;
+    private static SimilarityService similarityService;
+    private static MapperService mapperService;
+    private static PercolatorQueryCache percolatorQueryCache;
+    private static BitsetFilterCache bitsetFilterCache;
+    private static ScriptService scriptService;
 
     /**
      * Setup for the whole base test class.
@@ -206,7 +211,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated).build();
         final ThreadPool threadPool = new ThreadPool(settings);
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
+        idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         ClusterService clusterService = createClusterService(threadPool);
         setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
                 new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
@@ -280,16 +285,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 }
         ).createInjector();
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
-        ScriptService scriptService = injector.getInstance(ScriptService.class);
-        SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
+        scriptService = injector.getInstance(ScriptService.class);
+        similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
-        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry,
-                () -> queryShardContext);
+        mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry,
+                () -> createShardContext());
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
         });
         indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
                 injector.getInstance(CircuitBreakerService.class), mapperService);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
+        bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
 
@@ -300,10 +305,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
             }
         });
-        PercolatorQueryCache percolatorQueryCache = new PercolatorQueryCache(idxSettings, () -> queryShardContext);
+        percolatorQueryCache = new PercolatorQueryCache(idxSettings, () -> createShardContext());
         indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        queryShardContext = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                scriptService, indicesQueriesRegistry, percolatorQueryCache, null);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
@@ -334,13 +337,18 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         terminate(injector.getInstance(ThreadPool.class));
         injector = null;
         index = null;
-        queryShardContext = null;
         currentTypes = null;
         namedWriteableRegistry = null;
         randomTypes = null;
         indicesQueriesRegistry = null;
         indexFieldDataService = null;
         searchModule = null;
+        idxSettings = null;
+        similarityService = null;
+        mapperService = null;
+        percolatorQueryCache = null;
+        bitsetFilterCache = null;
+        scriptService = null;
     }
 
     @Before
@@ -350,8 +358,18 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         randomTypes = getRandomTypes();
     }
 
-    protected void setSearchContext(String[] types) {
-        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext);
+    private static void setSearchContext(String[] types, QueryShardContext context) {
+        TestSearchContext testSearchContext = new TestSearchContext(context) {
+            @Override
+            public MapperService mapperService() {
+                return mapperService; // need to build / parse inner hits sort fields
+            }
+
+            @Override
+            public IndexFieldDataService fieldData() {
+                return indexFieldDataService(); // need to build / parse inner hits sort fields
+            }
+        };
         testSearchContext.getQueryShardContext().setTypes(types);
         SearchContext.setCurrent(testSearchContext);
     }
@@ -541,7 +559,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
+            setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
             Query firstLuceneQuery = rewriteQuery(firstQuery, context).toQuery(context);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             SearchContext.removeCurrent(); // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
@@ -559,7 +577,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
                         + randomAsciiOfLengthBetween(1, 10));
             }
-            setSearchContext(randomTypes);
+            setSearchContext(randomTypes, context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertLuceneQuery(secondQuery, secondLuceneQuery, context);
             SearchContext.removeCurrent();
@@ -569,7 +587,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             // if the initial lucene query is null, changing its boost won't have any effect, we shouldn't test that
             if (firstLuceneQuery != null && supportsBoostAndQueryName()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                setSearchContext(randomTypes);
+                setSearchContext(randomTypes, context);
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 SearchContext.removeCurrent();
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
@@ -727,7 +745,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryShardContext} based on the base test index and queryParserService
      */
     protected static QueryShardContext createShardContext() {
-        return new QueryShardContext(queryShardContext);
+        return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
+                scriptService, indicesQueriesRegistry, percolatorQueryCache, null);
     }
 
     /**
@@ -986,7 +1005,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         QB queryBuilder = createTestQueryBuilder();
-        setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
+        setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
         queryBuilder.toQuery(context);
     }
 

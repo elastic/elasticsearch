@@ -118,7 +118,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedPath = in.readOptionalString();
-        nestedFilter = in.readOptionalQuery();
+        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
     @Override

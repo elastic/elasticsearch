@@ -730,6 +730,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional {@link QueryBuilder}.
+     */
+    public <C extends NamedWriteable<?>> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteable(categoryClass);
+        }
+        return null;
+    }
+
+    /**
      * Reads a {@link AggregatorBuilder} from the current stream
      */
     public AggregatorBuilder<?> readAggregatorBuilder() throws IOException {
@@ -748,16 +758,6 @@ public abstract class StreamInput extends InputStream {
      */
     public QueryBuilder<?> readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
-    }
-
-    /**
-     * Reads an optional {@link QueryBuilder}.
-     */
-    public QueryBuilder<?> readOptionalQuery() throws IOException {
-        if (readBoolean()) {
-            return readNamedWriteable(QueryBuilder.class);
-        }
-        return null;
     }
 
     /**

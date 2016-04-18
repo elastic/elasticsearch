@@ -20,13 +20,126 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
+import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.startsWith;
 
 
-public class SearchSlowLogTests extends ESTestCase {
+public class SearchSlowLogTests extends ESSingleNodeTestCase {
+    @Override
+    protected SearchContext createSearchContext(IndexService indexService) {
+        BigArrays bigArrays = indexService.getBigArrays();
+        ThreadPool threadPool = indexService.getThreadPool();
+        PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);
+        ScriptService scriptService = node().injector().getInstance(ScriptService.class);
+        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, scriptService, indexService) {
+            @Override
+            public ShardSearchRequest request() {
+                return new ShardSearchRequest() {
+                    @Override
+                    public ShardId shardId() {
+                        return null;
+                    }
+
+                    @Override
+                    public String[] types() {
+                        return new String[0];
+                    }
+
+                    @Override
+                    public SearchSourceBuilder source() {
+                        return null;
+                    }
+
+                    @Override
+                    public void source(SearchSourceBuilder source) {
+
+                    }
+
+                    @Override
+                    public int numberOfShards() {
+                        return 0;
+                    }
+
+                    @Override
+                    public SearchType searchType() {
+                        return null;
+                    }
+
+                    @Override
+                    public String[] filteringAliases() {
+                        return new String[0];
+                    }
+
+                    @Override
+                    public long nowInMillis() {
+                        return 0;
+                    }
+
+                    @Override
+                    public Template template() {
+                        return null;
+                    }
+
+                    @Override
+                    public Boolean requestCache() {
+                        return null;
+                    }
+
+                    @Override
+                    public Scroll scroll() {
+                        return null;
+                    }
+
+                    @Override
+                    public void setProfile(boolean profile) {
+
+                    }
+
+                    @Override
+                    public boolean isProfile() {
+                        return false;
+                    }
+
+                    @Override
+                    public BytesReference cacheKey() throws IOException {
+                        return null;
+                    }
+
+                    @Override
+                    public void rewrite(QueryShardContext context) throws IOException {
+                    }
+                };
+            }
+        };
+    }
+
+    public void testSlowLogSearchContextPrinterToLog() throws IOException {
+        IndexService index = createIndex("foo");
+        // Turning off document logging doesn't log source[]
+        SearchContext searchContext = createSearchContext(index);
+        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(index.index(), searchContext, 10, true);
+        assertThat(p.toString(), startsWith(index.index().toString()));
+    }
 
     public void testReformatSetting() {
         IndexMetaData metaData = newIndexMeta("index", Settings.builder()

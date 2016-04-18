@@ -65,6 +65,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
@@ -404,6 +405,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
                     BootstrapSettings.MLOCKALL_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
-                    BootstrapSettings.CTRLHANDLER_SETTING
+                    BootstrapSettings.CTRLHANDLER_SETTING,
+                    IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
+                    IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING
             )));
 }

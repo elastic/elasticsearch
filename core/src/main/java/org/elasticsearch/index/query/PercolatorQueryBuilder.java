@@ -177,10 +177,11 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
             if (contentType == builder.contentType()) {
                 builder.rawField(DOCUMENT_FIELD.getPreferredName(), document);
             } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(document);
-                parser.nextToken();
-                builder.field(DOCUMENT_FIELD.getPreferredName());
-                builder.copyCurrentStructure(parser);
+                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(document)) {
+                    parser.nextToken();
+                    builder.field(DOCUMENT_FIELD.getPreferredName());
+                    builder.copyCurrentStructure(parser);
+                }
             }
         }
         if (indexedDocumentIndex != null || indexedDocumentType != null || indexedDocumentId != null) {
@@ -230,7 +231,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, DOCUMENT_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, DOCUMENT_FIELD)) {
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                         builder.copyCurrentStructure(parser);
                         builder.flush();
@@ -241,23 +242,23 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
                             "] query does not support [" + token + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, DOCUMENT_TYPE_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, DOCUMENT_TYPE_FIELD)) {
                     documentType = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_INDEX)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_INDEX)) {
                     indexedDocumentIndex = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_TYPE)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_TYPE)) {
                     indexedDocumentType = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_ID)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_ID)) {
                     indexedDocumentId = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_ROUTING)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_ROUTING)) {
                     indexedDocumentRouting = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_PREFERENCE)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_PREFERENCE)) {
                     indexedDocumentPreference = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_VERSION)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INDEXED_DOCUMENT_FIELD_VERSION)) {
                     indexedDocumentVersion = parser.longValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + PercolatorQueryBuilder.NAME +

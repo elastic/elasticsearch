@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -106,9 +107,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
             "    }" +
             "}";
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(parser);
-        parseContext.parseFieldMatcher(parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(expected.name(), parser.currentName());
@@ -116,8 +115,8 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(expected.type(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        PipelineAggregatorBuilder<?> newAgg = aggParsers.pipelineParser(expected.getWriteableName(), parser).parse(expected.name(),
-                parseContext);
+        PipelineAggregatorBuilder<?> newAgg = aggParsers.pipelineParser(expected.getWriteableName(), ParseFieldMatcher.STRICT)
+                .parse(expected.name(), parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());

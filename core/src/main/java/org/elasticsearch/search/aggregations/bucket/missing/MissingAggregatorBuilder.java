@@ -19,11 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.missing;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -35,28 +36,39 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, MissingAggregatorBuilder> {
-
-    static final MissingAggregatorBuilder PROTOTYPE = new MissingAggregatorBuilder("", null);
+    public static final String NAME = InternalMissing.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public MissingAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MissingAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalMissing.TYPE, ValuesSourceType.ANY);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) {
+        // Do nothing, no extra state to write to stream
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
+    }
+
+    @Override
+    protected boolean serializeTargetValueType() {
+        return true;
     }
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
             ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new MissingAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected MissingAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) {
-        return new MissingAggregatorBuilder(name, targetValueType);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
     }
 
     @Override
@@ -72,5 +84,10 @@ public class MissingAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
     @Override
     protected boolean innerEquals(Object obj) {
         return true;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,7 +33,6 @@ public class MovAvgModelParserMapper {
 
     protected Map<String, MovAvgModel.AbstractModelParser> movAvgParsers;
 
-    @Inject
     public MovAvgModelParserMapper(Set<MovAvgModel.AbstractModelParser> parsers) {
         Map<String, MovAvgModel.AbstractModelParser> map = new HashMap<>();
         add(map, new SimpleModel.SimpleModelParser());

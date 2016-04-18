@@ -19,29 +19,43 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MinBucketPipelineAggregatorBuilder
-        extends BucketMetricsPipelineAggregatorBuilder<MinBucketPipelineAggregatorBuilder> {
-
-    static final MinBucketPipelineAggregatorBuilder PROTOTYPE = new MinBucketPipelineAggregatorBuilder("", "");
+public class MinBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAggregatorBuilder<MinBucketPipelineAggregatorBuilder> {
+    public static final String NAME = MinBucketPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
     public MinBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
-        this(name, new String[] { bucketsPath });
+        super(name, MinBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
-    private MinBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-        super(name, MinBucketPipelineAggregator.TYPE.name(), bucketsPaths);
+    /**
+     * Read from a stream.
+     */
+    public MinBucketPipelineAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, NAME);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        // Do nothing, no extra state to write to stream
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     @Override
@@ -63,16 +77,13 @@ public class MinBucketPipelineAggregatorBuilder
         return builder;
     }
 
-    @Override
-    protected MinBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-            throws IOException {
-        return new MinBucketPipelineAggregatorBuilder(name, bucketsPaths);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        // Do nothing, no extra state to write to stream
-    }
+    public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
+        @Override
+        protected MinBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+                String bucketsPath, Map<String, Object> unparsedParams) {
+            return new MinBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        }
+    };
 
     @Override
     protected int innerHashCode() {
@@ -84,4 +95,8 @@ public class MinBucketPipelineAggregatorBuilder
         return true;
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

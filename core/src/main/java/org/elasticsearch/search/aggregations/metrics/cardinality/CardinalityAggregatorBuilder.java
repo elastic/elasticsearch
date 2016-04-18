@@ -23,20 +23,21 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.Objects;
 
 public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, CardinalityAggregatorBuilder> {
-
-    static final CardinalityAggregatorBuilder PROTOTYPE = new CardinalityAggregatorBuilder("", null);
+    public static final String NAME = InternalCardinality.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
@@ -44,6 +45,35 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
 
     public CardinalityAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalCardinality.TYPE, ValuesSourceType.ANY, targetValueType);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public CardinalityAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalCardinality.TYPE, ValuesSourceType.ANY);
+        if (in.readBoolean()) {
+            precisionThreshold = in.readLong();
+        }
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        boolean hasPrecisionThreshold = precisionThreshold != null;
+        out.writeBoolean(hasPrecisionThreshold);
+        if (hasPrecisionThreshold) {
+            out.writeLong(precisionThreshold);
+        }
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
+    }
+
+    @Override
+    protected boolean serializeTargetValueType() {
+        return true;
     }
 
     /**
@@ -83,25 +113,6 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
     }
 
     @Override
-    protected CardinalityAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        CardinalityAggregatorBuilder factory = new CardinalityAggregatorBuilder(name, targetValueType);
-        if (in.readBoolean()) {
-            factory.precisionThreshold = in.readLong();
-        }
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        boolean hasPrecisionThreshold = precisionThreshold != null;
-        out.writeBoolean(hasPrecisionThreshold);
-        if (hasPrecisionThreshold) {
-            out.writeLong(precisionThreshold);
-        }
-    }
-
-    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (precisionThreshold != null) {
             builder.field(PRECISION_THRESHOLD_FIELD.getPreferredName(), precisionThreshold);
@@ -120,4 +131,8 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
         return Objects.equals(precisionThreshold, other.precisionThreshold);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

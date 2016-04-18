@@ -136,7 +136,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         static CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
-            ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+            ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
             XContentParser.Token token;
             String currentFieldName = null;
             String fieldname = null;

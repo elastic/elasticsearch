@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -32,9 +31,9 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
@@ -55,6 +54,21 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
         protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, type, valuesSourceType, targetValueType);
+        }
+
+        /**
+         * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
+         */
+        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
+            super(in, type, valuesSourceType, targetValueType);
+        }
+
+        /**
+         * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
+         * {@link #serializeTargetValueType()} to return true.
+         */
+        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
+            super(in, type, valuesSourceType);
         }
 
         @Override
@@ -83,19 +97,39 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     }
 
     /**
-     * Read from a stream.
+     * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
      */
     protected ValuesSourceAggregatorBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType)
             throws IOException {
         super(in, type);
+        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
+        read(in);
+    }
+
+    /**
+     * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
+     * {@link #serializeTargetValueType()} to return true.
+     */
+    protected ValuesSourceAggregatorBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
+        super(in, type);
+        assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
+        this.valuesSourceType = valuesSourceType;
+        this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
+        read(in);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    private void read(StreamInput in) throws IOException {
         field = in.readOptionalString();
         if (in.readBoolean()) {
             script = Script.readScript(in);
         }
         if (in.readBoolean()) {
-            valueType = ValueType.STRING.readFrom(in);
+            valueType = ValueType.readFromStream(in);
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
@@ -106,7 +140,11 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (false == usesNewStyleSerialization()) {
+        if (usesNewStyleSerialization()) {
+            if (serializeTargetValueType()) {
+                out.writeOptionalWriteable(targetValueType);
+            }
+        } else {
             valuesSourceType.writeTo(out);
             boolean hasTargetValueType = targetValueType != null;
             out.writeBoolean(hasTargetValueType);
@@ -138,6 +176,9 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         }
     }
 
+    /**
+     * Write subclass's state to the stream.
+     */
     protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     @SuppressWarnings("unchecked")
@@ -146,7 +187,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
         ValueType targetValueType = null;
         if (in.readBoolean()) {
-            targetValueType = ValueType.STRING.readFrom(in);
+            targetValueType = ValueType.readFromStream(in);
         }
         ValuesSourceAggregatorBuilder<VS, AB> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
         factory.field = in.readOptionalString();
@@ -154,7 +195,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
             factory.script = Script.readScript(in);
         }
         if (in.readBoolean()) {
-            factory.valueType = ValueType.STRING.readFrom(in);
+            factory.valueType = ValueType.readFromStream(in);
         }
         factory.format = in.readOptionalString();
         factory.missing = in.readGenericValue();
@@ -167,6 +208,14 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     protected ValuesSourceAggregatorBuilder<VS, AB> innerReadFrom(String name, ValuesSourceType valuesSourceType,
             ValueType targetValueType, StreamInput in) throws IOException {
         throw new UnsupportedOperationException(); // NORELEASE remove when no longer overridden
+    }
+
+    /**
+     * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true should use the three
+     * argument read constructor rather than the four argument version.
+     */
+    protected boolean serializeTargetValueType() {
+        return false;
     }
 
     /**

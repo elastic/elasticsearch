@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -45,7 +47,8 @@ public final class IngestMetadata implements MetaData.Custom {
     public final static String TYPE = "ingest";
     public final static IngestMetadata PROTO = new IngestMetadata();
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
-    private static final ObjectParser<List<PipelineConfiguration>, Void> INGEST_METADATA_PARSER = new ObjectParser<>("ingest_metadata", ArrayList::new);
+    private static final ObjectParser<List<PipelineConfiguration>, ParseFieldMatcherSupplier> INGEST_METADATA_PARSER = new ObjectParser<>(
+            "ingest_metadata", ArrayList::new);
 
     static {
         INGEST_METADATA_PARSER.declareObjectArray(List::addAll , PipelineConfiguration.getParser(), PIPELINES_FIELD);
@@ -94,7 +97,7 @@ public final class IngestMetadata implements MetaData.Custom {
     @Override
     public IngestMetadata fromXContent(XContentParser parser) throws IOException {
         Map<String, PipelineConfiguration> pipelines = new HashMap<>();
-        List<PipelineConfiguration> configs = INGEST_METADATA_PARSER.parse(parser);
+        List<PipelineConfiguration> configs = INGEST_METADATA_PARSER.parse(parser, () -> ParseFieldMatcher.STRICT);
         for (PipelineConfiguration pipeline : configs) {
             pipelines.put(pipeline.getId(), pipeline);
         }

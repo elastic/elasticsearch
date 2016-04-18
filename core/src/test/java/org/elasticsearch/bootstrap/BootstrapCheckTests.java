@@ -322,6 +322,31 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory");
     }
 
+    public void testMaxMapCountCheck() {
+        final int limit = 1 << 18;
+        final AtomicLong maxMapCount = new AtomicLong(randomIntBetween(1, limit - 1));
+        final BootstrapCheck.MaxMapCountCheck check = new BootstrapCheck.MaxMapCountCheck() {
+            @Override
+            long getMaxMapCount() {
+                return maxMapCount.get();
+            }
+        };
+
+        RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxMapCountCheck"));
+        assertThat(e.getMessage(), containsString("max virtual memory areas vm.max_map_count"));
+
+        maxMapCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
+
+        BootstrapCheck.check(true, Collections.singletonList(check), "testMaxMapCountCheck");
+
+        // nothing should happen if current vm.max_map_count is not
+        // available
+        maxMapCount.set(-1);
+        BootstrapCheck.check(true, Collections.singletonList(check), "testMaxMapCountCheck");
+    }
+
     public void testMinMasterNodes() {
         boolean isSet = randomBoolean();
         BootstrapCheck.Check check = new BootstrapCheck.MinMasterNodesCheck(isSet);

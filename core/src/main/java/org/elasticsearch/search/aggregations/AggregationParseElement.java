@@ -62,9 +62,7 @@ public class AggregationParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(parser);
-        parseContext.parseFieldMatcher(context.parseFieldMatcher());
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, context.parseFieldMatcher());
         AggregatorFactories.Builder builders = aggregatorParsers.parseAggregators(parseContext);
         AggregationContext aggContext = new AggregationContext(context);
         AggregatorFactories factories = builders.build(aggContext, null);

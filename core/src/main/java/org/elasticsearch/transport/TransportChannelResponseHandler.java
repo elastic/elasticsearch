@@ -33,7 +33,9 @@ public abstract class TransportChannelResponseHandler<T extends TransportRespons
     /**
      * Convenience method for delegating an empty response to the provided transport channel
      */
-    public static TransportChannelResponseHandler<TransportResponse.Empty> emptyResponseHandler(ESLogger logger, TransportChannel channel, String extraInfoOnError) {
+    public static TransportChannelResponseHandler<TransportResponse.Empty> emptyResponseHandler(ESLogger logger,
+                                                                                                TransportChannel channel,
+                                                                                                String extraInfoOnError) {
         return new TransportChannelResponseHandler<TransportResponse.Empty>(logger, channel, extraInfoOnError) {
             @Override
             public TransportResponse.Empty newInstance() {
@@ -45,7 +47,10 @@ public abstract class TransportChannelResponseHandler<T extends TransportRespons
     /**
      * Convenience method for delegating a response provided by supplier to the provided transport channel
      */
-    public static <T extends TransportResponse> TransportChannelResponseHandler responseHandler(ESLogger logger, Supplier<T> responseSupplier, TransportChannel channel, String extraInfoOnError) {
+    public static <T extends TransportResponse> TransportChannelResponseHandler responseHandler(ESLogger logger,
+                                                                                                Supplier<T> responseSupplier,
+                                                                                                TransportChannel channel,
+                                                                                                String extraInfoOnError) {
         return new TransportChannelResponseHandler<T>(logger, channel, extraInfoOnError) {
             @Override
             public T newInstance() {

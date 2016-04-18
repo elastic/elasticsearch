@@ -107,7 +107,7 @@ Setting `fielddata.format: doc_values` in the mappings used to implicitly
 enable doc-values on a field. This no longer works: the only way to enable or
 disable doc-values is by using the `doc_values` property of mappings.
 
-==== `fielddata.frequency.regex`
+==== `fielddata.filter.regex`
 
 Regex filters are not supported anymore and will be dropped on upgrade.
 

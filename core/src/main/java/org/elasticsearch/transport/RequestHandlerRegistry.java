@@ -37,7 +37,8 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final Supplier<Request> requestFactory;
     private final TaskManager taskManager;
 
-    public RequestHandlerRegistry(String action, Supplier<Request> requestFactory, TaskManager taskManager, TransportRequestHandler<Request> handler, String executor, boolean forceExecution) {
+    public RequestHandlerRegistry(String action, Supplier<Request> requestFactory, TaskManager taskManager,
+                                  TransportRequestHandler<Request> handler, String executor, boolean forceExecution) {
         this.action = action;
         this.requestFactory = requestFactory;
         assert newRequest() != null;

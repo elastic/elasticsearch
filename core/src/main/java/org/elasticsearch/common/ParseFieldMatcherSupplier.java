@@ -17,28 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max;
+package org.elasticsearch.common;
 
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
-import java.util.Map;
+/**
+ * This interface should be implemented by classes like {@link QueryParseContext} or {@link QueryShardContext} that
+ * are able to carry a {@link ParseFieldMatcher}.
+ */
+@FunctionalInterface
+public interface ParseFieldMatcherSupplier {
 
-public class MaxBucketParser extends BucketMetricsParser {
-
-    @Override
-    public String type() {
-        return MaxBucketPipelineAggregator.TYPE.name();
-    }
-
-    @Override
-    protected MaxBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName, String bucketsPath,
-            Map<String, Object> unparsedParams) {
-        return new MaxBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
-    }
-
-    @Override
-    public MaxBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return MaxBucketPipelineAggregatorBuilder.PROTOTYPE;
-    }
-
+    /**
+     * @return the parseFieldMatcher
+     */
+    ParseFieldMatcher getParseFieldMatcher();
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -141,8 +142,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             String elementName = itemParser.currentName();
             itemParser.nextToken();
 
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-            context.reset(itemParser);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
             T parsedItem = fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);

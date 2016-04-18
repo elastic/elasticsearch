@@ -25,17 +25,14 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Request to submit cluster reroute allocation commands
@@ -105,7 +102,6 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     public ClusterRerouteRequest source(BytesReference source, AllocationCommandRegistry registry, ParseFieldMatcher parseFieldMatcher)
             throws Exception {
         try (XContentParser parser = XContentHelper.createParser(source)) {
-            parser.setParseFieldMatcher(parseFieldMatcher);
             XContentParser.Token token;
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -113,7 +109,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("commands".equals(currentFieldName)) {
-                        this.commands = AllocationCommands.fromXContent(parser, registry);
+                        this.commands = AllocationCommands.fromXContent(parser, parseFieldMatcher, registry);
                     } else {
                         throw new ElasticsearchParseException("failed to parse reroute request, got start array with wrong field name [{}]", currentFieldName);
                     }

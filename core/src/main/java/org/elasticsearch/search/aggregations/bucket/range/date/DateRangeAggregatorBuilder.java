@@ -19,30 +19,38 @@
 
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
 
 public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAggregatorBuilder, RangeAggregator.Range> {
-
-    static final DateRangeAggregatorBuilder PROTOTYPE = new DateRangeAggregatorBuilder("");
+    public static final String NAME = InternalDateRange.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public DateRangeAggregatorBuilder(String name) {
         super(name, InternalDateRange.FACTORY);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public DateRangeAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalDateRange.FACTORY, Range.PROTOTYPE::readFrom);
+    }
+
     @Override
     public String getWriteableName() {
-        return InternalDateRange.TYPE.name();
+        return NAME;
     }
 
     /**
@@ -254,15 +262,4 @@ public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAg
         return new DateRangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
     }
-
-    @Override
-    protected DateRangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        int size = in.readVInt();
-        DateRangeAggregatorBuilder factory = new DateRangeAggregatorBuilder(name);
-        for (int i = 0; i < size; i++) {
-            factory.addRange(Range.PROTOTYPE.readFrom(in));
-        }
-        return factory;
-    }
-
 }

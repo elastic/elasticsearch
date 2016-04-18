@@ -26,7 +26,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -97,7 +97,7 @@ public class LinearModel extends MovAvgModel {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
         return builder;
     }
 
@@ -129,7 +129,7 @@ public class LinearModel extends MovAvgModel {
     public static class LinearModelBuilder implements MovAvgModelBuilder {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             return builder;
         }
 

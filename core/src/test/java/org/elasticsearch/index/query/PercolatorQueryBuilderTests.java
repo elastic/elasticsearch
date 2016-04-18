@@ -121,12 +121,12 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
     public void testMustRewrite() throws IOException {
         PercolatorQueryBuilder pqb = doCreateTestQueryBuilder(true);
         try {
-            pqb.toQuery(queryShardContext());
+            pqb.toQuery(createShardContext());
             fail("IllegalStateException expected");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
         }
-        QueryBuilder<?> rewrite = pqb.rewrite(queryShardContext());
+        QueryBuilder<?> rewrite = pqb.rewrite(createShardContext());
         PercolatorQueryBuilder geoShapeQueryBuilder = new PercolatorQueryBuilder(pqb.getDocumentType(), documentSource);
         assertEquals(geoShapeQueryBuilder, rewrite);
     }
@@ -135,7 +135,7 @@ public class PercolatorQueryBuilderTests extends AbstractQueryTestCase<Percolato
         indexedDocumentExists = false;
         PercolatorQueryBuilder pqb = doCreateTestQueryBuilder(true);
         try {
-            pqb.rewrite(queryShardContext());
+            pqb.rewrite(createShardContext());
             fail("ResourceNotFoundException expected");
         } catch (ResourceNotFoundException e) {
             String expectedString = "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" +

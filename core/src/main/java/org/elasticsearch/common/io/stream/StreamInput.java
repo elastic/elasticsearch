@@ -34,14 +34,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
@@ -725,100 +721,89 @@ public abstract class StreamInput extends InputStream {
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
      */
-    <C extends NamedWriteable<?>> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+    @Nullable
+    public <C extends NamedWriteable<?>> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
     /**
-     * Reads a {@link AggregatorBuilder} from the current stream
+     * Reads an optional {@link NamedWriteable}.
      */
-    public AggregatorBuilder<?> readAggregatorBuilder() throws IOException {
-        return readNamedWriteable(AggregatorBuilder.class);
-    }
-
-    /**
-     * Reads a {@link PipelineAggregatorBuilder} from the current stream
-     */
-    public PipelineAggregatorBuilder<?> readPipelineAggregatorBuilder() throws IOException {
-        return readNamedWriteable(PipelineAggregatorBuilder.class);
-    }
-
-    /**
-     * Reads a {@link QueryBuilder} from the current stream
-     */
-    public QueryBuilder<?> readQuery() throws IOException {
-        return readNamedWriteable(QueryBuilder.class);
-    }
-
-    /**
-     * Reads an optional {@link QueryBuilder}.
-     */
-    public QueryBuilder<?> readOptionalQuery() throws IOException {
+    public <C extends NamedWriteable<?>> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
         if (readBoolean()) {
-            return readNamedWriteable(QueryBuilder.class);
+            return readNamedWriteable(categoryClass);
         }
         return null;
     }
 
     /**
-     * Reads a {@link ShapeBuilder} from the current stream
+     * Reads a {@link QueryBuilder} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link QueryBuilder}.
      */
-    public ShapeBuilder readShape() throws IOException {
-        return readNamedWriteable(ShapeBuilder.class);
-    }
-
-    /**
-     * Reads a {@link RescoreBuilder} from the current stream
-     */
-    public RescoreBuilder<?> readRescorer() throws IOException {
-        return readNamedWriteable(RescoreBuilder.class);
+    @Deprecated
+    public QueryBuilder<?> readQuery() throws IOException {
+        return readNamedWriteable(QueryBuilder.class);
     }
 
     /**
      * Reads a {@link SuggestionBuilder} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link SuggestionBuilder}.
      */
+    @Deprecated
     public SuggestionBuilder<?> readSuggestion() throws IOException {
         return readNamedWriteable(SuggestionBuilder.class);
     }
 
     /**
      * Reads a {@link SortBuilder} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link SortBuilder}.
      */
+    @Deprecated
     public SortBuilder<?> readSortBuilder() throws IOException {
         return readNamedWriteable(SortBuilder.class);
     }
 
     /**
      * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link ScoreFunctionBuilder}.
      */
+    @Deprecated
     public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
         return readNamedWriteable(ScoreFunctionBuilder.class);
     }
 
     /**
      * Reads a {@link SmoothingModel} from the current stream
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link SmoothingModel}.
      */
+    @Deprecated
     public SmoothingModel readPhraseSuggestionSmoothingModel() throws IOException {
         return readNamedWriteable(SmoothingModel.class);
     }
 
     /**
      * Reads a {@link Task.Status} from the current stream.
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link Task.Status}.
      */
+    @Deprecated
     public Task.Status readTaskStatus() throws IOException {
         return readNamedWriteable(Task.Status.class);
     }
 
     /**
      * Reads a {@link DocValueFormat} from the current stream.
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link DocValueFormat}.
      */
+    @Deprecated
     public DocValueFormat readValueFormat() throws IOException {
         return readNamedWriteable(DocValueFormat.class);
     }
 
     /**
      * Reads an {@link AllocationCommand} from the stream.
+     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link AllocationCommand}.
      */
+    @Deprecated
     public AllocationCommand readAllocationCommand() throws IOException {
         return readNamedWriteable(AllocationCommand.class);
     }

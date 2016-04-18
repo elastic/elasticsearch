@@ -19,7 +19,18 @@
 
 package org.elasticsearch.search;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
@@ -98,18 +109,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 
 /**
  *
@@ -569,9 +569,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
-                    QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
-                    queryParseContext.reset(parser);
-                    queryParseContext.parseFieldMatcher(parseFieldMatcher);
+                    QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry(), parser,
+                            parseFieldMatcher);
                     parseSource(context, SearchSourceBuilder.fromXContent(queryParseContext, aggParsers, suggesters));
                 }
             }
@@ -812,6 +811,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 }
                 XContentLocation location = extParser != null ? extParser.getTokenLocation() : null;
                 throw new SearchParseException(context, "failed to parse ext source [" + sSource + "]", location, e);
+            } finally {
+                if (extParser != null) {
+                    extParser.close();
+                }
             }
         }
         if (source.version() != null) {

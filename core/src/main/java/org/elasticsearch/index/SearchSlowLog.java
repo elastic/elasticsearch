@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 /**
  */
 public final class SearchSlowLog implements SearchOperationListener {
-
+    private final Index index;
     private boolean reformat;
 
     private long queryWarnThreshold;
@@ -87,6 +87,8 @@ public final class SearchSlowLog implements SearchOperationListener {
         this.queryLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
         this.fetchLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
 
+        this.index = indexSettings.getIndex();
+
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_REFORMAT, this::setReformat);
         this.reformat = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_REFORMAT);
 
@@ -120,36 +122,38 @@ public final class SearchSlowLog implements SearchOperationListener {
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            queryLogger.warn("{}", new SlowLogSearchContextPrinter(index, context, tookInNanos, reformat));
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            queryLogger.info("{}", new SlowLogSearchContextPrinter(index, context, tookInNanos, reformat));
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            queryLogger.debug("{}", new SlowLogSearchContextPrinter(index, context, tookInNanos, reformat));
         } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            queryLogger.trace("{}", new SlowLogSearchContextPrinter(index, context, tookInNanos, reformat));
         }
     }
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            fetchLogger.warn("{}", new SlowLogSearchContextPrinter(index, context, tookInNanos, reformat));
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
-            fetchLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            fetchLogger.info("{}", new SlowLogSearchContextPrinter(index, context, tookInNanos, reformat));
         } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
-            fetchLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            fetchLogger.debug("{}", new SlowLogSearchContextPrinter(index, context, tookInNanos, reformat));
         } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
-            fetchLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            fetchLogger.trace("{}", new SlowLogSearchContextPrinter(index, context, tookInNanos, reformat));
         }
     }
 
-    private static class SlowLogSearchContextPrinter {
+    static final class SlowLogSearchContextPrinter {
         private final SearchContext context;
+        private final Index index;
         private final long tookInNanos;
         private final boolean reformat;
 
-        public SlowLogSearchContextPrinter(SearchContext context, long tookInNanos, boolean reformat) {
+        public SlowLogSearchContextPrinter(Index index, SearchContext context, long tookInNanos, boolean reformat) {
             this.context = context;
+            this.index = index;
             this.tookInNanos = tookInNanos;
             this.reformat = reformat;
         }
@@ -157,6 +161,7 @@ public final class SearchSlowLog implements SearchOperationListener {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
+            sb.append(index).append(" ");
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
             if (context.getQueryShardContext().getTypes() == null) {
                 sb.append("types[], ");

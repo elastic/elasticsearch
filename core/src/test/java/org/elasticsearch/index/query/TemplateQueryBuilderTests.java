@@ -24,7 +24,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -124,35 +123,35 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         QueryBuilder<?> builder = new TemplateQueryBuilder(new Template(query, ScriptType.INLINE, "mockscript",
         XContentType.JSON, Collections.emptyMap()));
         try {
-            builder.toQuery(queryShardContext());
+            builder.toQuery(createShardContext());
             fail();
         } catch (UnsupportedOperationException ex) {
             assertEquals("this query must be rewritten first", ex.getMessage());
         }
-        assertEquals(new MatchAllQueryBuilder(), builder.rewrite(queryShardContext()));
+        assertEquals(new MatchAllQueryBuilder(), builder.rewrite(createShardContext()));
     }
 
     public void testRewriteWithInnerName() throws IOException {
         final String query = "{ \"match_all\" : {\"_name\" : \"foobar\"}}";
         QueryBuilder<?> builder = new TemplateQueryBuilder(new Template(query, ScriptType.INLINE, "mockscript",
             XContentType.JSON, Collections.emptyMap()));
-        assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(queryShardContext()));
+        assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(createShardContext()));
 
         builder = new TemplateQueryBuilder(new Template(query, ScriptType.INLINE, "mockscript",
             XContentType.JSON, Collections.emptyMap())).queryName("outer");
         assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
-            builder.rewrite(queryShardContext()));
+            builder.rewrite(createShardContext()));
     }
 
     public void testRewriteWithInnerBoost() throws IOException {
         final TermQueryBuilder query = new TermQueryBuilder("foo", "bar").boost(2);
         QueryBuilder<?> builder = new TemplateQueryBuilder(new Template(query.toString(), ScriptType.INLINE, "mockscript",
             XContentType.JSON, Collections.emptyMap()));
-        assertEquals(query, builder.rewrite(queryShardContext()));
+        assertEquals(query, builder.rewrite(createShardContext()));
 
         builder = new TemplateQueryBuilder(new Template(query.toString(), ScriptType.INLINE, "mockscript",
             XContentType.JSON, Collections.emptyMap())).boost(3);
-        assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(queryShardContext()));
+        assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(createShardContext()));
     }
 
     @Override

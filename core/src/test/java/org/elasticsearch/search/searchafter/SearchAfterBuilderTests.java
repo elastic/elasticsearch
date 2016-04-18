@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -212,8 +211,6 @@ public class SearchAfterBuilderTests extends ESTestCase {
     }
 
     public void testFromXContent() throws Exception {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < 20; runs++) {
             SearchAfterBuilder searchAfterBuilder = randomJsonSearchFromBuilder();
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -224,7 +221,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
             XContentParser parser = XContentHelper.createParser(builder.bytes());
-            context.reset(parser);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
@@ -234,7 +231,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());
         }
     }
-    
+
     public void testWithNullArray() throws Exception {
         SearchAfterBuilder builder = new SearchAfterBuilder();
         try {

@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.io.GeohashUtils;
@@ -274,14 +275,19 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (context.indexVersionCreated().before(Version.V_2_2_0)) {
-            if (queryBuilder.type() == GeoExecType.INDEXED) {
-                assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
-            } else {
-                assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
-            }
+        MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
+        if (fieldType == null) {
+            assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         } else {
-            assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
+            if (context.indexVersionCreated().before(Version.V_2_2_0)) {
+                if (queryBuilder.type() == GeoExecType.INDEXED) {
+                    assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
+                } else {
+                    assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
+                }
+            } else {
+                assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
+            }
         }
     }
 
@@ -433,8 +439,9 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     private void assertGeoBoundingBoxQuery(String query) throws IOException {
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        if (queryShardContext().indexVersionCreated().before(Version.V_2_2_0)) {
+        QueryShardContext shardContext = createShardContext();
+        Query parsedQuery = parseQuery(query).toQuery(shardContext);
+        if (shardContext.indexVersionCreated().before(Version.V_2_2_0)) {
             InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
             assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(filter.topLeft().lat(), closeTo(40, 1E-5));
@@ -507,13 +514,14 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     public void testIgnoreUnmapped() throws IOException {
         final GeoBoundingBoxQueryBuilder queryBuilder = new GeoBoundingBoxQueryBuilder("unmapped").setCorners(1.0, 0.0, 0.0, 1.0);
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        QueryShardContext shardContext = createShardContext();
+        Query query = queryBuilder.toQuery(shardContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoBoundingBoxQueryBuilder failingQueryBuilder = new GeoBoundingBoxQueryBuilder("unmapped").setCorners(1.0, 0.0, 0.0, 1.0);
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
     }
 }

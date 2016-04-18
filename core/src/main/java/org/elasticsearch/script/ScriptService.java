@@ -361,8 +361,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     }
 
     private void validate(BytesReference scriptBytes, String scriptLang) {
-        try {
-            XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
+        try (XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes)) {
             parser.nextToken();
             Template template = TemplateQueryBuilder.parse(scriptLang, parser, parseFieldMatcher, "params", "script", "template");
             if (Strings.hasLength(template.getScript())) {

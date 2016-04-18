@@ -33,14 +33,10 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
@@ -687,68 +683,55 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
-    void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
+    public void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }
 
     /**
-     * Writes a {@link AggregatorBuilder} to the current stream
+     * Write an optional {@link NamedWriteable} to the stream.
      */
-    public void writeAggregatorBuilder(AggregatorBuilder<?> builder) throws IOException {
-        writeNamedWriteable(builder);
-    }
-
-    /**
-     * Writes a {@link PipelineAggregatorBuilder} to the current stream
-     */
-    public void writePipelineAggregatorBuilder(PipelineAggregatorBuilder<?> builder) throws IOException {
-        writeNamedWriteable(builder);
+    public void writeOptionalNamedWriteable(@Nullable NamedWriteable<?> namedWriteable) throws IOException {
+        if (namedWriteable == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeNamedWriteable(namedWriteable);
+        }
     }
 
     /**
      * Writes a {@link QueryBuilder} to the current stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeQuery(QueryBuilder<?> queryBuilder) throws IOException {
         writeNamedWriteable(queryBuilder);
     }
 
     /**
-     * Write an optional {@link QueryBuilder} to the stream.
-     */
-    public void writeOptionalQuery(@Nullable QueryBuilder<?> queryBuilder) throws IOException {
-        if (queryBuilder == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeQuery(queryBuilder);
-        }
-    }
-
-    /**
-     * Writes a {@link ShapeBuilder} to the current stream
-     */
-    public void writeShape(ShapeBuilder shapeBuilder) throws IOException {
-        writeNamedWriteable(shapeBuilder);
-    }
-
-    /**
      * Writes a {@link ScoreFunctionBuilder} to the current stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
         writeNamedWriteable(scoreFunctionBuilder);
     }
 
     /**
      * Writes the given {@link SmoothingModel} to the stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
         writeNamedWriteable(smoothinModel);
     }
 
     /**
      * Writes a {@link Task.Status} to the current stream.
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeTaskStatus(Task.Status status) throws IOException {
         writeNamedWriteable(status);
     }
@@ -790,35 +773,38 @@ public abstract class StreamOutput extends OutputStream {
         }
      }
 
-     /**
-     * Writes a {@link RescoreBuilder} to the current stream
-     */
-    public void writeRescorer(RescoreBuilder<?> rescorer) throws IOException {
-        writeNamedWriteable(rescorer);
-    }
-
     /**
      * Writes a {@link SuggestionBuilder} to the current stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeSuggestion(SuggestionBuilder<?> suggestion) throws IOException {
         writeNamedWriteable(suggestion);
     }
 
     /**
      * Writes a {@link SortBuilder} to the current stream
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeSortBuilder(SortBuilder<?> sort) throws IOException {
         writeNamedWriteable(sort);
     }
 
-    /** Writes a {@link DocValueFormat}. */
+    /**
+     * Writes a {@link DocValueFormat}.
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
+     */
+    @Deprecated
     public void writeValueFormat(DocValueFormat format) throws IOException {
         writeNamedWriteable(format);
     }
 
     /**
      * Writes an {@link AllocationCommand} to the stream.
+     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
      */
+    @Deprecated
     public void writeAllocationCommand(AllocationCommand command) throws IOException {
         writeNamedWriteable(command);
     }

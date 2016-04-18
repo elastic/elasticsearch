@@ -18,6 +18,17 @@
  */
 package org.elasticsearch.index.query.support;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -45,17 +56,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class InnerHitBuilderTests extends ESTestCase {
 
@@ -86,8 +86,6 @@ public class InnerHitBuilderTests extends ESTestCase {
     }
 
     public void testFromAndToXContent() throws Exception {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             InnerHitBuilder innerHit = randomInnerHits();
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -97,7 +95,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             XContentParser parser = XContentHelper.createParser(builder.bytes());
-            context.reset(parser);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(context);
             assertThat(innerHit, not(sameInstance(secondInnerHits)));
             assertThat(innerHit, equalTo(secondInnerHits));

@@ -118,7 +118,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedPath = in.readOptionalString();
-        nestedFilter = in.readOptionalQuery();
+        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
     @Override
@@ -128,7 +128,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(nestedPath);
-        out.writeOptionalQuery(nestedFilter);
+        out.writeOptionalNamedWriteable(nestedFilter);
     }
 
     /**
@@ -231,7 +231,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         XContentParser parser = context.parser();
-        ParseFieldMatcher parseField = context.parseFieldMatcher();
+        ParseFieldMatcher parseField = context.getParseFieldMatcher();
         Script script = null;
         ScriptSortType type = null;
         SortMode sortMode = null;

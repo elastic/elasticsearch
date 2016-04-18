@@ -121,13 +121,13 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, BIG_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, BIG_FIELD)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_within [big] must be of type span query");
                     }
                     big = (SpanQueryBuilder) query;
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LITTLE_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LITTLE_FIELD)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_within [little] must be of type span query");
@@ -137,9 +137,9 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
                     throw new ParsingException(parser.getTokenLocation(),
                             "[span_within] query does not support [" + currentFieldName + "]");
                 }
-            } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+            } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                 boost = parser.floatValue();
-            } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+            } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                 queryName = parser.text();
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "[span_within] query does not support [" + currentFieldName + "]");

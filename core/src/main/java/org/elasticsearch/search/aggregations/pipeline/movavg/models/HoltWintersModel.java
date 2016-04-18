@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -346,8 +346,8 @@ public class HoltWintersModel extends MovAvgModel {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
-        builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
+        builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        builder.startObject(MovAvgPipelineAggregatorBuilder.SETTINGS.getPreferredName());
         builder.field("alpha", alpha);
         builder.field("beta", beta);
         builder.field("gamma", gamma);
@@ -498,8 +498,8 @@ public class HoltWintersModel extends MovAvgModel {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
-            builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
+            builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.startObject(MovAvgPipelineAggregatorBuilder.SETTINGS.getPreferredName());
             builder.field("alpha", alpha);
             builder.field("beta", beta);
             builder.field("gamma", gamma);

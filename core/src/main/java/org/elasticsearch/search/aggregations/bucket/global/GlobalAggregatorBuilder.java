@@ -19,22 +19,41 @@
 
 package org.elasticsearch.search.aggregations.bucket.global;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 
 public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorBuilder> {
-
-    static final GlobalAggregatorBuilder PROTOTYPE = new GlobalAggregatorBuilder("");
+    public static final String NAME = InternalGlobal.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public GlobalAggregatorBuilder(String name) {
         super(name, InternalGlobal.TYPE);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GlobalAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalGlobal.TYPE);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        // Nothing to write
+    }
+
+    @Override
+    protected boolean usesNewStyleSerialization() {
+        return true;
     }
 
     @Override
@@ -44,20 +63,15 @@ public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorB
     }
 
     @Override
-    protected GlobalAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        return new GlobalAggregatorBuilder(name);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        // Nothing to write
-    }
-
-    @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.endObject();
         return builder;
+    }
+
+    public static GlobalAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        context.parser().nextToken();
+        return new GlobalAggregatorBuilder(aggregationName);
     }
 
     @Override
@@ -70,4 +84,8 @@ public class GlobalAggregatorBuilder extends AggregatorBuilder<GlobalAggregatorB
         return 0;
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

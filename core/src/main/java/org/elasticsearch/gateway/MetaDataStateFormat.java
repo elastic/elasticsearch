@@ -295,15 +295,15 @@ public abstract class MetaDataStateFormat<T> {
             try {
                 final Path stateFile = pathAndStateId.file;
                 final long id = pathAndStateId.id;
-                final XContentParser parser;
                 if (pathAndStateId.legacy) { // read the legacy format -- plain XContent
                     final byte[] data = Files.readAllBytes(stateFile);
                     if (data.length == 0) {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    parser = XContentHelper.createParser(new BytesArray(data));
-                    state = fromXContent(parser);
+                    try (final XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
+                        state = fromXContent(parser);
+                    }
                     if (state == null) {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                     }

@@ -146,8 +146,6 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      * instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(null);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB suggestionBuilder = randomTestBuilder();
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -160,7 +158,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
             XContentBuilder shuffled = shuffleXContent(xContentBuilder, shuffleProtectedFields());
             XContentParser parser = XContentHelper.createParser(shuffled.bytes());
-            context.reset(parser);
+            QueryParseContext context = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             // we need to skip the start object and the name, those will be parsed by outer SuggestBuilder
             parser.nextToken();
 
@@ -227,9 +225,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     protected static QueryParseContext newParseContext(final String xcontent) throws IOException {
-        final QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(XContentFactory.xContent(xcontent).createParser(xcontent));
-        parseContext.parseFieldMatcher(parseFieldMatcher);
+        XContentParser parser = XContentFactory.xContent(xcontent).createParser(xcontent);
+        final QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         return parseContext;
     }
 }

@@ -225,9 +225,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
         XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(parser);
-        parseContext.parseFieldMatcher(parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.name, parser.currentName());
@@ -235,7 +233,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type.name(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorBuilder newAgg = aggParsers.parser(testAgg.getType(), parser).parse(testAgg.name, parseContext);
+        AggregatorBuilder<?> newAgg = aggParsers.parser(testAgg.getType(), ParseFieldMatcher.STRICT).parse(testAgg.name, parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -253,9 +251,9 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
     public void testSerialization() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeAggregatorBuilder(testAgg);
+            output.writeNamedWriteable(testAgg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder deserialized = in.readAggregatorBuilder();
+                AggregatorBuilder<?> deserialized = in.readNamedWriteable(AggregatorBuilder.class);
                 assertEquals(testAgg, deserialized);
                 assertEquals(testAgg.hashCode(), deserialized.hashCode());
                 assertNotSame(testAgg, deserialized);

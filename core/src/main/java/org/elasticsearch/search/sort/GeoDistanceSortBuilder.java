@@ -159,7 +159,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         unit = DistanceUnit.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        nestedFilter = in.readOptionalQuery();
+        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedPath = in.readOptionalString();
         coerce = in.readBoolean();
         ignoreMalformed =in.readBoolean();
@@ -173,7 +173,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         unit.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        out.writeOptionalQuery(nestedFilter);
+        out.writeOptionalNamedWriteable(nestedFilter);
         out.writeOptionalString(nestedPath);
         out.writeBoolean(coerce);
         out.writeBoolean(ignoreMalformed);
@@ -407,7 +407,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      */
     public static GeoDistanceSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
         XContentParser parser = context.parser();
-        ParseFieldMatcher parseFieldMatcher = context.parseFieldMatcher();
+        ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
         String fieldName = null;
         List<GeoPoint> geoPoints = new ArrayList<>();
         DistanceUnit unit = DistanceUnit.DEFAULT;

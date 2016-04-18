@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,7 +71,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
      *     "payload" : STRING_ARRAY
      * }
      */
-    private static ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> TLP_PARSER =
+    private static ObjectParser<CompletionSuggestionBuilder.InnerBuilder, ParseFieldMatcherSupplier> TLP_PARSER =
         new ObjectParser<>(SUGGESTION_NAME, null);
     static {
         TLP_PARSER.declareStringArray(CompletionSuggestionBuilder.InnerBuilder::payload, PAYLOAD_FIELD);
@@ -80,12 +81,12 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
                         completionSuggestionContext.fuzzyOptions = new FuzzyOptions.Builder().build();
                     }
                 } else {
-                    completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser);
+                    completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser, context);
                 }
             },
             FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
         TLP_PARSER.declareField((parser, completionSuggestionContext, context) ->
-            completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
+            completionSuggestionContext.regexOptions = RegexOptions.parse(parser, context),
             RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
         TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, SuggestUtils.Fields.FIELD);
         TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, SuggestUtils.Fields.ANALYZER);
@@ -254,16 +255,17 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             regexOptions.toXContent(builder, params);
         }
         if (contextBytes != null) {
-            XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes);
-            builder.field(CONTEXTS_FIELD.getPreferredName());
-            builder.copyCurrentStructure(contextParser);
+            try (XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes)) {
+                builder.field(CONTEXTS_FIELD.getPreferredName());
+                builder.copyCurrentStructure(contextParser);
+            }
         }
         return builder;
     }
 
     static CompletionSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         CompletionSuggestionBuilder.InnerBuilder builder = new CompletionSuggestionBuilder.InnerBuilder();
-        TLP_PARSER.parse(parseContext.parser(), builder);
+        TLP_PARSER.parse(parseContext.parser(), builder, parseContext);
         String field = builder.field;
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
@@ -299,7 +301,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
                             if (currentToken == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = contextParser.currentName();
                                 final ContextMapping mapping = contextMappings.get(currentFieldName);
-                                queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
+                                queryContexts.put(currentFieldName, mapping.parseQueryContext(context.newParseContext(contextParser)));
                             }
                         }
                         suggestionContext.setQueryContexts(queryContexts);

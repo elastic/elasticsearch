@@ -493,7 +493,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     static PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         PhraseSuggestionBuilder tmpSuggestion = new PhraseSuggestionBuilder("_na_");
-        ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String fieldname = null;

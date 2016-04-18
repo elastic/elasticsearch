@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.action.percolate;
 
-import java.io.IOException;
-import java.util.Arrays;
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
@@ -54,6 +51,9 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 public class TransportPercolateAction extends HandledTransportAction<PercolateRequest, PercolateResponse> {
 
@@ -196,13 +196,14 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
 
         PercolatorQueryBuilder percolatorQueryBuilder = new PercolatorQueryBuilder(percolateRequest.documentType(), documentSource);
         if (querySource != null) {
-            QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, XContentHelper.createParser(querySource),
-                    parseFieldMatcher);
-            QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
-            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-            boolQueryBuilder.must(queryBuilder);
-            boolQueryBuilder.filter(percolatorQueryBuilder);
-            searchSource.field("query", boolQueryBuilder);
+            try (XContentParser parser = XContentHelper.createParser(querySource)) {
+                QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
+                QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
+                BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+                boolQueryBuilder.must(queryBuilder);
+                boolQueryBuilder.filter(percolatorQueryBuilder);
+                searchSource.field("query", boolQueryBuilder);
+            }
         } else {
             // wrapping in a constant score query with boost 0 for bwc reason.
             // percolator api didn't emit scores before and never included scores

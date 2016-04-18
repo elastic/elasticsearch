@@ -58,8 +58,6 @@ public class RangeAggregator extends BucketsAggregator {
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
 
     public static class Range implements Writeable<Range>, ToXContent {
-
-        public static final Range PROTOTYPE = new Range(null, null, null, null, null);
         public static final ParseField KEY_FIELD = new ParseField("key");
         public static final ParseField FROM_FIELD = new ParseField("from");
         public static final ParseField TO_FIELD = new ParseField("to");
@@ -77,6 +75,27 @@ public class RangeAggregator extends BucketsAggregator {
         public Range(String key, String from, String to) {
             this(key, null, from, null, to);
         }
+
+        /**
+         * Read from a stream.
+         */
+        public Range(StreamInput in) throws IOException {
+            key = in.readOptionalString();
+            fromAsStr = in.readOptionalString();
+            toAsStr = in.readOptionalString();
+            from = in.readDouble();
+            to = in.readDouble();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(key);
+            out.writeOptionalString(fromAsStr);
+            out.writeOptionalString(toAsStr);
+            out.writeDouble(from);
+            out.writeDouble(to);
+        }
+
 
         protected Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
@@ -108,27 +127,7 @@ public class RangeAggregator extends BucketsAggregator {
             return new Range(key, from, fromAsStr, to, toAsStr);
         }
 
-        @Override
-        public Range readFrom(StreamInput in) throws IOException {
-            String key = in.readOptionalString();
-            String fromAsStr = in.readOptionalString();
-            String toAsStr = in.readOptionalString();
-            double from = in.readDouble();
-            double to = in.readDouble();
-            return new Range(key, from, fromAsStr, to, toAsStr);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(key);
-            out.writeOptionalString(fromAsStr);
-            out.writeOptionalString(toAsStr);
-            out.writeDouble(from);
-            out.writeDouble(to);
-        }
-
-        public Range fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-
+        public static Range fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
             XContentParser.Token token;
             String currentFieldName = null;
             double from = Double.NEGATIVE_INFINITY;

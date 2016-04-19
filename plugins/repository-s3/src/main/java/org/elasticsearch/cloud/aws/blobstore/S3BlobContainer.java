@@ -97,7 +97,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream) throws IOException {
         try (OutputStream stream = createOutput(blobName)) {
             Streams.copy(inputStream, stream);
         }

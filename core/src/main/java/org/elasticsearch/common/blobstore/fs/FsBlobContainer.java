@@ -31,9 +31,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,7 +43,12 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 
 /**
+ * A file system based implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}.
+ * All blobs in the container are stored on a file system, the location of which is specified by the {@link BlobPath}.
  *
+ * Note that the methods in this implementation of {@link org.elasticsearch.common.blobstore.BlobContainer} may
+ * additionally throw a {@link java.lang.SecurityException} if the configured {@link java.lang.SecurityManager}
+ * does not permit read and/or write access to the underlying files.
  */
 public class FsBlobContainer extends AbstractBlobContainer {
 
@@ -94,10 +101,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream) throws IOException {
         final Path file = path.resolve(blobName);
-        // TODO: why is this not specifying CREATE_NEW? Do we really need to be able to truncate existing files?
-        try (OutputStream outputStream = Files.newOutputStream(file)) {
+        assert blobExists(blobName) == false; // if we want to write a blob to a pre-existing file, it should be deleted first
+        try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
             Streams.copy(inputStream, outputStream, new byte[blobStore.bufferSizeInBytes()]);
         }
         IOUtils.fsync(file, false);
@@ -109,8 +116,11 @@ public class FsBlobContainer extends AbstractBlobContainer {
         Path sourcePath = path.resolve(source);
         Path targetPath = path.resolve(target);
         // If the target file exists then Files.move() behaviour is implementation specific
-        // the existing file might be replaced or this method fails by throwing an IOException.
-        assert !Files.exists(targetPath);
+        // the existing file might be replaced or this method fails by throwing an IOException,
+        // so we explicitly check here.
+        if (Files.exists(targetPath)) {
+            throw new FileAlreadyExistsException(targetPath.toAbsolutePath().toString());
+        }
         Files.move(sourcePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
         IOUtils.fsync(path, true);
     }

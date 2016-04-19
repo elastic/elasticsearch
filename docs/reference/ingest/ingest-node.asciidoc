@@ -1199,18 +1199,21 @@ Splits a field into an array using a separator character. Only works on string f
 .Split Options
 [options="header"]
 |======
-| Name     | Required  | Default  | Description
-| `field`  | yes       | -        | The field to split
+| Name        | Required  | Default  | Description
+| `field`     | yes       | -        | The field to split
+| `separator` | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
 |======
 
 [source,js]
 --------------------------------------------------
 {
   "split": {
-    "field": ","
+    "field": ",",
+    "separator": "\\s+" <1>
   }
 }
 --------------------------------------------------
+<1> Treat all consecutive whitespace characters as a single separator
 
 [[trim-processor]]
 === Trim Processor

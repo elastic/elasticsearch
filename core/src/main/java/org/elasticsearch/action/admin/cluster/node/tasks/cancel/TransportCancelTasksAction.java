@@ -56,7 +56,7 @@ import java.util.function.Consumer;
  * Transport action that can be used to cancel currently running cancellable tasks.
  * <p>
  * For a task to be cancellable it has to return an instance of
- * {@link CancellableTask} from {@link TransportRequest#createTask(long, String, String)}
+ * {@link CancellableTask} from {@link TransportRequest#createTask(long, String, String, TaskId)}
  */
 public class TransportCancelTasksAction extends TransportTasksAction<CancellableTask, CancelTasksRequest, CancelTasksResponse, TaskInfo> {
 

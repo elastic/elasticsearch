@@ -71,14 +71,10 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
      */
     public SignificantTermsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, SignificantStringTerms.TYPE, ValuesSourceType.ANY);
-        bucketCountThresholds = BucketCountThresholds.readFromStream(in);
+        bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();
-        if (in.readBoolean()) {
-            filterBuilder = in.readNamedWriteable(QueryBuilder.class);
-        }
-        if (in.readBoolean()) {
-            includeExclude = IncludeExclude.readFromStream(in);
-        }
+        filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
     }
 
@@ -86,16 +82,8 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     protected void innerWriteTo(StreamOutput out) throws IOException {
         bucketCountThresholds.writeTo(out);
         out.writeOptionalString(executionHint);
-        boolean hasfilterBuilder = filterBuilder != null;
-        out.writeBoolean(hasfilterBuilder);
-        if (hasfilterBuilder) {
-            out.writeNamedWriteable(filterBuilder);
-        }
-        boolean hasIncExc = includeExclude != null;
-        out.writeBoolean(hasIncExc);
-        if (hasIncExc) {
-            includeExclude.writeTo(out);
-        }
+        out.writeOptionalNamedWriteable(filterBuilder);
+        out.writeOptionalWriteable(includeExclude);
         out.writeNamedWriteable(significanceHeuristic);
     }
 

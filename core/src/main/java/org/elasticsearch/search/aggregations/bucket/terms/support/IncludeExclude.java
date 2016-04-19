@@ -47,7 +47,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -60,15 +59,9 @@ import java.util.TreeSet;
  * exclusion has precedence, where the {@code include} is evaluated first and then the {@code exclude}.
  */
 public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
-
-    private static final IncludeExclude PROTOTYPE = new IncludeExclude(Collections.emptySortedSet(), Collections.emptySortedSet());
     private static final ParseField INCLUDE_FIELD = new ParseField("include");
     private static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
     private static final ParseField PATTERN_FIELD = new ParseField("pattern");
-
-    public static IncludeExclude readFromStream(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
 
     // The includeValue and excludeValue ByteRefs which are the result of the parsing
     // process are converted into a LongFilter when used on numeric fields
@@ -255,6 +248,68 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
 
     public IncludeExclude(long[] includeValues, long[] excludeValues) {
         this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public IncludeExclude(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            includeValues = null;
+            excludeValues = null;
+            String includeString = in.readOptionalString();
+            include = includeString == null ? null : new RegExp(includeString);
+            String excludeString = in.readOptionalString();
+            exclude = excludeString == null ? null : new RegExp(excludeString);
+            return;
+        }
+        include = null;
+        exclude = null;
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            includeValues = new TreeSet<>();
+            for (int i = 0; i < size; i++) {
+                includeValues.add(in.readBytesRef());
+            }
+        } else {
+            includeValues = null;
+        }
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            excludeValues = new TreeSet<>();
+            for (int i = 0; i < size; i++) {
+                excludeValues.add(in.readBytesRef());
+            }
+        } else {
+            excludeValues = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        boolean regexBased = isRegexBased();
+        out.writeBoolean(regexBased);
+        if (regexBased) {
+            out.writeOptionalString(include == null ? null : include.getOriginalString());
+            out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
+        } else {
+            boolean hasIncludes = includeValues != null;
+            out.writeBoolean(hasIncludes);
+            if (hasIncludes) {
+                out.writeVInt(includeValues.size());
+                for (BytesRef value : includeValues) {
+                    out.writeBytesRef(value);
+                }
+            }
+            boolean hasExcludes = excludeValues != null;
+            out.writeBoolean(hasExcludes);
+            if (hasExcludes) {
+                out.writeVInt(excludeValues.size());
+                for (BytesRef value : excludeValues) {
+                    out.writeBytesRef(value);
+                }
+            }
+        }
     }
 
     private static SortedSet<BytesRef> convertToBytesRefSet(String[] values) {
@@ -553,68 +608,6 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
             builder.endArray();
         }
         return builder;
-    }
-
-    @Override
-    public IncludeExclude readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            String includeString = in.readOptionalString();
-            RegExp include = null;
-            if (includeString != null) {
-                include = new RegExp(includeString);
-            }
-            String excludeString = in.readOptionalString();
-            RegExp exclude = null;
-            if (excludeString != null) {
-                exclude = new RegExp(excludeString);
-            }
-            return new IncludeExclude(include, exclude);
-        } else {
-            SortedSet<BytesRef> includes = null;
-            if (in.readBoolean()) {
-                int size = in.readVInt();
-                includes = new TreeSet<>();
-                for (int i = 0; i < size; i++) {
-                    includes.add(in.readBytesRef());
-                }
-            }
-            SortedSet<BytesRef> excludes = null;
-            if (in.readBoolean()) {
-                int size = in.readVInt();
-                excludes = new TreeSet<>();
-                for (int i = 0; i < size; i++) {
-                    excludes.add(in.readBytesRef());
-                }
-            }
-            return new IncludeExclude(includes, excludes);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        boolean regexBased = isRegexBased();
-        out.writeBoolean(regexBased);
-        if (regexBased) {
-            out.writeOptionalString(include == null ? null : include.getOriginalString());
-            out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
-        } else {
-            boolean hasIncludes = includeValues != null;
-            out.writeBoolean(hasIncludes);
-            if (hasIncludes) {
-                out.writeVInt(includeValues.size());
-                for (BytesRef value : includeValues) {
-                    out.writeBytesRef(value);
-                }
-            }
-            boolean hasExcludes = excludeValues != null;
-            out.writeBoolean(hasExcludes);
-            if (hasExcludes) {
-                out.writeVInt(excludeValues.size());
-                for (BytesRef value : excludeValues) {
-                    out.writeBytesRef(value);
-                }
-            }
-        }
     }
 
     @Override

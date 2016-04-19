@@ -75,7 +75,7 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
         int size = in.readVInt();
         ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            ranges.add(Range.PROTOTYPE.readFrom(in));
+            ranges.add(new Range(in));
         }
         keyed = in.readBoolean();
         distanceType = GeoDistance.readFromStream(in);

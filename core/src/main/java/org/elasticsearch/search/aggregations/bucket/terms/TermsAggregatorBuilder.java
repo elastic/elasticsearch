@@ -70,12 +70,10 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
      */
     public TermsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, StringTerms.TYPE, ValuesSourceType.ANY);
-        bucketCountThresholds = BucketCountThresholds.readFromStream(in);
+        bucketCountThresholds = new BucketCountThresholds(in);
         collectMode = SubAggCollectionMode.BREADTH_FIRST.readFrom(in);
         executionHint = in.readOptionalString();
-        if (in.readBoolean()) {
-            includeExclude = IncludeExclude.readFromStream(in);
-        }
+        includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
     }
@@ -90,11 +88,7 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
         bucketCountThresholds.writeTo(out);
         collectMode.writeTo(out);
         out.writeOptionalString(executionHint);
-        boolean hasIncExc = includeExclude != null;
-        out.writeBoolean(hasIncExc);
-        if (hasIncExc) {
-            includeExclude.writeTo(out);
-        }
+        out.writeOptionalWriteable(includeExclude);
         InternalOrder.Streams.writeOrder(order, out);
         out.writeBoolean(showTermDocCountError);
     }

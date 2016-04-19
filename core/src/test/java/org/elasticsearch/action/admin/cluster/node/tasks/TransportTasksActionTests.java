@@ -157,9 +157,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
             if (enableTaskManager) {
-                return super.createTask(id, type, action);
+                return super.createTask(id, type, action, parentTaskId);
             } else {
                 return null;
             }

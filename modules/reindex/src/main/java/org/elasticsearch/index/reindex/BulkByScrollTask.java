@@ -70,8 +70,8 @@ public class BulkByScrollTask extends CancellableTask {
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
-    public BulkByScrollTask(long id, String type, String action, String description, float requestsPerSecond) {
-        super(id, type, action, description, TaskId.EMPTY_TASK_ID);
+    public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTask, float requestsPerSecond) {
+        super(id, type, action, description, parentTask);
         setRequestsPerSecond(requestsPerSecond);
     }
 

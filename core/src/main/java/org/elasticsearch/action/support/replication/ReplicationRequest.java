@@ -202,8 +202,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public Task createTask(long id, String type, String action) {
-        return new ReplicationTask(id, type, action, getDescription(), getParentTask());
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new ReplicationTask(id, type, action, getDescription(), parentTaskId);
     }
 
     /**

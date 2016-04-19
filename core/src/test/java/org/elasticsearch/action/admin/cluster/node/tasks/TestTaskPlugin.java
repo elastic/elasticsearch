@@ -208,8 +208,8 @@ public class TestTaskPlugin extends Plugin {
         }
 
         @Override
-        public Task createTask(long id, String type, String action) {
-            return new CancellableTask(id, type, action, getDescription(), TaskId.EMPTY_TASK_ID);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId);
         }
     }
 

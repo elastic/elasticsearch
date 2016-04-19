@@ -64,7 +64,8 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
      * Returns the task manager tracked task or null if the task doesn't support the task manager
      */
     public Task register(String type, String action, TransportRequest request) {
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action);
+        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask());
+        assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (task != null) {
             if (logger.isTraceEnabled()) {
                 logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());

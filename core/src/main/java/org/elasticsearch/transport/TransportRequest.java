@@ -67,7 +67,7 @@ public abstract class TransportRequest extends TransportMessage {
      *
      * A request can override this method and return null to avoid being tracked by the task manager.
      */
-    public Task createTask(long id, String type, String action) {
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new Task(id, type, action, getDescription(), parentTaskId);
     }
 

@@ -478,7 +478,7 @@ public class SearchModule extends AbstractModule {
         registerAggregation(GlobalAggregatorBuilder::new, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MissingAggregatorBuilder::new, new MissingParser(), MissingAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(FilterAggregatorBuilder::new, FilterAggregatorBuilder::parse, FilterAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(FiltersAggregatorBuilder::new, (n, c) -> FiltersAggregatorBuilder.parse(queryParserRegistry, n, c),
+        registerAggregation(FiltersAggregatorBuilder::new, FiltersAggregatorBuilder::parse,
                 FiltersAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(SamplerAggregatorBuilder::new, SamplerAggregatorBuilder::parse,
                 SamplerAggregatorBuilder.AGGREGATION_NAME_FIELD);

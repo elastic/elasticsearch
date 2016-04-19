@@ -19,15 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.filters;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,12 +28,20 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregatorBuilder> {
     public static final String NAME = InternalFilters.TYPE.name();
@@ -205,7 +204,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
         return builder;
     }
 
-    public static FiltersAggregatorBuilder parse(IndicesQueriesRegistry queriesRegistry, String aggregationName, QueryParseContext context)
+    public static FiltersAggregatorBuilder parse(String aggregationName, QueryParseContext context)
             throws IOException {
         XContentParser parser = context.parser();
 
@@ -241,9 +240,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser,
-                                context.getParseFieldMatcher());
-                            QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
+                            QueryBuilder<?> filter = context.parseInnerQueryBuilder();
                             keyedFilters.add(new FiltersAggregator.KeyedFilter(key, filter == null ? matchAllQuery() : filter));
                         }
                     }
@@ -255,9 +252,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
                 if (context.getParseFieldMatcher().match(currentFieldName, FILTERS_FIELD)) {
                     nonKeyedFilters = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser,
-                            context.getParseFieldMatcher());
-                        QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
+                        QueryBuilder<?> filter = context.parseInnerQueryBuilder();
                         nonKeyedFilters.add(filter == null ? QueryBuilders.matchAllQuery() : filter);
                     }
                 } else {

@@ -78,7 +78,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     // TODO: change to String[]
     private Set<String> selectedFields;
 
-    Boolean realtime;
+    private boolean realtime = true;
 
     private Map<String, String> perFieldAnalyzer;
 
@@ -394,14 +394,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Return whether term vectors should be generated real-time (default to true).
      */
     public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
+        return this.realtime;
     }
 
-    /**
-     * Choose whether term vectors be generated real-time.
-     */
     @Override
-    public TermVectorsRequest realtime(Boolean realtime) {
+    public TermVectorsRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
     }
@@ -559,7 +556,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         if (filterSettings != null) {
             filterSettings.writeTo(out);
         }
-        out.writeBoolean(realtime());
+        out.writeBoolean(realtime);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
     }

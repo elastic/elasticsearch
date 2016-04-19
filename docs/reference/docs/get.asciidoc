@@ -49,8 +49,7 @@ By default, the get API is realtime, and is not affected by the refresh
 rate of the index (when data will become visible for search).
 
 In order to disable realtime GET, one can either set `realtime`
-parameter to `false`, or globally default it to by setting the
-`action.get.realtime` to `false` in the node configuration.
+parameter to `false`.
 
 When getting a document, one can specify `fields` to fetch from it. They
 will, when possible, be fetched as stored fields (fields mapped as

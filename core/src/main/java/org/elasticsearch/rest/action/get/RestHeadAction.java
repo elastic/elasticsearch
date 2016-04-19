@@ -57,7 +57,7 @@ public class RestHeadAction extends BaseRestHandler {
         getRequest.routing(request.param("routing"));  // order is important, set it after routing, so it will set the routing
         getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
-        getRequest.realtime(request.paramAsBoolean("realtime", null));
+        getRequest.realtime(request.paramAsBoolean("realtime", true));
         // don't get any fields back...
         getRequest.fields(Strings.EMPTY_ARRAY);
         // TODO we can also just return the document size as Content-Length

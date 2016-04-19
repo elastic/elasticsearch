@@ -150,7 +150,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
         return this;
     }
 
-    public GetRequestBuilder setRealtime(Boolean realtime) {
+    public GetRequestBuilder setRealtime(boolean realtime) {
         request.realtime(realtime);
         return this;
     }

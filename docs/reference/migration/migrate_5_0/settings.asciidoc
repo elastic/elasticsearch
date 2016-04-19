@@ -231,3 +231,9 @@ The `discovery.zen.minimum_master_node` must bet set for nodes that have
 `transport.host`, `transport.bind_host`, or `transport.publish_host`
 configuration options set. We see those nodes as in "production" mode
 and thus require the setting.
+
+==== Realtime get setting
+
+The `action.get.realtime` setting has been removed. This setting was
+a fallback realtime setting for the get and mget APIs when realtime
+wasn't specified.

@@ -59,7 +59,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static java.lang.Math.abs;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -201,13 +200,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             break;
         case DATE_FIELD_NAME:
             origin = new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString();
-            scale = randomTimeValue();
-            offset = randomTimeValue();
+            scale = randomPositiveTimeValue();
+            offset = randomPositiveTimeValue();
             break;
         default:
             origin = randomBoolean() ? randomInt() : randomFloat();
-            scale = randomBoolean() ? abs(randomInt()) : abs(randomFloat());
-            offset = randomBoolean() ? abs(randomInt()) : abs(randomFloat());
+            scale = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
+            offset = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
             break;
         }
         offset = randomBoolean() ? null : offset;

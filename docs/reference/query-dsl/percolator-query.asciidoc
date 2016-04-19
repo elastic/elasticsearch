@@ -293,7 +293,7 @@ This will yield the following response.
         },
         "highlight": {
           "message": [
-            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>"
+            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
           ]
         }
       },
@@ -311,7 +311,7 @@ This will yield the following response.
         },
         "highlight": {
           "message": [
-            "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"
+            "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog" <1>
           ]
         }
       }

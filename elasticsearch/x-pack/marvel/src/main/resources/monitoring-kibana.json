@@ -55,81 +55,64 @@
     },
     "kibana_stats": {
       "properties": {
-        "kibana": {
+        "kibana_stats": {
           "properties": {
-            "uuid": {
-              "type": "keyword"
-            },
-            "name": {
-              "type": "keyword"
-            },
-            "host": {
-              "type": "keyword"
-            },
-            "transport_address": {
-              "type": "keyword"
-            },
-            "version": {
-              "type": "keyword"
-            },
-            "snapshot": {
-              "type": "boolean"
-            },
-            "status": {
-              "type": "keyword"
-            },
-            "statuses": {
+            "kibana": {
               "properties": {
+                "uuid": {
+                  "type": "keyword"
+                },
                 "name": {
                   "type": "keyword"
                 },
-                "state": {
+                "host": {
                   "type": "keyword"
-                }
-              }
-            }
-          }
-        },
-        "os": {
-          "properties": {
-            "load": {
-              "properties": {
-                "1m": {
-                  "type": "double"
                 },
-                "5m": {
-                  "type": "double"
+                "transport_address": {
+                  "type": "keyword"
                 },
-                "15m": {
-                  "type": "double"
-                }
-              }
-            },
-            "memory": {
-              "properties": {
-                "total_in_bytes": {
-                  "type": "double"
+                "version": {
+                  "type": "keyword"
                 },
-                "free_in_bytes": {
-                  "type": "double"
+                "snapshot": {
+                  "type": "boolean"
                 },
-                "used_in_bytes": {
-                  "type": "double"
+                "status": {
+                  "type": "keyword"
+                },
+                "statuses": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "state": {
+                      "type": "keyword"
+                    }
+                  }
                 }
               }
             },
-            "uptime_in_millis": {
-              "type": "long"
-            }
-          }
-        },
-        "process": {
-          "properties": {
-            "memory": {
+            "os": {
               "properties": {
-                "heap": {
+                "load": {
+                  "properties": {
+                    "1m": {
+                      "type": "double"
+                    },
+                    "5m": {
+                      "type": "double"
+                    },
+                    "15m": {
+                      "type": "double"
+                    }
+                  }
+                },
+                "memory": {
                   "properties": {
                     "total_in_bytes": {
+                      "type": "double"
+                    },
+                    "free_in_bytes": {
                       "type": "double"
                     },
                     "used_in_bytes": {
@@ -137,65 +120,86 @@
                     }
                   }
                 },
-                "resident_set_size_in_bytes": {
+                "uptime_in_millis": {
+                  "type": "long"
+                }
+              }
+            },
+            "process": {
+              "properties": {
+                "memory": {
+                  "properties": {
+                    "heap": {
+                      "properties": {
+                        "total_in_bytes": {
+                          "type": "double"
+                        },
+                        "used_in_bytes": {
+                          "type": "double"
+                        }
+                      }
+                    },
+                    "resident_set_size_in_bytes": {
+                      "type": "double"
+                    }
+                  }
+                },
+                "event_loop_delay": {
+                  "type": "double"
+                },
+                "uptime_in_millis": {
+                  "type": "long"
+                }
+              }
+            },
+            "sockets": {
+              "properties": {
+                "http": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "https": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            },
+            "timestamp": {
+              "type": "date"
+            },
+            "requests": {
+              "properties": {
+                "disconnects": {
+                  "type": "long"
+                },
+                "total": {
+                  "type": "long"
+                },
+                "status_codes": {
+                  "type": "object"
+                }
+              }
+            },
+            "response_times": {
+              "properties": {
+                "average": {
+                  "type": "double"
+                },
+                "max": {
                   "type": "double"
                 }
               }
             },
-            "event_loop_delay": {
-              "type": "double"
-            },
-            "uptime_in_millis": {
+            "concurrent_connections": {
               "type": "long"
             }
           }
-        },
-        "sockets": {
-          "properties": {
-            "http": {
-              "properties": {
-                "total": {
-                  "type": "long"
-                }
-              }
-            },
-            "https": {
-              "properties": {
-                "total": {
-                  "type": "long"
-                }
-              }
-            }
-          }
-        },
-        "timestamp": {
-          "type": "date"
-        },
-        "requests": {
-          "properties": {
-            "disconnects": {
-              "type": "long"
-            },
-            "total": {
-              "type": "long"
-            },
-            "status_codes": {
-              "type": "object"
-            }
-          }
-        },
-        "response_times": {
-          "properties": {
-            "average": {
-              "type": "double"
-            },
-            "max": {
-              "type": "double"
-            }
-          }
-        },
-        "concurrent_connections": {
-          "type": "long"
         }
       }
     }

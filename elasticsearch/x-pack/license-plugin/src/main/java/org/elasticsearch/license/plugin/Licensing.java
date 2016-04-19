@@ -6,8 +6,6 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -28,15 +26,19 @@ import org.elasticsearch.license.plugin.rest.RestDeleteLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestGetLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+
+import static org.elasticsearch.xpack.XPackPlugin.isTribeClientNode;
+import static org.elasticsearch.xpack.XPackPlugin.isTribeNode;
+import static org.elasticsearch.xpack.XPackPlugin.transportClientMode;
+
 
 public class Licensing {
 
     public static final String NAME = "license";
-    private final boolean isEnabled;
-    protected final boolean transportClient;
+    private final boolean isTransportClient;
+    private final boolean isTribeNode;
 
     static {
         MetaData.registerPrototype(LicensesMetaData.TYPE, LicensesMetaData.PROTO);
@@ -44,12 +46,12 @@ public class Licensing {
 
     @Inject
     public Licensing(Settings settings) {
-        this.transportClient = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-        isEnabled = transportClient == false;
+        isTransportClient = transportClientMode(settings);
+        isTribeNode = isTribeNode(settings);
     }
 
     public void onModule(NetworkModule module) {
-        if (transportClient == false) {
+        if (isTransportClient == false && isTribeNode == false) {
             module.registerRestHandler(RestPutLicenseAction.class);
             module.registerRestHandler(RestGetLicenseAction.class);
             module.registerRestHandler(RestDeleteLicenseAction.class);
@@ -57,21 +59,22 @@ public class Licensing {
     }
 
     public void onModule(ActionModule module) {
-        module.registerAction(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class);
-        module.registerAction(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class);
-        module.registerAction(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class);
+        if (isTribeNode == false) {
+            module.registerAction(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class);
+            module.registerAction(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class);
+            module.registerAction(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class);
+        }
     }
 
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
-        if (isEnabled) {
-            services.add(LicensesService.class);
+        if (isTransportClient == false && isTribeNode == false) {
+            return Collections.<Class<? extends LifecycleComponent>>singletonList(LicensesService.class);
         }
-        return services;
+        return Collections.emptyList();
     }
 
     public Collection<Module> nodeModules() {
-        if (isEnabled) {
+        if (isTransportClient == false && isTribeNode == false) {
             return Collections.<Module>singletonList(new LicensingModule());
         }
         return Collections.emptyList();

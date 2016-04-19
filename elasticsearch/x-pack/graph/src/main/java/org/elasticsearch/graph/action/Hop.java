@@ -21,22 +21,22 @@ import java.util.List;
  * A Hop represents one of potentially many stages in a graph exploration.
  * Each Hop identifies one or more fields in which it will attempt to find
  * terms that are significantly connected to the previous Hop. Each field is identified
- * using a {@link VertexRequest} 
- * 
+ * using a {@link VertexRequest}
+ *
  * <p>An example series of Hops on webserver logs would be:
  * <ol>
- * <li>an initial Hop to find 
+ * <li>an initial Hop to find
  * the top ten IPAddresses trying to access urls containing the word "admin"</li>
  * <li>a secondary Hop to see which other URLs those IPAddresses were trying to access</li>
- * </ol> 
- * 
+ * </ol>
+ *
  * <p>
  * Optionally, each hop can contain a "guiding query" that further limits the set of documents considered.
- * In our weblog example above we might choose to constrain the second hop to only look at log records that 
+ * In our weblog example above we might choose to constrain the second hop to only look at log records that
  * had a reponse code of 404.
  * </p>
  * <p>
- * If absent, the list of {@link VertexRequest}s is inherited from the prior Hop's list to avoid repeating 
+ * If absent, the list of {@link VertexRequest}s is inherited from the prior Hop's list to avoid repeating
  * the fields that will be examined at each stage.
  * </p>
  *
@@ -64,12 +64,7 @@ public class Hop {
     }
 
     void writeTo(StreamOutput out) throws IOException {
-        if (guidingQuery == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeQuery(guidingQuery);
-        }
+        out.writeOptionalNamedWriteable(guidingQuery);
         if (vertices == null) {
             out.writeVInt(0);
         } else {
@@ -81,9 +76,7 @@ public class Hop {
     }
 
     void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            guidingQuery = in.readQuery();
-        }
+        guidingQuery = in.readOptionalNamedWriteable(QueryBuilder.class);
         int size = in.readVInt();
         if (size > 0) {
             vertices = new ArrayList<>();
@@ -103,9 +96,9 @@ public class Hop {
     }
 
     /**
-     * Add a field in which this {@link Hop} will look for terms that are highly linked to 
-     * previous hops and optionally the guiding query. 
-     *  
+     * Add a field in which this {@link Hop} will look for terms that are highly linked to
+     * previous hops and optionally the guiding query.
+     *
      * @param fieldName a field in the chosen index
      */
     public VertexRequest addVertexRequest(String fieldName) {
@@ -120,8 +113,8 @@ public class Hop {
 
     /**
      * An optional parameter that focuses the exploration on documents that
-     * match the given query. 
-     * 
+     * match the given query.
+     *
      * @param queryBuilder any query
      */
     public void guidingQuery(QueryBuilder<?> queryBuilder) {

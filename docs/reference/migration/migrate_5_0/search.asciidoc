@@ -113,8 +113,10 @@ in favour of `query` and `no_match_query`.
 
 * The `collect_payloads` parameter of the `span_near` query has been deprecated.  Payloads will be loaded when needed.
 
-* The `score_type` parameter to the `nested`, has_child` and `has_parent` queries has been removed in favour of `score_mode`.
-  Also, the `total` score mode has been removed in favour of the `sum` mode.
+* The `score_type` parameter to the `nested` and `has_child` queries has been
+  removed in favour of `score_mode`.  The `score_mode` parameter to `has_parent`
+  has been deprecated in favour of the `score` boolean parameter.   Also, the
+  `total` score mode has been removed in favour of the `sum` mode.
 
 * When the `max_children` parameter was set to `0` on the `has_child` query
   then there was no upper limit on how many child documents were allowed to

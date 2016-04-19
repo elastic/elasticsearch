@@ -5,6 +5,9 @@ The changes listed below have been released for the first time in
 Elasticsearch 5.0.0-alpha1.  Changes in this release which were first released
 in the 2.x series are listed in <<release-notes-5.0.0-alpha1-2x>>.
 
+Also see <<breaking-changes-5.0>>.
+
+
 [[breaking-5.0.0-alpha1]]
 [float]
 === Breaking changes

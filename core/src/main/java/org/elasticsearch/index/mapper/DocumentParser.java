@@ -480,7 +480,7 @@ final class DocumentParser {
         if (objectMapper != null) {
             parseObjectOrField(context, objectMapper);
         } else {
-            ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context.root().dynamic());
+            ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
@@ -519,7 +519,7 @@ final class DocumentParser {
             }
         } else {
 
-            ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context.root().dynamic());
+            ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
@@ -794,7 +794,7 @@ final class DocumentParser {
     }
 
     private static void parseDynamicValue(final ParseContext context, ObjectMapper parentMapper, String currentFieldName, XContentParser.Token token) throws IOException {
-        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context.root().dynamic());
+        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
             throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);
         }
@@ -867,7 +867,7 @@ final class DocumentParser {
                     mapper = context.docMapper().objectMappers().get(context.path().pathAsText(paths[i]));
                     if (mapper == null) {
                         // One mapping is missing, check if we are allowed to create a dynamic one.
-                        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context.root().dynamic());
+                        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
 
                         switch (dynamic) {
                             case STRICT:
@@ -899,10 +899,26 @@ final class DocumentParser {
         }
     }
 
-    private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, ObjectMapper.Dynamic dynamicDefault) {
+    // find what the dynamic setting is given the current parse context and parent
+    private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, ParseContext context) {
         ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
+        while (dynamic == null) {
+            int lastDotNdx = parentMapper.name().lastIndexOf('.');
+            if (lastDotNdx == -1) {
+                // no dot means we the parent is the root, so just delegate to the default outside the loop
+                break;
+            }
+            String parentName = parentMapper.name().substring(0, lastDotNdx);
+            parentMapper = context.docMapper().objectMappers().get(parentName);
+            if (parentMapper == null) {
+                // If parentMapper is ever null, it means the parent of the current mapper was dynamically created.
+                // But in order to be created dynamically, the dynamic setting of that parent was necessarily true
+                return ObjectMapper.Dynamic.TRUE;
+            }
+            dynamic = parentMapper.dynamic();
+        }
         if (dynamic == null) {
-            return dynamicDefault == null ? ObjectMapper.Dynamic.TRUE : dynamicDefault;
+            return context.root().dynamic() == null ? ObjectMapper.Dynamic.TRUE : context.root().dynamic();
         }
         return dynamic;
     }

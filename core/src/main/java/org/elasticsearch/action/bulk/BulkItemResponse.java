@@ -25,6 +25,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -172,6 +173,11 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
             builder.endObject();
             builder.field(STATUS_FIELD, status.getStatus());
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 

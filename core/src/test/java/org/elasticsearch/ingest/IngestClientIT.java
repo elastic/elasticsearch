@@ -158,6 +158,9 @@ public class IngestClientIT extends ESIntegTestCase {
                 assertThat(failure.getMessage(), equalTo("java.lang.IllegalArgumentException: test processor failed"));
             } else {
                 IndexResponse indexResponse = itemResponse.getResponse();
+                assertThat("Expected a successful response but found failure [" + itemResponse.getFailure() + "].",
+                    itemResponse.isFailed(), is(false));
+                assertThat(indexResponse, notNullValue());
                 assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
                 assertThat(indexResponse.isCreated(), is(true));
             }

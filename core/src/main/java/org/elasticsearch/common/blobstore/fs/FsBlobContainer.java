@@ -41,7 +41,12 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 
 /**
+ * A file system based implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}.
+ * All blobs in the container are stored on a file system, the location of which is specified by the {@link BlobPath}.
  *
+ * Note that the methods in this implementation of {@link org.elasticsearch.common.blobstore.BlobContainer} may
+ * additionally throw a {@link java.lang.SecurityException} if the configured {@link java.lang.SecurityManager}
+ * does not permit read and/or write access to the underlying files.
  */
 public class FsBlobContainer extends AbstractBlobContainer {
 
@@ -94,7 +99,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream) throws IOException {
         final Path file = path.resolve(blobName);
         // TODO: why is this not specifying CREATE_NEW? Do we really need to be able to truncate existing files?
         try (OutputStream outputStream = Files.newOutputStream(file)) {

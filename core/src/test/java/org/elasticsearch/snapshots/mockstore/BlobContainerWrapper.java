@@ -54,8 +54,8 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        delegate.writeBlob(blobName, inputStream, blobSize);
+    public void writeBlob(String blobName, InputStream inputStream) throws IOException {
+        delegate.writeBlob(blobName, inputStream);
     }
 
     @Override

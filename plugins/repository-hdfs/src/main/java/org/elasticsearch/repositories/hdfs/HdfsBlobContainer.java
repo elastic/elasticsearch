@@ -103,7 +103,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream) throws IOException {
         store.execute(new Operation<Void>() {
             @Override
             public Void run(FileContext fileContext) throws IOException {

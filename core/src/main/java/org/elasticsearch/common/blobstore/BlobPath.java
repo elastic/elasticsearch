@@ -19,14 +19,13 @@
 
 package org.elasticsearch.common.blobstore;
 
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 /**
- *
+ * The list of paths where a blob can reside.  The contents of the paths are dependent upon the implementation of {@link BlobContainer}.
  */
 public class BlobPath implements Iterable<String> {
 

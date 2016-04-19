@@ -83,7 +83,7 @@ public class RestPercolateAction extends BaseRestHandler {
         getRequest.routing(restRequest.param("routing"));
         getRequest.preference(restRequest.param("preference"));
         getRequest.refresh(restRequest.paramAsBoolean("refresh", getRequest.refresh()));
-        getRequest.realtime(restRequest.paramAsBoolean("realtime", null));
+        getRequest.realtime(restRequest.paramAsBoolean("realtime", getRequest.realtime()));
         getRequest.version(RestActions.parseVersion(restRequest));
         getRequest.versionType(VersionType.fromString(restRequest.param("version_type"), getRequest.versionType()));
 

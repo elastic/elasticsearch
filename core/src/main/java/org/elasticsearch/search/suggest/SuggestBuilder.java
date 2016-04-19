@@ -65,7 +65,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         globalText = in.readOptionalString();
         final int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            suggestions.put(in.readString(), in.readSuggestion());
+            suggestions.put(in.readString(), in.readNamedWriteable(SuggestionBuilder.class));
         }
     }
 
@@ -76,7 +76,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         out.writeVInt(size);
         for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
             out.writeString(suggestion.getKey());
-            out.writeSuggestion(suggestion.getValue());
+            out.writeNamedWriteable(suggestion.getValue());
         }
     }
 

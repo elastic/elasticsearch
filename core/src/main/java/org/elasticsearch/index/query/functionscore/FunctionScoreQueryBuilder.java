@@ -354,14 +354,14 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
          * Read from a stream.
          */
         public FilterFunctionBuilder(StreamInput in) throws IOException {
-            filter = in.readQuery();
-            scoreFunction = in.readScoreFunction();
+            filter = in.readNamedWriteable(QueryBuilder.class);
+            scoreFunction = in.readNamedWriteable(ScoreFunctionBuilder.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeQuery(filter);
-            out.writeScoreFunction(scoreFunction);
+            out.writeNamedWriteable(filter);
+            out.writeNamedWriteable(scoreFunction);
         }
 
         public QueryBuilder<?> getFilter() {

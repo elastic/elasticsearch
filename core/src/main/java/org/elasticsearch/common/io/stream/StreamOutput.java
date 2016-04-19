@@ -34,9 +34,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
@@ -706,15 +703,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a {@link ScoreFunctionBuilder} to the current stream
-     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
-     */
-    @Deprecated
-    public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
-        writeNamedWriteable(scoreFunctionBuilder);
-    }
-
-    /**
      * Writes the given {@link GeoPoint} to the stream
      */
     public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
@@ -749,14 +737,5 @@ public abstract class StreamOutput extends OutputStream {
         for (T obj: list) {
             obj.writeTo(this);
         }
-     }
-
-    /**
-     * Writes a {@link SuggestionBuilder} to the current stream
-     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
-     */
-    @Deprecated
-    public void writeSuggestion(SuggestionBuilder<?> suggestion) throws IOException {
-        writeNamedWriteable(suggestion);
     }
 }

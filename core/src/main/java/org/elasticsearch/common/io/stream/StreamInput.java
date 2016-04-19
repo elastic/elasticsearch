@@ -35,9 +35,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -739,24 +736,6 @@ public abstract class StreamInput extends InputStream {
     @Deprecated
     public QueryBuilder<?> readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
-    }
-
-    /**
-     * Reads a {@link SuggestionBuilder} from the current stream
-     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link SuggestionBuilder}.
-     */
-    @Deprecated
-    public SuggestionBuilder<?> readSuggestion() throws IOException {
-        return readNamedWriteable(SuggestionBuilder.class);
-    }
-
-    /**
-     * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
-     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link ScoreFunctionBuilder}.
-     */
-    @Deprecated
-    public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
-        return readNamedWriteable(ScoreFunctionBuilder.class);
     }
 
     /**

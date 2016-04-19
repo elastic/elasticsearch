@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -177,7 +178,15 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            // Can't use: Strings.toString(this)
+            // because missing start and end object
+            try {
+                XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+                toXContent(builder, ToXContent.EMPTY_PARAMS);
+                return builder.endObject().string();
+            } catch (IOException e) {
+                throw new AssertionError("Cannot happen", e);
+            }
         }
     }
 

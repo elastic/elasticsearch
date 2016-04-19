@@ -1,6 +1,8 @@
 [[release-notes-2.1.2]]
 == 2.1.2 Release Notes
 
+Also see <<breaking-changes-2.1>>.
+
 [[enhancement-2.1.2]]
 [float]
 === Enhancements

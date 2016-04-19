@@ -155,8 +155,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
 
 
     public static final Setting<Long> NODE_ID_SEED_SETTING =
-        // don't use node.id.seed so it won't be seen as an attribute
-        Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, Property.NodeScope);
+        Setting.longSetting("node.id.seed", 0L, Long.MIN_VALUE, Property.NodeScope);
 
 
     /**
@@ -678,11 +677,11 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
      * returns the unique uuid describing this node. The uuid is persistent in the data folder of this node
      * and remains across restarts.
      **/
-    public String nodeID() {
+    public String nodeId() {
         // we currently only return the ID and hide the underlying nodeMetaData implementation in order to avoid
         // confusion with other "metadata" like node settings found in elasticsearch.yml. In future
         // we can encapsulate both (and more) in one NodeMetaData (or NodeSettings) object ala IndexSettings
-        return nodeMetaData.nodeID();
+        return nodeMetaData.nodeId();
     }
 
     /**

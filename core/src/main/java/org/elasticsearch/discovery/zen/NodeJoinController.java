@@ -63,7 +63,8 @@ public class NodeJoinController extends AbstractComponent {
 
     protected final Map<DiscoveryNode, List<MembershipAction.JoinCallback>> pendingJoinRequests = new HashMap<>();
 
-    public NodeJoinController(ClusterService clusterService, RoutingService routingService, DiscoverySettings discoverySettings, Settings settings) {
+    public NodeJoinController(ClusterService clusterService, RoutingService routingService, DiscoverySettings discoverySettings,
+                              Settings settings) {
         super(settings);
         this.clusterService = clusterService;
         this.routingService = routingService;
@@ -152,7 +153,8 @@ public class NodeJoinController extends AbstractComponent {
 
             @Override
             public void onFailure(String source, Throwable updateFailure) {
-                logger.warn("unexpected error while trying to fail election context due to [{}]. original exception [{}]", updateFailure, reason, throwable);
+                logger.warn("unexpected error while trying to fail election context due to [{}]. original exception [{}]", updateFailure,
+                    reason, throwable);
                 context.onFailure(updateFailure);
             }
         });
@@ -243,13 +245,16 @@ public class NodeJoinController extends AbstractComponent {
 
                 if (currentState.nodes().getMasterNode() != null) {
                     // TODO can we tie break here? we don't have a remote master cluster state version to decide on
-                    logger.trace("join thread elected local node as master, but there is already a master in place: {}", currentState.nodes().getMasterNode());
+                    logger.trace("join thread elected local node as master, but there is already a master in place: {}",
+                        currentState.nodes().getMasterNode());
                     throw new NotMasterException("Node [" + clusterService.localNode() + "] not master for join request");
                 }
 
-                DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNode().getId());
+                DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes())
+                    .masterNodeId(currentState.nodes().getLocalNode().getId());
                 // update the fact that we are the master...
-                ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
+                ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())
+                    .removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
                 currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
 
                 // reroute now to remove any dead nodes (master may have stepped down when they left and didn't update the routing table)
@@ -374,7 +379,8 @@ public class NodeJoinController extends AbstractComponent {
                 }
 
                 nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
-                Iterator<Map.Entry<DiscoveryNode, List<MembershipAction.JoinCallback>>> iterator = pendingJoinRequests.entrySet().iterator();
+                Iterator<Map.Entry<DiscoveryNode, List<MembershipAction.JoinCallback>>> iterator =
+                    pendingJoinRequests.entrySet().iterator();
                 while (iterator.hasNext()) {
                     Map.Entry<DiscoveryNode, List<MembershipAction.JoinCallback>> entry = iterator.next();
                     final DiscoveryNode node = entry.getKey();
@@ -415,7 +421,8 @@ public class NodeJoinController extends AbstractComponent {
         public void onNoLongerMaster(String source) {
             // we are rejected, so drain all pending task (execute never run)
             synchronized (pendingJoinRequests) {
-                Iterator<Map.Entry<DiscoveryNode, List<MembershipAction.JoinCallback>>> iterator = pendingJoinRequests.entrySet().iterator();
+                Iterator<Map.Entry<DiscoveryNode, List<MembershipAction.JoinCallback>>> iterator =
+                    pendingJoinRequests.entrySet().iterator();
                 while (iterator.hasNext()) {
                     Map.Entry<DiscoveryNode, List<MembershipAction.JoinCallback>> entry = iterator.next();
                     joinCallbacksToRespondTo.addAll(entry.getValue());

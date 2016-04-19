@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.node;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Booleans;
@@ -248,7 +247,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public DiscoveryNode resolveNode(String node) {
         String[] resolvedNodeIds = resolveNodesIds(node);
         if (resolvedNodeIds.length > 1) {
-            throw new IllegalArgumentException("resolved [" + node + "] into [" + resolvedNodeIds.length + "] nodes, where expected to be resolved to a single node");
+            throw new IllegalArgumentException("resolved [" + node + "] into [" + resolvedNodeIds.length
+                + "] nodes, where expected to be resolved to a single node");
         }
         if (resolvedNodeIds.length == 0) {
             throw new IllegalArgumentException("failed to resolve [" + node + "], no matching nodes");
@@ -371,7 +371,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 newMasterNode = getMasterNode();
             }
         }
-        return new Delta(previousMasterNode, newMasterNode, localNodeId, Collections.unmodifiableList(removed), Collections.unmodifiableList(added));
+        return new Delta(previousMasterNode, newMasterNode, localNodeId, Collections.unmodifiableList(removed),
+            Collections.unmodifiableList(added));
     }
 
     @Override
@@ -413,7 +414,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             this(null, null, localNodeId, removed, added);
         }
 
-        public Delta(@Nullable DiscoveryNode previousMasterNode, @Nullable DiscoveryNode newMasterNode, String localNodeId, List<DiscoveryNode> removed, List<DiscoveryNode> added) {
+        public Delta(@Nullable DiscoveryNode previousMasterNode, @Nullable DiscoveryNode newMasterNode, String localNodeId,
+                     List<DiscoveryNode> removed, List<DiscoveryNode> added) {
             this.previousMasterNode = previousMasterNode;
             this.newMasterNode = newMasterNode;
             this.localNodeId = localNodeId;
@@ -568,7 +570,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public Builder put(DiscoveryNode node) {
             final String preflight = preflightPut(node);
             if (preflight != null) {
-                throw new ElasticsearchException(preflight);
+                throw new IllegalArgumentException(preflight);
             }
             nodes.put(node.getId(), node);
             return this;
@@ -603,6 +605,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 if (node.getAddress().equals(existingNode.getAddress()) &&
                     node.equals(existingNode) == false) {
                     return "can't add node " + node +", found existing node " + existingNode + " with same address";
+                }
+                if (node.getId().equals(existingNode.getId()) &&
+                    node.getAddress().equals(existingNode.getAddress()) == false) {
+                    return "can't add node " + node +", found existing node " + existingNode + " with the same id, but a different address";
                 }
             }
             return null;

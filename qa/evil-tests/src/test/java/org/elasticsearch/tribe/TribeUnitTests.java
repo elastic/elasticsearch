@@ -88,8 +88,8 @@ public class TribeUnitTests extends ESTestCase {
         System.setProperty("es.cluster.name", "tribe_node_cluster");
         System.setProperty("es.tribe.t1.cluster.name", "tribe1");
         System.setProperty("es.tribe.t2.cluster.name", "tribe2");
-        System.setProperty("es.tribe.t1.node_id.seed", Long.toString(random().nextLong()));
-        System.setProperty("es.tribe.t2.node_id.seed", Long.toString(random().nextLong()));
+        System.setProperty("es.tribe.t1.node.id.seed", Long.toString(random().nextLong()));
+        System.setProperty("es.tribe.t2.node.id.seed", Long.toString(random().nextLong()));
 
         try {
             assertTribeNodeSuccessfullyCreated(Settings.EMPTY);
@@ -97,8 +97,8 @@ public class TribeUnitTests extends ESTestCase {
             System.clearProperty("es.cluster.name");
             System.clearProperty("es.tribe.t1.cluster.name");
             System.clearProperty("es.tribe.t2.cluster.name");
-            System.clearProperty("es.tribe.t1.node_id.seed");
-            System.clearProperty("es.tribe.t2.node_id.seed");
+            System.clearProperty("es.tribe.t1.node.id.seed");
+            System.clearProperty("es.tribe.t2.node.id.seed");
         }
     }
 

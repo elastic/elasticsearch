@@ -232,8 +232,12 @@ import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipel
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParserMapper;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregatorBuilder;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -281,9 +285,10 @@ public class SearchModule extends AbstractModule {
     private final AggregatorParsers aggregatorParsers = new AggregatorParsers(aggregationParserRegistry, pipelineAggregationParserRegistry);
     private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = new ParseFieldRegistry<>(
             "significance_heuristic");
+    private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
+            "moving_avg_model");
 
     private final Set<Class<? extends FetchSubPhase>> fetchSubPhases = new HashSet<>();
-    private final Set<MovAvgModel.AbstractModelParser> modelParsers = new HashSet<>();
 
     private final Settings settings;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -302,6 +307,7 @@ public class SearchModule extends AbstractModule {
         registerBuiltinSorts();
         registerBuiltinValueFormats();
         registerBuiltinSignificanceHeuristics();
+        registerBuiltinMovingAverageModels();
     }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
@@ -373,7 +379,7 @@ public class SearchModule extends AbstractModule {
      * @param heuristicName the name(s) at which the heuristic is parsed and streamed. The {@link ParseField#getPreferredName()} is the name
      *        under which it is streamed. All names work for the parser.
      * @param reader reads the heuristic from a stream
-     * @param parser reads the heuristic from a XContentParser
+     * @param parser reads the heuristic from an XContentParser
      */
     public void registerSignificanceHeuristic(ParseField heuristicName, Writeable.Reader<SignificanceHeuristic> reader,
             SignificanceHeuristicParser parser) {
@@ -388,8 +394,25 @@ public class SearchModule extends AbstractModule {
         return significanceHeuristicParserRegistry;
     }
 
-    public void registerModelParser(MovAvgModel.AbstractModelParser parser) {
-        modelParsers.add(parser);
+    /**
+     * Register a {@link MovAvgModel}.
+     *
+     * @param modelName the name(s) at which the model is parsed and streamed. The {@link ParseField#getPreferredName()} is the name under
+     *        which it is streamed. All named work for the parser.
+     * @param reader reads the model from a stream
+     * @param parser reads the model from an XContentParser
+     */
+    public void registerMovingAverageModel(ParseField modelName, Writeable.Reader<MovAvgModel> reader,
+            MovAvgModel.AbstractModelParser parser) {
+        movingAverageModelParserRegistry.register(parser, modelName);
+        namedWriteableRegistry.register(MovAvgModel.class, modelName.getPreferredName(), reader);
+    }
+
+    /**
+     * The registry of {@link MovAvgModel}s.
+     */
+    public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageMdelParserRegistry() {
+        return movingAverageModelParserRegistry;
     }
 
     /**
@@ -457,8 +480,6 @@ public class SearchModule extends AbstractModule {
     }
 
     protected void configureAggs() {
-        MovAvgModelParserMapper movAvgModelParserMapper = new MovAvgModelParserMapper(modelParsers);
-
         registerAggregation(AvgAggregatorBuilder::new, new AvgParser(), AvgAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(SumAggregatorBuilder::new, new SumParser(), SumAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MinAggregatorBuilder::new, new MinParser(), MinAggregatorBuilder.AGGREGATION_NAME_FIELD);
@@ -525,7 +546,7 @@ public class SearchModule extends AbstractModule {
         registerPipelineAggregation(PercentilesBucketPipelineAggregatorBuilder::new, PercentilesBucketPipelineAggregatorBuilder.PARSER,
                 PercentilesBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(MovAvgPipelineAggregatorBuilder::new,
-                (n, c) -> MovAvgPipelineAggregatorBuilder.parse(movAvgModelParserMapper, n, c),
+                (n, c) -> MovAvgPipelineAggregatorBuilder.parse(movingAverageModelParserRegistry, n, c),
                 MovAvgPipelineAggregatorBuilder.AGGREGATION_FIELD_NAME);
         registerPipelineAggregation(CumulativeSumPipelineAggregatorBuilder::new, CumulativeSumPipelineAggregatorBuilder::parse,
                 CumulativeSumPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
@@ -610,6 +631,14 @@ public class SearchModule extends AbstractModule {
         registerSignificanceHeuristic(MutualInformation.NAMES_FIELD, MutualInformation::new, MutualInformation.PARSER);
         registerSignificanceHeuristic(PercentageScore.NAMES_FIELD, PercentageScore::new, PercentageScore::parse);
         registerSignificanceHeuristic(ScriptHeuristic.NAMES_FIELD, ScriptHeuristic::new, ScriptHeuristic::parse);
+    }
+
+    private void registerBuiltinMovingAverageModels() {
+        registerMovingAverageModel(SimpleModel.NAME_FIELD, SimpleModel::new, SimpleModel.PARSER);
+        registerMovingAverageModel(LinearModel.NAME_FIELD, LinearModel::new, LinearModel.PARSER);
+        registerMovingAverageModel(EwmaModel.NAME_FIELD, EwmaModel::new, EwmaModel.PARSER);
+        registerMovingAverageModel(HoltLinearModel.NAME_FIELD, HoltLinearModel::new, HoltLinearModel.PARSER);
+        registerMovingAverageModel(HoltWintersModel.NAME_FIELD, HoltWintersModel::new, HoltWintersModel.PARSER);
     }
 
     private void registerBuiltinQueryParsers() {

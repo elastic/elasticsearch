@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -34,8 +35,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParserMapper;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelStreams;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 
 import java.io.IOException;
@@ -78,7 +77,7 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readVInt();
-        model = MovAvgModelStreams.read(in);
+        model = in.readNamedWriteable(MovAvgModel.class);
         predict = in.readVInt();
         minimize = in.readOptionalBoolean();
     }
@@ -88,7 +87,7 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
         out.writeVInt(window);
-        model.writeTo(out);
+        out.writeNamedWriteable(model);
         out.writeVInt(predict);
         out.writeOptionalBoolean(minimize);
     }
@@ -296,8 +295,8 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
         return builder;
     }
 
-    public static MovAvgPipelineAggregatorBuilder parse(MovAvgModelParserMapper movAvgModelParserMapper, String pipelineAggregatorName,
-            QueryParseContext context) throws IOException {
+    public static MovAvgPipelineAggregatorBuilder parse(ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageMdelParserRegistry,
+            String pipelineAggregatorName, QueryParseContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         String currentFieldName = null;
@@ -396,12 +395,8 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
             factory.predict(predict);
         }
         if (model != null) {
-            MovAvgModel.AbstractModelParser modelParser = movAvgModelParserMapper.get(model);
-            if (modelParser == null) {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Unknown model [" + model + "] specified.  Valid options are:" + movAvgModelParserMapper.getAllNames().toString());
-            }
-
+            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model, parser,
+                    context.getParseFieldMatcher());
             MovAvgModel movAvgModel;
             try {
                 movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window(), context.getParseFieldMatcher());

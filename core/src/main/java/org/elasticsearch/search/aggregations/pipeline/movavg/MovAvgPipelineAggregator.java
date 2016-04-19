@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelStreams;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -254,7 +253,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readVInt();
         predict = in.readVInt();
-        model = MovAvgModelStreams.read(in);
+        model = in.readNamedWriteable(MovAvgModel.class);
         minimize = in.readBoolean();
 
     }
@@ -265,7 +264,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         gapPolicy.writeTo(out);
         out.writeVInt(window);
         out.writeVInt(predict);
-        model.writeTo(out);
+        out.writeNamedWriteable(model);
         out.writeBoolean(minimize);
 
     }

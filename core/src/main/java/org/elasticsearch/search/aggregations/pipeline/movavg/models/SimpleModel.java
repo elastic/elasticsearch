@@ -37,10 +37,27 @@ import java.util.Map;
  * Calculate a simple unweighted (arithmetic) moving average
  */
 public class SimpleModel extends MovAvgModel {
+    public static final String NAME = "simple";
+    public static final ParseField NAME_FIELD = new ParseField(NAME);
 
-    private static final SimpleModel PROTOTYPE = new SimpleModel();
-    protected static final ParseField NAME_FIELD = new ParseField("simple");
+    public SimpleModel() {
+    }
 
+    /**
+     * Read from a stream.
+     */
+    public SimpleModel(StreamInput in) throws IOException {
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Nothing to write
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 
     @Override
     public boolean canBeMinimized() {
@@ -76,48 +93,20 @@ public class SimpleModel extends MovAvgModel {
         return avg / values.size();
     }
 
-    public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
-        @Override
-        public MovAvgModel readResult(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
-        }
-
-        @Override
-        public String getName() {
-            return NAME_FIELD.getPreferredName();
-        }
-    };
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME);
         return builder;
     }
 
-    @Override
-    public MovAvgModel readFrom(StreamInput in) throws IOException {
-        return new SimpleModel();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
-    }
-
-    public static class SimpleModelParser extends AbstractModelParser {
-
-        @Override
-        public String getName() {
-            return NAME_FIELD.getPreferredName();
-        }
-
+    public static final AbstractModelParser PARSER = new AbstractModelParser() {
         @Override
         public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
                                  ParseFieldMatcher parseFieldMatcher) throws ParseException {
             checkUnrecognizedParams(settings);
             return new SimpleModel();
         }
-    }
+    };
 
     public static class SimpleModelBuilder implements MovAvgModelBuilder {
         @Override

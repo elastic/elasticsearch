@@ -50,15 +50,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -1196,30 +1193,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                     .get();
             checkBestTerms(response.getFields().terms("tags"), tags.subList((numDocs - i - 1), numDocs));
         }
-    }
-
-    public void testTook() throws Exception {
-        XContentBuilder mapping = jsonBuilder()
-            .startObject()
-                .startObject("type1")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "text")
-                            .field("term_vector", "with_positions_offsets_payloads")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
-
-        ensureGreen();
-
-        client().prepareIndex("test", "type1", "0").setSource("field", "foo bar").setRefresh(true).execute().get();
-        long start = System.nanoTime();
-        TermVectorsResponse response = client().termVectors(new TermVectorsRequest(indexOrAlias(), "type1", "0")).get();
-        assertThat(response, notNullValue());
-        assertThat(response.getTookInMillis(), greaterThanOrEqualTo(0L));
-        assertThat(response.getTookInMillis(), lessThanOrEqualTo(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)));
     }
 
     private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {

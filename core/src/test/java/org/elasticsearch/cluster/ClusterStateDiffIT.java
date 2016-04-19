@@ -190,6 +190,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     nodes.remove(nodeId);
                 } else {
+                    nodes.remove(nodeId); // simulate a node restart, where it got a new address;
                     nodes.put(new DiscoveryNode(nodeId, new LocalTransportAddress(randomAsciiOfLength(10)), emptyMap(),
                             emptySet(), randomVersion(random())));
                 }

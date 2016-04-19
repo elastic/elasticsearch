@@ -82,7 +82,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
         termVectorsRequest.positions(request.paramAsBoolean("positions", termVectorsRequest.positions()));
         termVectorsRequest.payloads(request.paramAsBoolean("payloads", termVectorsRequest.payloads()));
         termVectorsRequest.routing(request.param("routing"));
-        termVectorsRequest.realtime(request.paramAsBoolean("realtime", true));
+        termVectorsRequest.realtime(request.paramAsBoolean("realtime", termVectorsRequest.realtime()));
         termVectorsRequest.version(RestActions.parseVersion(request, termVectorsRequest.version()));
         termVectorsRequest.versionType(VersionType.fromString(request.param("version_type"), termVectorsRequest.versionType()));
         termVectorsRequest.parent(request.param("parent"));

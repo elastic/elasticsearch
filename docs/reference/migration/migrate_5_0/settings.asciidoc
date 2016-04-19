@@ -236,4 +236,5 @@ and thus require the setting.
 
 The `action.get.realtime` setting has been removed. This setting was
 a fallback realtime setting for the get and mget APIs when realtime
-wasn't specified.
+wasn't specified. Now if the parameter isn't specified we always
+default to true.

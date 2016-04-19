@@ -46,10 +46,8 @@ curl -XHEAD -i 'http://localhost:9200/twitter/tweet/1'
 === Realtime
 
 By default, the get API is realtime, and is not affected by the refresh
-rate of the index (when data will become visible for search).
-
-In order to disable realtime GET, one can either set `realtime`
-parameter to `false`.
+rate of the index (when data will become visible for search). In order
+to disable realtime GET, one can set `realtime` parameter to `false`.
 
 When getting a document, one can specify `fields` to fetch from it. They
 will, when possible, be fetched as stored fields (fields mapped as

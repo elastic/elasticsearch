@@ -715,15 +715,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes the given {@link SmoothingModel} to the stream
-     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
-     */
-    @Deprecated
-    public void writePhraseSuggestionSmoothingModel(SmoothingModel smoothinModel) throws IOException {
-        writeNamedWriteable(smoothinModel);
-    }
-
-    /**
      * Writes the given {@link GeoPoint} to the stream
      */
     public void writeGeoPoint(GeoPoint geoPoint) throws IOException {

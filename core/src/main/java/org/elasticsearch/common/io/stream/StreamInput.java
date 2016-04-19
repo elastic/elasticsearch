@@ -760,15 +760,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a {@link SmoothingModel} from the current stream
-     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link SmoothingModel}.
-     */
-    @Deprecated
-    public SmoothingModel readPhraseSuggestionSmoothingModel() throws IOException {
-        return readNamedWriteable(SmoothingModel.class);
-    }
-
-    /**
      * Reads a list of objects
      */
     public <T> List<T> readList(StreamInputReader<T> reader) throws IOException {

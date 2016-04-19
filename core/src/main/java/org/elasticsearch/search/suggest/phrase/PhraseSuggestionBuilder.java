@@ -128,9 +128,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         realWordErrorLikelihood = in.readFloat();
         confidence = in.readFloat();
         gramSize = in.readOptionalVInt();
-        if (in.readBoolean()) {
-            model = in.readPhraseSuggestionSmoothingModel();
-        }
+        model = in.readOptionalNamedWriteable(SmoothingModel.class);
         forceUnigrams = in.readBoolean();
         tokenLimit = in.readVInt();
         preTag = in.readOptionalString();
@@ -160,11 +158,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         out.writeFloat(realWordErrorLikelihood);
         out.writeFloat(confidence);
         out.writeOptionalVInt(gramSize);
-        boolean hasModel = model != null;
-        out.writeBoolean(hasModel);
-        if (hasModel) {
-            out.writePhraseSuggestionSmoothingModel(model);
-        }
+        out.writeOptionalNamedWriteable(model);
         out.writeBoolean(forceUnigrams);
         out.writeVInt(tokenLimit);
         out.writeOptionalString(preTag);

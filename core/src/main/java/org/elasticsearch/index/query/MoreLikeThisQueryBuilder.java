@@ -932,10 +932,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return likeFields.toArray(Fields.EMPTY_ARRAY);
     }
 
-    private static boolean hasResponseFromRequest(MultiTermVectorsItemResponse response, Set<Item> selectedItems) {
-        return selectedItems.contains(new Item(response.getIndex(), response.getType(), response.getId()));
-    }
-
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems) {
         // artificial docs get assigned a random id and should be disregarded
         List<BytesRef> uids = new ArrayList<>();

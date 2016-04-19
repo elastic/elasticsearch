@@ -20,6 +20,7 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -1062,12 +1063,27 @@ public class Strings {
      * {@link ToXContent}.
      */
     public static String toString(ToXContent toXContent) {
+        return toString(toXContent, false);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided
+     * {@link ToXContent}.
+     * @param wrapInObject set this to true if the ToXContent instance expects to be inside an object
+     */
+    public static String toString(ToXContent toXContent, boolean wrapInObject) {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
+            if (wrapInObject) {
+                builder.startObject();
+            }
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            if (wrapInObject) {
+                builder.endObject();
+            }
             return builder.string();
         } catch (IOException e) {
-            throw new AssertionError("Cannot happen", e);
+            return "Error building toString out of XContent: " + ExceptionsHelper.stackTrace(e);
         }
     }
 

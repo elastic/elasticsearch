@@ -251,7 +251,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            parentTaskId = new TaskId(in);
+            parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
             if (ban) {
                 reason = in.readString();

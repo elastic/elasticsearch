@@ -44,7 +44,7 @@ public class ChildTaskRequest extends TransportRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        parentTaskId = new TaskId(in);
+        parentTaskId = TaskId.readFromStream(in);
     }
 
     @Override

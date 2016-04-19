@@ -85,7 +85,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         startTime = in.readLong();
         runningTimeNanos = in.readLong();
         cancellable = in.readBoolean();
-        parentTaskId = new TaskId(in);
+        parentTaskId = TaskId.readFromStream(in);
     }
 
     public TaskId getTaskId() {

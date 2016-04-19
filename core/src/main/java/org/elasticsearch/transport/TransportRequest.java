@@ -49,10 +49,17 @@ public abstract class TransportRequest extends TransportMessage {
     }
 
     /**
-     * Set a reference to task that caused this task to be run.
+     * Set a reference to task that created this request.
      */
     public void setParentTask(TaskId taskId) {
         this.parentTaskId = taskId;
+    }
+
+    /**
+     * Get a reference to the task that created this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
+     */
+    public TaskId getParentTask() {
+        return parentTaskId;
     }
 
     /**
@@ -61,10 +68,6 @@ public abstract class TransportRequest extends TransportMessage {
      * A request can override this method and return null to avoid being tracked by the task manager.
      */
     public Task createTask(long id, String type, String action) {
-        return new Task(id, type, action, getDescription());
-    }
-
-    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new Task(id, type, action, getDescription(), parentTaskId);
     }
 

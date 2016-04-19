@@ -44,10 +44,6 @@ public class Task {
 
     private final long startTimeNanos;
 
-    public Task(long id, String type, String action, String description) {
-        this(id, type, action, description, TaskId.EMPTY_TASK_ID);
-    }
-
     public Task(long id, String type, String action, String description, TaskId parentTask) {
         this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime());
     }

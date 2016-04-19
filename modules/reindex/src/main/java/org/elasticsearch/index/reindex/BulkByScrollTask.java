@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -70,7 +71,7 @@ public class BulkByScrollTask extends CancellableTask {
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
     public BulkByScrollTask(long id, String type, String action, String description, float requestsPerSecond) {
-        super(id, type, action, description);
+        super(id, type, action, description, TaskId.EMPTY_TASK_ID);
         setRequestsPerSecond(requestsPerSecond);
     }
 

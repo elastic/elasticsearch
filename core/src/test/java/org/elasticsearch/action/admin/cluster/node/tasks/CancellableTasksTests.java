@@ -126,7 +126,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         @Override
         public Task createTask(long id, String type, String action) {
-            return new CancellableTask(id, type, action, getDescription());
+            return new CancellableTask(id, type, action, getDescription(), TaskId.EMPTY_TASK_ID);
         }
     }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
@@ -135,7 +136,6 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
                     allowedFields.addAll(mapperService.simpleMatchToIndexNames(field));
                 }
                 resolveParentChildJoinFields(allowedFields);
-                resolvePercolatorFields(allowedFields);
                 reader = FieldSubsetReader.wrap(reader, allowedFields);
             }
 
@@ -237,14 +237,6 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
                 String joinField = ParentFieldMapper.joinField(parentFieldMapper.type());
                 allowedFields.add(joinField);
             }
-        }
-    }
-
-    private void resolvePercolatorFields(Set<String> allowedFields) {
-        if (mapperService.hasMapping(PercolatorFieldMapper.TYPE_NAME)) {
-            allowedFields.add(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME);
-            allowedFields.add(PercolatorFieldMapper.UNKNOWN_QUERY_FULL_FIELD_NAME);
-            allowedFields.add(PercolatorFieldMapper.EXTRACTED_TERMS_FULL_FIELD_NAME);
         }
     }
 

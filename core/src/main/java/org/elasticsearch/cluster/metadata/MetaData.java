@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -973,7 +973,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
         public Builder generateClusterUuidIfNeeded() {
             if (clusterUUID.equals("_na_")) {
-                clusterUUID = Strings.randomBase64UUID();
+                clusterUUID = UUIDs.randomBase64UUID();
             }
             return this;
         }

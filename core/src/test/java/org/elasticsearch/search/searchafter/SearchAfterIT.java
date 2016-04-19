@@ -24,7 +24,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchContextException;
@@ -193,7 +193,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                         break;
                 }
             }
-            values.add(new Text(Strings.randomBase64UUID()));
+            values.add(new Text(UUIDs.randomBase64UUID()));
             documents.add(values);
         }
         int reqSize = randomInt(NUM_DOCS-1);

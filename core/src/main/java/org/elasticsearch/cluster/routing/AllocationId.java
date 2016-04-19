@@ -23,7 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -96,7 +96,7 @@ public class AllocationId implements ToXContent {
      * Creates a new allocation id for initializing allocation.
      */
     public static AllocationId newInitializing() {
-        return new AllocationId(Strings.randomBase64UUID(), null);
+        return new AllocationId(UUIDs.randomBase64UUID(), null);
     }
 
     /**
@@ -121,7 +121,7 @@ public class AllocationId implements ToXContent {
      */
     public static AllocationId newRelocation(AllocationId allocationId) {
         assert allocationId.getRelocationId() == null;
-        return new AllocationId(allocationId.getId(), Strings.randomBase64UUID());
+        return new AllocationId(allocationId.getId(), UUIDs.randomBase64UUID());
     }
 
     /**

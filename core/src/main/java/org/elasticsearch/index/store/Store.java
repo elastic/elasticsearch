@@ -47,7 +47,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -1363,7 +1363,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
         if (!isMarkedCorrupted()) {
-            String uuid = CORRUPTED + Strings.randomBase64UUID();
+            String uuid = CORRUPTED + UUIDs.randomBase64UUID();
             try (IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, VERSION);
                 BytesStreamOutput out = new BytesStreamOutput();

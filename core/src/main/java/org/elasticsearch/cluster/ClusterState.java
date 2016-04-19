@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -693,7 +694,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         public ClusterState build() {
             if (UNKNOWN_UUID.equals(uuid)) {
-                uuid = Strings.randomBase64UUID();
+                uuid = UUIDs.randomBase64UUID();
             }
             return new ClusterState(clusterName, version, uuid, metaData, routingTable, nodes, blocks, customs.build(), fromDiff);
         }

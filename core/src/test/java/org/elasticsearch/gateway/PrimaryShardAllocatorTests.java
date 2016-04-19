@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
@@ -184,8 +184,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Tests that when there was a node that previously had the primary, it will be allocated to that same node again.
      */
     public void testPreferAllocatingPreviousPrimary() {
-        String primaryAllocId = Strings.randomBase64UUID();
-        String replicaAllocId = Strings.randomBase64UUID();
+        String primaryAllocId = UUIDs.randomBase64UUID();
+        String replicaAllocId = UUIDs.randomBase64UUID();
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), false, randomFrom(Version.V_2_0_0, Version.CURRENT), primaryAllocId, replicaAllocId);
         boolean node1HasPrimaryShard = randomBoolean();
         testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, node1HasPrimaryShard ? primaryAllocId : replicaAllocId, node1HasPrimaryShard);

@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +49,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     private static final ClusterName TEST_CLUSTER_NAME = new ClusterName("test");
     private static final int INDICES_CHANGE_NUM_TESTS = 5;
     private static final String NODE_ID_PREFIX = "node_";
-    private static final String INITIAL_CLUSTER_ID = Strings.randomBase64UUID();
+    private static final String INITIAL_CLUSTER_ID = UUIDs.randomBase64UUID();
     // the initial indices which every cluster state test starts out with
     private static final List<String> initialIndices = Arrays.asList("idx1", "idx2", "idx3");
     // index settings
@@ -249,12 +249,12 @@ public class ClusterChangedEventTests extends ESTestCase {
                                           final List<String> addedIndices, final List<String> deletedIndices,
                                           final int numNodesToRemove) {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
-        builder.stateUUID(Strings.randomBase64UUID());
+        builder.stateUUID(UUIDs.randomBase64UUID());
         final MetaData.Builder metaBuilder = MetaData.builder(previousState.metaData());
         if (changeClusterUUID || addedIndices.size() > 0 || deletedIndices.size() > 0) {
             // there is some change in metadata cluster state
             if (changeClusterUUID) {
-                metaBuilder.clusterUUID(Strings.randomBase64UUID());
+                metaBuilder.clusterUUID(UUIDs.randomBase64UUID());
             }
             for (String index : addedIndices) {
                 metaBuilder.put(createIndexMetadata(index), true);

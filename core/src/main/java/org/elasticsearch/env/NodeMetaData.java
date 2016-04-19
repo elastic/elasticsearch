@@ -38,11 +38,10 @@ public final class NodeMetaData {
 
     private static final String NODE_ID_KEY = "node_id";
 
-    private final String nodeID;
+    private final String nodeId;
 
-    public NodeMetaData(final String nodeID) {
-        Objects.requireNonNull(nodeID);
-        this.nodeID = nodeID;
+    public NodeMetaData(final String nodeId) {
+        this.nodeId = Objects.requireNonNull(nodeId);
     }
 
     @Override
@@ -56,39 +55,39 @@ public final class NodeMetaData {
 
         NodeMetaData that = (NodeMetaData) o;
 
-        return Objects.equals(this.nodeID, that.nodeID);
+        return Objects.equals(this.nodeId, that.nodeId);
     }
 
     @Override
     public int hashCode() {
-        return this.nodeID.hashCode();
+        return this.nodeId.hashCode();
     }
 
     @Override
     public String toString() {
-        return "node_id [" + nodeID + "]";
+        return "node_id [" + nodeId + "]";
     }
 
     private static ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("node_meta_data",
         Builder::new);
 
     static {
-        PARSER.declareString(Builder::setNodeID, new ParseField(NODE_ID_KEY));
+        PARSER.declareString(Builder::setnodeId, new ParseField(NODE_ID_KEY));
     }
 
-    public String nodeID() {
-        return nodeID;
+    public String nodeId() {
+        return nodeId;
     }
 
     private static class Builder {
-        String nodeID;
+        String nodeId;
 
-        public void setNodeID(String nodeID) {
-            this.nodeID = nodeID;
+        public void setnodeId(String nodeId) {
+            this.nodeId = nodeId;
         }
 
         public NodeMetaData build() {
-            return new NodeMetaData(nodeID);
+            return new NodeMetaData(nodeId);
         }
     }
 
@@ -104,7 +103,7 @@ public final class NodeMetaData {
 
         @Override
         public void toXContent(XContentBuilder builder, NodeMetaData nodeMetaData) throws IOException {
-            builder.field(NODE_ID_KEY, nodeMetaData.nodeID);
+            builder.field(NODE_ID_KEY, nodeMetaData.nodeId);
         }
 
         @Override

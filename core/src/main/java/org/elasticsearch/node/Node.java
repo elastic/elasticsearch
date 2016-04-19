@@ -143,7 +143,7 @@ public class Node implements Closeable {
 
     /**
      * controls whether the node is allowed to persist things like metadata to disk
-     * Note that this does not control whether the node store actual indices (see
+     * Note that this does not control whether the node stores actual indices (see
      * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
      * and {@link #NODE_MASTER_SETTING} must also be false.
      *
@@ -334,7 +334,7 @@ public class Node implements Closeable {
 
         DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class).buildLocalNode(
             transportService.boundAddress().publishAddress(),
-            injector.getInstance(NodeEnvironment.class)::nodeID);
+            injector.getInstance(NodeEnvironment.class)::nodeId);
 
         // TODO: need to find a cleaner way to start/construct a service with some initial parameters,
         // playing nice with the life cycle interfaces

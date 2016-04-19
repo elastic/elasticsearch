@@ -149,7 +149,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      */
     public FunctionScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         filterFunctionBuilders = in.readList(FilterFunctionBuilder::new).toArray(new FilterFunctionBuilder[0]);
         maxBoost = in.readFloat();
         minScore = in.readOptionalFloat();
@@ -159,7 +159,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeList(Arrays.asList(filterFunctionBuilders));
         out.writeFloat(maxBoost);
         out.writeOptionalFloat(minScore);

@@ -34,7 +34,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -727,15 +726,6 @@ public abstract class StreamInput extends InputStream {
             return readNamedWriteable(categoryClass);
         }
         return null;
-    }
-
-    /**
-     * Reads a {@link QueryBuilder} from the current stream
-     * @deprecated prefer {@link #readNamedWriteable(Class)} passing {@link QueryBuilder}.
-     */
-    @Deprecated
-    public QueryBuilder<?> readQuery() throws IOException {
-        return readNamedWriteable(QueryBuilder.class);
     }
 
     /**

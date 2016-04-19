@@ -79,7 +79,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         super(in);
         path = in.readString();
         scoreMode = ScoreMode.values()[in.readVInt()];
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         ignoreUnmapped = in.readBoolean();
     }
@@ -88,7 +88,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(path);
         out.writeVInt(scoreMode.ordinal());
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
     }

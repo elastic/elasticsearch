@@ -68,12 +68,12 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
      */
     public FilterAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalFilter.TYPE);
-        filter = in.readQuery();
+        filter = in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(filter);
+        out.writeNamedWriteable(filter);
     }
 
     @Override

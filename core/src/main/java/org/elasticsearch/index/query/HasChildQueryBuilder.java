@@ -108,7 +108,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         minChildren = in.readInt();
         maxChildren = in.readInt();
         scoreMode = ScoreMode.values()[in.readVInt()];
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         ignoreUnmapped = in.readBoolean();
     }
@@ -119,7 +119,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         out.writeInt(minChildren);
         out.writeInt(maxChildren);
         out.writeVInt(scoreMode.ordinal());
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
     }

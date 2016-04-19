@@ -128,7 +128,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -143,7 +143,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeString(type);

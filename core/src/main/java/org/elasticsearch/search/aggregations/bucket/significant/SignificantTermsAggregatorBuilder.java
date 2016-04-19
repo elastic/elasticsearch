@@ -74,7 +74,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         bucketCountThresholds = BucketCountThresholds.readFromStream(in);
         executionHint = in.readOptionalString();
         if (in.readBoolean()) {
-            filterBuilder = in.readQuery();
+            filterBuilder = in.readNamedWriteable(QueryBuilder.class);
         }
         if (in.readBoolean()) {
             includeExclude = IncludeExclude.readFromStream(in);
@@ -89,7 +89,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         boolean hasfilterBuilder = filterBuilder != null;
         out.writeBoolean(hasfilterBuilder);
         if (hasfilterBuilder) {
-            out.writeQuery(filterBuilder);
+            out.writeNamedWriteable(filterBuilder);
         }
         boolean hasIncExc = includeExclude != null;
         out.writeBoolean(hasIncExc);

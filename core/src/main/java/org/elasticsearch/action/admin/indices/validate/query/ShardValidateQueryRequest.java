@@ -84,7 +84,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
 
         int typesSize = in.readVInt();
         if (typesSize > 0) {
@@ -109,7 +109,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
 
         out.writeVInt(types.length);
         for (String type : types) {

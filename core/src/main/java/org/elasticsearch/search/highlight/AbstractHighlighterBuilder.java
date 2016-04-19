@@ -115,7 +115,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
         if (in.readBoolean()) {
-            highlightQuery(in.readQuery());
+            highlightQuery(in.readNamedWriteable(QueryBuilder.class));
         }
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
@@ -146,7 +146,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         boolean hasQuery = highlightQuery != null;
         out.writeBoolean(hasQuery);
         if (hasQuery) {
-            out.writeQuery(highlightQuery);
+            out.writeNamedWriteable(highlightQuery);
         }
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);

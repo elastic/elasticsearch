@@ -67,13 +67,13 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
      */
     public SpanFirstQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        matchBuilder = (SpanQueryBuilder<?>)in.readQuery();
+        matchBuilder = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
         end = in.readInt();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(matchBuilder);
+        out.writeNamedWriteable(matchBuilder);
         out.writeInt(end);
     }
 

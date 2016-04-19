@@ -67,14 +67,14 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
      */
     public SpanContainingQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        big = (SpanQueryBuilder<?>) in.readQuery();
-        little = (SpanQueryBuilder<?>) in.readQuery();
+        big = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
+        little = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(big);
-        out.writeQuery(little);
+        out.writeNamedWriteable(big);
+        out.writeNamedWriteable(little);
     }
 
     /**

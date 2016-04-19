@@ -241,7 +241,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected final void writeQueries(StreamOutput out, List<? extends QueryBuilder<?>> queries) throws IOException {
         out.writeVInt(queries.size());
         for (QueryBuilder<?> query : queries) {
-            out.writeQuery(query);
+            out.writeNamedWriteable(query);
         }
     }
 
@@ -249,7 +249,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         List<QueryBuilder<?>> queries = new ArrayList<>();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            queries.add(in.readQuery());
+            queries.add(in.readNamedWriteable(QueryBuilder.class));
         }
         return queries;
     }

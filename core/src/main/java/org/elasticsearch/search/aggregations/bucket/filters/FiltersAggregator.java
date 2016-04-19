@@ -81,13 +81,13 @@ public class FiltersAggregator extends BucketsAggregator {
          */
         public KeyedFilter(StreamInput in) throws IOException {
             key = in.readString();
-            filter = in.readQuery();
+            filter = in.readNamedWriteable(QueryBuilder.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
-            out.writeQuery(filter);
+            out.writeNamedWriteable(filter);
         }
 
         public String key() {

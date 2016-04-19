@@ -82,16 +82,16 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
      */
     public IndicesQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        innerQuery = in.readQuery();
+        innerQuery = in.readNamedWriteable(QueryBuilder.class);
         indices = in.readStringArray();
-        noMatchQuery = in.readQuery();
+        noMatchQuery = in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(innerQuery);
+        out.writeNamedWriteable(innerQuery);
         out.writeStringArray(indices);
-        out.writeQuery(noMatchQuery);
+        out.writeNamedWriteable(noMatchQuery);
     }
 
     public QueryBuilder<?> innerQuery() {

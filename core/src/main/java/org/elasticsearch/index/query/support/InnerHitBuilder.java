@@ -164,7 +164,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             }
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         innerHitsBuilder = in.readOptionalWriteable(InnerHitsBuilder::new);
     }
 
@@ -195,7 +195,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             }
         }
         out.writeOptionalWriteable(highlightBuilder);
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeOptionalWriteable(innerHitsBuilder);
     }
 

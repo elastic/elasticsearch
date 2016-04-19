@@ -79,7 +79,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
      */
     public QueryRescorerBuilder(StreamInput in) throws IOException {
         super(in);
-        queryBuilder = in.readQuery();
+        queryBuilder = in.readNamedWriteable(QueryBuilder.class);
         scoreMode = QueryRescoreMode.readFromStream(in);
         rescoreQueryWeight = in.readFloat();
         queryWeight = in.readFloat();
@@ -87,7 +87,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(queryBuilder);
+        out.writeNamedWriteable(queryBuilder);
         scoreMode.writeTo(out);
         out.writeFloat(rescoreQueryWeight);
         out.writeFloat(queryWeight);

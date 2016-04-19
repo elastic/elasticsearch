@@ -81,15 +81,15 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
      */
     public BoostingQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        positiveQuery = in.readQuery();
-        negativeQuery = in.readQuery();
+        positiveQuery = in.readNamedWriteable(QueryBuilder.class);
+        negativeQuery = in.readNamedWriteable(QueryBuilder.class);
         negativeBoost = in.readFloat();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(positiveQuery);
-        out.writeQuery(negativeQuery);
+        out.writeNamedWriteable(positiveQuery);
+        out.writeNamedWriteable(negativeQuery);
         out.writeFloat(negativeBoost);
     }
 

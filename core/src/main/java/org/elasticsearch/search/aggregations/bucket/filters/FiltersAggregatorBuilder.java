@@ -104,7 +104,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
             }
         } else {
             for (int i = 0; i < filtersSize; i++) {
-                filters.add(new KeyedFilter(String.valueOf(i), in.readQuery()));
+                filters.add(new KeyedFilter(String.valueOf(i), in.readNamedWriteable(QueryBuilder.class)));
             }
         }
         otherBucket = in.readBoolean();
@@ -121,7 +121,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
             }
         } else {
             for (KeyedFilter keyedFilter : filters) {
-                out.writeQuery(keyedFilter.filter());
+                out.writeNamedWriteable(keyedFilter.filter());
             }
         }
         out.writeBoolean(otherBucket);

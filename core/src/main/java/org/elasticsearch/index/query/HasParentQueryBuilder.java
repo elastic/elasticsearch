@@ -84,7 +84,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         super(in);
         type = in.readString();
         score = in.readBoolean();
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         innerHit = in.readOptionalWriteable(InnerHitBuilder::new);
         ignoreUnmapped = in.readBoolean();
     }
@@ -93,7 +93,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(type);
         out.writeBoolean(score);
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeOptionalWriteable(innerHit);
         out.writeBoolean(ignoreUnmapped);
     }

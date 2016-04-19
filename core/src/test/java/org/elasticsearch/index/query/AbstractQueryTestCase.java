@@ -678,9 +678,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @SuppressWarnings("unchecked")
     protected <QB extends QueryBuilder> QB assertSerialization(QB testQuery) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeQuery(testQuery);
+            output.writeNamedWriteable(testQuery);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<?> deserializedQuery = in.readQuery();
+                QueryBuilder<?> deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
                 assertEquals(testQuery, deserializedQuery);
                 assertEquals(testQuery.hashCode(), deserializedQuery.hashCode());
                 assertNotSame(testQuery, deserializedQuery);
@@ -727,9 +727,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @SuppressWarnings("unchecked")
     protected QB copyQuery(QB query) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeQuery(query);
+            output.writeNamedWriteable(query);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return (QB) in.readQuery();
+                return (QB) in.readNamedWriteable(QueryBuilder.class);
             }
         }
     }

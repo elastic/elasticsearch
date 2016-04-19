@@ -217,10 +217,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             minScore = in.readFloat();
         }
         if (in.readBoolean()) {
-            postQueryBuilder = in.readQuery();
+            postQueryBuilder = in.readNamedWriteable(QueryBuilder.class);
         }
         if (in.readBoolean()) {
-            queryBuilder = in.readQuery();
+            queryBuilder = in.readNamedWriteable(QueryBuilder.class);
         }
         if (in.readBoolean()) {
             int size = in.readVInt();
@@ -316,12 +316,12 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         boolean hasPostQuery = postQueryBuilder != null;
         out.writeBoolean(hasPostQuery);
         if (hasPostQuery) {
-            out.writeQuery(postQueryBuilder);
+            out.writeNamedWriteable(postQueryBuilder);
         }
         boolean hasQuery = queryBuilder != null;
         out.writeBoolean(hasQuery);
         if (hasQuery) {
-            out.writeQuery(queryBuilder);
+            out.writeNamedWriteable(queryBuilder);
         }
         boolean hasRescoreBuilders = rescoreBuilders != null;
         out.writeBoolean(hasRescoreBuilders);

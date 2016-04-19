@@ -33,7 +33,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
@@ -691,15 +690,6 @@ public abstract class StreamOutput extends OutputStream {
             writeBoolean(true);
             writeNamedWriteable(namedWriteable);
         }
-    }
-
-    /**
-     * Writes a {@link QueryBuilder} to the current stream
-     * @deprecated prefer {@link #writeNamedWriteable(NamedWriteable)}
-     */
-    @Deprecated
-    public void writeQuery(QueryBuilder<?> queryBuilder) throws IOException {
-        writeNamedWriteable(queryBuilder);
     }
 
     /**

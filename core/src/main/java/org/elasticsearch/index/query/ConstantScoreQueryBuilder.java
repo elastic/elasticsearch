@@ -62,12 +62,12 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
      */
     public ConstantScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        filterBuilder = in.readQuery();
+        filterBuilder = in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(filterBuilder);
+        out.writeNamedWriteable(filterBuilder);
     }
 
     /**

@@ -78,16 +78,16 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
      */
     public SpanNotQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        include = (SpanQueryBuilder<?>) in.readQuery();
-        exclude = (SpanQueryBuilder<?>) in.readQuery();
+        include = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
+        exclude = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
         pre = in.readVInt();
         post = in.readVInt();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(include);
-        out.writeQuery(exclude);
+        out.writeNamedWriteable(include);
+        out.writeNamedWriteable(exclude);
         out.writeVInt(pre);
         out.writeVInt(post);
     }

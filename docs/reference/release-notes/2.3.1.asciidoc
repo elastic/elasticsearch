@@ -1,6 +1,8 @@
 [[release-notes-2.3.1]]
 == 2.3.1 Release Notes
 
+Also see <<breaking-changes-2.3>>.
+
 [[bug-2.3.1]]
 [float]
 === Bug fixes

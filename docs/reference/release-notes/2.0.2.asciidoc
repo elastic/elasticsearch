@@ -1,8 +1,7 @@
-:issue: https://github.com/elastic/elasticsearch/issues/
-:pull:  https://github.com/elastic/elasticsearch/pull/
-
 [[release-notes-2.0.2]]
 == 2.0.2 Release Notes
+
+Also see <<breaking-changes-2.0>>.
 
 [[bug-2.0.2]]
 [float]

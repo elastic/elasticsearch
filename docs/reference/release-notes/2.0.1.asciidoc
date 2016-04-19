@@ -1,6 +1,8 @@
 [[release-notes-2.0.1]]
 == 2.0.1 Release Notes
 
+Also see <<breaking-changes-2.0>>.
+
 [[bug-2.0.1]]
 [float]
 === Bug fixes

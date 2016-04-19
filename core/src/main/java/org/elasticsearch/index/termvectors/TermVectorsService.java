@@ -143,7 +143,7 @@ public class TermVectorsService  {
                 // write term vectors
                 termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
             }
-            termVectorsResponse.setTookInMillis(Math.max(1, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime)));
+            termVectorsResponse.setTookInMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         } finally {

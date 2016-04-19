@@ -1218,7 +1218,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         long start = System.nanoTime();
         TermVectorsResponse response = client().termVectors(new TermVectorsRequest(indexOrAlias(), "type1", "0")).get();
         assertThat(response, notNullValue());
-        assertThat(response.getTookInMillis(), greaterThanOrEqualTo(1L));
+        assertThat(response.getTookInMillis(), greaterThanOrEqualTo(0L));
         assertThat(response.getTookInMillis(), lessThanOrEqualTo(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)));
     }
 

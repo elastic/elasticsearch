@@ -186,6 +186,19 @@ public class AggregatorFactories {
             return this;
         }
 
+        /**
+         * Gets the copy of this object that will be sent to the shard. This
+         * should be a exact copy of the Builder but without the pipeline
+         * aggregator builders which are not needed on the shard
+         */
+        final Builder getShardCopy() {
+            Builder copy = new Builder();
+            for (AggregatorBuilder<?> aggBuilder : aggregatorBuilders) {
+                copy.addAggregator(aggBuilder.getShardCopy());
+            }
+            return copy;
+        }
+
         public AggregatorFactories build(AggregationContext context, AggregatorFactory<?> parent) throws IOException {
             if (aggregatorBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return EMPTY;

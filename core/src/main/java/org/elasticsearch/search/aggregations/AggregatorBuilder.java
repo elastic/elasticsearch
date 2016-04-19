@@ -39,7 +39,8 @@ import java.util.Objects;
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extends ToXContentToBytes implements NamedWriteable, ToXContent {
+public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extends ToXContentToBytes
+        implements NamedWriteable, ToXContent, Cloneable {
 
     protected String name;
     protected Type type;
@@ -144,26 +145,32 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
     }
 
     /**
-     * Reduces the given addAggregation to a single one and returns it. In
-     * <b>most</b> cases, the assumption will be the all given addAggregation
-     * are of the same type (the same type as this aggregation). For best
-     * efficiency, when implementing, try reusing an existing get instance
-     * (typically the first in the given list) to save on redundant object
-     * construction.
+     * Gets the copy of this AggregatorBuilder that will be sent to the shard.
+     * This should be a exact copy of the AggregatorBuilder but with a shard
+     * copy of the sub aggregators.
      */
-    public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) throws IOException {
-        InternalAggregation aggResult = doReduce(aggregations, reduceContext);
+    @SuppressWarnings("unchecked")
+    final AB getShardCopy() {
+        AB clone;
+        try {
+            clone = (AB) this.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError("Could not clone " + this.getClass().getCanonicalName() + ". This suggests there is a bug as "
+                    + AggregatorBuilder.class.getCanonicalName() + "should implement java.lang.Cloneable");
+        }
+        clone.subAggregations(factoriesBuilder.getShardCopy());
+        clone.metaData = null;
+        return clone;
+    }
+
+    final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) throws IOException {
+        InternalAggregation aggResult = aggregations.get(0).reduce(aggregations, reduceContext);
         aggResult.metaData = metaData;
         for (PipelineAggregatorBuilder<?> pipelineAggregatorBuilder : factoriesBuilder.buildPipelineAggregators()) {
             PipelineAggregator pipelineAggregator = pipelineAggregatorBuilder.create();
             aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
         }
         return aggResult;
-    }
-
-    // NORELEASE make this abstract when all aggs are cut over to implement this method
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        return aggregations.get(0).reduce(aggregations, reduceContext);
     }
 
     protected abstract AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,

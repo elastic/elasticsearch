@@ -158,7 +158,7 @@ public class PagerDutyActionTests extends ESTestCase {
         TextTemplate eventType = null;
         if (randomBoolean()) {
             eventType = TextTemplate.inline(randomFrom("trigger", "resolve", "acknowledge")).build();
-            builder.field("eventType", eventType);
+            builder.field("event_type", eventType);
         }
 
         Boolean attachPayload = randomBoolean() ? null : randomBoolean();

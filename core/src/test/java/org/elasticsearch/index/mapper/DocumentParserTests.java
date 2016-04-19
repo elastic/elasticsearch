@@ -98,6 +98,65 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertEquals("789", values[2]);
     }
 
+    public void testPropagateDynamicWithExistingMapper() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .field("dynamic", false)
+            .startObject("properties")
+                .startObject("foo")
+                    .field("type", "object")
+                    .field("dynamic", true)
+                    .startObject("properties")
+            .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject().startObject("foo")
+            .field("bar", "something")
+            .endObject().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("foo.bar"));
+    }
+
+    public void testPropagateDynamicWithDynamicMapper() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .field("dynamic", false)
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "object")
+            .field("dynamic", true)
+            .startObject("properties")
+            .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject().startObject("foo").startObject("bar")
+                .field("baz", "something")
+            .endObject().endObject().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("foo.bar.baz"));
+    }
+
+    public void testDynamicRootFallback() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .field("dynamic", false)
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "object")
+            .startObject("properties")
+            .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject().startObject("foo")
+            .field("bar", "something")
+            .endObject().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNull(doc.rootDoc().getField("foo.bar"));
+    }
+
     DocumentMapper createDummyMapping(MapperService mapperService) throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("y").field("type", "object").endObject()

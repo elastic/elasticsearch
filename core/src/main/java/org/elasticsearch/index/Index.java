@@ -41,11 +41,19 @@ public class Index implements Writeable<Index> {
         this.uuid = uuid.intern();
     }
 
+    /**
+     * Read from a stream.
+     */
     public Index(StreamInput in) throws IOException {
         this.name = in.readString();
         this.uuid = in.readString();
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeString(uuid);
+    }
 
     public String getName() {
         return this.name;
@@ -84,16 +92,5 @@ public class Index implements Writeable<Index> {
         int result = name.hashCode();
         result = 31 * result + uuid.hashCode();
         return result;
-    }
-
-    @Override
-    public Index readFrom(StreamInput in) throws IOException {
-        return new Index(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeString(uuid);
     }
 }

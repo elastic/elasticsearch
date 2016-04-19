@@ -921,55 +921,42 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.debug("Cluster is NOT consistent - restarting shared nodes - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
 
-
-        Set<NodeAndClient> sharedNodes = new HashSet<>();
         assert sharedNodesSeeds.length == numSharedAllRolesNodes + numShareCoordOnlyNodes;
-        boolean changed = false;
+
+        // close down new nodes, so the shared nodes can reclaim their data folders
+        for (int i = sharedNodesSeeds.length; i < nextNodeId.get(); i++) {
+            String buildNodeName = buildNodeName(i);
+            NodeAndClient nodeAndClient = nodes.get(buildNodeName);
+            if (nodeAndClient != null) {
+                logger.debug("Close Node [{}] not shared", nodeAndClient.name);
+                nodeAndClient.close();
+                nodes.remove(buildNodeName);
+            }
+        }
+
         for (int i = 0; i < numSharedAllRolesNodes; i++) {
             String buildNodeName = buildNodeName(i);
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
-                changed = true;
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], null, Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
+                publishNode(nodeAndClient);
             }
-            sharedNodes.add(nodeAndClient);
         }
         for (int i = numSharedAllRolesNodes; i < numSharedAllRolesNodes + numShareCoordOnlyNodes; i++) {
             String buildNodeName = buildNodeName(i);
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
-                changed = true;
                 Builder clientSettingsBuilder = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
                     .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
+                publishNode(nodeAndClient);
             }
-            sharedNodes.add(nodeAndClient);
-        }
-        if (!changed && sharedNodes.size() == nodes.size()) {
-            logger.debug("Cluster is consistent - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
-            if (size() > 0) {
-                client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(sharedNodesSeeds.length)).get();
-            }
-            return; // we are consistent - return
-        }
-        for (NodeAndClient nodeAndClient : sharedNodes) {
-            nodes.remove(nodeAndClient.name);
         }
 
-        // trash the remaining nodes
-        final Collection<NodeAndClient> toShutDown = nodes.values();
-        for (NodeAndClient nodeAndClient : toShutDown) {
-            logger.debug("Close Node [{}] not shared", nodeAndClient.name);
-            nodeAndClient.close();
-        }
-        nodes.clear();
-        for (NodeAndClient nodeAndClient : sharedNodes) {
-            publishNode(nodeAndClient);
-        }
         nextNodeId.set(sharedNodesSeeds.length);
         assert size() == sharedNodesSeeds.length;
         if (size() > 0) {

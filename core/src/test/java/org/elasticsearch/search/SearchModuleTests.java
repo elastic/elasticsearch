@@ -164,7 +164,7 @@ public class SearchModuleTests extends ModuleTestCase {
             "nested",
             "parentId",
             "parent_id",
-            "percolator",
+            "percolate",
             "prefix",
             "queryString",
             "query_string",

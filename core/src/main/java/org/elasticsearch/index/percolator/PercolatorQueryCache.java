@@ -55,7 +55,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.query.PercolatorQuery;
+import org.elasticsearch.index.query.PercolateQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -73,7 +73,7 @@ import static org.elasticsearch.index.percolator.PercolatorFieldMapper.Percolato
 import static org.elasticsearch.index.percolator.PercolatorFieldMapper.parseQuery;
 
 public final class PercolatorQueryCache extends AbstractIndexComponent
-        implements Closeable, LeafReader.CoreClosedListener, PercolatorQuery.QueryRegistry {
+        implements Closeable, LeafReader.CoreClosedListener, PercolateQuery.QueryRegistry {
 
     public final static Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
             Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, Setting.Property.IndexScope);

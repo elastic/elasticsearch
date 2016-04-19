@@ -23,14 +23,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
@@ -45,7 +42,7 @@ import java.util.Set;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 
-public final class PercolatorQuery extends Query implements Accountable {
+public final class PercolateQuery extends Query implements Accountable {
 
     // cost of matching the query against the document, arbitrary as it would be really complex to estimate
     public static final float MATCH_COST = 1000;
@@ -93,7 +90,7 @@ public final class PercolatorQuery extends Query implements Accountable {
             this.percolateTypeQuery = Objects.requireNonNull(percolateTypeQuery);
         }
 
-        public PercolatorQuery build() {
+        public PercolateQuery build() {
             if (percolateTypeQuery != null && queriesMetaDataQuery != null) {
                 throw new IllegalStateException("Either filter by deprecated percolator type or by query metadata");
             }
@@ -107,7 +104,7 @@ public final class PercolatorQuery extends Query implements Accountable {
                 builder.add(queriesMetaDataQuery, FILTER);
             }
 
-            return new PercolatorQuery(docType, queryRegistry, documentSource, builder.build(), percolatorIndexSearcher);
+            return new PercolateQuery(docType, queryRegistry, documentSource, builder.build(), percolatorIndexSearcher);
         }
 
     }
@@ -118,8 +115,8 @@ public final class PercolatorQuery extends Query implements Accountable {
     private final Query percolatorQueriesQuery;
     private final IndexSearcher percolatorIndexSearcher;
 
-    private PercolatorQuery(String documentType, QueryRegistry queryRegistry, BytesReference documentSource,
-                            Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher) {
+    private PercolateQuery(String documentType, QueryRegistry queryRegistry, BytesReference documentSource,
+                           Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher) {
         this.documentType = documentType;
         this.documentSource = documentSource;
         this.percolatorQueriesQuery = percolatorQueriesQuery;
@@ -131,7 +128,7 @@ public final class PercolatorQuery extends Query implements Accountable {
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = percolatorQueriesQuery.rewrite(reader);
         if (rewritten != percolatorQueriesQuery) {
-            return new PercolatorQuery(documentType, queryRegistry, documentSource, rewritten, percolatorIndexSearcher);
+            return new PercolateQuery(documentType, queryRegistry, documentSource, rewritten, percolatorIndexSearcher);
         } else {
             return this;
         }
@@ -157,14 +154,14 @@ public final class PercolatorQuery extends Query implements Accountable {
                                 QueryRegistry.Leaf percolatorQueries = queryRegistry.getQueries(leafReaderContext);
                                 Query query = percolatorQueries.getQuery(docId);
                                 Explanation detail = percolatorIndexSearcher.explain(query, 0);
-                                return Explanation.match(scorer.score(), "PercolatorQuery", detail);
+                                return Explanation.match(scorer.score(), "PercolateQuery", detail);
                             } else {
-                                return Explanation.match(scorer.score(), "PercolatorQuery");
+                                return Explanation.match(scorer.score(), "PercolateQuery");
                             }
                         }
                     }
                 }
-                return Explanation.noMatch("PercolatorQuery");
+                return Explanation.noMatch("PercolateQuery");
             }
 
             @Override
@@ -247,7 +244,7 @@ public final class PercolatorQuery extends Query implements Accountable {
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
 
-        PercolatorQuery that = (PercolatorQuery) o;
+        PercolateQuery that = (PercolateQuery) o;
 
         if (!documentType.equals(that.documentType)) return false;
         return documentSource.equals(that.documentSource);
@@ -264,7 +261,7 @@ public final class PercolatorQuery extends Query implements Accountable {
 
     @Override
     public String toString(String s) {
-        return "PercolatorQuery{document_type={" + documentType + "},document_source={" + documentSource.toUtf8() +
+        return "PercolateQuery{document_type={" + documentType + "},document_source={" + documentSource.toUtf8() +
                 "},inner={" + percolatorQueriesQuery.toString(s)  + "}}";
     }
 

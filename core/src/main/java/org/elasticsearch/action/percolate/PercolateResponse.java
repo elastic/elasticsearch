@@ -45,7 +45,7 @@ import java.util.Map;
 public class PercolateResponse extends BroadcastResponse implements Iterable<PercolateResponse.Match>, ToXContent {
 
     public static final Match[] EMPTY = new Match[0];
-    // PercolatorQuery emits this score if no 'query' is defined in the percolate request
+    // PercolateQuery emits this score if no 'query' is defined in the percolate request
     public final static float NO_SCORE = 0.0f;
 
     private long tookInMillis;

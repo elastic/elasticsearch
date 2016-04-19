@@ -27,7 +27,6 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
@@ -840,21 +839,21 @@ public abstract class QueryBuilders {
         return new ExistsQueryBuilder(name);
     }
 
-    public static PercolatorQueryBuilder percolatorQuery(String queryField, String documentType, BytesReference document) {
-        return new PercolatorQueryBuilder(queryField, documentType, document);
+    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, BytesReference document) {
+        return new PercolateQueryBuilder(queryField, documentType, document);
     }
 
-    public static PercolatorQueryBuilder percolatorQuery(String queryField, String documentType, String indexedDocumentIndex,
-                                                         String indexedDocumentType, String indexedDocumentId) {
-        return new PercolatorQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
+    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, String indexedDocumentIndex,
+                                                       String indexedDocumentType, String indexedDocumentId) {
+        return new PercolateQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
                 null, null, null);
     }
 
-    public static PercolatorQueryBuilder percolatorQuery(String queryField, String documentType, String indexedDocumentIndex,
-                                                         String indexedDocumentType, String indexedDocumentId,
-                                                         String indexedDocumentRouting, String indexedDocumentPreference,
-                                                         Long indexedDocumentVersion) {
-        return new PercolatorQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
+    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, String indexedDocumentIndex,
+                                                       String indexedDocumentType, String indexedDocumentId,
+                                                       String indexedDocumentRouting, String indexedDocumentPreference,
+                                                       Long indexedDocumentVersion) {
+        return new PercolateQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
                 indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
     }
 

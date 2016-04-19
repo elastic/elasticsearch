@@ -54,7 +54,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.ExtractQueryTermsService;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
@@ -70,7 +69,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class PercolatorQueryTests extends ESTestCase {
+public class PercolateQueryTests extends ESTestCase {
 
     public final static String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
     public final static String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
@@ -85,7 +84,7 @@ public class PercolatorQueryTests extends ESTestCase {
     private Directory directory;
     private IndexWriter indexWriter;
     private Map<String, Query> queries;
-    private PercolatorQuery.QueryRegistry queryRegistry;
+    private PercolateQuery.QueryRegistry queryRegistry;
     private DirectoryReader directoryReader;
 
     @Before
@@ -144,7 +143,7 @@ public class PercolatorQueryTests extends ESTestCase {
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
 
-        PercolatorQuery.Builder builder = new PercolatorQuery.Builder(
+        PercolateQuery.Builder builder = new PercolateQuery.Builder(
                 "docType",
                 queryRegistry,
                 new BytesArray("{}"),
@@ -218,7 +217,7 @@ public class PercolatorQueryTests extends ESTestCase {
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
 
-        PercolatorQuery.Builder builder = new PercolatorQuery.Builder(
+        PercolateQuery.Builder builder = new PercolateQuery.Builder(
                 "docType",
                 queryRegistry,
                 new BytesArray("{}"),
@@ -335,7 +334,7 @@ public class PercolatorQueryTests extends ESTestCase {
 
     private void duelRun(MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-        PercolatorQuery.Builder builder1 = new PercolatorQuery.Builder(
+        PercolateQuery.Builder builder1 = new PercolateQuery.Builder(
                 "docType",
                 queryRegistry,
                 new BytesArray("{}"),
@@ -345,7 +344,7 @@ public class PercolatorQueryTests extends ESTestCase {
         builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
         TopDocs topDocs1 = shardSearcher.search(builder1.build(), 10);
 
-        PercolatorQuery.Builder builder2 = new PercolatorQuery.Builder(
+        PercolateQuery.Builder builder2 = new PercolateQuery.Builder(
                 "docType",
                 queryRegistry,
                 new BytesArray("{}"),

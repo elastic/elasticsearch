@@ -1,22 +1,27 @@
-[[java-query-percolator-query]]
-==== Percolator query
+[[java-query-percolate-query]]
+==== Percolate query
 
 See:
- * {ref}/query-dsl-percolator-query.html[Percolator Query]
+ * {ref}/query-dsl-percolate-query.html[Percolate Query]
 
 [source,java]
 --------------------------------------------------
+// create an index with a percolator field with the name 'query':
+client.admin().indices().prepareCreate("myIndexName")
+                        .addMapping("query", "query", "type=percolator")
+                        .get();
+
 //This is the query we're registering in the percolator
 QueryBuilder qb = termQuery("content", "amazing");
 
 //Index the query = register it in the percolator
-client.prepareIndex("myIndexName", ".percolator", "myDesignatedQueryName")
+client.prepareIndex("myIndexName", "query", "myDesignatedQueryName")
     .setSource(jsonBuilder()
         .startObject()
             .field("query", qb) // Register the query
         .endObject())
     .setRefresh(true) // Needed when the query shall be available immediately
-    .execute().actionGet();
+    .get();
 --------------------------------------------------
 
 This indexes the above term query under the name
@@ -35,7 +40,7 @@ docBuilder.endObject(); //End of the doc field
 docBuilder.endObject(); //End of the JSON root object
 // Percolate, by executing the percolator query in the query dsl:
 SearchResponse response = client().prepareSearch("myIndexName")
-        .setQuery(QueryBuilders.percolatorQuery("myDocumentType", docBuilder.bytes()))
+        .setQuery(QueryBuilders.percolateQuery("query", ""myDocumentType", docBuilder.bytes()))
         .get();
 //Iterate over the results
 for(SearchHit hit : response.getHits()) {

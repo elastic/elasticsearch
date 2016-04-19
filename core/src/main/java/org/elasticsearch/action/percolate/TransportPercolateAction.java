@@ -42,7 +42,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.PercolatorQueryBuilder;
+import org.elasticsearch.index.query.PercolateQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -57,7 +57,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class TransportPercolateAction extends HandledTransportAction<PercolateRequest, PercolateResponse> {
@@ -199,22 +198,22 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             searchSource.field("size", 0);
         }
 
-        PercolatorQueryBuilder percolatorQueryBuilder =
-                new PercolatorQueryBuilder("query", percolateRequest.documentType(), documentSource);
+        PercolateQueryBuilder percolateQueryBuilder =
+                new PercolateQueryBuilder("query", percolateRequest.documentType(), documentSource);
         if (querySource != null) {
             try (XContentParser parser = XContentHelper.createParser(querySource)) {
                 QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
                 QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
                 BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
                 boolQueryBuilder.must(queryBuilder);
-                boolQueryBuilder.filter(percolatorQueryBuilder);
+                boolQueryBuilder.filter(percolateQueryBuilder);
                 searchSource.field("query", boolQueryBuilder);
             }
         } else {
             // wrapping in a constant score query with boost 0 for bwc reason.
             // percolator api didn't emit scores before and never included scores
             // for how well percolator queries matched with the document being percolated
-            searchSource.field("query", new ConstantScoreQueryBuilder(percolatorQueryBuilder).boost(0f));
+            searchSource.field("query", new ConstantScoreQueryBuilder(percolateQueryBuilder).boost(0f));
         }
 
         searchSource.endObject();

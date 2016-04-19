@@ -31,7 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.PercolatorQuery;
+import org.elasticsearch.index.query.PercolateQuery;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
@@ -44,8 +44,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-// Highlighting in the case of the percolator query is a bit different, because the PercolatorQuery itself doesn't get highlighted,
-// but the source of the PercolatorQuery gets highlighted by each hit with type '.percolator' (percolator queries).
+// Highlighting in the case of the percolate query is a bit different, because the PercolateQuery itself doesn't get highlighted,
+// but the source of the PercolateQuery gets highlighted by each hit with type '.percolator' (percolator queries).
 public class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
 
     private final HighlightPhase highlightPhase;
@@ -62,20 +62,20 @@ public class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-        PercolatorQuery percolatorQuery = locatePercolatorQuery(context.query());
-        if (percolatorQuery == null) {
+        PercolateQuery percolateQuery = locatePercolatorQuery(context.query());
+        if (percolateQuery == null) {
             // shouldn't happen as we checked for the existence of a percolator query in hitsExecutionNeeded(...)
             throw new IllegalStateException("couldn't locate percolator query");
         }
 
         List<LeafReaderContext> ctxs = context.searcher().getIndexReader().leaves();
         PercolatorQueryCache queriesRegistry = context.percolatorQueryCache();
-        IndexSearcher percolatorIndexSearcher = percolatorQuery.getPercolatorIndexSearcher();
+        IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
 
         LeafReaderContext percolatorLeafReaderContext = percolatorIndexSearcher.getIndexReader().leaves().get(0);
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         SubSearchContext subSearchContext =
-                createSubSearchContext(context, percolatorLeafReaderContext, percolatorQuery.getDocumentSource());
+                createSubSearchContext(context, percolatorLeafReaderContext, percolateQuery.getDocumentSource());
 
         for (InternalSearchHit hit : hits) {
             LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
@@ -84,7 +84,7 @@ public class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             if (query != null) {
                 subSearchContext.parsedQuery(new ParsedQuery(query));
                 hitContext.reset(
-                        new InternalSearchHit(0, "unknown", new Text(percolatorQuery.getDocumentType()), Collections.emptyMap()),
+                        new InternalSearchHit(0, "unknown", new Text(percolateQuery.getDocumentType()), Collections.emptyMap()),
                         percolatorLeafReaderContext, 0, percolatorIndexSearcher
                 );
                 hitContext.cache().clear();
@@ -108,12 +108,12 @@ public class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     public void hitExecute(SearchContext context, HitContext hitContext) {
     }
 
-    static PercolatorQuery locatePercolatorQuery(Query query) {
-        if (query instanceof PercolatorQuery) {
-            return (PercolatorQuery) query;
+    static PercolateQuery locatePercolatorQuery(Query query) {
+        if (query instanceof PercolateQuery) {
+            return (PercolateQuery) query;
         } else if (query instanceof BooleanQuery) {
             for (BooleanClause clause : ((BooleanQuery) query).clauses()) {
-                PercolatorQuery result = locatePercolatorQuery(clause.getQuery());
+                PercolateQuery result = locatePercolatorQuery(clause.getQuery());
                 if (result != null) {
                     return result;
                 }

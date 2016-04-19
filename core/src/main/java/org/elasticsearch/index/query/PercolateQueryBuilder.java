@@ -67,9 +67,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
-public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQueryBuilder> {
+public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
 
-    public static final String NAME = "percolator";
+    public static final String NAME = "percolate";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     static final ParseField DOCUMENT_FIELD = new ParseField("document");
@@ -93,7 +93,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
     private final String indexedDocumentPreference;
     private final Long indexedDocumentVersion;
 
-    public PercolatorQueryBuilder(String field, String documentType, BytesReference document) {
+    public PercolateQueryBuilder(String field, String documentType, BytesReference document) {
         if (field == null) {
             throw new IllegalArgumentException("[field] is a required argument");
         }
@@ -114,9 +114,9 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
         indexedDocumentVersion = null;
     }
 
-    public PercolatorQueryBuilder(String field, String documentType, String indexedDocumentIndex, String indexedDocumentType,
-                                  String indexedDocumentId, String indexedDocumentRouting, String indexedDocumentPreference,
-                                  Long indexedDocumentVersion) {
+    public PercolateQueryBuilder(String field, String documentType, String indexedDocumentIndex, String indexedDocumentType,
+                                 String indexedDocumentId, String indexedDocumentRouting, String indexedDocumentPreference,
+                                 Long indexedDocumentVersion) {
         if (field == null) {
             throw new IllegalArgumentException("[field] is a required argument");
         }
@@ -146,7 +146,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
     /**
      * Read from a stream.
      */
-    public PercolatorQueryBuilder(StreamInput in) throws IOException {
+    public PercolateQueryBuilder(StreamInput in) throws IOException {
         super(in);
         field = in.readString();
         documentType = in.readString();
@@ -222,7 +222,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
         builder.endObject();
     }
 
-    public static PercolatorQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static PercolateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
@@ -253,7 +253,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
                         source = builder.bytes();
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + PercolatorQueryBuilder.NAME +
+                    throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +
                             "] query does not support [" + token + "]");
                 }
             } else if (token.isValue()) {
@@ -278,28 +278,28 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + PercolatorQueryBuilder.NAME +
+                    throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +
                             "] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + PercolatorQueryBuilder.NAME +
+                throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +
                         "] query does not support [" + token + "]");
             }
         }
 
         if (documentType == null) {
-            throw new IllegalArgumentException("[" + PercolatorQueryBuilder.NAME + "] query is missing required [" +
+            throw new IllegalArgumentException("[" + PercolateQueryBuilder.NAME + "] query is missing required [" +
                     DOCUMENT_TYPE_FIELD.getPreferredName() + "] parameter");
         }
 
-        PercolatorQueryBuilder queryBuilder;
+        PercolateQueryBuilder queryBuilder;
         if (source != null) {
-            queryBuilder = new PercolatorQueryBuilder(field, documentType, source);
+            queryBuilder = new PercolateQueryBuilder(field, documentType, source);
         } else if (indexedDocumentId != null) {
-            queryBuilder = new PercolatorQueryBuilder(field, documentType, indexedDocumentIndex, indexedDocumentType,
+            queryBuilder = new PercolateQueryBuilder(field, documentType, indexedDocumentIndex, indexedDocumentType,
                     indexedDocumentId, indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
         } else {
-            throw new IllegalArgumentException("[" + PercolatorQueryBuilder.NAME + "] query, nothing to percolate");
+            throw new IllegalArgumentException("[" + PercolateQueryBuilder.NAME + "] query, nothing to percolate");
         }
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
@@ -307,7 +307,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
     }
 
     @Override
-    protected boolean doEquals(PercolatorQueryBuilder other) {
+    protected boolean doEquals(PercolateQueryBuilder other) {
         return Objects.equals(field, other.field)
                 && Objects.equals(documentType, other.documentType)
                 && Objects.equals(document, other.document)
@@ -345,7 +345,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
                     "indexed document [{}/{}/{}] couldn't be found", indexedDocumentIndex, indexedDocumentType, indexedDocumentId
             );
         }
-        return new PercolatorQueryBuilder(field, documentType, getResponse.getSourceAsBytesRef());
+        return new PercolateQueryBuilder(field, documentType, getResponse.getSourceAsBytesRef());
     }
 
     @Override
@@ -396,7 +396,7 @@ public class PercolatorQueryBuilder extends AbstractQueryBuilder<PercolatorQuery
             throw new QueryShardException(context, "no percolator query registry");
         }
 
-        PercolatorQuery.Builder builder = new PercolatorQuery.Builder(
+        PercolateQuery.Builder builder = new PercolateQuery.Builder(
                 documentType, registry, document, docSearcher
         );
         Settings indexSettings = registry.getIndexSettings().getSettings();

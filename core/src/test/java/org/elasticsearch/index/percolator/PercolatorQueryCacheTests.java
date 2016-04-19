@@ -45,9 +45,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
@@ -65,7 +63,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.PercolatorQuery;
+import org.elasticsearch.index.query.PercolateQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -84,8 +82,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -224,7 +220,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         PercolatorQueryCacheStats stats = cache.getStats(shardId);
         assertThat(stats.getNumQueries(), equalTo(9L));
 
-        PercolatorQuery.QueryRegistry.Leaf leaf = cache.getQueries(indexReader.leaves().get(0));
+        PercolateQuery.QueryRegistry.Leaf leaf = cache.getQueries(indexReader.leaves().get(0));
         assertThat(leaf.getQuery(0), equalTo(new TermQuery(new Term("a", "0"))));
         assertThat(leaf.getQuery(1), equalTo(new TermQuery(new Term("a", "1"))));
         assertThat(leaf.getQuery(2), equalTo(new TermQuery(new Term("a", "2"))));
@@ -270,7 +266,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         listener.warmReader(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
         assertThat(cache.getStats(shardId).getNumQueries(), equalTo(3L));
 
-        PercolatorQuery.QueryRegistry.Leaf leaf = cache.getQueries(indexReader.leaves().get(0));
+        PercolateQuery.QueryRegistry.Leaf leaf = cache.getQueries(indexReader.leaves().get(0));
         assertThat(leaf.getQuery(0), equalTo(new TermQuery(new Term("a", "0"))));
 
         leaf = cache.getQueries(indexReader.leaves().get(1));

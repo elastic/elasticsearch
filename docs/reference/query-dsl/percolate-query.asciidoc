@@ -1,8 +1,8 @@
-[[query-dsl-percolator-query]]
-=== Percolator Query
+[[query-dsl-percolate-query]]
+=== Percolate Query
 
-The `percolator` query can be used to match queries
-stored in an index. The `percolator` query itself
+The `percolate` query can be used to match queries
+stored in an index. The `percolate` query itself
 contains the document that will be used as query
 to match with the stored queries.
 
@@ -44,7 +44,7 @@ object that represents an actual Elasticsearch query. The
 `query` field has been configured to use the
 <<percolator,percolator field type>>. This field type understands
 the query dsl and stored the query in such a way that it
-can be used later on to match documents defined on the `percolator` query.
+can be used later on to match documents defined on the `percolate` query.
 
 Register a query in the percolator:
 
@@ -65,7 +65,7 @@ Match a document to the registered percolator queries:
 --------------------------------------------------
 curl -XGET 'localhost:9200/my-index/_search' -d '{
     "query" : {
-        "percolator" : {
+        "percolate" : {
             "field" : "query",
             "document_type" : "doctype",
             "document" : {
@@ -110,7 +110,7 @@ The above request will yield the following response:
 }
 --------------------------------------------------
 
-<1> The percolate query with id `1` matches our document.
+<1> The query with id `1` matches our document.
 
 [float]
 ==== Parameters
@@ -123,7 +123,7 @@ The following parameters are required when percolating a document:
 `document`:: The source of the document being percolated.
 
 Instead of specifying a the source of the document being percolated, the source can also be retrieved from an already
-stored document. The `percolator` query will then internally execute a get request to fetch that document.
+stored document. The `percolate` query will then internally execute a get request to fetch that document.
 
 In that case the `document` parameter can be substituted with the following parameters:
 
@@ -138,7 +138,7 @@ In that case the `document` parameter can be substituted with the following para
 [float]
 ==== Percolating an Existing Document
 
-In order to percolate a newly indexed document, the `percolator` query can be used. Based on the response
+In order to percolate a newly indexed document, the `percolate` query can be used. Based on the response
 from an index request, the `_id` and other meta information can be used to immediately percolate the newly added
 document.
 
@@ -182,7 +182,7 @@ Percolating an existing document, using the index response as basis to build to 
 curl -XGET "http://localhost:9200/my-index/_search" -d'
 {
     "query" : {
-        "percolator" : {
+        "percolate" : {
             "field": "query",
             "document_type" : "doctype",
             "index" : "my-index",
@@ -201,10 +201,10 @@ case the then the search request would fail with a version conflict error.
 The search response returned is identical as in the previous example.
 
 [float]
-==== Percolator and highlighting
+==== Percolate query and highlighting
 
-The percolator query is handled in a special way when it comes to highlighting. The percolator queries hits are used
-to highlight the document that is provided in the `percolator` query. Whereas with regular highlighting the query in
+The `percolate` query is handled in a special way when it comes to highlighting. The queries hits are used
+to highlight the document that is provided in the `percolate` query. Whereas with regular highlighting the query in
 the search request is used to highlight the hits.
 
 [float]
@@ -212,7 +212,7 @@ the search request is used to highlight the hits.
 
 This example is based on the mapping of the first example.
 
-Add a percolator query:
+Save a query:
 
 [source,js]
 --------------------------------------------------
@@ -226,7 +226,7 @@ curl -XPUT "http://localhost:9200/my-index/queries/1" -d'
 }'
 --------------------------------------------------
 
-Add another percolator query:
+Save another query:
 
 [source,js]
 --------------------------------------------------
@@ -240,14 +240,14 @@ curl -XPUT "http://localhost:9200/my-index/queries/2" -d'
 }'
 --------------------------------------------------
 
-Execute a search request with the `percolator` query and highlighting enabled:
+Execute a search request with the `percolate` query and highlighting enabled:
 
 [source,js]
 --------------------------------------------------
 curl -XGET "http://localhost:9200/my-index/_search" -d'
 {
     "query" : {
-        "percolator" : {
+        "percolate" : {
             "field": "query",
             "document_type" : "doctype",
             "document" : {
@@ -320,8 +320,8 @@ This will yield the following response.
 }
 --------------------------------------------------
 
-<1> Instead of the query in the search request highlighting the percolator hits, the percolator queries are highlighting
-    the document defined in the `percolator` query.
+Instead of the query in the search request highlighting the percolator hits, the percolator queries are highlighting
+the document defined in the `percolate` query.
 
 [float]
 ==== How it Works Under the Hood

@@ -1208,7 +1208,7 @@ Splits a field into an array using a separator character. Only works on string f
 --------------------------------------------------
 {
   "split": {
-    "field": ",",
+    "field": "my_field",
     "separator": "\\s+" <1>
   }
 }

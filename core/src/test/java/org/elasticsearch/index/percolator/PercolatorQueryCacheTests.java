@@ -30,6 +30,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -108,7 +109,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry();
         QueryParser<TermQueryBuilder> termParser = TermQueryBuilder::fromXContent;
         indicesQueriesRegistry.register(termParser, TermQueryBuilder.QUERY_NAME_FIELD);
-        QueryParser<WildcardQueryBuilder> wildcardParser = WildcardQueryBuilder::fromXContent; 
+        QueryParser<WildcardQueryBuilder> wildcardParser = WildcardQueryBuilder::fromXContent;
         indicesQueriesRegistry.register(wildcardParser, WildcardQueryBuilder.QUERY_NAME_FIELD);
         QueryParser<BoolQueryBuilder> boolQueryParser = BoolQueryBuilder::fromXContent;
         indicesQueriesRegistry.register(boolQueryParser, BoolQueryBuilder.QUERY_NAME_FIELD);
@@ -131,9 +132,8 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         Directory directory = newDirectory();
         IndexWriter indexWriter = new IndexWriter(
                 directory,
-                newIndexWriterConfig(new MockAnalyzer(random()))
+                new IndexWriterConfig(new MockAnalyzer(random()))
                         .setMergePolicy(NoMergePolicy.INSTANCE)
-                        .setMaxBufferedDocs(16)
         );
 
         boolean legacyFormat = randomBoolean();
@@ -186,7 +186,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         Directory directory = newDirectory();
         IndexWriter indexWriter = new IndexWriter(
                 directory,
-                newIndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
+                new IndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
         );
 
         storeQuery("0", indexWriter, termQuery("a", "0"), true, false);
@@ -247,7 +247,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         Directory directory = newDirectory();
         IndexWriter indexWriter = new IndexWriter(
                 directory,
-                newIndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
+                new IndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
         );
 
         storeQuery("0", indexWriter, termQuery("a", "0"), true, false);

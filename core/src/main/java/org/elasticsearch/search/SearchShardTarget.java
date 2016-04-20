@@ -101,11 +101,6 @@ public class SearchShardTarget implements Writeable<SearchShardTarget>, Comparab
     }
 
     @Override
-    public SearchShardTarget readFrom(StreamInput in) throws IOException {
-        return new SearchShardTarget(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (nodeId == null) {
             out.writeBoolean(false);

@@ -139,8 +139,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             throw new ElasticsearchParseException("no [{}] found for value [{}]", KEY.getPreferredName(), value);
         }
 
-        @Override
-        public SubAggCollectionMode readFrom(StreamInput in) throws IOException {
+        public static SubAggCollectionMode readFromStream(StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown SubAggCollectionMode ordinal [" + ordinal + "]");

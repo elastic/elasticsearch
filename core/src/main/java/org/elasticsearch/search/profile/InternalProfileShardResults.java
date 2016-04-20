@@ -76,11 +76,6 @@ public final class InternalProfileShardResults implements Writeable<InternalProf
     }
 
     @Override
-    public InternalProfileShardResults readFrom(StreamInput in) throws IOException {
-        return new InternalProfileShardResults(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(shardResults.size());
         for (Map.Entry<String, List<ProfileShardResult>> entry : shardResults.entrySet()) {

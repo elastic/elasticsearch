@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
@@ -593,9 +594,6 @@ final class DocumentParser {
         Mapper.Builder builder = null;
         if (fieldType instanceof StringFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "string", "string");
-            if (builder == null) {
-                builder = new StringFieldMapper.Builder(currentFieldName);
-            }
         } else if (fieldType instanceof TextFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "text", "string");
             if (builder == null) {
@@ -604,44 +602,38 @@ final class DocumentParser {
             }
         } else if (fieldType instanceof KeywordFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", "string");
-            if (builder == null) {
-                builder = new KeywordFieldMapper.Builder(currentFieldName);
-            }
         } else {
             switch (fieldType.typeName()) {
-            case "date":
+            case DateFieldMapper.CONTENT_TYPE:
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
-                if (builder == null) {
-                    builder = newDateBuilder(currentFieldName, null, Version.indexCreated(context.indexSettings()));
-                }
                 break;
             case "long":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
-                if (builder == null) {
-                    builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
-                }
                 break;
             case "double":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
-                if (builder == null) {
-                    builder = newDoubleBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
-                }
                 break;
             case "integer":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "integer");
-                if (builder == null) {
-                    builder = newIntBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
-                }
                 break;
             case "float":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
-                if (builder == null) {
-                    builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
-                }
+                break;
+            case BooleanFieldMapper.CONTENT_TYPE:
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean");
                 break;
             default:
                 break;
             }
+        }
+        if (builder == null) {
+            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(currentFieldName);
+            Mapper.TypeParser typeParser = parserContext.typeParser(fieldType.typeName());
+            if (typeParser == null) {
+                throw new MapperParsingException("Cannot generate dynamic mappings of type [" + fieldType.typeName()
+                    + "] for [" + currentFieldName + "]");
+            }
+            builder = typeParser.parse(currentFieldName, new HashMap<>(), parserContext);
         }
         return builder;
     }
@@ -651,22 +643,6 @@ final class DocumentParser {
             return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
         } else {
             return new LegacyLongFieldMapper.Builder(name);
-        }
-    }
-
-    private static Mapper.Builder<?, ?> newIntBuilder(String name, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
-            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.INTEGER);
-        } else {
-            return new LegacyIntegerFieldMapper.Builder(name);
-        }
-    }
-
-    private static Mapper.Builder<?, ?> newDoubleBuilder(String name, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
-            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.DOUBLE);
-        } else {
-            return new LegacyDoubleFieldMapper.Builder(name);
         }
     }
 

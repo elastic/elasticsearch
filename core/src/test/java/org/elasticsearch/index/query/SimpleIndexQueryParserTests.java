@@ -1792,7 +1792,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public MultiTermVectorsResponse fetchResponse(List<Item> items, List<Item> unlikeItems, SearchContext searchContext) throws IOException {
+        public MultiTermVectorsResponse fetchResponse(List<Item> items, SearchContext searchContext) throws IOException {
             MultiTermVectorsItemResponse[] responses = new MultiTermVectorsItemResponse[items.size()];
             int i = 0;
             for (Item item : items) {

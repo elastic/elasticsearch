@@ -287,14 +287,15 @@ public class MoreLikeThisQueryParser implements QueryParser {
         }
 
         // fetching the items with multi-termvectors API
-        MultiTermVectorsResponse responses = fetchService.fetchResponse(likeItems, unlikeItems, SearchContext.current());
+        MultiTermVectorsResponse responses = fetchService.fetchResponse(likeItems, SearchContext.current());
 
         // getting the Fields for liked items
-        mltQuery.setLikeText(MoreLikeThisFetchService.getFieldsFor(responses, likeItems));
+        mltQuery.setLikeText(MoreLikeThisFetchService.getFieldsFor(responses));
 
         // getting the Fields for unliked items
         if (!unlikeItems.isEmpty()) {
-            org.apache.lucene.index.Fields[] unlikeFields = MoreLikeThisFetchService.getFieldsFor(responses, unlikeItems);
+            MultiTermVectorsResponse unlikeResponses = fetchService.fetchResponse(unlikeItems, SearchContext.current());
+            org.apache.lucene.index.Fields[] unlikeFields = MoreLikeThisFetchService.getFieldsFor(unlikeResponses);
             if (unlikeFields.length > 0) {
                 mltQuery.setUnlikeText(unlikeFields);
             }

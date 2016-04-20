@@ -152,7 +152,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
 
     private String findUserDN(String user) throws Exception {
         SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user))
-                , Strings.EMPTY_ARRAY);
+                , SearchRequest.NO_ATTRIBUTES);
         request.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
         LDAPConnectionPool connectionPool = connectionPool();
         SearchResultEntry entry = searchForEntry(connectionPool, request, logger);

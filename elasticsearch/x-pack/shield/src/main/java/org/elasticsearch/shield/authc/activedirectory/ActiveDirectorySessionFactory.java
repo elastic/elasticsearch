@@ -89,7 +89,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         try {
             connection.bind(userPrincipal, new String(password.internalChars()));
             SearchRequest searchRequest = new SearchRequest(userSearchDN, userSearchScope.scope(),
-                    createFilter(userSearchFilter, userName), Strings.EMPTY_ARRAY);
+                    createFilter(userSearchFilter, userName), SearchRequest.NO_ATTRIBUTES);
             searchRequest.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
             SearchResult results = search(connection, searchRequest, logger);
             int numResults = results.getEntryCount();

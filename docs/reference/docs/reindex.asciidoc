@@ -305,9 +305,6 @@ request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
-`timeout` controls how long each batch waits for the target shard to become
-available. It works exactly how it works in the {ref}/docs-bulk.html[Bulk API].
-
 [float]
 === Response body
 

@@ -45,11 +45,11 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
 public class NettyTransportServiceHandshakeTests extends ESTestCase {
-    private static ThreadPool THREAD_POOL;
+    private static ThreadPool threadPool;
 
     @BeforeClass
     public static void startThreadPool() {
-        THREAD_POOL = new ThreadPool(NettyTransportServiceHandshakeTests.class.getSimpleName());
+        threadPool = new ThreadPool(NettyTransportServiceHandshakeTests.class.getSimpleName());
     }
 
     private List<TransportService> transportServices = new ArrayList<>();
@@ -58,13 +58,13 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
         NettyTransport transport =
                 new NettyTransport(
                         settings,
-                        THREAD_POOL,
+                        threadPool,
                         new NetworkService(settings),
                         BigArrays.NON_RECYCLING_INSTANCE,
                         Version.CURRENT,
                         new NamedWriteableRegistry(),
                         new NoneCircuitBreakerService());
-        TransportService transportService = new MockTransportService(settings, transport, THREAD_POOL, clusterName);
+        TransportService transportService = new MockTransportService(settings, transport, threadPool, clusterName);
         transportService.start();
         transportService.acceptIncomingRequests();
         DiscoveryNode node =
@@ -90,9 +90,9 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
 
     @AfterClass
     public static void terminateThreadPool() {
-        ThreadPool.terminate(THREAD_POOL, 30, TimeUnit.SECONDS);
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         // since static must set to null to be eligible for collection
-        THREAD_POOL = null;
+        threadPool = null;
     }
 
     public void testConnectToNodeLight() {

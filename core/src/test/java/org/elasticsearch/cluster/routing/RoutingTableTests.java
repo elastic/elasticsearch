@@ -30,8 +30,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.hamcrest.Matchers;
 import org.junit.Before;
+
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.containsString;
@@ -297,31 +297,54 @@ public class RoutingTableTests extends ESAllocationTestCase {
                                                    .numberOfShards(numShards)
                                                    .numberOfReplicas(numReplicas)
                                                    .build();
+        MetaData metaData = MetaData.builder().put(indexMetaData, true).build();
         final RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
         final RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         final IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetaData, counter);
         // test no validation errors
-        assertThat(indexRoutingTable.validate(indexMetaData), Matchers.hasSize(0));
+        try {
+            indexRoutingTable.validate(metaData);
+        } catch (IllegalStateException e) {
+            fail(e.getMessage());
+        }
         // test wrong number of shards causes validation errors
         indexMetaData = IndexMetaData.builder(indexName)
                                      .settings(settings(Version.CURRENT))
                                      .numberOfShards(numShards + 1)
                                      .numberOfReplicas(numReplicas)
                                      .build();
-        assertThat(indexRoutingTable.validate(indexMetaData), Matchers.hasSize(1));
+        metaData = MetaData.builder().put(indexMetaData, true).build();
+        try {
+            indexRoutingTable.validate(metaData);
+            fail("Wrong number of shards, validation should fail");
+        } catch (IllegalStateException e) {
+            // should have an error
+        }
         // test wrong number of replicas causes validation errors
         indexMetaData = IndexMetaData.builder(indexName)
                                      .settings(settings(Version.CURRENT))
                                      .numberOfShards(numShards)
                                      .numberOfReplicas(numReplicas + 1)
                                      .build();
-        assertThat(indexRoutingTable.validate(indexMetaData), Matchers.hasSize(1));
+        metaData = MetaData.builder().put(indexMetaData, true).build();
+        try {
+            indexRoutingTable.validate(metaData);
+            fail("Wrong number of replicas, validation should fail");
+        } catch (IllegalStateException e) {
+            // should have an error
+        }
         // test wrong number of shards and replicas causes validation errors
         indexMetaData = IndexMetaData.builder(indexName)
                                      .settings(settings(Version.CURRENT))
                                      .numberOfShards(numShards + 1)
                                      .numberOfReplicas(numReplicas + 1)
                                      .build();
-        assertThat(indexRoutingTable.validate(indexMetaData), Matchers.hasSize(2));
+        metaData = MetaData.builder().put(indexMetaData, true).build();
+        try {
+            indexRoutingTable.validate(metaData);
+            fail("Wrong number of shards and replicas, validation should fail");
+        } catch (IllegalStateException e) {
+            // should have an error
+        }
     }
 }

@@ -145,12 +145,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             .orElse(null);
     }
 
-    public RoutingTableValidation validate(MetaData metaData) {
-        RoutingTableValidation validation = new RoutingTableValidation();
+    public void validate(MetaData metaData) {
         for (IndexRoutingTable indexRoutingTable : this) {
-            indexRoutingTable.validate(validation, metaData);
+            indexRoutingTable.validate(metaData);
         }
-        return validation;
     }
 
     public List<ShardRouting> shardsWithState(ShardRoutingState state) {

@@ -94,25 +94,15 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return index;
     }
 
-    void validate(RoutingTableValidation validation, MetaData metaData) {
+    void validate(MetaData metaData) {
+        // check index exists
         if (!metaData.hasIndex(index.getName())) {
-            validation.addIndexFailure(index.getName(), "Exists in routing does not exists in metadata");
-            return;
+            throw new IllegalStateException(index + " exists in routing does not exists in metadata");
         }
         IndexMetaData indexMetaData = metaData.index(index.getName());
         if (indexMetaData.getIndexUUID().equals(index.getUUID()) == false) {
-            validation.addIndexFailure(index.getName(), "Exists in routing does not exists in metadata with the same uuid");
-            return;
+            throw new IllegalStateException(index.getName() + " exists in routing does not exists in metadata with the same uuid");
         }
-        for (String failure : validate(indexMetaData)) {
-            validation.addIndexFailure(index.getName(), failure);
-        }
-
-    }
-
-    // validate based on a meta data, returning failures found
-    List<String> validate(IndexMetaData indexMetaData) {
-        ArrayList<String> failures = new ArrayList<>();
 
         // check the number of shards
         if (indexMetaData.getNumberOfShards() != shards().size()) {
@@ -123,22 +113,24 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             for (IndexShardRoutingTable indexShardRoutingTable : this) {
                 expected.remove(indexShardRoutingTable.shardId().id());
             }
-            failures.add("Wrong number of shards in routing table, missing: " + expected);
+            throw new IllegalStateException("Wrong number of shards in routing table, missing: " + expected);
         }
+
         // check the replicas
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
             if (routingNumberOfReplicas != indexMetaData.getNumberOfReplicas()) {
-                failures.add("Shard [" + indexShardRoutingTable.shardId().id()
-                        + "] routing table has wrong number of replicas, expected [" + indexMetaData.getNumberOfReplicas() + "], got [" + routingNumberOfReplicas + "]");
+                throw new IllegalStateException("Shard [" + indexShardRoutingTable.shardId().id() +
+                                 "] routing table has wrong number of replicas, expected [" + indexMetaData.getNumberOfReplicas() +
+                                 "], got [" + routingNumberOfReplicas + "]");
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 if (!shardRouting.index().equals(index)) {
-                    failures.add("shard routing has an index [" + shardRouting.index() + "] that is different than the routing table");
+                    throw new IllegalStateException("shard routing has an index [" + shardRouting.index() + "] that is different " +
+                                                    "from the routing table");
                 }
             }
         }
-        return failures;
     }
 
     @Override

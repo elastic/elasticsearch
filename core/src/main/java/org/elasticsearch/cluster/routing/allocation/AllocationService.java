@@ -120,7 +120,7 @@ public class AllocationService extends AbstractComponent {
                                                           RoutingExplanations explanations) {
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(newRoutingNodes).build();
         MetaData newMetaData = updateMetaDataWithRoutingTable(oldMetaData, oldRoutingTable, newRoutingTable);
-        assert newRoutingTable.validate(newMetaData).valid();
+        newRoutingTable.validate(newMetaData); // validate the routing table is coherent with the cluster state metadata
         return new RoutingAllocation.Result(true, newRoutingTable, newMetaData, explanations);
     }
 

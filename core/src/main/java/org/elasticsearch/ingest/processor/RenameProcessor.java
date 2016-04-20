@@ -33,39 +33,39 @@ public final class RenameProcessor extends AbstractProcessor {
 
     public static final String TYPE = "rename";
 
-    private final String oldFieldName;
-    private final String newFieldName;
+    private final String field;
+    private final String targetField;
 
-    RenameProcessor(String tag, String oldFieldName, String newFieldName) {
+    RenameProcessor(String tag, String field, String targetField) {
         super(tag);
-        this.oldFieldName = oldFieldName;
-        this.newFieldName = newFieldName;
+        this.field = field;
+        this.targetField = targetField;
     }
 
-    String getOldFieldName() {
-        return oldFieldName;
+    String getField() {
+        return field;
     }
 
-    String getNewFieldName() {
-        return newFieldName;
+    String getTargetField() {
+        return targetField;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        if (document.hasField(oldFieldName) == false) {
-            throw new IllegalArgumentException("field [" + oldFieldName + "] doesn't exist");
+        if (document.hasField(field) == false) {
+            throw new IllegalArgumentException("field [" + field + "] doesn't exist");
         }
-        if (document.hasField(newFieldName)) {
-            throw new IllegalArgumentException("field [" + newFieldName + "] already exists");
+        if (document.hasField(targetField)) {
+            throw new IllegalArgumentException("field [" + targetField + "] already exists");
         }
 
-        Object oldValue = document.getFieldValue(oldFieldName, Object.class);
-        document.setFieldValue(newFieldName, oldValue);
+        Object oldValue = document.getFieldValue(field, Object.class);
+        document.setFieldValue(targetField, oldValue);
         try {
-            document.removeField(oldFieldName);
+            document.removeField(field);
         } catch (Exception e) {
             //remove the new field if the removal of the old one failed
-            document.removeField(newFieldName);
+            document.removeField(targetField);
             throw e;
         }
     }
@@ -79,8 +79,8 @@ public final class RenameProcessor extends AbstractProcessor {
         @Override
         public RenameProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            String newField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "to");
-            return new RenameProcessor(processorTag, field, newField);
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
+            return new RenameProcessor(processorTag, field, targetField);
         }
     }
 }

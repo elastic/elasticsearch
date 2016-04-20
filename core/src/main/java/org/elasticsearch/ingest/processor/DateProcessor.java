@@ -42,28 +42,28 @@ public final class DateProcessor extends AbstractProcessor {
 
     private final DateTimeZone timezone;
     private final Locale locale;
-    private final String matchField;
+    private final String field;
     private final String targetField;
-    private final List<String> matchFormats;
+    private final List<String> formats;
     private final List<Function<String, DateTime>> dateParsers;
 
-    DateProcessor(String tag, DateTimeZone timezone, Locale locale, String matchField, List<String> matchFormats, String targetField) {
+    DateProcessor(String tag, DateTimeZone timezone, Locale locale, String field, List<String> formats, String targetField) {
         super(tag);
         this.timezone = timezone;
         this.locale = locale;
-        this.matchField = matchField;
+        this.field = field;
         this.targetField = targetField;
-        this.matchFormats = matchFormats;
+        this.formats = formats;
         this.dateParsers = new ArrayList<>();
-        for (String matchFormat : matchFormats) {
-            DateFormat dateFormat = DateFormat.fromString(matchFormat);
-            dateParsers.add(dateFormat.getFunction(matchFormat, timezone, locale));
+        for (String format : formats) {
+            DateFormat dateFormat = DateFormat.fromString(format);
+            dateParsers.add(dateFormat.getFunction(format, timezone, locale));
         }
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        String value = ingestDocument.getFieldValue(matchField, String.class);
+        String value = ingestDocument.getFieldValue(field, String.class);
 
         DateTime dateTime = null;
         Exception lastException = null;
@@ -96,23 +96,23 @@ public final class DateProcessor extends AbstractProcessor {
         return locale;
     }
 
-    String getMatchField() {
-        return matchField;
+    String getField() {
+        return field;
     }
 
     String getTargetField() {
         return targetField;
     }
 
-    List<String> getMatchFormats() {
-        return matchFormats;
+    List<String> getFormats() {
+        return formats;
     }
 
     public static final class Factory extends AbstractProcessorFactory<DateProcessor> {
 
         @SuppressWarnings("unchecked")
         public DateProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "match_field");
+            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
             DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
@@ -125,8 +125,8 @@ public final class DateProcessor extends AbstractProcessor {
                     throw new IllegalArgumentException("Invalid language tag specified: " + localeString);
                 }
             }
-            List<String> matchFormats = ConfigurationUtils.readList(TYPE, processorTag, config, "match_formats");
-            return new DateProcessor(processorTag, timezone, locale, matchField, matchFormats, targetField);
+            List<String> formats = ConfigurationUtils.readList(TYPE, processorTag, config, "formats");
+            return new DateProcessor(processorTag, timezone, locale, field, formats, targetField);
         }
     }
 }

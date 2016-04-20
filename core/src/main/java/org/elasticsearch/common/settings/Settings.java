@@ -31,6 +31,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
@@ -57,6 +59,8 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  * An immutable settings implementation.
  */
 public final class Settings implements ToXContent {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(Settings.class));
 
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
@@ -766,7 +770,15 @@ public final class Settings implements ToXContent {
                 return retVal;
             }
             // try camel case version
-            return map.get(toCamelCase(key));
+            String camelKey = toCamelCase(key);
+            if (key.equals(camelKey)) {
+                return null;
+            }
+            retVal = map.get(camelKey);
+            if (retVal != null) {
+                DEPRECATION_LOGGER.deprecated("Using deprecated setting name [" + camelKey + "], use [" + key + "] instead");
+            }
+            return retVal;
         }
 
         /**

@@ -36,13 +36,23 @@ public final class SetProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set";
 
+    private final boolean overrideEnabled;
     private final TemplateService.Template field;
     private final ValueSource value;
 
-    SetProcessor(String tag, TemplateService.Template field, ValueSource value) {
+    SetProcessor(String tag, TemplateService.Template field, ValueSource value)  {
+        this(tag, field, value, true);
+    }
+
+    SetProcessor(String tag, TemplateService.Template field, ValueSource value, boolean overrideEnabled)  {
         super(tag);
+        this.overrideEnabled = overrideEnabled;
         this.field = field;
         this.value = value;
+    }
+
+    public boolean isOverrideEnabled() {
+        return overrideEnabled;
     }
 
     public TemplateService.Template getField() {
@@ -55,7 +65,9 @@ public final class SetProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument document) {
-        document.setFieldValue(field, value);
+        if (overrideEnabled || document.hasField(field) == false || document.getFieldValue(field, Object.class) == null) {
+            document.setFieldValue(field, value);
+        }
     }
 
     @Override
@@ -75,7 +87,8 @@ public final class SetProcessor extends AbstractProcessor {
         public SetProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
-            return new SetProcessor(processorTag, templateService.compile(field), ValueSource.wrap(value, templateService));
+            boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", true);
+            return new SetProcessor(processorTag, templateService.compile(field), ValueSource.wrap(value, templateService), overrideEnabled);
         }
     }
 }

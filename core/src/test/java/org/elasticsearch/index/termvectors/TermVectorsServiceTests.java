@@ -28,10 +28,12 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.Arrays;
-import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
+import static java.lang.Math.abs;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -60,14 +62,12 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         IndexShard shard = test.getShardOrNull(0);
         assertThat(shard, notNullValue());
 
-        Long start = 1000000L;
-        Long end = 10000000L;
-        Iterator<Long> it = Arrays.asList(start, end).iterator();
+        List<Long> longs = Stream.of(abs(randomLong()), abs(randomLong())).sorted().collect(toList());
 
         TermVectorsRequest request = new TermVectorsRequest("test", "type1", "0");
-        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request, it::next);
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request, longs.iterator()::next);
 
         assertThat(response, notNullValue());
-        assertThat(response.getTookInMillis(), equalTo(TimeUnit.NANOSECONDS.toMillis(end - start)));
+        assertThat(response.getTookInMillis(), equalTo(TimeUnit.NANOSECONDS.toMillis(longs.get(1) - longs.get(0))));
     }
 }

@@ -392,7 +392,18 @@ public class NodeJoinController extends AbstractComponent {
                             joinCallbacksToFail.add(new Tuple<>(callback, failure));
                         }
                     } else if (currentState.nodes().nodeExists(node.getId())) {
-                        logger.debug("received a join request for an existing node [{}]", node);
+                        // it may be that a quick node restart can cause a join to arrive
+                        // before the node leave has been processed. In that we need to check that things
+                        // like attributes didn't change.
+                        final DiscoveryNode existing = currentState.nodes().get(node.getId());
+                        if (existing.equalsIncludingMetaData(node)) {
+                            logger.debug("received a join request for an existing node [{}]", node);
+                        } else {
+                            logger.debug("received a join request for an existing node, but with different meta data, replacing existing" +
+                                " {} with new {}", existing, node);
+                            nodeAdded = true;
+                            nodesBuilder.put(node);
+                        }
                         joinCallbacksToRespondTo.addAll(entry.getValue());
                     } else {
                         nodeAdded = true;

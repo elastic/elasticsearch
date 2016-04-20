@@ -60,7 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </pre>
  *
  */
-public final class ThreadContext implements Closeable, Writeable<ThreadContext.ThreadContextStruct>{
+public final class ThreadContext implements Closeable, Writeable<ThreadContext> {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
@@ -132,18 +132,12 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
         threadLocal.get().writeTo(out, defaultHeader);
     }
 
-    @Override
-    public ThreadContextStruct readFrom(StreamInput in) throws IOException {
-        return DEFAULT_CONTEXT.readFrom(in);
-    }
-
     /**
      * Reads the headers from the stream into the current context
      */
     public void readHeaders(StreamInput in) throws IOException {
-        threadLocal.set(readFrom(in));
+        threadLocal.set(new ThreadContext.ThreadContextStruct(in));
     }
-
 
     /**
      * Returns the header for the given key or <code>null</code> if not present
@@ -239,7 +233,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
         }
     }
 
-    static final class ThreadContextStruct implements Writeable<ThreadContextStruct> {
+    static final class ThreadContextStruct {
         private final Map<String,String> headers;
         private final Map<String, Object> transientHeaders;
 
@@ -309,17 +303,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
             return putHeaders(newHeaders);
         }
 
-        @Override
-        public ThreadContextStruct readFrom(StreamInput in) throws IOException {
-            return new ThreadContextStruct(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException("use the other write to");
-        }
-
-        public void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
+        private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
             final Map<String, String> headers;
             if (defaultHeaders.isEmpty()) {
                 headers = this.headers;

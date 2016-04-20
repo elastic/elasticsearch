@@ -367,11 +367,6 @@ public class BytesStreamsTests extends ESTestCase {
             @Override
             public void writeTo(StreamOutput out) throws IOException {
             }
-
-            @Override
-            public Object readFrom(StreamInput in) throws IOException {
-                return null;
-            }
         });
         StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
         try {

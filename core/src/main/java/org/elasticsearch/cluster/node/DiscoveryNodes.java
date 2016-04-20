@@ -153,7 +153,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Determine if a given node exists
+     * Determine if a given node id exists
      *
      * @param nodeId id of the node which existence should be verified
      * @return <code>true</code> if the node exists. Otherwise <code>false</code>
@@ -161,6 +161,18 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public boolean nodeExists(String nodeId) {
         return nodes.containsKey(nodeId);
     }
+
+    /**
+     * Determine if a given node exists
+     *
+     * @param node of the node which existence should be verified
+     * @return <code>true</code> if the node exists. Otherwise <code>false</code>
+     */
+    public boolean nodeExists(DiscoveryNode node) {
+        DiscoveryNode existing = nodes.get(node.getId());
+        return existing != null && existing.equals(node);
+    }
+
 
     /**
      * Get the id of the master node
@@ -354,12 +366,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         List<DiscoveryNode> removed = new ArrayList<>();
         List<DiscoveryNode> added = new ArrayList<>();
         for (DiscoveryNode node : other) {
-            if (!this.nodeExists(node.getId())) {
+            if (!this.nodeExists(node)) {
                 removed.add(node);
             }
         }
         for (DiscoveryNode node : this) {
-            if (!other.nodeExists(node.getId())) {
+            if (!other.nodeExists(node)) {
                 added.add(node);
             }
         }
@@ -603,7 +615,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
                 final DiscoveryNode existingNode = cursor.value;
                 if (node.getAddress().equals(existingNode.getAddress()) &&
-                    node.equals(existingNode) == false) {
+                    node.getId().equals(existingNode.getId()) == false) {
                     return "can't add node " + node +", found existing node " + existingNode + " with same address";
                 }
                 if (node.getId().equals(existingNode.getId()) &&

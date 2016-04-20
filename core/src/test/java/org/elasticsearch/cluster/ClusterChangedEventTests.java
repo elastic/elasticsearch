@@ -298,10 +298,10 @@ public class ClusterChangedEventTests extends ESTestCase {
                 roles.add(DiscoveryNode.Role.DATA);
             } else {
                 // remaining nodes can be anything (except for master)
-                if (randomBoolean()) {
+                if (i % 3 == 0) {
                     roles.add(DiscoveryNode.Role.MASTER);
                 }
-                if (randomBoolean()) {
+                if (i % 5 == 0) {
                     roles.add(DiscoveryNode.Role.DATA);
                 }
             }
@@ -316,7 +316,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     // Create a new DiscoveryNode
     private static DiscoveryNode newNode(final String nodeId, Set<DiscoveryNode.Role> roles) {
-        return new DiscoveryNode(nodeId, nodeId, LocalTransportAddress.buildUnique(), Collections.emptyMap(), roles, Version.CURRENT);
+        return new DiscoveryNode(nodeId, nodeId, new LocalTransportAddress("addr_"+nodeId), Collections.emptyMap(), roles, Version.CURRENT);
     }
 
     // Create the metadata for a cluster state.

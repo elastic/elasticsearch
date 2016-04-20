@@ -396,7 +396,7 @@ public class NodeJoinController extends AbstractComponent {
                         // before the node leave has been processed. In that we need to check that things
                         // like attributes didn't change.
                         final DiscoveryNode existing = currentState.nodes().get(node.getId());
-                        if (existing.equalsIncludingMetaData(node)) {
+                        if (existing.equals(node)) {
                             logger.debug("received a join request for an existing node [{}]", node);
                         } else {
                             logger.debug("received a join request for an existing node, but with different meta data, replacing existing" +

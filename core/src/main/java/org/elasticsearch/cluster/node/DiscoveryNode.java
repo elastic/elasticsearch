@@ -305,54 +305,46 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
         Version.writeVersion(version, out);
     }
 
-    /**
-     * Checks whether this node is has the same id as another node *and* has
-     * the same attributes, network address and so fourth. This is in contrast to {@link #equals(Object)}
-     * which only uses the ids.
-     */
-    public boolean equalsIncludingMetaData(DiscoveryNode other) {
-        if (this.equals(other) == false) {
-            return false;
-        }
-
-        if (!nodeName.equals(other.nodeName)) {
-            return false;
-        }
-        if (!hostName.equals(other.hostName)) {
-            return false;
-        }
-        if (!hostAddress.equals(other.hostAddress)) {
-            return false;
-        }
-        if (!address.equals(other.address)) {
-            return false;
-        }
-        if (!attributes.equals(other.attributes)) {
-            return false;
-        }
-        if (!version.equals(other.version)) {
-            return false;
-        }
-        return roles.equals(other.roles);
-    }
-
-
-    /**
-     * Checks for equality based on the value {@link #getId()} **alone**. This is done so that this class can be used
-     * efficiently as a key in a map
-     */
     @Override
-    public boolean equals(Object obj) {
-        if (!(obj instanceof DiscoveryNode)) {
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
 
-        DiscoveryNode other = (DiscoveryNode) obj;
-        return this.nodeId.equals(other.nodeId);
+        DiscoveryNode that = (DiscoveryNode) o;
+
+        if (!nodeId.equals(that.nodeId)) {
+            return false;
+        }
+        if (!nodeName.equals(that.nodeName)) {
+            return false;
+        }
+        if (!hostName.equals(that.hostName)) {
+            return false;
+        }
+        if (!hostAddress.equals(that.hostAddress)) {
+            return false;
+        }
+        if (!address.equals(that.address)) {
+            return false;
+        }
+        if (!attributes.equals(that.attributes)) {
+            return false;
+        }
+        if (!version.equals(that.version)) {
+            return false;
+        }
+        return roles.equals(that.roles);
+
     }
 
     @Override
     public int hashCode() {
+        // we only need to hash the id because it's highly unlikely (and temporary) that two nodes
+        // in our system will have the same id but be different
         return nodeId.hashCode();
     }
 

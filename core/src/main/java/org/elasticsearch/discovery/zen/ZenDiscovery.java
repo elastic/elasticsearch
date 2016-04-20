@@ -531,7 +531,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     logger.error("unexpected failure during [{}]", t, source);
                 }
             });
-        } else if (node.equals(nodes().getMasterNode())) {
+        } else if (node.getId().equals(nodes().getMasterNodeId())) {
             handleMasterGone(node, null, "shut_down");
         }
     }
@@ -868,7 +868,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             if (pingResponse.master() != null) {
                 // We can't include the local node in pingMasters list, otherwise we may up electing ourselves without
                 // any check / verifications from other nodes in ZenDiscover#innerJoinCluster()
-                if (!localNode.equals(pingResponse.master())) {
+                if (!localNode.getId().equals(pingResponse.master().getId())) {
                     pingMasters.add(pingResponse.master());
                 }
             }

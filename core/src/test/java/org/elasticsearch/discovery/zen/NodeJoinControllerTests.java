@@ -452,7 +452,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         joinNode(other_node);
 
-        assertTrue(clusterService.localNode().equalsIncludingMetaData(other_node));
+        assertThat(clusterService.localNode(), equalTo(other_node));
     }
 
     public void testNormalConcurrentJoins() throws InterruptedException {

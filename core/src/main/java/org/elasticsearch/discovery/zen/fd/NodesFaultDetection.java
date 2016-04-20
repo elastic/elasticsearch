@@ -101,7 +101,7 @@ public class NodesFaultDetection extends FaultDetection {
         // add any missing nodes
 
         for (DiscoveryNode node : clusterState.nodes()) {
-            if (node.equals(localNode)) {
+            if (node.getId().equals(localNode.getId())) {
                 // no need to monitor the local node
                 continue;
             }

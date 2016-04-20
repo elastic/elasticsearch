@@ -169,7 +169,7 @@ public class MasterFaultDetection extends FaultDetection {
     @Override
     protected void handleTransportDisconnect(DiscoveryNode node) {
         synchronized (masterNodeMutex) {
-            if (!node.equals(this.masterNode)) {
+            if (this.masterNode == null || node.getId().equals(this.masterNode.getId()) == false) {
                 return;
             }
             if (connectOnNetworkDisconnect) {

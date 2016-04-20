@@ -299,7 +299,43 @@ public class DiscoveryNode implements Writeable, ToXContent {
     public String getHostAddress() {
         return this.hostAddress;
     }
+    
+    /**
+     * Checks whether this node is has the same id as another node *and* has
+     * the same attributes, network address and so fourth. This is in contrast to {@link #equals(Object)}
+     * which only uses the ids.
+     */
+    public boolean equalsIncludingMetaData(DiscoveryNode other) {
+        if (this.equals(other) == false) {
+            return false;
+        }
 
+        if (!nodeName.equals(other.nodeName)) {
+            return false;
+        }
+        if (!hostName.equals(other.hostName)) {
+            return false;
+        }
+        if (!hostAddress.equals(other.hostAddress)) {
+            return false;
+        }
+        if (!address.equals(other.address)) {
+            return false;
+        }
+        if (!attributes.equals(other.attributes)) {
+            return false;
+        }
+        if (!version.equals(other.version)) {
+            return false;
+        }
+        return roles.equals(other.roles);
+    }
+
+
+    /**
+     * Checks for equality based on the value {@link #getId()} **alone**. This is done so that this class can be used
+     * efficiently as a key in a map
+     */
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof DiscoveryNode)) {

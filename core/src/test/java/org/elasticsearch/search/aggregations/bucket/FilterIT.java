@@ -21,11 +21,17 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,8 +48,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -119,9 +125,16 @@ public class FilterIT extends ESIntegTestCase {
         assertThat(filter.getDocCount(), equalTo((long) numDocs));
     }
 
+    /**
+     * test that "{ "filter" : {} }" is regarded as match_all when not parsing strict
+     */
     public void testEmptyFilter() throws Exception {
-        QueryBuilder emptyFilter = new EmptyQueryBuilder();
-        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1", emptyFilter)).execute().actionGet();
+        String emtpyFilterBody = "{ }";
+        XContentParser parser = XContentFactory.xContent(emtpyFilterBody).createParser(emtpyFilterBody);
+        QueryParseContext parseContext = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.EMPTY);
+        AggregationBuilder<?> filterAgg = FilterAggregationBuilder.parse("tag1", parseContext);
+
+        SearchResponse response = client().prepareSearch("idx").addAggregation(filterAgg).execute().actionGet();
 
         assertSearchResponse(response);
 

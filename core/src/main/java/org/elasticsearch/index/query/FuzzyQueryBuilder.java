@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A Query that does fuzzy matching for a specific value.
@@ -257,7 +258,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         builder.endObject();
     }
 
-    public static FuzzyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<FuzzyQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -317,14 +318,14 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         if (value == null) {
             throw new ParsingException(parser.getTokenLocation(), "no value specified for fuzzy query");
         }
-        return new FuzzyQueryBuilder(fieldName, value)
+        return Optional.of(new FuzzyQueryBuilder(fieldName, value)
                 .fuzziness(fuzziness)
                 .prefixLength(prefixLength)
                 .maxExpansions(maxExpansions)
                 .transpositions(transpositions)
                 .rewrite(rewrite)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     @Override

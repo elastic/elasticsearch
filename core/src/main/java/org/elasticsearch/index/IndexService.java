@@ -51,6 +51,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -80,6 +81,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -601,7 +603,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         try {
             byte[] filterSource = alias.filter().uncompressed();
             try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                ParsedQuery parsedFilter = shardContext.toFilter(shardContext.newParseContext(parser).parseInnerQueryBuilder());
+                Optional<QueryBuilder> innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
+                ParsedQuery parsedFilter = null;
+                if (innerQueryBuilder.isPresent()) {
+                    parsedFilter = shardContext.toFilter(innerQueryBuilder.get());
+                }
                 return parsedFilter == null ? null : parsedFilter.query();
             }
         } catch (IOException ex) {

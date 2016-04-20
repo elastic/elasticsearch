@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
 
@@ -156,12 +157,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         builder.endObject();
     }
 
-    public static NestedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<NestedQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         ScoreMode scoreMode = ScoreMode.Avg;
         String queryName = null;
-        QueryBuilder query = null;
+        Optional<QueryBuilder> query = Optional.empty();
         String path = null;
         String currentFieldName = null;
         InnerHitBuilder innerHitBuilder = null;
@@ -194,14 +195,19 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             }
         }
-        NestedQueryBuilder queryBuilder =  new NestedQueryBuilder(path, query, scoreMode)
+
+        if (query.isPresent() == false) {
+            // if inner query is empty, bubble this up to caller so they can decide how to deal with it
+            return Optional.empty();
+        }
+        NestedQueryBuilder queryBuilder =  new NestedQueryBuilder(path, query.get(), scoreMode)
                 .ignoreUnmapped(ignoreUnmapped)
                 .queryName(queryName)
                 .boost(boost);
         if (innerHitBuilder != null) {
             queryBuilder.innerHit(innerHitBuilder);
         }
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

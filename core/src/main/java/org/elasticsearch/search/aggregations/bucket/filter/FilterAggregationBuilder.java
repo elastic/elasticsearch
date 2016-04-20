@@ -24,8 +24,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -55,11 +53,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
         if (filter == null) {
             throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
         }
-        if (filter instanceof EmptyQueryBuilder) {
-            this.filter = new MatchAllQueryBuilder();
-        } else {
-            this.filter = filter;
-        }
+        this.filter = filter;
     }
 
     /**
@@ -89,17 +83,11 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
         return builder;
     }
 
-    public static FilterAggregationBuilder parse(String aggregationName, QueryParseContext context)
-            throws IOException {
-        QueryBuilder filter = context.parseInnerQueryBuilder();
-
-        if (filter == null) {
-            throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
-        }
-
+    public static FilterAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        QueryBuilder filter = context.parseInnerQueryBuilder().orElseThrow(() -> new ParsingException(context.parser().getTokenLocation(),
+                "filter cannot be null in filter aggregation [{}]", aggregationName));
         return new FilterAggregationBuilder(aggregationName, filter);
     }
-
 
     @Override
     protected int doHashCode() {

@@ -24,6 +24,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -96,15 +97,16 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     /**
-     * Test inner query parsing to null. Current DSL allows inner filter element to parse to <tt>null</tt>.
-     * Those should be ignored upstream. To test this, we use inner {@link ConstantScoreQueryBuilder}
-     * with empty inner filter.
+     * Test with empty inner query body, this should be ignored upstream.
+     * To test this, we use inner {@link ConstantScoreQueryBuilder} with empty inner filter.
      */
-    public void testInnerQueryReturnsNull() throws IOException {
-        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } }";
-        QueryBuilder innerQueryBuilder = parseQuery(queryString);
-        DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
-        assertNull(disMaxBuilder.toQuery(createShardContext()));
+    public void testInnerQueryEmptyIgnored() throws IOException {
+        String queryString = "{ \"" + DisMaxQueryBuilder.NAME + "\" :"
+                + "             { \"queries\" : [ {\"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } } ] "
+                + "             }"
+                + "           }";
+        DisMaxQueryBuilder builder = (DisMaxQueryBuilder) parseQuery(queryString, ParseFieldMatcher.EMPTY);
+        assertTrue("the inner query has an empty body, so it should be ignored", builder.innerQueries().isEmpty());
     }
 
     public void testIllegalArguments() {

@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A query that generates the union of documents produced by its sub-queries, and that scores each document
@@ -122,7 +123,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         builder.endObject();
     }
 
-    public static DisMaxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<DisMaxQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -140,8 +141,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
                     queriesFound = true;
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                    queries.add(query);
+                    parseContext.parseInnerQueryBuilder().ifPresent(queries::add);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
@@ -149,8 +149,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
                     queriesFound = true;
                     while (token != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                        queries.add(query);
+                        parseContext.parseInnerQueryBuilder().ifPresent(queries::add);
                         token = parser.nextToken();
                     }
                 } else {
@@ -180,7 +179,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         for (QueryBuilder query : queries) {
             disMaxQuery.add(query);
         }
-        return disMaxQuery;
+        return Optional.of(disMaxQuery);
     }
 
     @Override

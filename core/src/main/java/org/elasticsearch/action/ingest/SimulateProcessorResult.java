@@ -34,17 +34,6 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 
-    public SimulateProcessorResult(StreamInput in) throws IOException {
-        this.processorTag = in.readString();
-        if (in.readBoolean()) {
-            this.failure = in.readThrowable();
-            this.ingestDocument = null;
-        } else {
-            this.ingestDocument =  new WriteableIngestDocument(in);
-            this.failure = null;
-        }
-    }
-
     public SimulateProcessorResult(String processorTag, IngestDocument ingestDocument) {
         this.processorTag = processorTag;
         this.ingestDocument = new WriteableIngestDocument(ingestDocument);
@@ -55,6 +44,32 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         this.processorTag = processorTag;
         this.failure = failure;
         this.ingestDocument = null;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SimulateProcessorResult(StreamInput in) throws IOException {
+        this.processorTag = in.readString();
+        if (in.readBoolean()) {
+            this.failure = in.readThrowable();
+            this.ingestDocument = null;
+        } else {
+            this.ingestDocument = new WriteableIngestDocument(in);
+            this.failure = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(processorTag);
+        if (failure == null) {
+            out.writeBoolean(false);
+            ingestDocument.writeTo(out);
+        } else {
+            out.writeBoolean(true);
+            out.writeThrowable(failure);
+        }
     }
 
     public IngestDocument getIngestDocument() {
@@ -70,23 +85,6 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
 
     public Exception getFailure() {
         return failure;
-    }
-
-    @Override
-    public SimulateProcessorResult readFrom(StreamInput in) throws IOException {
-        return new SimulateProcessorResult(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(processorTag);
-        if (failure == null) {
-            out.writeBoolean(false);
-            ingestDocument.writeTo(out);
-        } else {
-            out.writeBoolean(true);
-            out.writeThrowable(failure);
-        }
     }
 
     @Override

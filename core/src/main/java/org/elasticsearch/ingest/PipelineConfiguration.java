@@ -25,7 +25,6 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,8 +38,7 @@ import java.util.function.BiFunction;
 /**
  * Encapsulates a pipeline's id and configuration as a blob
  */
-public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration>
-        implements Writeable<PipelineConfiguration>, ToXContent {
+public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContent {
 
     final static PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
 

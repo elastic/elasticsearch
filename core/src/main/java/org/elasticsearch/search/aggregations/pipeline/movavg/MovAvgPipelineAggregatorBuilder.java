@@ -395,8 +395,8 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
             factory.predict(predict);
         }
         if (model != null) {
-            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model, parser,
-                    context.getParseFieldMatcher());
+            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model, context.getParseFieldMatcher(),
+                    parser.getTokenLocation());
             MovAvgModel movAvgModel;
             try {
                 movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window(), context.getParseFieldMatcher());

@@ -72,7 +72,7 @@ public final class NodeMetaData {
         Builder::new);
 
     static {
-        PARSER.declareString(Builder::setnodeId, new ParseField(NODE_ID_KEY));
+        PARSER.declareString(Builder::setNodeId, new ParseField(NODE_ID_KEY));
     }
 
     public String nodeId() {
@@ -82,7 +82,7 @@ public final class NodeMetaData {
     private static class Builder {
         String nodeId;
 
-        public void setnodeId(String nodeId) {
+        public void setNodeId(String nodeId) {
             this.nodeId = nodeId;
         }
 

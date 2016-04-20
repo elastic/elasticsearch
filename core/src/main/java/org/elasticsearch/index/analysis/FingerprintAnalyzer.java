@@ -29,7 +29,7 @@ import org.apache.lucene.analysis.miscellaneous.FingerprintFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 
-/** OpenRefine Fingerprinting, which uses a Standard tokenizer and lowercase + fingerprint + asciifolding filters */
+/** OpenRefine Fingerprinting, which uses a Standard tokenizer and lowercase + stop + fingerprint + asciifolding filters */
 public final class FingerprintAnalyzer extends Analyzer {
     private final char separator;
     private final int maxOutputSize;

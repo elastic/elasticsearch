@@ -29,7 +29,7 @@ import org.elasticsearch.index.IndexSettings;
 
 /**
  * Builds an OpenRefine Fingerprint analyzer.  Uses the default settings from the various components
- * (Standard Tokenizer and lowercase + fingerprint + ascii-folding filters)
+ * (Standard Tokenizer and lowercase + stop + fingerprint + ascii-folding filters)
  */
 public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 

@@ -305,7 +305,7 @@ public final class AnalysisRegistry implements Closeable {
         analyzers.put("swedish", SwedishAnalyzerProvider::new);
         analyzers.put("turkish", TurkishAnalyzerProvider::new);
         analyzers.put("thai", ThaiAnalyzerProvider::new);
-        analyzers.put("openrefine", FingerprintAnalyzerProvider::new);
+        analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
     }
 
     private <T> Map<String, T> buildMapping(boolean analyzer, String toBuild, IndexSettings settings, Map<String, Settings> settingsMap, Map<String, AnalysisModule.AnalysisProvider<T>> providerMap, Map<String, AnalysisModule.AnalysisProvider<T>> defaultInstance) throws IOException {

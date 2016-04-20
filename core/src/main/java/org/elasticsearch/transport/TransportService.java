@@ -372,23 +372,14 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            if (in.readBoolean()) {
-                discoveryNode = new DiscoveryNode(in);
-            } else {
-                discoveryNode = null;
-            }
+            discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = ClusterName.readClusterName(in);
             version = Version.readVersion(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (discoveryNode != null) {
-                out.writeBoolean(true);
-                discoveryNode.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
+            out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
             Version.writeVersion(version, out);
         }

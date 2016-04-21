@@ -771,9 +771,6 @@ public final class Settings implements ToXContent {
             }
             // try camel case version
             String camelKey = toCamelCase(key);
-            if (key.equals(camelKey)) {
-                return null;
-            }
             retVal = map.get(camelKey);
             if (retVal != null) {
                 DEPRECATION_LOGGER.deprecated("Using deprecated setting name [" + camelKey + "], use [" + key + "] instead");

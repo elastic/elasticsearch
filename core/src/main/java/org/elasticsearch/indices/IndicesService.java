@@ -698,6 +698,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             try {
                 deleteIndexStoreWithPredicate("stale deleted index", index, indexSettings, ALWAYS_TRUE);
             } catch (IOException e) {
+                // we just warn about the exception here because if deleteIndexStoreWithPredicate
+                // throws an exception, it gets added to the list of pending deletes to be tried again
                 logger.warn("[{}] failed to delete index on disk", e, metaData.getIndex());
             }
             return metaData;

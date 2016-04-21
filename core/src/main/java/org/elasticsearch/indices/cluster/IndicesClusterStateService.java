@@ -259,7 +259,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             if (indexSettings != null) {
                 try {
                     nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.debug("failed to send to master index {} deleted event", e, index);
                 }
             }

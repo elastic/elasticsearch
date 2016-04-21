@@ -38,7 +38,7 @@ import java.util.Map;
 /**
  * Script holds all the parameters necessary to compile or find in cache and then execute a script.
  */
-public class Script implements ToXContent, Writeable<Script> {
+public class Script implements ToXContent, Writeable {
 
     public static final ScriptType DEFAULT_TYPE = ScriptType.INLINE;
     private static final ScriptParser PARSER = new ScriptParser();
@@ -94,6 +94,36 @@ public class Script implements ToXContent, Writeable<Script> {
         this.params = (Map<String, Object>)params;
     }
 
+    public Script(StreamInput in) throws IOException {
+        script = in.readString();
+        if (in.readBoolean()) {
+            type = ScriptType.readFrom(in);
+        }
+        lang = in.readOptionalString();
+        if (in.readBoolean()) {
+            params = in.readMap();
+        }
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(script);
+        boolean hasType = type != null;
+        out.writeBoolean(hasType);
+        if (hasType) {
+            ScriptType.writeTo(type, out);
+        }
+        out.writeOptionalString(lang);
+        boolean hasParams = params != null;
+        out.writeBoolean(hasParams);
+        if (hasParams) {
+            out.writeMap(params);
+        }
+        doWriteTo(out);
+    }
+    
+    protected void doWriteTo(StreamOutput out) throws IOException {};
+
     /**
      * Method for getting the script.
      * @return The cache key of the script to be compiled/executed.  For dynamic scripts this is the actual
@@ -130,41 +160,6 @@ public class Script implements ToXContent, Writeable<Script> {
     public Map<String, Object> getParams() {
         return params;
     }
-
-    @Override
-    public final Script readFrom(StreamInput in) throws IOException {
-        return new Script(in);
-    }
-
-    public Script(StreamInput in) throws IOException {
-        script = in.readString();
-        if (in.readBoolean()) {
-            type = ScriptType.readFrom(in);
-        }
-        lang = in.readOptionalString();
-        if (in.readBoolean()) {
-            params = in.readMap();
-        }
-    }
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(script);
-        boolean hasType = type != null;
-        out.writeBoolean(hasType);
-        if (hasType) {
-            ScriptType.writeTo(type, out);
-        }
-        out.writeOptionalString(lang);
-        boolean hasParams = params != null;
-        out.writeBoolean(hasParams);
-        if (hasParams) {
-            out.writeMap(params);
-        }
-        doWriteTo(out);
-    }
-    
-    protected void doWriteTo(StreamOutput out) throws IOException {};
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {

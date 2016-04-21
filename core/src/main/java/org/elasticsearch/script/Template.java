@@ -41,13 +41,6 @@ public class Template extends Script {
 
     private XContentType contentType;
     
-    public Template(StreamInput in) throws IOException {
-        super(in);
-        if (in.readBoolean()) {
-            this.contentType = XContentType.readFrom(in);
-        }
-    }
-
     /**
      * Constructor for simple inline template. The template will have no lang,
      * content type or params set.
@@ -82,13 +75,11 @@ public class Template extends Script {
         this.contentType = xContentType;
     }
 
-    /**
-     * Method for getting the {@link XContentType} of the template.
-     *
-     * @return The {@link XContentType} of the template.
-     */
-    public XContentType getContentType() {
-        return contentType;
+    public Template(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            this.contentType = XContentType.readFrom(in);
+        }
     }
 
     @Override
@@ -100,6 +91,15 @@ public class Template extends Script {
         }
     }
 
+    /**
+     * Method for getting the {@link XContentType} of the template.
+     *
+     * @return The {@link XContentType} of the template.
+     */
+    public XContentType getContentType() {
+        return contentType;
+    }
+
     @Override
     protected XContentBuilder scriptFieldToXContent(String template, ScriptType type, XContentBuilder builder, Params builderParams)
             throws IOException {
@@ -109,10 +109,6 @@ public class Template extends Script {
             builder.field(type.getParseField().getPreferredName(), template);
         }
         return builder;
-    }
-
-    public static Template readTemplate(StreamInput in) throws IOException {
-        return new Template(in);
     }
 
     public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {

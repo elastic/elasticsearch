@@ -60,6 +60,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
@@ -72,6 +74,11 @@ public class TermVectorsService  {
     private TermVectorsService() {}
 
     public static TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request) {
+        return getTermVectors(indexShard, request, System::nanoTime);
+    }
+
+    static TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request, LongSupplier nanoTimeSupplier) {
+        final long startTime = nanoTimeSupplier.getAsLong();
         final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
 
@@ -141,6 +148,7 @@ public class TermVectorsService  {
                 // write term vectors
                 termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
             }
+            termVectorsResponse.setTookInMillis(TimeUnit.NANOSECONDS.toMillis(nanoTimeSupplier.getAsLong() - startTime));
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         } finally {

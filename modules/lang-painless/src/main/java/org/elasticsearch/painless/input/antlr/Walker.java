@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.input.antlr;
 
+import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.ArgumentsContext;
@@ -133,14 +135,22 @@ import static org.elasticsearch.painless.tree.node.Type.VAR;
 import static org.elasticsearch.painless.tree.node.Type.WHILE;
 
 public class Walker extends PainlessParserBaseVisitor<Node> {
-    public static Node buildPainlessTree(final SourceContext source) {
+    public static Node buildPainlessTree(final String source) {
         return new Walker(source).source;
     }
 
     private Node source;
 
-    private Walker(final SourceContext source) {
-        this.source = visit(source);
+    private Walker(final String source) {
+        this.source = visit(buildAntlrTree(source));
+    }
+
+    private SourceContext buildAntlrTree(final String source) {
+        final ANTLRInputStream stream = new ANTLRInputStream(source);
+        final PainlessLexer lexer = new PainlessLexer(stream);
+        final PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
+
+        return parser.source();
     }
 
     private String location(final ParserRuleContext ctx) {
@@ -152,7 +162,7 @@ public class Walker extends PainlessParserBaseVisitor<Node> {
         final Node node = new Node(location(ctx), SOURCE);
 
         for (final StatementContext statement : ctx.statement()) {
-            source.children.add(visit(statement));
+            node.children.add(visit(statement));
         }
 
         return node;
@@ -776,7 +786,7 @@ public class Walker extends PainlessParserBaseVisitor<Node> {
         } else if (ctx.expression().size() > 0) {
             node = new Node(location(ctx), NEWARRAY);
 
-            for (final ExpressionContext expression : ctx.arguments().expression()) {
+            for (final ExpressionContext expression : ctx.expression()) {
                 node.children.add(visit(expression));
             }
         } else {

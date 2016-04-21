@@ -17,20 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.walker.analyzer;
+package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.input.antlr.Walker;
 import org.elasticsearch.painless.tree.node.Node;
 
-public class Analyzer {
-    public static void analyze(final Node source) {
-
-    }
-
-    private Analyzer(final Node source) {
-
-    }
-
-    private void visit() {
-
+public class Tests extends ScriptTestCase {
+    public void testWalker() {
+        Node test = Walker.buildPainlessTree("int<blah>[][] x = new int[1][1] 1+1");
+        String location = test.location;
     }
 }

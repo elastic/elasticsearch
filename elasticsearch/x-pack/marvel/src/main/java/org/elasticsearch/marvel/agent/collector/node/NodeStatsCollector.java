@@ -71,7 +71,17 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
         request.process(true);
         request.threadPool(true);
         request.fs(true);
-        NodeStats nodeStats = client.admin().cluster().nodesStats(request).actionGet().getAt(0);
+
+        NodeStats[] nodesStatsResponses = client.admin().cluster().nodesStats(request).actionGet().getNodes();
+
+        // In unusual scenarios, node stats can be empty (e.g., closing an index in the middle of the request)
+        // Note: NodesStatsResponse does not currently override failures, so we cannot log the actual reason
+        if (nodesStatsResponses.length == 0) {
+            logger.debug("_local NodesStatsResponse is empty");
+            return null;
+        }
+
+        NodeStats nodeStats = nodesStatsResponses[0];
 
         // Here we are calling directly the DiskThresholdDecider to retrieve the high watermark value
         // It would be nicer to use a settings API like documented in #6732

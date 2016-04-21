@@ -10,12 +10,12 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>2.2</artifactId>
-    <name>QA: BWC: 2.2</name>
-    <description>Backwards compatibility tests against 2.2</description>
+    <artifactId>2.3</artifactId>
+    <name>QA: BWC: 2.3</name>
+    <description>Backwards compatibility tests against 2.3</description>
 
     <properties>
-        <tests.bwc.version>2.2.2</tests.bwc.version>
+        <tests.bwc.version>2.3.1</tests.bwc.version>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
         <es.logger.level>DEBUG</es.logger.level>
         <es.logger._root>DEBUG</es.logger._root>

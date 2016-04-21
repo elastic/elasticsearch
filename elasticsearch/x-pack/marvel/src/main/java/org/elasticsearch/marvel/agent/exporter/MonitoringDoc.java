@@ -34,11 +34,23 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
         this.monitoringVersion = monitoringVersion;
     }
 
+    /**
+     * Read from a stream.
+     */
     public MonitoringDoc(StreamInput in) throws IOException {
         this(in.readOptionalString(), in.readOptionalString());
         clusterUUID = in.readOptionalString();
         timestamp = in.readVLong();
         sourceNode = in.readOptionalWriteable(Node::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(getMonitoringId());
+        out.writeOptionalString(getMonitoringVersion());
+        out.writeOptionalString(getClusterUUID());
+        out.writeVLong(getTimestamp());
+        out.writeOptionalWriteable(getSourceNode());
     }
 
     public String getClusterUUID() {
@@ -86,20 +98,6 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
                 "]";
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(getMonitoringId());
-        out.writeOptionalString(getMonitoringVersion());
-        out.writeOptionalString(getClusterUUID());
-        out.writeVLong(getTimestamp());
-        out.writeOptionalWriteable(getSourceNode());
-    }
-
-    @Override
-    public MonitoringDoc readFrom(StreamInput in) throws IOException {
-        return new MonitoringDoc(in);
-    }
-
     public static class Node implements Writeable<Node>, ToXContent {
 
         private String uuid;
@@ -123,6 +121,9 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
             }
         }
 
+        /**
+         * Read from a stream.
+         */
         public Node(StreamInput in) throws IOException {
             uuid = in.readOptionalString();
             host = in.readOptionalString();
@@ -135,6 +136,25 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
                 attributes.put(in.readString(), in.readString());
             }
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(uuid);
+            out.writeOptionalString(host);
+            out.writeOptionalString(transportAddress);
+            out.writeOptionalString(ip);
+            out.writeOptionalString(name);
+            if (attributes != null) {
+                out.writeVInt(attributes.size());
+                for (Map.Entry<String, String> entry : attributes.entrySet()) {
+                    out.writeString(entry.getKey());
+                    out.writeString(entry.getValue());
+                }
+            } else {
+                out.writeVInt(0);
+            }
+        }
+
 
         public String getUUID() {
             return uuid;
@@ -175,29 +195,6 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
             }
             builder.endObject();
             return builder.endObject();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(uuid);
-            out.writeOptionalString(host);
-            out.writeOptionalString(transportAddress);
-            out.writeOptionalString(ip);
-            out.writeOptionalString(name);
-            if (attributes != null) {
-                out.writeVInt(attributes.size());
-                for (Map.Entry<String, String> entry : attributes.entrySet()) {
-                    out.writeString(entry.getKey());
-                    out.writeString(entry.getValue());
-                }
-            } else {
-                out.writeVInt(0);
-            }
-        }
-
-        @Override
-        public Node readFrom(StreamInput in) throws IOException {
-            return new Node(in);
         }
 
         @Override

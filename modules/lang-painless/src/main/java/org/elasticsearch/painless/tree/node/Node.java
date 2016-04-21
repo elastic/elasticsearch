@@ -29,7 +29,7 @@ public class Node {
     public final Type type;
 
     public final List<Node> children = new ArrayList<>();
-    public final Map<String, Object> metadata = new HashMap<>();
+    public final Map<String, Object> data = new HashMap<>();
 
     public Node(final String location, final Type type) {
         this.location = location;

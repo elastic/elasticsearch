@@ -104,7 +104,7 @@ expression
     |               expression ( LT | LTE | GT | GTE ) expression       # binary
     |               expression ( EQ | EQR | NE | NER ) expression       # binary
     |               expression BWAND expression                         # binary
-    |               expression BWXOR expression                         # binary
+    |               expression XOR expression                           # binary
     |               expression BWOR expression                          # binary
     |               expression BOOLAND expression                       # binary
     |               expression BOOLOR expression                        # binary

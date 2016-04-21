@@ -210,30 +210,43 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         return true;
     }
 
-    void executeHandler(RestRequest request, RestChannel channel) throws Exception {
-        final RestHandler handler = getHandler(request);
-        if (handler != null) {
-            handler.handleRequest(request, channel);
-        } else {
-            HashSet<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request);
-            if (request.method() == RestRequest.Method.OPTIONS && validMethodSet.size() == 0) {
-                // when we have an OPTIONS request and no valid handlers, simply send OK by default (with the Access Control Origin header which gets automatically added)
-                channel.sendResponse(new BytesRestResponse(OK));
-            } else if (request.method() == RestRequest.Method.OPTIONS && validMethodSet.size() > 0) {
-                // when we have an OPTIONS request against a valid handler, return a list of valid methods for the handler per the HTTP spec
-                BytesRestResponse bytesRestResponse = new BytesRestResponse(OK);
-                bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
-                channel.sendResponse(bytesRestResponse);
-            } else if (validMethodSet.size() > 0) {
-                // when we have a request to a valid handler with an unsupported method, return a list of valid methods for the handler
-                BytesRestResponse bytesRestResponse = new BytesRestResponse(METHOD_NOT_ALLOWED);
-                bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
-                channel.sendResponse(bytesRestResponse);
-            } else {
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
-            }
-        }
-    }
+	void executeHandler(RestRequest request, RestChannel channel) throws Exception {
+		final RestHandler handler = getHandler(request);
+		if (handler != null) {
+			handler.handleRequest(request, channel);
+		} else {
+			HashSet<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request);
+			if (request.method() == RestRequest.Method.OPTIONS && validMethodSet.size() == 0) {
+				/*
+				 * when we have an OPTIONS request and no valid handlers, simply
+				 * send OK by default (with the Access Control Origin header
+				 * which gets automatically added)
+				 */
+				channel.sendResponse(new BytesRestResponse(OK));
+			} else if (request.method() == RestRequest.Method.OPTIONS && validMethodSet.size() > 0) {
+				/*
+				 * when we have an OPTIONS request against a valid handler,
+				 * return a list of valid methods for the handler per the HTTP
+				 * spec
+				 */
+				BytesRestResponse bytesRestResponse = new BytesRestResponse(OK);
+				bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
+				channel.sendResponse(bytesRestResponse);
+			} else if (validMethodSet.size() > 0) {
+				/*
+				 * when we have a request to a valid handler with an unsupported
+				 * method, return a list of valid methods for the handler per
+				 * the HTTP spec
+				 */
+				BytesRestResponse bytesRestResponse = new BytesRestResponse(METHOD_NOT_ALLOWED);
+				bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
+				channel.sendResponse(bytesRestResponse);
+			} else {
+				channel.sendResponse(new BytesRestResponse(BAD_REQUEST,
+						"No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+			}
+		}
+	}
 
     private RestHandler getHandler(RestRequest request) {
         String path = getPath(request);
